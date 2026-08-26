@@ -5,6 +5,7 @@ import { VirtualModem } from './modem/VirtualModem';
 import { PseudoTariffService } from './billing/PseudoTariffService';
 import { pseudoTariffTable } from './billing/pseudoTariffs';
 import { Japan1996WorldClock } from './time/WorldClock';
+import { playHandshake } from './audio/modemAudio';
 import './styles.css';
 
 const wsURL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws';
@@ -106,6 +107,19 @@ export default function App() {
 
       <aside className="quick-help">
         <strong>Prototype:</strong> <code>ATDT0451234567</code> / <code>A/</code> redial / <code>ATH</code> hangup. 接続後は <code>H</code>, <code>B</code>, <code>W</code>, <code>U</code>, <code>G</code>。
+        <div className="audition-row">
+          <span>ハンドシェイク試聴:</span>
+          {([
+            { label: 'V.22bis 2400', baud: 2400 },
+            { label: 'V.32 9600',   baud: 9600 },
+            { label: 'V.32bis 14400', baud: 14400 },
+            { label: 'V.34 28800',  baud: 28800 },
+          ] as const).map(({ label, baud }) => (
+            <button key={baud} className="audition-btn" onClick={() => { try { playHandshake(baud); } catch { /* AudioContext blocked */ } }}>
+              {label}
+            </button>
+          ))}
+        </div>
       </aside>
     </main>
   );

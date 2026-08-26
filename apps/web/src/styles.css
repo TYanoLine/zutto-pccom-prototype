@@ -24,4 +24,11 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .statusbar label { display: flex; gap: 6px; align-items: center; }
 .quick-help { margin-top: 14px; color: #aaa; font-size: 13px; line-height: 1.7; }
 code { color: #ddd; }
+.audition-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.audition-btn {
+  font-family: inherit; font-size: 12px; padding: 3px 10px;
+  background: #2a2a2a; color: #bbb; border: 1px solid #555;
+  cursor: pointer; border-radius: 2px;
+}
+.audition-btn:hover { background: #3a3a3a; color: #eee; border-color: #888; }
 @media (max-width: 680px) { .shell { padding: 0; } .titlebar, .statusbar { border-left: 0; border-right: 0; } .screen-wrap { padding: 2px; } }
