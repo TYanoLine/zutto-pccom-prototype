@@ -1,0 +1,27 @@
+:root {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #202020;
+  color: #ddd;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
+.shell { width: min(980px, 100%); margin: 0 auto; padding: 18px; }
+.titlebar, .statusbar {
+  display: flex; justify-content: space-between; gap: 16px; align-items: center;
+  padding: 7px 10px; background: #bdbdbd; color: #111; font-size: 13px;
+  border: 2px solid #eee; border-right-color: #555; border-bottom-color: #555;
+}
+.screen-wrap {
+  position: relative; display: grid; place-items: center; background: #050505; padding: 12px;
+  border-left: 4px solid #555; border-right: 4px solid #333;
+}
+.terminal-canvas {
+  width: min(100%, 800px); height: auto; image-rendering: pixelated; background: #000;
+  box-shadow: 0 0 0 1px #222;
+}
+.keyboard-capture { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.statusbar { flex-wrap: wrap; }
+.statusbar label { display: flex; gap: 6px; align-items: center; }
+.quick-help { margin-top: 14px; color: #aaa; font-size: 13px; line-height: 1.7; }
+code { color: #ddd; }
+@media (max-width: 680px) { .shell { padding: 0; } .titlebar, .statusbar { border-left: 0; border-right: 0; } .screen-wrap { padding: 2px; } }

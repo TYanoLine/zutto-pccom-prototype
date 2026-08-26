@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: zutto
+      POSTGRES_PASSWORD: zutto
+      POSTGRES_DB: zutto
+    ports:
+      - "5432:5432"
+    volumes:
+      - zutto_pg:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  zutto_pg:

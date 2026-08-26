@@ -1,0 +1,7 @@
+.env
+node_modules/
+dist/
+*.tsbuildinfo
+*.log
+.DS_Store
+apps/server/zutto-server
