@@ -31,55 +31,105 @@ class FakeSocket {
 
 const silentAudio = { dial: vi.fn(), busy: vi.fn(), handshake: vi.fn() };
 
-describe('VirtualModem lifecycle', () => {
-  beforeEach(() => vi.useFakeTimers());
+describe('VirtualModem standalone lifecycle', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+  });
   afterEach(() => vi.useRealTimers());
 
-  it('cleans up pending auto-redial when disposed', () => {
-    const socket = new FakeSocket();
-    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
-      socketFactory: () => socket,
-      audio: silentAudio,
-      dialDelayMs: 10,
-    });
-    socket.open();
-    modem.submitLine('ATDT0459999999');
-    vi.advanceTimersByTime(10);
-    socket.receive({ type: 'dial_result', result: 'busy' });
-
-    modem.dispose();
-    vi.runAllTimers();
-
-    expect(socket.sent).toHaveLength(1);
-    expect(socket.closed).toBe(true);
-  });
-
-  it('reconnects after the server socket closes', () => {
+  it('does not create a server socket until a dial command is issued', () => {
     const sockets: FakeSocket[] = [];
-    const statuses: string[] = [];
     const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
       socketFactory: () => {
         const socket = new FakeSocket();
         sockets.push(socket);
         return socket;
       },
-      reconnectDelaysMs: [100],
       audio: silentAudio,
     });
-    modem.onStatus = status => statuses.push(status);
-    sockets[0].open();
-    sockets[0].disconnect();
 
+    expect(sockets).toHaveLength(0);
+    modem.submitLine('AT');
+    modem.submitLine('ATI');
+    expect(sockets).toHaveLength(0);
+
+    modem.submitLine('ATDT0450000001');
+    expect(sockets).toHaveLength(1);
+    modem.dispose();
+  });
+
+  it('waits for the lazy socket to open before sending the dial request', () => {
+    const socket = new FakeSocket();
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => socket,
+      audio: silentAudio,
+      dialDelayMs: 10,
+    });
+
+    modem.submitLine('ATDT0450000001');
     vi.advanceTimersByTime(100);
-    expect(sockets).toHaveLength(2);
-    sockets[1].open();
+    expect(socket.sent).toEqual([]);
 
-    expect(statuses).toEqual([
-      'MODEM READY',
-      'SERVER OFFLINE / RECONNECTING',
-      'MODEM READY',
+    socket.open();
+    vi.advanceTimersByTime(10);
+    expect(socket.sent).toEqual([
+      JSON.stringify({ type: 'dial', phone: '0450000001', attempt: 1 }),
     ]);
     modem.dispose();
+  });
+
+  it('supports ATDL as dial-last-number and opens a fresh call transport', () => {
+    const sockets: FakeSocket[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+      dialDelayMs: 0,
+    });
+
+    modem.submitLine('ATDT0451234567');
+    sockets[0].open();
+    vi.runOnlyPendingTimers();
+    sockets[0].receive({ type: 'dial_result', result: 'no_answer' });
+
+    modem.submitLine('ATDL');
+    expect(sockets).toHaveLength(2);
+    sockets[1].open();
+    vi.runOnlyPendingTimers();
+
+    expect(sockets[1].sent).toEqual([
+      JSON.stringify({ type: 'dial', phone: '0451234567', attempt: 1 }),
+    ]);
+    modem.dispose();
+  });
+
+  it('cleans up pending auto-redial when disposed', () => {
+    const sockets: FakeSocket[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+      dialDelayMs: 10,
+    });
+
+    modem.submitLine('ATDT0459999999');
+    sockets[0].open();
+    vi.advanceTimersByTime(10);
+    sockets[0].receive({ type: 'dial_result', result: 'busy' });
+
+    modem.dispose();
+    vi.runAllTimers();
+
+    expect(sockets[0].sent).toHaveLength(1);
+    expect(sockets).toHaveLength(1);
+    expect(sockets[0].closed).toBe(true);
   });
 
   it('drops carrier exactly once when a connected socket closes', () => {
@@ -91,8 +141,9 @@ describe('VirtualModem lifecycle', () => {
       dialDelayMs: 0,
     });
     modem.onCallState = call => calls.push(call);
-    socket.open();
+
     modem.submitLine('ATDT0450000001');
+    socket.open();
     vi.runOnlyPendingTimers();
     socket.receive({
       type: 'dial_result',
@@ -120,8 +171,9 @@ describe('VirtualModem lifecycle', () => {
       dialDelayMs: 10,
     });
     modem.onCallState = call => calls.push(call);
-    socket.open();
+
     modem.submitLine('ATDT0450000001');
+    socket.open();
     vi.advanceTimersByTime(10);
 
     expect(socket.sent).toEqual([
