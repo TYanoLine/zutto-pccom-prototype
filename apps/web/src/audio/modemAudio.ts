@@ -1,401 +1,583 @@
 // ---------------------------------------------------------------------------
-// modemAudio.ts — ITU-T modem handshake synthesis (Web Audio API)
+// modemAudio.ts — procedural dial-up modem synthesis
 //
-// Handshake sequences are modelled on ITU-T Recommendations:
-//   V.22bis (2400 bps), V.32 (9600 bps), V.32bis (14400 bps), V.34 (28800 bps)
-//
-// Terminology / signals used below:
-//   ANS   — Answer tone: 2100 Hz CED, ±180° phase reversal every 450 ms
-//           (V.25 §2.5.2). The phase reversal disables echo-cancellers.
-//   Guard tone — 1800 Hz (or 550 Hz) supervisory tone sent alongside some signals.
-//   AA1   — Calling signal tone 980 Hz (V.32/V.32bis calling state)
-//   AC    — Tone sequence 1200 Hz used in V.32bis INFO/INFO0/INFO1c
-//   S     — Scrambled all-ones (binary pattern ≈ quasi-random noise burst)
-//   Sb,Sbar — complementary scrambled binary training bursts (V.32bis)
-//   EC    — Echo canceller training: double talk period
-//   INFO  — Integer-number negotiation burst  (V.32bis, V.34)
-//
-// Synthesising the actual QAM constellations and trellis-coded data is
-// impractical in Web Audio; instead we render the perceptually dominant
-// signals that give the characteristic dial-up "screech":
-//   • ANS tone with phase-reversal clicks
-//   • Guard tone (1800 Hz)
-//   • AA1 calling tone (980 Hz)
-//   • Noise-like training bursts (bandlimited noise approximated with
-//     overlapping random-frequency sine waves)
-//   • Negotiation chirp / tone pairs (V.32bis, V.34)
+// The handshake is generated as PCM on every run.  No recorded samples and
+// no "random pile of sine waves" are used for training.  Protocol-significant
+// tones remain stable; the analogue path changes slightly each time:
+// response/detector delay, send/receive level, line noise, residual carrier,
+// speaker resonance, tiny clock drift, and hybrid echo.
 // ---------------------------------------------------------------------------
 
 let ctx: AudioContext | null = null;
+
+const SAMPLE_RATE = 48_000;
+const TAU = Math.PI * 2;
+
+export type HandshakeRun = {
+  baud: number;
+  seed: string;
+  duration: number;
+  responseJitterMs: number;
+  speakerResonanceHz: number;
+  lineLevelDb: number;
+};
+
+type Variation = {
+  seed: number;
+  rng: () => number;
+  responseJitterMs: number;
+  speakerResonanceHz: number;
+  lineLevelDb: number;
+  noise: number;
+  echoMs: number;
+  clockPpm: number;
+};
 
 function audio(): AudioContext {
   ctx ??= new AudioContext();
   return ctx;
 }
 
-// ---------------------------------------------------------------------------
-// Primitive helpers
-// ---------------------------------------------------------------------------
-
-/** Schedule a single sine-wave burst. Returns the stop time (ac.currentTime + start + duration). */
-function tone(
-  ac: AudioContext,
-  freq: number,
-  start: number,
-  duration: number,
-  gain = 0.03,
-): number {
-  const osc = ac.createOscillator();
-  const g = ac.createGain();
-  osc.frequency.value = freq;
-  g.gain.value = gain;
-  osc.connect(g).connect(ac.destination);
-  osc.start(ac.currentTime + start);
-  osc.stop(ac.currentTime + start + duration);
-  return start + duration;
-}
-
-/** Schedule a linear frequency sweep (chirp). */
-function chirp(
-  ac: AudioContext,
-  freqStart: number,
-  freqEnd: number,
-  start: number,
-  duration: number,
-  gain = 0.025,
-) {
-  const osc = ac.createOscillator();
-  const g = ac.createGain();
-  g.gain.value = gain;
-  osc.frequency.setValueAtTime(freqStart, ac.currentTime + start);
-  osc.frequency.linearRampToValueAtTime(freqEnd, ac.currentTime + start + duration);
-  osc.connect(g).connect(ac.destination);
-  osc.start(ac.currentTime + start);
-  osc.stop(ac.currentTime + start + duration);
-}
-
-/**
- * Approximate a wideband noise burst by summing many sine waves at random
- * frequencies within [fLow, fHigh].  This is perceptually close to the
- * scrambled binary data bursts (S, Sb, Sbar, etc.) that appear in training.
- */
-function noiseBurst(
-  ac: AudioContext,
-  fLow: number,
-  fHigh: number,
-  start: number,
-  duration: number,
-  sineCount = 24,
-  gain = 0.008,
-) {
-  const rng = mulberry32(0xdeadbeef ^ Math.floor(start * 1000));
-  for (let i = 0; i < sineCount; i++) {
-    const f = fLow + rng() * (fHigh - fLow);
-    tone(ac, f, start, duration, gain);
+function randomSeed(): number {
+  if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+    const value = new Uint32Array(1);
+    crypto.getRandomValues(value);
+    return value[0] >>> 0;
   }
+  return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
 }
 
-/** Simple deterministic PRNG so noise bursts are reproducible across calls. */
 function mulberry32(seed: number): () => number {
   let s = seed >>> 0;
   return () => {
     s = (s + 0x6d2b79f5) >>> 0;
     let z = s;
     z = Math.imul(z ^ (z >>> 15), 1 | z);
-    z = (z ^ (z + Math.imul(z ^ (z >>> 7), 61 | z))) >>> 0;
-    return (z ^ (z >>> 14)) / 0x100000000;
+    z ^= z + Math.imul(z ^ (z >>> 7), 61 | z);
+    return ((z ^ (z >>> 14)) >>> 0) / 0x100000000;
   };
 }
 
-/** Envelope-shaped tone: fade-in over `attack` seconds, flat, fade-out over `release` seconds. */
-function envelopedTone(
-  ac: AudioContext,
-  freq: number,
-  start: number,
+function signed(rng: () => number): number {
+  return rng() * 2 - 1;
+}
+
+function makeVariation(): Variation {
+  const seed = randomSeed();
+  const rng = mulberry32(seed);
+  return {
+    seed,
+    rng,
+    responseJitterMs: 18 + rng() * 42,
+    speakerResonanceHz: 1840 + rng() * 170,
+    lineLevelDb: -0.8 + signed(rng) * 0.9,
+    noise: 0.00035 + rng() * 0.00045,
+    echoMs: 2.4 + rng() * 1.0,
+    clockPpm: signed(rng) * 85,
+  };
+}
+
+function dbToGain(db: number): number {
+  return 10 ** (db / 20);
+}
+
+function secondsToSamples(seconds: number): number {
+  return Math.max(0, Math.round(seconds * SAMPLE_RATE));
+}
+
+function envelope(length: number, fadeMs = 1.5): Float32Array {
+  const out = new Float32Array(length);
+  out.fill(1);
+  const edgeSamples = Math.min(Math.floor(length / 2), Math.max(1, secondsToSamples(fadeMs / 1000)));
+  for (let i = 0; i < edgeSamples; i++) {
+    const x = i / Math.max(1, edgeSamples - 1);
+    const g = 0.5 - 0.5 * Math.cos(Math.PI * x);
+    out[i] = g;
+    out[length - 1 - i] = g;
+  }
+  return out;
+}
+
+function tone(freq: number, duration: number, amp = 1, phase = 0, fadeMs = 1.5, clockScale = 1): Float32Array {
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  const env = envelope(n, fadeMs);
+  let p = phase;
+  const step = TAU * freq * clockScale / SAMPLE_RATE;
+  for (let i = 0; i < n; i++) {
+    out[i] = Math.sin(p) * amp * env[i];
+    p += step;
+  }
+  return out;
+}
+
+function ans(duration: number, amp: number, clockScale: number, ansam: boolean): Float32Array {
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  const env = envelope(n, 2.5);
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE;
+    const reversal = Math.floor(t / 0.450) & 1;
+    const modulation = ansam ? 1 + 0.17 * Math.sin(TAU * 15 * t) : 1;
+    out[i] = Math.sin(TAU * 2100 * clockScale * t + reversal * Math.PI) * amp * modulation * env[i];
+  }
+  return out;
+}
+
+function bits(count: number, rng: () => number): Uint8Array {
+  const out = new Uint8Array(count);
+  for (let i = 0; i < count; i++) out[i] = rng() >= 0.5 ? 1 : 0;
+  return out;
+}
+
+function cpfsk(mark: number, space: number, baud: number, sequence: Uint8Array, amp: number, clockScale: number): Float32Array {
+  const duration = sequence.length / baud;
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  const env = envelope(n, 0.7);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const bitIndex = Math.min(sequence.length - 1, Math.floor(i * baud / SAMPLE_RATE));
+    const f = sequence[bitIndex] ? mark : space;
+    phase += TAU * f * clockScale / SAMPLE_RATE;
+    out[i] = Math.sin(phase) * amp * env[i];
+  }
+  return out;
+}
+
+function dbpsk(carrier: number, baud: number, sequence: Uint8Array, amp: number, clockScale: number): Float32Array {
+  const duration = sequence.length / baud;
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  const env = envelope(n, 0.7);
+  let symbol = -1;
+  let phaseOffset = 0;
+  for (let i = 0; i < n; i++) {
+    const nextSymbol = Math.min(sequence.length - 1, Math.floor(i * baud / SAMPLE_RATE));
+    if (nextSymbol !== symbol) {
+      symbol = nextSymbol;
+      if (sequence[symbol]) phaseOffset += Math.PI;
+    }
+    const t = i / SAMPLE_RATE;
+    out[i] = Math.sin(TAU * carrier * clockScale * t + phaseOffset) * amp * env[i];
+  }
+  return out;
+}
+
+type Point = { i: number; q: number };
+
+function constellation(states: number): Point[] {
+  const side = Math.ceil(Math.sqrt(states));
+  const values: number[] = [];
+  for (let v = -(side - 1); v <= side - 1; v += 2) values.push(v);
+  const all: Point[] = [];
+  for (const q of values) for (const i of values) all.push({ i, q });
+  all.sort((a, b) => (a.i * a.i + a.q * a.q) - (b.i * b.i + b.q * b.q));
+  const selected = all.slice(0, states);
+  let energy = 0;
+  for (const p of selected) energy += p.i * p.i + p.q * p.q;
+  const scale = Math.sqrt(energy / selected.length) || 1;
+  return selected.map(p => ({ i: p.i / scale, q: p.q / scale }));
+}
+
+function modulated(
+  carrier: number,
+  symbolRate: number,
   duration: number,
-  peakGain = 0.03,
-  attack = 0.01,
-  release = 0.01,
-) {
+  states: number,
+  amp: number,
+  rng: () => number,
+  clockScale: number,
+  mode: 'scrambled' | 'cycle' | 'corners' = 'scrambled',
+): Float32Array {
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  const env = envelope(n, 1);
+  const points = constellation(states);
+  const symbolCount = Math.ceil(duration * symbolRate) + 2;
+  const symbols: Point[] = new Array(symbolCount);
+
+  const cornerOrder = [
+    points.reduce((best, p) => (p.i + p.q > best.i + best.q ? p : best), points[0]),
+    points.reduce((best, p) => (-p.i + p.q > -best.i + best.q ? p : best), points[0]),
+    points.reduce((best, p) => (-p.i - p.q > -best.i - best.q ? p : best), points[0]),
+    points.reduce((best, p) => (p.i - p.q > best.i - best.q ? p : best), points[0]),
+  ];
+
+  for (let s = 0; s < symbolCount; s++) {
+    if (mode === 'cycle') symbols[s] = points[s % points.length];
+    else if (mode === 'corners') symbols[s] = cornerOrder[s % cornerOrder.length];
+    else symbols[s] = points[Math.floor(rng() * points.length)];
+  }
+
+  for (let i = 0; i < n; i++) {
+    const symbolPos = i * symbolRate / SAMPLE_RATE;
+    const s = Math.min(symbolCount - 2, Math.floor(symbolPos));
+    const frac = symbolPos - s;
+    // Cosine interpolation is a lightweight pulse-shaping proxy. Unlike the
+    // old noiseBurst implementation it still represents a coherent I/Q stream.
+    const mix = 0.5 - 0.5 * Math.cos(Math.PI * frac);
+    const a = symbols[s];
+    const b = symbols[s + 1];
+    const iv = a.i + (b.i - a.i) * mix;
+    const qv = a.q + (b.q - a.q) * mix;
+    const t = i / SAMPLE_RATE;
+    const phase = TAU * carrier * clockScale * t;
+    out[i] = (iv * Math.cos(phase) - qv * Math.sin(phase)) * amp * env[i];
+  }
+  return out;
+}
+
+const V34_PROBE_FREQS = [
+  150, 300, 450, 600, 750, 1050, 1350, 1500, 1650, 1950, 2100,
+  2250, 2550, 2700, 2850, 3000, 3150, 3300, 3450, 3600, 3750,
+];
+const V34_PROBE_PHASE = [
+  0, 180, 0, 0, 0, 0, 0, 0, 180, 0, 0, 180, 0, 180, 0, 180, 180, 180, 180, 0, 0,
+].map(v => v * Math.PI / 180);
+
+function probe(duration: number, amp: number, clockScale: number): Float32Array {
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  const env = envelope(n, 1);
+  const normalization = 1 / Math.sqrt(V34_PROBE_FREQS.length / 2);
+  for (let i = 0; i < n; i++) {
+    const t = i / SAMPLE_RATE;
+    let value = 0;
+    for (let k = 0; k < V34_PROBE_FREQS.length; k++) {
+      value += Math.cos(TAU * V34_PROBE_FREQS[k] * clockScale * t + V34_PROBE_PHASE[k]);
+    }
+    out[i] = value * normalization * amp * env[i];
+  }
+  return out;
+}
+
+function lineFloor(duration: number, rng: () => number, residualFreq: number | null, residualAmp: number, clockScale: number): Float32Array {
+  const n = secondsToSamples(duration);
+  const out = new Float32Array(n);
+  let lp = 0;
+  let hp = 0;
+  let prev = 0;
+  const lpAlpha = 1 - Math.exp(-TAU * 3400 / SAMPLE_RATE);
+  const hpAlpha = Math.exp(-TAU * 250 / SAMPLE_RATE);
+  for (let i = 0; i < n; i++) {
+    const white = signed(rng) * 0.003;
+    lp += lpAlpha * (white - lp);
+    hp = hpAlpha * (hp + lp - prev);
+    prev = lp;
+    let value = hp * 0.18;
+    if (residualFreq !== null && residualAmp > 0) {
+      const t = i / SAMPLE_RATE;
+      const decay = Math.exp(-t / Math.max(0.012, duration * 0.45));
+      value += residualAmp * decay * Math.sin(TAU * residualFreq * clockScale * t);
+    }
+    out[i] = value;
+  }
+  return out;
+}
+
+class Mixer {
+  readonly data: Float32Array;
+
+  constructor(duration: number) {
+    this.data = new Float32Array(secondsToSamples(duration));
+  }
+
+  add(start: number, source: Float32Array, gain = 1): void {
+    const offset = secondsToSamples(start);
+    const count = Math.min(source.length, this.data.length - offset);
+    if (count <= 0) return;
+    for (let i = 0; i < count; i++) this.data[offset + i] += source[i] * gain;
+  }
+}
+
+function pause(
+  mixer: Mixer,
+  start: number,
+  mean: number,
+  spread: number,
+  v: Variation,
+  residualFreq: number | null,
+  residualAmp: number,
+): number {
+  const globalBias = v.responseJitterMs / 1000;
+  const duration = Math.max(0.018, mean + signed(v.rng) * spread + globalBias * 0.12);
+  mixer.add(start, lineFloor(duration, v.rng, residualFreq, residualAmp, 1 + v.clockPpm * 1e-6));
+  return start + duration;
+}
+
+function onePoleBandLimit(input: Float32Array): Float32Array {
+  const out = new Float32Array(input.length);
+  let low = 0;
+  let high = 0;
+  let previousLowInput = 0;
+  const lowAlpha = 1 - Math.exp(-TAU * 3900 / SAMPLE_RATE);
+  const highAlpha = Math.exp(-TAU * 170 / SAMPLE_RATE);
+  for (let i = 0; i < input.length; i++) {
+    low += lowAlpha * (input[i] - low);
+    high = highAlpha * (high + low - previousLowInput);
+    previousLowInput = low;
+    out[i] = high;
+  }
+  return out;
+}
+
+function bandpassResonance(input: Float32Array, frequency: number, q: number): Float32Array {
+  const out = new Float32Array(input.length);
+  const w0 = TAU * frequency / SAMPLE_RATE;
+  const alpha = Math.sin(w0) / (2 * q);
+  const cos = Math.cos(w0);
+  const a0 = 1 + alpha;
+  const b0 = alpha / a0;
+  const b1 = 0;
+  const b2 = -alpha / a0;
+  const a1 = -2 * cos / a0;
+  const a2 = (1 - alpha) / a0;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < input.length; i++) {
+    const x0 = input[i];
+    const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    out[i] = y0;
+    x2 = x1; x1 = x0; y2 = y1; y1 = y0;
+  }
+  return out;
+}
+
+function speakerLine(input: Float32Array, v: Variation): Float32Array {
+  const limited = onePoleBandLimit(input);
+  const r1 = bandpassResonance(limited, v.speakerResonanceHz, 1.05);
+  const r2 = bandpassResonance(limited, 2350 + signed(v.rng) * 65, 1.8);
+  const out = new Float32Array(input.length);
+  const echo1 = secondsToSamples(v.echoMs / 1000);
+  const echo2 = secondsToSamples((v.echoMs + 4.7) / 1000);
+  const lineGain = dbToGain(v.lineLevelDb);
+  const driftPhase = v.rng() * TAU;
+
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / SAMPLE_RATE;
+    const slowDrift = 1 + 0.016 * Math.sin(TAU * 0.19 * t + driftPhase);
+    let x = (0.80 * limited[i] + 0.15 * r1[i] + 0.05 * r2[i]) * lineGain * slowDrift;
+    if (i >= echo1) x += out[i - echo1] * 0.016;
+    if (i >= echo2) x += out[i - echo2] * 0.006;
+    x += signed(v.rng) * v.noise;
+    const drive = x >= 0 ? 1.20 : 1.05;
+    x = Math.tanh(x * drive) / Math.tanh(drive);
+    out[i] = x;
+    peak = Math.max(peak, Math.abs(x));
+  }
+
+  // Preserve run-to-run level differences; only prevent accidental clipping.
+  if (peak > 0.94) {
+    const scale = 0.94 / peak;
+    for (let i = 0; i < out.length; i++) out[i] *= scale;
+  }
+  return out;
+}
+
+function buildV22bis(v: Variation): { pcm: Float32Array; duration: number } {
+  const clock = 1 + v.clockPpm * 1e-6;
+  const m = new Mixer(6.4);
+  m.add(0.05, ans(2.05 + signed(v.rng) * 0.04, 0.47, clock, false));
+  m.add(1.62, tone(1200, 0.52, 0.16, 0, 1.2, clock));
+  m.add(2.13, tone(1200, 0.24, 0.20, 0, 1.0, clock));
+  m.add(2.24, tone(2400, 0.52, 0.28, 0, 1.0, clock));
+  m.add(2.24, tone(1800, 0.52, 0.075, 0, 1.0, clock));
+  m.add(2.78, modulated(2400, 600, 0.74, 16, 0.23, v.rng, clock, 'cycle'));
+  m.add(3.55, modulated(1200, 600, 0.74, 16, 0.22, v.rng, clock, 'corners'));
+  m.add(4.31, modulated(1200, 600, 1.23, 16, 0.18, v.rng, clock));
+  m.add(4.31, modulated(2400, 600, 1.23, 16, 0.18, v.rng, clock));
+  return { pcm: speakerLine(m.data, v), duration: 5.58 };
+}
+
+function buildV32(v: Variation, bis: boolean): { pcm: Float32Array; duration: number } {
+  const clock = 1 + v.clockPpm * 1e-6;
+  const m = new Mixer(bis ? 9.7 : 8.8);
+  m.add(0.05, ans(2.03 + signed(v.rng) * 0.04, 0.47, clock, false));
+  m.add(1.18, tone(1800, 0.98, 0.27, 0, 1.1, clock));
+  let t = 2.18;
+  m.add(t, tone(600, 0.44, 0.08, 0, 1.0, clock));
+  m.add(t, tone(3000, 0.44, 0.08, 0, 1.0, clock));
+  m.add(t, tone(1800, 0.44, 0.035, 0, 1.0, clock));
+  t += 0.46;
+  t = pause(m, t, 0.055, 0.025, v, 1800, 0.006);
+
+  const states = bis ? 128 : 32;
+  m.add(t, modulated(1800, 2400, 1.12, states, 0.29, v.rng, clock));
+  t += 1.12;
+  t = pause(m, t, 0.055, 0.020, v, 1800, 0.006);
+  m.add(t, modulated(1800, 2400, 0.16, bis ? 8 : 4, 0.18, v.rng, clock, 'corners'));
+  t += 0.16;
+  if (bis) {
+    t = pause(m, t, 0.060, 0.025, v, 1800, 0.005);
+    m.add(t, dbpsk(1800, 600, bits(78, v.rng), 0.13, clock));
+    t += 0.13;
+  }
+  t = pause(m, t, 0.060, 0.025, v, 1800, 0.005);
+  m.add(t, modulated(1800, 2400, bis ? 1.10 : 1.04, states, 0.28, v.rng, clock));
+  t += bis ? 1.10 : 1.04;
+  t = pause(m, t, 0.055, 0.020, v, 1800, 0.004);
+  m.add(t, modulated(1800, 2400, bis ? 1.48 : 1.25, states, 0.25, v.rng, clock));
+  t += bis ? 1.48 : 1.25;
+  m.add(t + 0.03, modulated(1800, 2400, 0.52, states, 0.17, v.rng, clock));
+  return { pcm: speakerLine(m.data, v), duration: t + 0.58 };
+}
+
+function buildV34(v: Variation): { pcm: Float32Array; duration: number } {
+  const clock = 1 + v.clockPpm * 1e-6;
+  const m = new Mixer(15.0);
+
+  // V.8 / ANSam. The overlaps are deliberate: both ends are audible through
+  // the modem monitor path rather than serialized as a sound-effect playlist.
+  m.add(0.05, ans(2.08 + signed(v.rng) * 0.035, 0.47, clock, true));
+  m.add(0.70 + signed(v.rng) * 0.012, cpfsk(980, 1180, 300, bits(208, v.rng), 0.145, clock));
+  m.add(1.16 + signed(v.rng) * 0.015, cpfsk(1650, 1850, 300, bits(176, v.rng), 0.155, clock));
+  m.add(1.61 + signed(v.rng) * 0.015, cpfsk(980, 1180, 300, bits(128, v.rng), 0.13, clock));
+
+  let t = 2.06;
+  t = pause(m, t, 0.115, 0.035, v, 1180, 0.012);
+
+  const info = bits(120, v.rng);
+  m.add(t, dbpsk(1200, 600, info, 0.13, clock));
+  m.add(t + 0.05, dbpsk(2400, 600, bits(120, v.rng), 0.12, clock));
+  t += 0.21;
+  t = pause(m, t, 0.145, 0.045, v, 2400, 0.009);
+
+  m.add(t, tone(1200, 0.16, 0.16, 0, 1.0, clock));
+  m.add(t, tone(2400, 0.16, 0.15, 0, 1.0, clock));
+  t += 0.18;
+  t = pause(m, t, 0.085, 0.025, v, 2400, 0.007);
+
+  // V6/V7 dynamic probe: L1 is ~6 dB above L2.
+  const l2 = 0.245 * dbToGain(signed(v.rng) * 0.45);
+  const l1 = l2 * 10 ** (6 / 20);
+  m.add(t, probe(0.16, l1, clock));
+  t += 0.16;
+  t = pause(m, t, 0.055, 0.016, v, 2100, 0.011);
+  m.add(t, probe(0.97 + signed(v.rng) * 0.035, l2, clock));
+  t += 0.97;
+  t = pause(m, t, 0.135, 0.045, v, 1950, 0.006);
+
+  m.add(t, tone(2400, 0.13, 0.16, 0, 1.0, clock));
+  m.add(t, tone(1200, 0.13, 0.12, 0, 1.0, clock));
+  t += 0.14;
+  t = pause(m, t, 0.050, 0.016, v, 1200, 0.006);
+  m.add(t, dbpsk(2400, 600, bits(96, v.rng), 0.12, clock));
+  t += 0.17;
+  t = pause(m, t, 0.115, 0.035, v, 2400, 0.007);
+
+  const l2b = 0.225 * dbToGain(signed(v.rng) * 0.45);
+  const l1b = l2b * 10 ** (6 / 20);
+  m.add(t, probe(0.16, l1b, clock));
+  t += 0.16;
+  t = pause(m, t, 0.050, 0.016, v, 2100, 0.010);
+  m.add(t, probe(0.94 + signed(v.rng) * 0.035, l2b, clock));
+  t += 0.94;
+  t = pause(m, t, 0.205, 0.055, v, 1800, 0.004);
+
+  // Primary-channel training. Same family every time, with detector/response
+  // pauses varying by a few tens of milliseconds.
+  m.add(t, modulated(1800, 3000, 0.10, 4, 0.20, v.rng, clock, 'cycle'));
+  t += 0.10;
+  t = pause(m, t, 0.040, 0.015, v, 1800, 0.006);
+  m.add(t, modulated(1800, 3000, 0.26, 16, 0.25, v.rng, clock, 'cycle'));
+  t += 0.26;
+  t = pause(m, t, 0.060, 0.020, v, 1800, 0.005);
+  m.add(t, modulated(1800, 3000, 1.16, 16, 0.29, v.rng, clock));
+  t += 1.16;
+  t = pause(m, t, 0.070, 0.025, v, 1800, 0.006);
+  m.add(t, modulated(1800, 3000, 0.18, 4, 0.18, v.rng, clock, 'corners'));
+  t += 0.18;
+  t = pause(m, t, 0.055, 0.020, v, 1800, 0.005);
+  m.add(t, modulated(1800, 3000, 1.09, 32, 0.27, v.rng, clock));
+  t += 1.09;
+  t = pause(m, t, 0.095, 0.030, v, 1800, 0.004);
+  m.add(t, modulated(1800, 3000, 1.05, 256, 0.25, v.rng, clock));
+  t += 1.05;
+  t = pause(m, t, 0.060, 0.020, v, 1800, 0.004);
+  m.add(t, modulated(1800, 3000, 0.83, 512, 0.22, v.rng, clock));
+  t += 0.83;
+  t = pause(m, t, 0.090, 0.025, v, 1800, 0.003);
+  m.add(t, modulated(1800, 3000, 0.52, 512, 0.17, v.rng, clock));
+  t += 0.54;
+
+  const pcm = speakerLine(m.data, v);
+  const gate = Math.min(pcm.length, secondsToSamples(t));
+  const fade = secondsToSamples(0.018);
+  for (let i = gate; i < pcm.length; i++) pcm[i] = 0;
+  for (let i = 0; i < fade && gate - i - 1 >= 0; i++) {
+    pcm[gate - i - 1] *= i / Math.max(1, fade - 1);
+  }
+  return { pcm, duration: t };
+}
+
+function renderHandshake(baud: number, v: Variation): { pcm: Float32Array; duration: number } {
+  if (baud <= 2400) return buildV22bis(v);
+  if (baud <= 9600) return buildV32(v, false);
+  if (baud <= 14400) return buildV32(v, true);
+  return buildV34(v);
+}
+
+function playPcm(ac: AudioContext, pcm: Float32Array): void {
+  void ac.resume();
+  const buffer = ac.createBuffer(1, pcm.length, SAMPLE_RATE);
+  buffer.copyToChannel(pcm, 0);
+  const source = ac.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ac.destination);
+  source.start();
+}
+
+export function playHandshake(baud: number): HandshakeRun {
+  const v = makeVariation();
+  const rendered = renderHandshake(baud, v);
+  playPcm(audio(), rendered.pcm);
+  return {
+    baud,
+    seed: v.seed.toString(16).padStart(8, '0').toUpperCase(),
+    duration: rendered.duration,
+    responseJitterMs: Math.round(v.responseJitterMs),
+    speakerResonanceHz: Math.round(v.speakerResonanceHz),
+    lineLevelDb: Math.round(v.lineLevelDb * 10) / 10,
+  };
+}
+
+function scheduleTone(ac: AudioContext, freq: number, start: number, duration: number, gain: number): void {
   const osc = ac.createOscillator();
   const g = ac.createGain();
-  osc.frequency.value = freq;
   const t0 = ac.currentTime + start;
+  osc.frequency.value = freq;
   g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(peakGain, t0 + attack);
-  g.gain.setValueAtTime(peakGain, t0 + duration - release);
+  g.gain.linearRampToValueAtTime(gain, t0 + 0.004);
+  g.gain.setValueAtTime(gain, Math.max(t0 + 0.004, t0 + duration - 0.006));
   g.gain.linearRampToValueAtTime(0, t0 + duration);
   osc.connect(g).connect(ac.destination);
   osc.start(t0);
   osc.stop(t0 + duration);
 }
 
-// ---------------------------------------------------------------------------
-// ANS tone (2100 Hz) with phase reversal every 450 ms
-// ---------------------------------------------------------------------------
-// ITU-T V.25 §2.5.2: the answer tone is 2100 Hz ±15 Hz, amplitude-modulated
-// by ≤25%, transmitted for 3.3 s.  Phase reversals occur every 450 ±25 ms.
-// We model reversal as a ~20 ms cosine cross-fade through silence.
-
-function scheduleANS(
-  ac: AudioContext,
-  startOffset: number,
-  totalDuration: number,
-  peakGain = 0.030,
-): number {
-  const ANS_FREQ = 2100;
-  const REVERSAL_PERIOD = 0.450; // seconds
-  const CLICK_DUR = 0.018;       // brief silence at each reversal (≈18 ms)
-
-  let t = startOffset;
-  let phase = 1; // not used for frequency; we just gate oscillator segments
-  while (t < startOffset + totalDuration - 0.02) {
-    const segEnd = Math.min(t + REVERSAL_PERIOD, startOffset + totalDuration);
-    const segDur = segEnd - t;
-    if (segDur > CLICK_DUR) {
-      envelopedTone(ac, ANS_FREQ, t, segDur - CLICK_DUR, peakGain * phase, 0.005, 0.005);
-    }
-    t = segEnd;
-    phase = -phase; // conceptual; amplitude stays positive since we use abs
-  }
-  return startOffset + totalDuration;
-}
-
-// ---------------------------------------------------------------------------
-// V.22bis  2400 bps  (ITU-T V.22bis)
-// ---------------------------------------------------------------------------
-// Call procedure (originating modem = calling, answering modem = answering):
-//   t=0.000  Line seized; silence on calling side; answer modem sends ANS 2100 Hz
-//   t=0.000  ANS tone  (3.3 s, phase reversal every 450 ms)
-//   t=3.300  Guard tone 1800 Hz + S1 (2400 Hz) scrambled training  (1.2 s)
-//   t=4.500  INFO0 negotiation burst (1200 Hz carrier, 600 bps)  (0.6 s)
-//   t=5.100  S1 / S11 data-mode training burst  (0.9 s)
-//   t=6.000  Connection established
-//
-// The calling modem contributes:
-//   t=0.000  Unscrambled 1's at 1200 Hz for 155 ms
-//   t=0.155  Scrambled 1's (noise burst)  until INFO received
-//
-// For playback we render the perceptually dominant answering-modem path plus
-// the overlapping calling-modem signal.
-
-function playV22bis(ac: AudioContext) {
-  // Answering modem: ANS 2100 Hz with phase reversals (3.3 s)
-  scheduleANS(ac, 0.0, 3.3, 0.028);
-
-  // Calling modem: unscrambled 1200 Hz for 155 ms then noise
-  envelopedTone(ac, 1200, 0.0, 0.155, 0.022, 0.01, 0.01);
-  noiseBurst(ac, 1000, 3000, 0.155, 3.0, 20, 0.007); // scrambled 1's
-
-  // Guard tone 1800 Hz + S1 training (2400 Hz carrier region noise)
-  envelopedTone(ac, 1800, 3.3, 1.2, 0.018, 0.02, 0.02);
-  noiseBurst(ac, 1800, 2600, 3.3, 1.2, 18, 0.012);
-
-  // INFO0 negotiation: 1200 Hz burst
-  envelopedTone(ac, 1200, 4.5, 0.6, 0.022, 0.02, 0.02);
-
-  // S1 / data training
-  noiseBurst(ac, 1600, 2800, 5.1, 0.9, 20, 0.015);
-}
-
-// ---------------------------------------------------------------------------
-// V.32  9600 bps  (ITU-T V.32)
-// ---------------------------------------------------------------------------
-// V.32 handshake procedure (abbreviated, both directions mixed):
-//   t=0.000  Calling modem sends AA1 tone: 980 Hz  (≥200 ms)
-//   t=0.000  Answering modem: ANS 2100 Hz (3.3 s, phase reversals)
-//   t=3.300  Both sides: EC (echo canceller training) – wideband noise (400 ms)
-//   t=3.700  Calling: AC 1200 Hz tone; Answering: AC 1200 Hz
-//   t=4.300  Both: S (scrambled all-1's burst) wideband  (0.9 s)
-//   t=5.200  Both: Sbar (complement)  (0.9 s)
-//   t=6.100  Short phase correction tones (200 ms each)
-//   t=6.500  CONNECT
-
-function playV32(ac: AudioContext) {
-  // Calling modem: AA1 980 Hz throughout early phase
-  envelopedTone(ac, 980, 0.0, 3.3, 0.020, 0.02, 0.02);
-
-  // Answering modem: ANS 2100 Hz (3.3 s)
-  scheduleANS(ac, 0.0, 3.3, 0.028);
-
-  // EC phase: wideband noise (both modems, overlapping)
-  noiseBurst(ac, 300, 3400, 3.3, 0.4, 28, 0.018);
-
-  // AC tone 1200 Hz
-  envelopedTone(ac, 1200, 3.7, 0.6, 0.025, 0.02, 0.02);
-
-  // S scrambled burst: QAM-like noise 900–3200 Hz
-  noiseBurst(ac, 900, 3200, 4.3, 0.9, 32, 0.020);
-
-  // Sbar: slightly different seed (use different start so PRNG differs)
-  noiseBurst(ac, 900, 3200, 5.2, 0.9, 32, 0.020);
-
-  // Phase correction short tones
-  tone(ac, 1800, 6.1, 0.18, 0.022);
-  tone(ac, 2400, 6.28, 0.18, 0.022);
-}
-
-// ---------------------------------------------------------------------------
-// V.32bis  14400 bps  (ITU-T V.32bis)  — PRIMARY profile
-// ---------------------------------------------------------------------------
-// V.32bis handshake (combined calling + answering, time-domain):
-//
-//   Phase 1 – Line seizure / ANS
-//     t=0.000  Calling modem: AA1  980 Hz (calling tone, no modulation)
-//     t=0.000  Answering modem: ANS 2100 Hz, phase reversal every 450 ms (3.3 s)
-//
-//   Phase 2 – Echo-canceller training
-//     t=3.300  Both: EC double-talk  (wideband noise, ~500 ms)
-//
-//   Phase 3 – Signal AC / INFO
-//     t=3.800  Both: AC tone 1200 Hz carrier  (600 ms)
-//     t=4.400  Answering: INFO0 (capability announcement @ 1200 Hz DPSK, 75 ms)
-//     t=4.400  Calling:   INFO1c negotiation burst (overlapping)
-//
-//   Phase 4 – Training
-//     t=4.600  S/Sb/Sbar scrambled bursts (3 × 900 ms of QAM-like noise)
-//     t=7.300  Short phase tones: 1800 Hz + 2400 Hz alternating
-//
-//   Phase 5 – Data
-//     t=7.700  CONNECT 14400
-//
-// Key perceptual cues:
-//   • The 2100 Hz ANS with audible clicks at each phase reversal (≈450 ms)
-//   • A brief AA1 980 Hz calling chirp
-//   • Loud wideband QAM noise during training (~2.7 s total)
-//   • Short high-pitched "bleep" tones at the end
-
-function playV32bis(ac: AudioContext) {
-  // ── Phase 1 ──────────────────────────────────────────────────────────────
-
-  // Calling modem: AA1 980 Hz
-  envelopedTone(ac, 980, 0.0, 3.3, 0.020, 0.02, 0.05);
-
-  // Answering modem: ANS 2100 Hz with phase reversals (3.3 s)
-  scheduleANS(ac, 0.0, 3.3, 0.030);
-
-  // ── Phase 2 – EC ─────────────────────────────────────────────────────────
-  noiseBurst(ac, 300, 3400, 3.3, 0.5, 30, 0.022);
-
-  // ── Phase 3 – AC / INFO ──────────────────────────────────────────────────
-  // AC 1200 Hz carrier
-  envelopedTone(ac, 1200, 3.8, 0.6, 0.028, 0.02, 0.02);
-
-  // INFO0 / INFO1c — short 1200 Hz DPSK-like burst (overlapping)
-  noiseBurst(ac, 1050, 1350, 4.2, 0.35, 12, 0.015); // narrow-band scramble
-
-  // ── Phase 4 – Training (S, Sb, Sbar) ─────────────────────────────────────
-  // Each burst uses a different pseudo-random seed by virtue of different start times.
-  noiseBurst(ac, 900, 3400, 4.6, 0.9, 36, 0.024);   // S
-  noiseBurst(ac, 900, 3400, 5.5, 0.9, 36, 0.024);   // Sb
-  noiseBurst(ac, 900, 3400, 6.4, 0.9, 36, 0.024);   // Sbar
-
-  // ── Phase 5 – Phase-correction tones ─────────────────────────────────────
-  envelopedTone(ac, 1800, 7.3, 0.18, 0.030, 0.01, 0.01);
-  envelopedTone(ac, 2400, 7.48, 0.18, 0.030, 0.01, 0.01);
-}
-
-// ---------------------------------------------------------------------------
-// V.34  28800 bps  (ITU-T V.34)
-// ---------------------------------------------------------------------------
-// V.34 introduces a lengthy probing / negotiation sequence before training.
-// Key phases (simplified):
-//   t=0.000  Calling: CJ1 (980 Hz) + later CJ2 tone sequences
-//   t=0.000  Answering: ANS 2100 Hz with phase reversals (3.3 s)
-//   t=3.300  Both: ALT (ranging noise burst)  — wideband noise  (700 ms)
-//   t=4.000  Answering: Aa (1200 Hz), Calling: Ac (2400 Hz)  overlap (600 ms)
-//   t=4.600  Both: Ph1 phase-measurement tone pairs
-//             — 600 Hz + 3000 Hz simultaneously  (200 ms each)
-//   t=5.200  Both: INFOh / INFO0 negotiation bursts  (DPSK @ 2400 baud, 400 ms)
-//   t=5.600  Both: Primary channel training (PPh) — broadband QAM noise  (1.5 s)
-//   t=7.100  Both: MP / MPh (channel probe) — chirp sweeping 300–3400 Hz  (400 ms)
-//   t=7.500  Both: S + CPt (complementary training) — noise  (1.2 s)
-//   t=8.700  CONNECT 28800
-
-function playV34(ac: AudioContext) {
-  // ── Phase 1 ──────────────────────────────────────────────────────────────
-  // Calling: CJ1 980 Hz then CJ2 1200 Hz
-  envelopedTone(ac, 980, 0.0, 1.5, 0.018, 0.02, 0.05);
-  envelopedTone(ac, 1200, 1.5, 1.8, 0.018, 0.02, 0.05);
-
-  // Answering: ANS 2100 Hz (3.3 s)
-  scheduleANS(ac, 0.0, 3.3, 0.030);
-
-  // ── Phase 2 – ALT ranging ─────────────────────────────────────────────────
-  noiseBurst(ac, 300, 3400, 3.3, 0.7, 34, 0.022);
-
-  // ── Phase 3 – Aa / Ac ────────────────────────────────────────────────────
-  envelopedTone(ac, 1200, 4.0, 0.6, 0.026, 0.02, 0.02); // Aa (answering)
-  envelopedTone(ac, 2400, 4.0, 0.6, 0.020, 0.02, 0.02); // Ac (calling)
-
-  // ── Phase 4 – Ph1 tone pairs  600 + 3000 Hz ──────────────────────────────
-  tone(ac, 600, 4.6, 0.2, 0.020);
-  tone(ac, 3000, 4.6, 0.2, 0.020);
-  tone(ac, 600, 4.8, 0.2, 0.020);
-  tone(ac, 3000, 4.8, 0.2, 0.020);
-
-  // ── Phase 5 – INFO0 / INFOh negotiation bursts ────────────────────────────
-  noiseBurst(ac, 2200, 2600, 5.2, 0.4, 14, 0.016);
-
-  // ── Phase 6 – Primary channel training (PPh) ──────────────────────────────
-  noiseBurst(ac, 300, 3400, 5.6, 1.5, 40, 0.026);
-
-  // ── Phase 7 – MP / MPh channel probe (chirp) ─────────────────────────────
-  chirp(ac, 300, 3400, 7.1, 0.2, 0.022);
-  chirp(ac, 3400, 300, 7.3, 0.2, 0.022);
-
-  // ── Phase 8 – S + CPt complementary training ─────────────────────────────
-  noiseBurst(ac, 300, 3400, 7.5, 1.2, 40, 0.025);
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-export function playDialSequence(phone: string) {
+export function playDialSequence(phone: string): void {
   const ac = audio();
+  void ac.resume();
   const digits: Record<string, [number, number]> = {
     '1': [697, 1209], '2': [697, 1336], '3': [697, 1477],
     '4': [770, 1209], '5': [770, 1336], '6': [770, 1477],
     '7': [852, 1209], '8': [852, 1336], '9': [852, 1477],
-    '0': [941, 1336],
+    '0': [941, 1336], '*': [941, 1209], '#': [941, 1477],
   };
   let t = 0;
-  for (const d of phone.replace(/\D/g, '')) {
-    const pair = digits[d];
+  for (const digit of phone) {
+    const pair = digits[digit];
     if (!pair) continue;
-    tone(ac, pair[0], t, 0.07);
-    tone(ac, pair[1], t, 0.07);
-    t += 0.095;
+    scheduleTone(ac, pair[0], t, 0.085, 0.022);
+    scheduleTone(ac, pair[1], t, 0.085, 0.022);
+    t += 0.135;
   }
 }
 
-/**
- * Play an ITU-T-accurate modem handshake sequence for the given baud rate.
- *
- * Supported profiles:
- *   2400  → V.22bis
- *   9600  → V.32
- *   14400 → V.32bis  (default / primary)
- *   28800 → V.34
- *
- * Any other baud rate falls back to V.32bis.
- */
-export function playHandshake(baud: number) {
+export function playBusy(): void {
   const ac = audio();
-  if (baud <= 2400) {
-    playV22bis(ac);
-  } else if (baud <= 9600) {
-    playV32(ac);
-  } else if (baud <= 14400) {
-    playV32bis(ac);
-  } else {
-    playV34(ac);
-  }
-}
-
-export function playBusy() {
-  const ac = audio();
-  tone(ac, 400, 0, 0.25, 0.025);
-  tone(ac, 400, 0.5, 0.25, 0.025);
+  void ac.resume();
+  scheduleTone(ac, 400, 0, 0.25, 0.025);
+  scheduleTone(ac, 400, 0.5, 0.25, 0.025);
 }
