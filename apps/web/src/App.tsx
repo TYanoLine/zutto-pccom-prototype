@@ -28,6 +28,7 @@ export default function App() {
   const [worldNow, setWorldNow] = useState(() => clock.now());
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const [completedCost, setCompletedCost] = useState(0);
+  const [lastHandshake, setLastHandshake] = useState<ReturnType<typeof playHandshake> | null>(null);
 
   useEffect(() => {
     terminal.write('ZUTTO COMMUNICATION TERMINAL for PC-98\r\n');
@@ -111,15 +112,30 @@ export default function App() {
           <span>ハンドシェイク試聴:</span>
           {([
             { label: 'V.22bis 2400', baud: 2400 },
-            { label: 'V.32 9600',   baud: 9600 },
+            { label: 'V.32 9600', baud: 9600 },
             { label: 'V.32bis 14400', baud: 14400 },
-            { label: 'V.34 28800',  baud: 28800 },
+            { label: 'V.34 28800', baud: 28800 },
           ] as const).map(({ label, baud }) => (
-            <button key={baud} className="audition-btn" onClick={() => { try { playHandshake(baud); } catch { /* AudioContext blocked */ } }}>
+            <button
+              key={baud}
+              className="audition-btn"
+              onClick={() => {
+                try {
+                  setLastHandshake(playHandshake(baud));
+                } catch {
+                  // AudioContext can be blocked by the browser until a user gesture.
+                }
+              }}
+            >
               {label}
             </button>
           ))}
         </div>
+        {lastHandshake && (
+          <div className="audition-meta">
+            RUN {lastHandshake.seed} / {lastHandshake.baud}bps / {lastHandshake.duration.toFixed(2)}s / DETECT ±{lastHandshake.responseJitterMs}ms / SPKR {lastHandshake.speakerResonanceHz}Hz / LINE {lastHandshake.lineLevelDb >= 0 ? '+' : ''}{lastHandshake.lineLevelDb.toFixed(1)}dB
+          </div>
+        )}
       </aside>
     </main>
   );
