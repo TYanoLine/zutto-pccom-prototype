@@ -41,13 +41,19 @@ function scheduleClick(ac: AudioContext, start: number, gain = 0.095): void {
   scheduleTone(ac, 1350, start, 0.006, gain * 0.55);
 }
 
+function scheduleBusyAt(ac: AudioContext, start: number, cycles = 3): number {
+  for (let i = 0; i < cycles; i++) {
+    scheduleTone(ac, 400, start + i * 1.0, 0.50, 0.115);
+  }
+  return cycles;
+}
+
 /**
  * Play Japanese-flavoured dial tone followed by DTMF (ATDT) or
  * loop-disconnect pulses (ATDP).
  *
  * Returns the scheduled duration in seconds so the standalone telephone-line
- * simulation can wait until the number has actually finished dialling before
- * starting its post-dial silence / busy cadence.
+ * simulation can wait until the number has actually finished dialling.
  */
 export function playDialSequence(phone: string, mode: DialMode = 'tone'): number {
   const ac = audio();
@@ -94,16 +100,25 @@ export function playDialSequence(phone: string, mode: DialMode = 'tone'): number
 }
 
 /**
- * Play a recognisable Japanese-style 400 Hz busy cadence:
- *   ツー (0.5 s) / silent (0.5 s), three times.
- * Returns the full audible cadence duration.
+ * Complete no-server telephone attempt used by the standalone Vercel build:
+ *
+ *   ツー → ピポポ… → silence → ツー、ツー、ツー → BUSY(result text)
+ *
+ * The BUSY text itself is emitted by VirtualModem when this returned duration
+ * expires; its busy() callback is a no-op in standalone mode so the cadence is
+ * not played twice.
  */
+export function playStandaloneBusySequence(phone: string, mode: DialMode = 'tone'): number {
+  const dialEnd = playDialSequence(phone, mode);
+  const ac = audio();
+  const busyStart = dialEnd + 0.85;
+  const busyDuration = scheduleBusyAt(ac, busyStart, 3);
+  return busyStart + busyDuration;
+}
+
+/** Play a recognisable Japanese-style 400 Hz busy cadence. */
 export function playBusy(): number {
   const ac = audio();
   void ac.resume();
-  const cycles = 3;
-  for (let i = 0; i < cycles; i++) {
-    scheduleTone(ac, 400, i * 1.0, 0.50, 0.115);
-  }
-  return cycles;
+  return scheduleBusyAt(ac, 0, 3);
 }
