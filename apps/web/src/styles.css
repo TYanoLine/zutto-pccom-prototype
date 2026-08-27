@@ -24,12 +24,36 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .statusbar label { display: flex; gap: 6px; align-items: center; }
 .quick-help { margin-top: 14px; color: #aaa; font-size: 13px; line-height: 1.7; }
 code { color: #ddd; }
-.debug-panel {
+.debug-panel, .comm-panel {
   margin-top: 10px; padding: 7px 9px; border: 1px solid #444; background: #111;
 }
-.debug-panel > summary { color: #bbb; cursor: pointer; user-select: none; }
-.debug-panel[open] > summary { color: #eee; margin-bottom: 7px; }
+.debug-panel > summary, .comm-panel > summary { color: #bbb; cursor: pointer; user-select: none; }
+.debug-panel[open] > summary, .comm-panel[open] > summary { color: #eee; margin-bottom: 7px; }
 .debug-copy { color: #888; font-size: 12px; line-height: 1.6; }
+.settings-summary {
+  padding: 5px 7px; color: #8f8; background: #101810; border: 1px solid #294229;
+  font-size: 11px; overflow-wrap: anywhere;
+}
+.settings-group-title {
+  margin-top: 12px; margin-bottom: 5px; padding-bottom: 2px;
+  color: #bbb; border-bottom: 1px solid #333; font-size: 11px; letter-spacing: .06em;
+}
+.settings-grid {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px;
+}
+.settings-grid label {
+  display: grid; gap: 3px; color: #888; font-size: 10px; letter-spacing: .04em;
+}
+.settings-grid select {
+  width: 100%; min-height: 32px; padding: 4px 7px;
+  font: inherit; font-size: 12px; color: #ddd; background: #232323;
+  border: 1px solid #555; border-radius: 2px;
+}
+.settings-grid .settings-check {
+  display: flex; flex-direction: row; align-items: center; gap: 7px;
+  min-height: 32px; padding: 4px 7px; color: #bbb; background: #1b1b1b; border: 1px solid #444;
+}
+.settings-footnote { margin-top: 10px; color: #707070; font-size: 10px; line-height: 1.55; }
 .audition-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .audition-btn {
   font-family: inherit; font-size: 12px; padding: 5px 10px;
@@ -48,4 +72,6 @@ code { color: #ddd; }
   .screen-wrap { padding: 2px; }
   .quick-help { padding: 0 10px 12px; }
   .audition-btn { min-height: 34px; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .settings-grid select { min-height: 38px; }
 }
