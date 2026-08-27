@@ -8,7 +8,10 @@ import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import './styles.css';
 
-const wsURL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8080/ws';
+const defaultWsURL = typeof window !== 'undefined' && window.location.protocol === 'https:'
+  ? `wss://${window.location.host}/ws`
+  : 'ws://localhost:8080/ws';
+const wsURL = import.meta.env.VITE_WS_URL ?? defaultWsURL;
 const worldDate = import.meta.env.VITE_WORLD_DATE ?? '1996-08-26';
 const telehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS ?? '0451234567,0450000001')
   .split(',')
