@@ -2,13 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TerminalCore } from './terminal/TerminalCore';
 import { TerminalCanvas } from './terminal/TerminalCanvas';
 import { VirtualModem } from './modem/VirtualModem';
+import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
 import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
 import { pseudoTariffTable } from './billing/pseudoTariffs';
 import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
-import { playStandaloneBusySequence } from './audio/dialLineAudio';
+import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
+import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
@@ -51,6 +53,9 @@ export default function App() {
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
   const tariff = useMemo(() => new PseudoTariffService(pseudoTariffTable, telehodaiNumbers), []);
   const modemRef = useRef<VirtualModem | null>(null);
+  const localStationRef = useRef<LocalTestStation | null>(null);
+  const lastDialWasLocalRef = useRef(false);
+  const lastLocalDialModeRef = useRef<DialMode>('tone');
 
   // The hidden HTML input is the source of truth for keyboard/IME text.
   // echoedInputRef tracks what is currently painted in TerminalCore so an IME
@@ -64,6 +69,7 @@ export default function App() {
   const [autoRedial, setAutoRedial] = useState(true);
   const [worldNow, setWorldNow] = useState(() => clock.now());
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
+  const [localTestConnected, setLocalTestConnected] = useState(false);
   const [completedCost, setCompletedCost] = useState(0);
   const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
   const [audioStatus, setAudioStatus] = useState('READY');
@@ -110,14 +116,28 @@ export default function App() {
     modem.setAutoRedial(autoRedial);
     modemRef.current = modem;
 
+    const localStation = new LocalTestStation(terminal, {
+      audio: {
+        dial: playDialSequence,
+        handshake: playHandshake,
+      },
+    });
+    localStation.onStatus = setStatus;
+    localStation.onConnectionChange = connected => setLocalTestConnected(connected);
+    localStationRef.current = localStation;
+
     return () => {
       modem.onStatus = undefined;
       modem.onCallState = undefined;
       modem.dispose();
       modemRef.current = null;
+      localStation.onStatus = undefined;
+      localStation.onConnectionChange = undefined;
+      localStation.dispose();
+      localStationRef.current = null;
     };
-    // Settings currently affect the local UI/banner. Runtime host negotiation
-    // will be wired in when the host implementation is added.
+    // Settings currently affect the local UI/banner; the local test station
+    // receives the latest snapshot at dial time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
 
@@ -143,8 +163,6 @@ export default function App() {
       common++;
     }
 
-    // Replace the changed tail. This is what makes composition updates such as
-    // "ka" -> "か", and iOS's preview -> commit sequence, non-duplicating.
     for (let i = previousChars.length; i > common; i--) terminal.backspace();
     if (common < nextChars.length) terminal.write(nextChars.slice(common).join(''));
     echoedInputRef.current = next;
@@ -165,11 +183,45 @@ export default function App() {
     const next = e.currentTarget.value;
     syncTerminalInput(next);
     setInput(next);
-
-    // Some versions of iOS Safari emit the Enter that finalized composition
-    // after compositionend. Ignore only that same-turn Enter; the next tap works.
     suppressEnterRef.current = true;
     window.setTimeout(() => { suppressEnterRef.current = false; }, 0);
+  }
+
+  function routeCommand(raw: string) {
+    const upper = raw.trim().toUpperCase();
+    const station = localStationRef.current;
+
+    if (station?.isConnected()) {
+      station.submitLine(raw);
+      return;
+    }
+
+    if (station?.isDialing()) {
+      if (upper === 'ATH') station.hangup(true);
+      return;
+    }
+
+    let localMode: DialMode | null = null;
+    if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone';
+    else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse';
+    else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode;
+
+    if (localMode) {
+      lastDialWasLocalRef.current = true;
+      lastLocalDialModeRef.current = localMode;
+      station?.dial(localMode, commSettings);
+      return;
+    }
+
+    if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) {
+      station?.dial(lastLocalDialModeRef.current, commSettings);
+      return;
+    }
+
+    if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) {
+      lastDialWasLocalRef.current = false;
+    }
+    modemRef.current?.submitLine(raw);
   }
 
   function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -181,7 +233,7 @@ export default function App() {
         return;
       }
       terminal.write('\r\n');
-      modemRef.current?.submitLine(input);
+      routeCommand(input);
       setInput('');
       echoedInputRef.current = '';
       e.preventDefault();
@@ -236,17 +288,18 @@ export default function App() {
 
       <footer className="statusbar">
         <span>{status}</span>
-        <span>CALL ¥{cost}</span>
-        <span>{registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span>
+        <span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span>
+        <span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span>
         <label>
-          <input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} /> AUTO REDIAL
+          <input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL
         </label>
       </footer>
 
       <aside className="quick-help">
-        <strong>Stand-alone:</strong> no server connection until dialing. <code>ATDT0451234567</code> / <code>ATDP...</code> pulse / <code>ATDL</code> last number / <code>A/</code> redial / <code>ATH</code> hangup.
+        <strong>Stand-alone:</strong> no server connection until dialing. <code>ATDT0451234567</code> / <code>ATDP...</code> pulse / <code>ATDL</code> last number / <code>A/</code> redial / <code>ATH</code> hangup.<br />
+        <strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code> — always answers locally with the current communication settings.
 
-        {!activeCall && (
+        {!activeCall && !localTestConnected && (
           <>
             <details className="comm-panel">
               <summary>COMM SETTINGS / 通信設定</summary>
@@ -340,7 +393,7 @@ export default function App() {
                 </label>
               </div>
               <div className="settings-footnote">
-                設定はこのブラウザに保存されます。MNP/V.42・圧縮・文字コード等のホスト側ネゴシエーションは、ホスト実装時に接続予定です。
+                設定はこのブラウザに保存されます。ローカル試験局 <code>{LOCAL_TEST_NUMBER}</code> は全項目を受け入れ、設定確認・文字表示・ANSI・速度・エコー試験ができます。
               </div>
             </details>
 
