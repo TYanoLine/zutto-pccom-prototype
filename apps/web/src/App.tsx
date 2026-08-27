@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TerminalCore } from './terminal/TerminalCore';
 import { TerminalCanvas } from './terminal/TerminalCanvas';
 import { VirtualModem } from './modem/VirtualModem';
+import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
+import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
 import { pseudoTariffTable } from './billing/pseudoTariffs';
 import { Japan1996WorldClock } from './time/WorldClock';
@@ -27,9 +29,21 @@ const telehodaiNumbers = (configuredTelehodaiNumbers || '0451234567,0450000001')
   .map((phone: string) => phone.trim())
   .filter(Boolean);
 
+const SETTINGS_KEY = 'zutto.commSettings.v1';
+
 type ActiveCall = { phone: string; connectedAt: Date };
 type BootWindow = Window & { __zuttoBootOk?: () => void };
 type HandshakeRun = ReturnType<typeof playHandshake>;
+
+function loadCommSettings(): CommSettings {
+  if (typeof window === 'undefined') return { ...DEFAULT_COMM_SETTINGS };
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    return raw ? normalizeCommSettings(JSON.parse(raw) as Partial<CommSettings>) : { ...DEFAULT_COMM_SETTINGS };
+  } catch {
+    return { ...DEFAULT_COMM_SETTINGS };
+  }
+}
 
 export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
@@ -44,14 +58,19 @@ export default function App() {
   const [completedCost, setCompletedCost] = useState(0);
   const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
   const [audioStatus, setAudioStatus] = useState('READY');
+  const [commSettings, setCommSettings] = useState<CommSettings>(loadCommSettings);
 
   useEffect(() => {
     (window as BootWindow).__zuttoBootOk?.();
   }, []);
 
   useEffect(() => {
+    try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional persistence */ }
+  }, [commSettings]);
+
+  useEffect(() => {
     terminal.write('ZUTTO COMMUNICATION TERMINAL for PC-98\r\n');
-    terminal.write('1996 MODE / COM1 / 14400bps / 8N1\r\n');
+    terminal.write(`1996 MODE / COM1 / ${commSettings.lineBaud}bps / ${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}\r\n`);
     terminal.write('STANDALONE MODE / LINE CLOSED\r\n\r\n');
     terminal.write('AT\r\nOK\r\n');
 
@@ -77,6 +96,9 @@ export default function App() {
       modem.dispose();
       modemRef.current = null;
     };
+    // commSettings intentionally supplies only the startup banner here. Runtime
+    // settings are persisted now and will be wired into host negotiation later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
 
   useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
@@ -114,12 +136,17 @@ export default function App() {
     }
   }
 
+  function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) {
+    setCommSettings(current => ({ ...current, [key]: value }));
+  }
+
   const runningCost = activeCall
     ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow)
     : 0;
   const cost = completedCost + runningCost;
   const teleho = tariff.isTelehodaiWindow(worldNow);
   const registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow);
+  const framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
 
   return (
     <main className="shell">
@@ -141,31 +168,115 @@ export default function App() {
       </footer>
 
       <aside className="quick-help">
-        <strong>Stand-alone:</strong> no server connection until dialing. <code>ATDT0451234567</code> / <code>ATDL</code> last number / <code>A/</code> redial / <code>ATH</code> hangup.
+        <strong>Stand-alone:</strong> no server connection until dialing. <code>ATDT0451234567</code> / <code>ATDP...</code> pulse / <code>ATDL</code> last number / <code>A/</code> redial / <code>ATH</code> hangup.
 
         {!activeCall && (
-          <details className="debug-panel">
-            <summary>DEBUG / MODEM AUDIO</summary>
-            <div className="debug-copy">通信せず、モデムのハンドシェイク合成だけを確認します。実行ごとに回線・検出待ち・スピーカー特性が少し変化します。</div>
-            <div className="audition-row">
-              {([
-                { label: 'V.22bis 2400', baud: 2400 },
-                { label: 'V.32 9600', baud: 9600 },
-                { label: 'V.32bis 14400', baud: 14400 },
-                { label: 'V.34 28800', baud: 28800 },
-              ] as const).map(({ label, baud }) => (
-                <button key={baud} className="audition-btn" onClick={() => audition(baud)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="audition-meta">AUDIO: {audioStatus}</div>
-            {lastHandshake && (
-              <div className="audition-meta">
-                RUN {lastHandshake.seed} / {lastHandshake.baud}bps / {lastHandshake.duration.toFixed(2)}s / DETECT ±{lastHandshake.responseJitterMs}ms / SPKR {lastHandshake.speakerResonanceHz}Hz / LINE {lastHandshake.lineLevelDb >= 0 ? '+' : ''}{lastHandshake.lineLevelDb.toFixed(1)}dB
+          <>
+            <details className="comm-panel">
+              <summary>COMM SETTINGS / 通信設定</summary>
+              <div className="settings-summary">
+                LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()} / {commSettings.characterCode.toUpperCase()}
               </div>
-            )}
-          </details>
+
+              <div className="settings-group-title">MODEM / LINE</div>
+              <div className="settings-grid">
+                <label>MAX LINE SPEED
+                  <select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}>
+                    <option value={2400}>2400 bps / V.22bis</option>
+                    <option value={9600}>9600 bps / V.32</option>
+                    <option value={14400}>14400 bps / V.32bis</option>
+                    <option value={28800}>28800 bps / V.34</option>
+                  </select>
+                </label>
+                <label>DTE SPEED
+                  <select value={commSettings.dteBaud} onChange={e => setting('dteBaud', Number(e.target.value) as CommSettings['dteBaud'])}>
+                    {[9600, 19200, 38400, 57600, 115200].map(v => <option key={v} value={v}>{v} bps</option>)}
+                  </select>
+                </label>
+                <label>DEFAULT DIAL
+                  <select value={commSettings.defaultDialMode} onChange={e => setting('defaultDialMode', e.target.value as CommSettings['defaultDialMode'])}>
+                    <option value="tone">TONE / DTMF</option>
+                    <option value="pulse">PULSE / 10pps</option>
+                  </select>
+                </label>
+                <label>ERROR CORRECTION
+                  <select value={commSettings.errorCorrection} onChange={e => setting('errorCorrection', e.target.value as CommSettings['errorCorrection'])}>
+                    <option value="auto">AUTO / V.42-MNP</option>
+                    <option value="v42">V.42</option>
+                    <option value="mnp4">MNP4</option>
+                    <option value="off">OFF</option>
+                  </select>
+                </label>
+                <label>COMPRESSION
+                  <select value={commSettings.compression} onChange={e => setting('compression', e.target.value as CommSettings['compression'])}>
+                    <option value="auto">AUTO</option>
+                    <option value="v42bis">V.42bis</option>
+                    <option value="mnp5">MNP5</option>
+                    <option value="off">OFF</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="settings-group-title">SERIAL / TERMINAL</div>
+              <div className="settings-grid">
+                <label>DATA BITS
+                  <select value={commSettings.dataBits} onChange={e => setting('dataBits', Number(e.target.value) as CommSettings['dataBits'])}>
+                    <option value={8}>8 bit</option><option value={7}>7 bit</option>
+                  </select>
+                </label>
+                <label>PARITY
+                  <select value={commSettings.parity} onChange={e => setting('parity', e.target.value as CommSettings['parity'])}>
+                    <option value="none">NONE</option><option value="even">EVEN</option><option value="odd">ODD</option>
+                  </select>
+                </label>
+                <label>STOP BITS
+                  <select value={commSettings.stopBits} onChange={e => setting('stopBits', Number(e.target.value) as CommSettings['stopBits'])}>
+                    <option value={1}>1</option><option value={2}>2</option>
+                  </select>
+                </label>
+                <label>FLOW CONTROL
+                  <select value={commSettings.flowControl} onChange={e => setting('flowControl', e.target.value as CommSettings['flowControl'])}>
+                    <option value="rtscts">RTS/CTS</option><option value="xonxoff">XON/XOFF</option><option value="none">NONE</option>
+                  </select>
+                </label>
+                <label>CHARACTER CODE
+                  <select value={commSettings.characterCode} onChange={e => setting('characterCode', e.target.value as CommSettings['characterCode'])}>
+                    <option value="shift-jis">SHIFT-JIS</option><option value="jis">JIS</option><option value="ascii">ASCII</option>
+                  </select>
+                </label>
+                <label>TERMINAL
+                  <select value={commSettings.terminal} onChange={e => setting('terminal', e.target.value as CommSettings['terminal'])}>
+                    <option value="ansi">ANSI</option><option value="vt100">VT100</option><option value="plain">PLAIN</option>
+                  </select>
+                </label>
+                <label className="settings-check"><input type="checkbox" checked={commSettings.localEcho} onChange={e => setting('localEcho', e.target.checked)} /> LOCAL ECHO</label>
+              </div>
+              <div className="settings-footnote">設定はこのブラウザに保存されます。MNP/V.42・圧縮・文字コード等のホスト側ネゴシエーションは、ホスト実装時に接続予定です。</div>
+            </details>
+
+            <details className="debug-panel">
+              <summary>DEBUG / MODEM AUDIO</summary>
+              <div className="debug-copy">通信せず、モデムのハンドシェイク合成だけを確認します。実行ごとに回線・検出待ち・スピーカー特性が少し変化します。</div>
+              <div className="audition-row">
+                {([
+                  { label: 'V.22bis 2400', baud: 2400 },
+                  { label: 'V.32 9600', baud: 9600 },
+                  { label: 'V.32bis 14400', baud: 14400 },
+                  { label: 'V.34 28800', baud: 28800 },
+                ] as const).map(({ label, baud }) => (
+                  <button key={baud} className="audition-btn" onClick={() => audition(baud)}>
+                    {label}{commSettings.lineBaud === baud ? ' *' : ''}
+                  </button>
+                ))}
+              </div>
+              <div className="audition-meta">AUDIO: {audioStatus}</div>
+              {lastHandshake && (
+                <div className="audition-meta">
+                  RUN {lastHandshake.seed} / {lastHandshake.baud}bps / {lastHandshake.duration.toFixed(2)}s / DETECT ±{lastHandshake.responseJitterMs}ms / SPKR {lastHandshake.speakerResonanceHz}Hz / LINE {lastHandshake.lineLevelDb >= 0 ? '+' : ''}{lastHandshake.lineLevelDb.toFixed(1)}dB
+                </div>
+              )}
+            </details>
+          </>
         )}
       </aside>
     </main>
