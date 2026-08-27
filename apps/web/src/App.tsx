@@ -8,15 +8,16 @@ import { PseudoTariffService } from './billing/PseudoTariffService';
 import { pseudoTariffTable } from './billing/pseudoTariffs';
 import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
+import { playStandaloneBusySequence } from './audio/dialLineAudio';
 import './styles.css';
 
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
-const defaultWsURL = typeof window !== 'undefined'
-  ? (window.location.protocol === 'https:'
-      ? `wss://${window.location.host}/ws`
-      : 'ws://localhost:8080/ws')
-  : 'ws://localhost:8080/ws';
-const wsURL = configuredWsURL || defaultWsURL;
+const isLocalHost = typeof window !== 'undefined'
+  && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+// Production starts as a real standalone terminal unless a server endpoint was
+// explicitly configured. Local development still defaults to the Go server.
+const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
+const standaloneLine = wsURL.length === 0;
 
 const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefined)?.trim() ?? '';
 const worldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate)
@@ -76,7 +77,16 @@ export default function App() {
 
     // Constructing the modem is intentionally network-free. VirtualModem
     // opens its WebSocket only after ATDT/ATDP/ATDL/A/ actually dials.
-    const modem = new VirtualModem(terminal, wsURL);
+    // With no configured production server, the complete PSTN attempt is
+    // synthesized locally: dial tone -> digits -> pause -> busy cadence -> BUSY.
+    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? {
+      offlineBusyExtraMs: 0,
+      audio: {
+        dial: playStandaloneBusySequence,
+        busy: () => 0,
+        handshake: playHandshake,
+      },
+    } : {});
     modem.onStatus = setStatus;
     modem.onCallState = call => {
       const now = clock.now();
