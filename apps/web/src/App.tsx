@@ -14,8 +14,6 @@ import './styles.css';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined'
   && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-// Production starts as a real standalone terminal unless a server endpoint was
-// explicitly configured. Local development still defaults to the Go server.
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
 const standaloneLine = wsURL.length === 0;
 
@@ -40,7 +38,9 @@ function loadCommSettings(): CommSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_COMM_SETTINGS };
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    return raw ? normalizeCommSettings(JSON.parse(raw) as Partial<CommSettings>) : { ...DEFAULT_COMM_SETTINGS };
+    return raw
+      ? normalizeCommSettings(JSON.parse(raw) as Partial<CommSettings>)
+      : { ...DEFAULT_COMM_SETTINGS };
   } catch {
     return { ...DEFAULT_COMM_SETTINGS };
   }
@@ -51,6 +51,14 @@ export default function App() {
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
   const tariff = useMemo(() => new PseudoTariffService(pseudoTariffTable, telehodaiNumbers), []);
   const modemRef = useRef<VirtualModem | null>(null);
+
+  // The hidden HTML input is the source of truth for keyboard/IME text.
+  // echoedInputRef tracks what is currently painted in TerminalCore so an IME
+  // composition can replace its preview instead of appending the committed text.
+  const echoedInputRef = useRef('');
+  const composingRef = useRef(false);
+  const suppressEnterRef = useRef(false);
+
   const [status, setStatus] = useState('STANDALONE / MODEM IDLE');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
@@ -66,7 +74,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional persistence */ }
+    try {
+      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings));
+    } catch {
+      // Persistence is optional.
+    }
   }, [commSettings]);
 
   useEffect(() => {
@@ -75,10 +87,6 @@ export default function App() {
     terminal.write('STANDALONE MODE / LINE CLOSED\r\n\r\n');
     terminal.write('AT\r\nOK\r\n');
 
-    // Constructing the modem is intentionally network-free. VirtualModem
-    // opens its WebSocket only after ATDT/ATDP/ATDL/A/ actually dials.
-    // With no configured production server, the complete PSTN attempt is
-    // synthesized locally: dial tone -> digits -> pause -> busy cadence -> BUSY.
     const modem = new VirtualModem(terminal, wsURL, standaloneLine ? {
       offlineBusyExtraMs: 0,
       audio: {
@@ -87,6 +95,7 @@ export default function App() {
         handshake: playHandshake,
       },
     } : {});
+
     modem.onStatus = setStatus;
     modem.onCallState = call => {
       const now = clock.now();
@@ -100,39 +109,83 @@ export default function App() {
     };
     modem.setAutoRedial(autoRedial);
     modemRef.current = modem;
+
     return () => {
       modem.onStatus = undefined;
       modem.onCallState = undefined;
       modem.dispose();
       modemRef.current = null;
     };
-    // commSettings intentionally supplies only the startup banner here. Runtime
-    // settings are persisted now and will be wired into host negotiation later.
+    // Settings currently affect the local UI/banner. Runtime host negotiation
+    // will be wired in when the host implementation is added.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
 
-  useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
+  useEffect(() => {
+    modemRef.current?.setAutoRedial(autoRedial);
+  }, [autoRedial]);
 
   useEffect(() => {
     const id = window.setInterval(() => setWorldNow(clock.now()), 1000);
     return () => window.clearInterval(id);
   }, [clock]);
 
-  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') {
-      terminal.write('\r\n');
-      modemRef.current?.submitLine(input);
-      setInput('');
-      e.preventDefault();
-      return;
+  function syncTerminalInput(next: string) {
+    const previousChars = Array.from(echoedInputRef.current);
+    const nextChars = Array.from(next);
+    let common = 0;
+
+    while (
+      common < previousChars.length
+      && common < nextChars.length
+      && previousChars[common] === nextChars[common]
+    ) {
+      common++;
     }
-    if (e.key === 'Backspace') terminal.backspace();
+
+    // Replace the changed tail. This is what makes composition updates such as
+    // "ka" -> "か", and iOS's preview -> commit sequence, non-duplicating.
+    for (let i = previousChars.length; i > common; i--) terminal.backspace();
+    if (common < nextChars.length) terminal.write(nextChars.slice(common).join(''));
+    echoedInputRef.current = next;
   }
 
   function change(e: React.ChangeEvent<HTMLInputElement>) {
-    const next = e.target.value;
-    if (next.length > input.length) terminal.write(next.slice(input.length));
+    const next = e.currentTarget.value;
+    syncTerminalInput(next);
     setInput(next);
+  }
+
+  function compositionStart() {
+    composingRef.current = true;
+  }
+
+  function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) {
+    composingRef.current = false;
+    const next = e.currentTarget.value;
+    syncTerminalInput(next);
+    setInput(next);
+
+    // Some versions of iOS Safari emit the Enter that finalized composition
+    // after compositionend. Ignore only that same-turn Enter; the next tap works.
+    suppressEnterRef.current = true;
+    window.setTimeout(() => { suppressEnterRef.current = false; }, 0);
+  }
+
+  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const native = e.nativeEvent as KeyboardEvent;
+
+    if (e.key === 'Enter') {
+      if (composingRef.current || native.isComposing || suppressEnterRef.current) {
+        e.preventDefault();
+        return;
+      }
+      terminal.write('\r\n');
+      modemRef.current?.submitLine(input);
+      setInput('');
+      echoedInputRef.current = '';
+      e.preventDefault();
+    }
   }
 
   function audition(baud: number) {
@@ -167,14 +220,27 @@ export default function App() {
 
       <section className="screen-wrap" onClick={() => document.getElementById('kbd')?.focus()}>
         <TerminalCanvas terminal={terminal} />
-        <input id="kbd" className="keyboard-capture" value={input} onChange={change} onKeyDown={keyDown} />
+        <input
+          id="kbd"
+          className="keyboard-capture"
+          value={input}
+          onChange={change}
+          onKeyDown={keyDown}
+          onCompositionStart={compositionStart}
+          onCompositionEnd={compositionEnd}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+        />
       </section>
 
       <footer className="statusbar">
         <span>{status}</span>
         <span>CALL ¥{cost}</span>
         <span>{registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span>
-        <label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} /> AUTO REDIAL</label>
+        <label>
+          <input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} /> AUTO REDIAL
+        </label>
       </footer>
 
       <aside className="quick-help">
@@ -231,42 +297,58 @@ export default function App() {
               <div className="settings-grid">
                 <label>DATA BITS
                   <select value={commSettings.dataBits} onChange={e => setting('dataBits', Number(e.target.value) as CommSettings['dataBits'])}>
-                    <option value={8}>8 bit</option><option value={7}>7 bit</option>
+                    <option value={8}>8 bit</option>
+                    <option value={7}>7 bit</option>
                   </select>
                 </label>
                 <label>PARITY
                   <select value={commSettings.parity} onChange={e => setting('parity', e.target.value as CommSettings['parity'])}>
-                    <option value="none">NONE</option><option value="even">EVEN</option><option value="odd">ODD</option>
+                    <option value="none">NONE</option>
+                    <option value="even">EVEN</option>
+                    <option value="odd">ODD</option>
                   </select>
                 </label>
                 <label>STOP BITS
                   <select value={commSettings.stopBits} onChange={e => setting('stopBits', Number(e.target.value) as CommSettings['stopBits'])}>
-                    <option value={1}>1</option><option value={2}>2</option>
+                    <option value={1}>1</option>
+                    <option value={2}>2</option>
                   </select>
                 </label>
                 <label>FLOW CONTROL
                   <select value={commSettings.flowControl} onChange={e => setting('flowControl', e.target.value as CommSettings['flowControl'])}>
-                    <option value="rtscts">RTS/CTS</option><option value="xonxoff">XON/XOFF</option><option value="none">NONE</option>
+                    <option value="rtscts">RTS/CTS</option>
+                    <option value="xonxoff">XON/XOFF</option>
+                    <option value="none">NONE</option>
                   </select>
                 </label>
                 <label>CHARACTER CODE
                   <select value={commSettings.characterCode} onChange={e => setting('characterCode', e.target.value as CommSettings['characterCode'])}>
-                    <option value="shift-jis">SHIFT-JIS</option><option value="jis">JIS</option><option value="ascii">ASCII</option>
+                    <option value="shift-jis">SHIFT-JIS</option>
+                    <option value="jis">JIS</option>
+                    <option value="ascii">ASCII</option>
                   </select>
                 </label>
                 <label>TERMINAL
                   <select value={commSettings.terminal} onChange={e => setting('terminal', e.target.value as CommSettings['terminal'])}>
-                    <option value="ansi">ANSI</option><option value="vt100">VT100</option><option value="plain">PLAIN</option>
+                    <option value="ansi">ANSI</option>
+                    <option value="vt100">VT100</option>
+                    <option value="plain">PLAIN</option>
                   </select>
                 </label>
-                <label className="settings-check"><input type="checkbox" checked={commSettings.localEcho} onChange={e => setting('localEcho', e.target.checked)} /> LOCAL ECHO</label>
+                <label className="settings-check">
+                  <input type="checkbox" checked={commSettings.localEcho} onChange={e => setting('localEcho', e.target.checked)} /> LOCAL ECHO
+                </label>
               </div>
-              <div className="settings-footnote">設定はこのブラウザに保存されます。MNP/V.42・圧縮・文字コード等のホスト側ネゴシエーションは、ホスト実装時に接続予定です。</div>
+              <div className="settings-footnote">
+                設定はこのブラウザに保存されます。MNP/V.42・圧縮・文字コード等のホスト側ネゴシエーションは、ホスト実装時に接続予定です。
+              </div>
             </details>
 
             <details className="debug-panel">
               <summary>DEBUG / MODEM AUDIO</summary>
-              <div className="debug-copy">通信せず、モデムのハンドシェイク合成だけを確認します。実行ごとに回線・検出待ち・スピーカー特性が少し変化します。</div>
+              <div className="debug-copy">
+                通信せず、モデムのハンドシェイク合成だけを確認します。実行ごとに回線・検出待ち・スピーカー特性が少し変化します。
+              </div>
               <div className="audition-row">
                 {([
                   { label: 'V.22bis 2400', baud: 2400 },
