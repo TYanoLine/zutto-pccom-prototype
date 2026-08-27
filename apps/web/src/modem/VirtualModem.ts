@@ -24,7 +24,6 @@ type Timer = ReturnType<typeof globalThis.setTimeout>;
 
 type VirtualModemOptions = {
   socketFactory?: (url: string) => ModemSocket;
-  reconnectDelaysMs?: number[];
   dialDelayMs?: number;
   setTimeout?: typeof globalThis.setTimeout;
   clearTimeout?: typeof globalThis.clearTimeout;
@@ -39,6 +38,8 @@ export type CallState = { phone: string; baud: number } | null;
 
 const SOCKET_OPEN = 1;
 
+type PendingDial = { phone: string; attempt: number };
+
 export class VirtualModem {
   private ws?: ModemSocket;
   private connected = false;
@@ -46,12 +47,10 @@ export class VirtualModem {
   private destroyed = false;
   private lastPhone = '';
   private attempt = 0;
+  private pendingDial?: PendingDial;
   private retryTimer?: Timer;
   private dialTimer?: Timer;
-  private reconnectTimer?: Timer;
-  private reconnectAttempt = 0;
   private readonly socketFactory: (url: string) => ModemSocket;
-  private readonly reconnectDelaysMs: number[];
   private readonly dialDelayMs: number;
   private readonly schedule: typeof globalThis.setTimeout;
   private readonly cancel: typeof globalThis.clearTimeout;
@@ -67,7 +66,6 @@ export class VirtualModem {
     options: VirtualModemOptions = {},
   ) {
     this.socketFactory = options.socketFactory ?? (socketURL => new WebSocket(socketURL));
-    this.reconnectDelaysMs = options.reconnectDelaysMs ?? [1_000, 2_000, 5_000, 10_000];
     this.dialDelayMs = options.dialDelayMs ?? 650;
     this.schedule = options.setTimeout ?? globalThis.setTimeout.bind(globalThis);
     this.cancel = options.clearTimeout ?? globalThis.clearTimeout.bind(globalThis);
@@ -76,7 +74,8 @@ export class VirtualModem {
       busy: playBusy,
       handshake: playHandshake,
     };
-    this.openSocket();
+    // Deliberately do not open a socket here. The terminal boots standalone;
+    // the transport represents the telephone call and is created by ATD.
   }
 
   submitLine(raw: string) {
@@ -91,6 +90,11 @@ export class VirtualModem {
     if (upper === 'AT' || upper === 'ATZ') { this.terminal.write('\r\nOK\r\n'); return; }
     if (upper === 'ATI') { this.terminal.write('\r\nZUTTO MODEM 14400/FAX prototype\r\nOK\r\n'); return; }
     if (upper === 'A/' && this.lastPhone) { this.dial(this.lastPhone, true); return; }
+    if (upper === 'ATDL') {
+      if (this.lastPhone) this.dial(this.lastPhone, false);
+      else this.terminal.write('\r\nERROR\r\n');
+      return;
+    }
     if (upper === 'ATH') { this.hangup(); return; }
     if (upper.startsWith('ATDT') || upper.startsWith('ATDP')) {
       const phone = line.slice(4).replace(/\D/g, '');
@@ -111,54 +115,68 @@ export class VirtualModem {
     const hadCarrier = this.connected;
     const wasCalling = hadCarrier || this.dialing || this.retryTimer !== undefined;
     this.clearCallTimers();
+    this.pendingDial = undefined;
     if (hadCarrier) this.send({ type: 'hangup' });
     this.connected = false;
     this.dialing = false;
     if (hadCarrier) this.onCallState?.(null);
+    this.releaseSocket('hangup');
     this.terminal.write(wasCalling ? '\r\nNO CARRIER\r\n' : '\r\nOK\r\n');
-    this.onStatus?.('OFFLINE');
+    this.onStatus?.('STANDALONE / MODEM IDLE');
   }
 
   dispose() {
     if (this.destroyed) return;
     this.destroyed = true;
     this.clearCallTimers();
-    this.clearReconnectTimer();
+    this.pendingDial = undefined;
     if (this.connected) this.onCallState?.(null);
     this.connected = false;
     this.dialing = false;
-    const socket = this.ws;
-    this.ws = undefined;
-    if (socket) {
-      socket.onopen = null;
-      socket.onclose = null;
-      socket.onmessage = null;
-      socket.onerror = null;
-      socket.close(1000, 'terminal disposed');
-    }
+    this.releaseSocket('terminal disposed');
   }
 
-  private openSocket() {
+  private ensureSocket() {
     if (this.destroyed) return;
-    const socket = this.socketFactory(this.url);
+    if (this.ws) {
+      if (this.ws.readyState === SOCKET_OPEN) this.flushPendingDial();
+      return;
+    }
+
+    let socket: ModemSocket;
+    try {
+      socket = this.socketFactory(this.url);
+    } catch {
+      this.failDialTone();
+      return;
+    }
+
     this.ws = socket;
     socket.onopen = () => {
       if (this.destroyed || socket !== this.ws) return;
-      this.reconnectAttempt = 0;
-      this.onStatus?.('MODEM READY');
+      this.onStatus?.('MODEM READY / LINE OPEN');
+      this.flushPendingDial();
     };
     socket.onclose = () => {
       if (this.destroyed || socket !== this.ws) return;
       this.ws = undefined;
-      this.clearCallTimers();
+      this.clearDialTimer();
+
       if (this.connected) {
         this.connected = false;
+        this.dialing = false;
+        this.pendingDial = undefined;
         this.terminal.write('\r\nNO CARRIER\r\n');
         this.onCallState?.(null);
+        this.onStatus?.('STANDALONE / NO CARRIER');
+        return;
       }
-      this.dialing = false;
-      this.onStatus?.('SERVER OFFLINE / RECONNECTING');
-      this.scheduleReconnect();
+
+      if (this.dialing || this.pendingDial) {
+        this.failDialTone(false);
+      } else {
+        this.onStatus?.('STANDALONE / MODEM IDLE');
+      }
     };
     socket.onmessage = event => {
       if (this.destroyed || socket !== this.ws) return;
@@ -169,19 +187,9 @@ export class VirtualModem {
       }
     };
     socket.onerror = () => {
-      // Browsers deliver onclose after an error; reconnection is centralized there.
+      // Browsers normally deliver onclose after an error. Keep error handling
+      // centralized there so a failed server cannot break standalone mode.
     };
-  }
-
-  private scheduleReconnect() {
-    if (this.destroyed || this.reconnectTimer !== undefined) return;
-    const index = Math.min(this.reconnectAttempt, this.reconnectDelaysMs.length - 1);
-    const delay = this.reconnectDelaysMs[index];
-    this.reconnectAttempt++;
-    this.reconnectTimer = this.schedule(() => {
-      this.reconnectTimer = undefined;
-      this.openSocket();
-    }, delay);
   }
 
   private dial(phone: string, retry: boolean) {
@@ -191,13 +199,35 @@ export class VirtualModem {
     if (!retry) this.attempt = 0;
     this.attempt++;
     this.dialing = true;
+    this.pendingDial = { phone, attempt: this.attempt };
     this.terminal.write(`\r\nDIALING ${phone} ...\r\n`);
     this.playAudio(() => this.audio.dial(phone));
     this.onStatus?.(`DIAL ${phone}`);
+    this.ensureSocket();
+  }
+
+  private flushPendingDial() {
+    if (!this.pendingDial || !this.ws || this.ws.readyState !== SOCKET_OPEN) return;
+    const pending = this.pendingDial;
+    this.clearDialTimer();
     this.dialTimer = this.schedule(() => {
       this.dialTimer = undefined;
-      if (!this.send({ type: 'dial', phone, attempt: this.attempt })) this.dialing = false;
+      if (!this.pendingDial || this.pendingDial !== pending || !this.dialing) return;
+      if (this.send({ type: 'dial', phone: pending.phone, attempt: pending.attempt })) {
+        this.pendingDial = undefined;
+      } else {
+        this.failDialTone();
+      }
     }, this.dialDelayMs);
+  }
+
+  private failDialTone(release = true) {
+    this.clearDialTimer();
+    this.pendingDial = undefined;
+    this.dialing = false;
+    if (release) this.releaseSocket('no dialtone');
+    this.terminal.write('\r\nNO DIALTONE\r\n');
+    this.onStatus?.('STANDALONE / NO SERVER');
   }
 
   private handleServer(msg: ServerMessage) {
@@ -207,21 +237,25 @@ export class VirtualModem {
       const hadCarrier = this.connected;
       this.connected = false;
       this.dialing = false;
+      this.pendingDial = undefined;
       if (hadCarrier) {
         this.terminal.write('\r\nNO CARRIER\r\n');
         this.onCallState?.(null);
       }
-      this.onStatus?.('OFFLINE');
+      this.releaseSocket('carrier off');
+      this.onStatus?.('STANDALONE / MODEM IDLE');
       return;
     }
     if (msg.type !== 'dial_result') return;
 
     this.clearDialTimer();
+    this.pendingDial = undefined;
     this.dialing = false;
     if (msg.result === 'busy') {
       this.playAudio(() => this.audio.busy());
       this.terminal.write('\r\nBUSY\r\n');
       this.onStatus?.(`BUSY / RETRY ${this.attempt}`);
+      this.releaseSocket('busy');
       if (this.autoRedial) {
         this.terminal.write(`AUTO REDIAL IN ${this.redialSeconds} SEC...\r\n`);
         this.retryTimer = this.schedule(
@@ -233,7 +267,8 @@ export class VirtualModem {
     }
     if (msg.result === 'no_answer') {
       this.terminal.write('\r\nNO ANSWER\r\n');
-      this.onStatus?.('NO ANSWER');
+      this.onStatus?.('STANDALONE / NO ANSWER');
+      this.releaseSocket('no answer');
       return;
     }
     if (msg.result === 'connect') {
@@ -252,8 +287,18 @@ export class VirtualModem {
       this.ws.send(JSON.stringify(obj));
       return true;
     }
-    this.terminal.write('\r\nNO DIALTONE\r\n');
     return false;
+  }
+
+  private releaseSocket(reason: string) {
+    const socket = this.ws;
+    this.ws = undefined;
+    if (!socket) return;
+    socket.onopen = null;
+    socket.onclose = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    try { socket.close(1000, reason); } catch { /* best effort */ }
   }
 
   private playAudio(play: () => void) {
@@ -278,10 +323,5 @@ export class VirtualModem {
   private clearDialTimer() {
     if (this.dialTimer !== undefined) this.cancel(this.dialTimer);
     this.dialTimer = undefined;
-  }
-
-  private clearReconnectTimer() {
-    if (this.reconnectTimer !== undefined) this.cancel(this.reconnectTimer);
-    this.reconnectTimer = undefined;
   }
 }
