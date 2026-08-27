@@ -24,9 +24,15 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .statusbar label { display: flex; gap: 6px; align-items: center; }
 .quick-help { margin-top: 14px; color: #aaa; font-size: 13px; line-height: 1.7; }
 code { color: #ddd; }
+.debug-panel {
+  margin-top: 10px; padding: 7px 9px; border: 1px solid #444; background: #111;
+}
+.debug-panel > summary { color: #bbb; cursor: pointer; user-select: none; }
+.debug-panel[open] > summary { color: #eee; margin-bottom: 7px; }
+.debug-copy { color: #888; font-size: 12px; line-height: 1.6; }
 .audition-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
 .audition-btn {
-  font-family: inherit; font-size: 12px; padding: 3px 10px;
+  font-family: inherit; font-size: 12px; padding: 5px 10px;
   background: #2a2a2a; color: #bbb; border: 1px solid #555;
   cursor: pointer; border-radius: 2px;
 }
@@ -36,4 +42,10 @@ code { color: #ddd; }
   color: #8f8; background: #101810; border: 1px solid #294229;
   font-size: 11px; line-height: 1.5; overflow-wrap: anywhere;
 }
-@media (max-width: 680px) { .shell { padding: 0; } .titlebar, .statusbar { border-left: 0; border-right: 0; } .screen-wrap { padding: 2px; } }
+@media (max-width: 680px) {
+  .shell { padding: 0; }
+  .titlebar, .statusbar { border-left: 0; border-right: 0; }
+  .screen-wrap { padding: 2px; }
+  .quick-help { padding: 0 10px 12px; }
+  .audition-btn { min-height: 34px; }
+}
