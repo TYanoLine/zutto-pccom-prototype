@@ -31,4 +31,9 @@ code { color: #ddd; }
   cursor: pointer; border-radius: 2px;
 }
 .audition-btn:hover { background: #3a3a3a; color: #eee; border-color: #888; }
+.audition-meta {
+  margin-top: 7px; padding: 4px 7px; width: fit-content; max-width: 100%;
+  color: #8f8; background: #101810; border: 1px solid #294229;
+  font-size: 11px; line-height: 1.5; overflow-wrap: anywhere;
+}
 @media (max-width: 680px) { .shell { padding: 0; } .titlebar, .statusbar { border-left: 0; border-right: 0; } .screen-wrap { padding: 2px; } }
