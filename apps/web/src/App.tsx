@@ -8,13 +8,19 @@ import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import './styles.css';
 
-const configuredWsURL = import.meta.env.VITE_WS_URL as string | undefined;
+const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined'
   && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-const wsURL = configuredWsURL ?? (isLocalHost ? 'ws://localhost:8080/ws' : '');
+const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
 const auditionOnly = wsURL.length === 0;
-const worldDate = import.meta.env.VITE_WORLD_DATE ?? '1996-08-26';
-const telehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS ?? '0451234567,0450000001')
+
+const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefined)?.trim() ?? '';
+const worldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate)
+  ? configuredWorldDate
+  : '1996-08-26';
+
+const configuredTelehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS as string | undefined)?.trim();
+const telehodaiNumbers = (configuredTelehodaiNumbers || '0451234567,0450000001')
   .split(',')
   .map((phone: string) => phone.trim())
   .filter(Boolean);
