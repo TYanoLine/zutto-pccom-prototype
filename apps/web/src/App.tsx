@@ -8,10 +8,11 @@ import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import './styles.css';
 
-const defaultWsURL = typeof window !== 'undefined' && window.location.protocol === 'https:'
-  ? `wss://${window.location.host}/ws`
-  : 'ws://localhost:8080/ws';
-const wsURL = import.meta.env.VITE_WS_URL ?? defaultWsURL;
+const configuredWsURL = import.meta.env.VITE_WS_URL as string | undefined;
+const isLocalHost = typeof window !== 'undefined'
+  && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const wsURL = configuredWsURL ?? (isLocalHost ? 'ws://localhost:8080/ws' : '');
+const auditionOnly = wsURL.length === 0;
 const worldDate = import.meta.env.VITE_WORLD_DATE ?? '1996-08-26';
 const telehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS ?? '0451234567,0450000001')
   .split(',')
@@ -20,12 +21,14 @@ const telehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS ?? '0451234567,
 
 type ActiveCall = { phone: string; connectedAt: Date };
 
+type BootWindow = Window & { __zuttoBootOk?: () => void };
+
 export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
   const tariff = useMemo(() => new PseudoTariffService(pseudoTariffTable, telehodaiNumbers), []);
   const modemRef = useRef<VirtualModem | null>(null);
-  const [status, setStatus] = useState('INITIALIZING');
+  const [status, setStatus] = useState(auditionOnly ? 'AUDIO AUDITION MODE' : 'INITIALIZING');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
   const [worldNow, setWorldNow] = useState(() => clock.now());
@@ -34,9 +37,20 @@ export default function App() {
   const [lastHandshake, setLastHandshake] = useState<ReturnType<typeof playHandshake> | null>(null);
 
   useEffect(() => {
+    (window as BootWindow).__zuttoBootOk?.();
+  }, []);
+
+  useEffect(() => {
     terminal.write('ZUTTO COMMUNICATION TERMINAL for PC-98\r\n');
     terminal.write('1996 MODE / COM1 / 14400bps / 8N1\r\n\r\n');
     terminal.write('AT\r\nOK\r\n');
+
+    if (auditionOnly) {
+      terminal.write('\r\n[AUDIO AUDITION MODE - SERVER NOT CONFIGURED]\r\n');
+      setStatus('AUDIO AUDITION MODE');
+      return;
+    }
+
     const modem = new VirtualModem(terminal, wsURL);
     modem.onStatus = setStatus;
     modem.onCallState = call => {
@@ -69,7 +83,11 @@ export default function App() {
   function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       terminal.write('\r\n');
-      modemRef.current?.submitLine(input);
+      if (auditionOnly) {
+        terminal.write('SERVER NOT CONFIGURED\r\n');
+      } else {
+        modemRef.current?.submitLine(input);
+      }
       setInput('');
       e.preventDefault();
       return;
@@ -106,11 +124,15 @@ export default function App() {
         <span>{status}</span>
         <span>CALL ¥{cost}</span>
         <span>{registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span>
-        <label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} /> AUTO REDIAL</label>
+        <label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={auditionOnly} /> AUTO REDIAL</label>
       </footer>
 
       <aside className="quick-help">
-        <strong>Prototype:</strong> <code>ATDT0451234567</code> / <code>A/</code> redial / <code>ATH</code> hangup. 接続後は <code>H</code>, <code>B</code>, <code>W</code>, <code>U</code>, <code>G</code>。
+        {auditionOnly ? (
+          <strong>Vercel audio audition build:</strong>
+        ) : (
+          <><strong>Prototype:</strong> <code>ATDT0451234567</code> / <code>A/</code> redial / <code>ATH</code> hangup. 接続後は <code>H</code>, <code>B</code>, <code>W</code>, <code>U</code>, <code>G</code>。</>
+        )}
         <div className="audition-row">
           <span>ハンドシェイク試聴:</span>
           {([
@@ -125,8 +147,8 @@ export default function App() {
               onClick={() => {
                 try {
                   setLastHandshake(playHandshake(baud));
-                } catch {
-                  // AudioContext can be blocked by the browser until a user gesture.
+                } catch (error) {
+                  setStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`);
                 }
               }}
             >
