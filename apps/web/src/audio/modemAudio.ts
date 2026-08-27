@@ -214,8 +214,6 @@ function modulated(
     const symbolPos = i * symbolRate / SAMPLE_RATE;
     const s = Math.min(symbolCount - 2, Math.floor(symbolPos));
     const frac = symbolPos - s;
-    // Cosine interpolation is a lightweight pulse-shaping proxy. Unlike the
-    // old noiseBurst implementation it still represents a coherent I/Q stream.
     const mix = 0.5 - 0.5 * Math.cos(Math.PI * frac);
     const a = symbols[s];
     const b = symbols[s + 1];
@@ -367,7 +365,6 @@ function speakerLine(input: Float32Array, v: Variation): Float32Array {
     peak = Math.max(peak, Math.abs(x));
   }
 
-  // Preserve run-to-run level differences; only prevent accidental clipping.
   if (peak > 0.94) {
     const scale = 0.94 / peak;
     for (let i = 0; i < out.length; i++) out[i] *= scale;
@@ -427,8 +424,6 @@ function buildV34(v: Variation): { pcm: Float32Array; duration: number } {
   const clock = 1 + v.clockPpm * 1e-6;
   const m = new Mixer(15.0);
 
-  // V.8 / ANSam. The overlaps are deliberate: both ends are audible through
-  // the modem monitor path rather than serialized as a sound-effect playlist.
   m.add(0.05, ans(2.08 + signed(v.rng) * 0.035, 0.47, clock, true));
   m.add(0.70 + signed(v.rng) * 0.012, cpfsk(980, 1180, 300, bits(208, v.rng), 0.145, clock));
   m.add(1.16 + signed(v.rng) * 0.015, cpfsk(1650, 1850, 300, bits(176, v.rng), 0.155, clock));
@@ -448,7 +443,6 @@ function buildV34(v: Variation): { pcm: Float32Array; duration: number } {
   t += 0.18;
   t = pause(m, t, 0.085, 0.025, v, 2400, 0.007);
 
-  // V6/V7 dynamic probe: L1 is ~6 dB above L2.
   const l2 = 0.245 * dbToGain(signed(v.rng) * 0.45);
   const l1 = l2 * 10 ** (6 / 20);
   m.add(t, probe(0.16, l1, clock));
@@ -475,8 +469,6 @@ function buildV34(v: Variation): { pcm: Float32Array; duration: number } {
   t += 0.94;
   t = pause(m, t, 0.205, 0.055, v, 1800, 0.004);
 
-  // Primary-channel training. Same family every time, with detector/response
-  // pauses varying by a few tens of milliseconds.
   m.add(t, modulated(1800, 3000, 0.10, 4, 0.20, v.rng, clock, 'cycle'));
   t += 0.10;
   t = pause(m, t, 0.040, 0.015, v, 1800, 0.006);
@@ -521,7 +513,7 @@ function renderHandshake(baud: number, v: Variation): { pcm: Float32Array; durat
 function playPcm(ac: AudioContext, pcm: Float32Array): void {
   void ac.resume();
   const buffer = ac.createBuffer(1, pcm.length, SAMPLE_RATE);
-  buffer.copyToChannel(pcm, 0);
+  buffer.getChannelData(0).set(pcm);
   const source = ac.createBufferSource();
   source.buffer = buffer;
   source.connect(ac.destination);
