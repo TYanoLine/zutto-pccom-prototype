@@ -6,7 +6,27 @@
     <title>ずっとパソコン通信 prototype</title>
   </head>
   <body>
+    <div id="boot-diagnostic" style="position:fixed;z-index:99999;left:12px;top:12px;right:12px;padding:10px 12px;background:#2a1111;color:#ffb0b0;border:1px solid #884;font:12px/1.5 monospace;white-space:pre-wrap;">BOOT: HTML loaded / waiting for JavaScript…</div>
     <div id="root"></div>
+    <script>
+      (function () {
+        var box = document.getElementById('boot-diagnostic');
+        window.__zuttoBootOk = function () {
+          if (box) box.style.display = 'none';
+        };
+        window.addEventListener('error', function (event) {
+          if (!box) return;
+          box.style.display = 'block';
+          box.textContent = 'BOOT ERROR\n' + (event.message || 'unknown error') + '\n' + (event.filename || '') + ':' + (event.lineno || 0) + ':' + (event.colno || 0);
+        });
+        window.addEventListener('unhandledrejection', function (event) {
+          if (!box) return;
+          var reason = event.reason;
+          box.style.display = 'block';
+          box.textContent = 'PROMISE ERROR\n' + (reason && (reason.stack || reason.message) || String(reason));
+        });
+      }());
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
