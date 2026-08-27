@@ -26,36 +26,112 @@ const telehodaiNumbers = (configuredTelehodaiNumbers || '0451234567,0450000001')
   .filter(Boolean);
 
 type ActiveCall = { phone: string; connectedAt: Date };
-
 type BootWindow = Window & { __zuttoBootOk?: () => void };
+type HandshakeRun = ReturnType<typeof playHandshake>;
 
-export default function App() {
+function markBootOk() {
+  (window as BootWindow).__zuttoBootOk?.();
+}
+
+function AuditionApp() {
+  const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
+  const [status, setStatus] = useState('READY');
+
+  useEffect(() => {
+    markBootOk();
+  }, []);
+
+  function audition(baud: number) {
+    try {
+      setStatus(`SYNTHESIZING ${baud}bps...`);
+      const run = playHandshake(baud);
+      setLastHandshake(run);
+      setStatus(`PLAYING ${baud}bps`);
+    } catch (error) {
+      setStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  return (
+    <main style={{ minHeight: '100vh', padding: 18, background: '#181818', color: '#ddd', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
+      <section style={{ width: 'min(760px, 100%)', margin: '0 auto' }}>
+        <header style={{ padding: '10px 12px', background: '#bdbdbd', color: '#111', border: '2px solid #eee', borderRightColor: '#555', borderBottomColor: '#555' }}>
+          <strong>ZUTTO MODEM HANDSHAKE LAB</strong>
+          <div style={{ fontSize: 12, marginTop: 4 }}>procedural PCM synthesis / analogue variation on every run</div>
+        </header>
+
+        <div style={{ marginTop: 16, padding: 14, border: '1px solid #555', background: '#080808' }}>
+          <div style={{ marginBottom: 12, color: '#aaa', lineHeight: 1.6 }}>
+            同じ規格でも毎回、検出待ち・回線レベル・スピーカー共振・クロック誤差・残留キャリアが少しずつ変化します。
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+            {([
+              { label: 'V.22bis', baud: 2400 },
+              { label: 'V.32', baud: 9600 },
+              { label: 'V.32bis', baud: 14400 },
+              { label: 'V.34', baud: 28800 },
+            ] as const).map(({ label, baud }) => (
+              <button
+                key={baud}
+                onClick={() => audition(baud)}
+                style={{
+                  minHeight: 64,
+                  padding: '10px 8px',
+                  font: 'inherit',
+                  cursor: 'pointer',
+                  color: '#ddd',
+                  background: '#262626',
+                  border: '1px solid #666',
+                  borderRadius: 3,
+                }}
+              >
+                <strong>{label}</strong><br />
+                <span style={{ fontSize: 13 }}>{baud.toLocaleString()} bps</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 14, padding: '9px 10px', background: '#101010', border: '1px solid #333', fontSize: 12, lineHeight: 1.6 }}>
+            STATUS: {status}
+          </div>
+
+          {lastHandshake && (
+            <div style={{ marginTop: 10, padding: '9px 10px', background: '#101010', border: '1px solid #333', fontSize: 12, lineHeight: 1.7, overflowWrap: 'anywhere' }}>
+              RUN {lastHandshake.seed}<br />
+              {lastHandshake.baud}bps / {lastHandshake.duration.toFixed(2)}s<br />
+              DETECT ±{lastHandshake.responseJitterMs}ms<br />
+              SPKR {lastHandshake.speakerResonanceHz}Hz<br />
+              LINE {lastHandshake.lineLevelDb >= 0 ? '+' : ''}{lastHandshake.lineLevelDb.toFixed(1)}dB
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function TerminalApp() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
   const tariff = useMemo(() => new PseudoTariffService(pseudoTariffTable, telehodaiNumbers), []);
   const modemRef = useRef<VirtualModem | null>(null);
-  const [status, setStatus] = useState(auditionOnly ? 'AUDIO AUDITION MODE' : 'INITIALIZING');
+  const [status, setStatus] = useState('INITIALIZING');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
   const [worldNow, setWorldNow] = useState(() => clock.now());
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const [completedCost, setCompletedCost] = useState(0);
-  const [lastHandshake, setLastHandshake] = useState<ReturnType<typeof playHandshake> | null>(null);
+  const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
 
   useEffect(() => {
-    (window as BootWindow).__zuttoBootOk?.();
+    markBootOk();
   }, []);
 
   useEffect(() => {
     terminal.write('ZUTTO COMMUNICATION TERMINAL for PC-98\r\n');
     terminal.write('1996 MODE / COM1 / 14400bps / 8N1\r\n\r\n');
     terminal.write('AT\r\nOK\r\n');
-
-    if (auditionOnly) {
-      terminal.write('\r\n[AUDIO AUDITION MODE - SERVER NOT CONFIGURED]\r\n');
-      setStatus('AUDIO AUDITION MODE');
-      return;
-    }
 
     const modem = new VirtualModem(terminal, wsURL);
     modem.onStatus = setStatus;
@@ -89,11 +165,7 @@ export default function App() {
   function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') {
       terminal.write('\r\n');
-      if (auditionOnly) {
-        terminal.write('SERVER NOT CONFIGURED\r\n');
-      } else {
-        modemRef.current?.submitLine(input);
-      }
+      modemRef.current?.submitLine(input);
       setInput('');
       e.preventDefault();
       return;
@@ -130,15 +202,11 @@ export default function App() {
         <span>{status}</span>
         <span>CALL ¥{cost}</span>
         <span>{registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span>
-        <label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={auditionOnly} /> AUTO REDIAL</label>
+        <label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} /> AUTO REDIAL</label>
       </footer>
 
       <aside className="quick-help">
-        {auditionOnly ? (
-          <strong>Vercel audio audition build:</strong>
-        ) : (
-          <><strong>Prototype:</strong> <code>ATDT0451234567</code> / <code>A/</code> redial / <code>ATH</code> hangup. 接続後は <code>H</code>, <code>B</code>, <code>W</code>, <code>U</code>, <code>G</code>。</>
-        )}
+        <strong>Prototype:</strong> <code>ATDT0451234567</code> / <code>A/</code> redial / <code>ATH</code> hangup. 接続後は <code>H</code>, <code>B</code>, <code>W</code>, <code>U</code>, <code>G</code>。
         <div className="audition-row">
           <span>ハンドシェイク試聴:</span>
           {([
@@ -170,4 +238,8 @@ export default function App() {
       </aside>
     </main>
   );
+}
+
+export default function App() {
+  return auditionOnly ? <AuditionApp /> : <TerminalApp />;
 }
