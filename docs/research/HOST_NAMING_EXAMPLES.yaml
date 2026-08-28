@@ -1,0 +1,173 @@
+# Curated historical naming exemplars for style grounding.
+# These are REAL historical names. Do not emit them verbatim for fictional hosts.
+# The tags describe naming form, not a complete historical profile of each station.
+version: 1
+usage: style_reference_only
+do_not_generate_verbatim: true
+
+sources:
+  big_1995:
+    label: INTERNET magazine 1995-10, B.I.G. project participant list
+    url: https://iwparchives.jp/wp-content/themes/twentytwelve/bn/pdf/im199510-168-bbsbig.pdf
+  paradise_grassroots:
+    label: participant-oriented retrospective on Japanese grass-roots BBS culture
+    url: https://www.paradisearmy.com/doujin/pasok3m.htm
+  kinet_history:
+    label: KINET / Midnight Driving operator history
+    url: https://www.kinet.ne.jp/activity/
+  minkymoon:
+    label: Minky Moon Network operator archive
+    url: https://minkymoon.jp/senden-cg/
+  wdic:
+    label: 通信用語の基礎知識 history
+    url: https://www.wdic.org/w/WDIC/%E9%80%9A%E4%BF%A1%E7%94%A8%E8%AA%9E%E3%81%AE%E5%9F%BA%E7%A4%8E%E7%9F%A5%E8%AD%98
+  astroid:
+    label: recollection of 1996 techno BBS use
+    url: https://note.com/astroid/n/n53a0ef12e939
+  sharpnel_interview:
+    label: interview mentioning mid-1990s techno/music BBS culture
+    url: https://akaobi.wordpress.com/2015/03/11/interview-with-jea-sharpnelsound/
+  silphium:
+    label: user recollection of early-1990s BBS use
+    url: https://aki.nekoruri.jp/profile
+  japan_bbs_1998:
+    label: 1998 japan.bbs Usenet discussion
+    url: https://groups.google.com/g/japan.bbs/c/O1VECiNNHyI
+  welfare_bbs:
+    label: 1990s welfare/volunteer BBS network history
+    url: https://www.nginet.or.jp/kinbe/work/sonobepsv1997.html
+  hanzou:
+    label: preserved KTBBS station
+    url: https://www.hanzou.jp/hanzoubbs/index.php
+  tcm:
+    label: preserved NET-COCK station
+    url: https://tcm.jp/
+
+examples:
+  - name: SRD-NET
+    source: big_1995
+    tags: [ascii, acronym, net_suffix, hyphen]
+  - name: EXE-NET
+    source: big_1995
+    tags: [ascii, technical_flavor, net_suffix, hyphen]
+  - name: Labyrinth-NET
+    source: big_1995
+    tags: [english, abstract, net_suffix, hyphen]
+  - name: GIGA SONIC FACTOR
+    source: big_1995
+    tags: [english, phrase, no_network_suffix]
+  - name: Ichinomiya Mysterious Net
+    source: big_1995
+    tags: [place, english, mixed_concept, net_suffix]
+  - name: NTT-BBS
+    source: big_1995
+    tags: [ascii, institutional_flavor, bbs_suffix, hyphen]
+  - name: とよねっと
+    source: big_1995
+    tags: [japanese, hiragana, playful, net_suffix]
+  - name: Mimorist AVENUE
+    source: big_1995
+    tags: [english, mixed_case, phrase, no_network_suffix]
+  - name: ねこさんちぃむねっと
+    source: big_1995
+    tags: [japanese, hiragana, playful, long_name]
+  - name: びぎな～ずネット
+    source: big_1995
+    tags: [japanese, playful, wave_dash, net_suffix]
+  - name: 那珂ネット
+    source: big_1995
+    tags: [japanese, place, net_suffix]
+  - name: SET-NET
+    source: big_1995
+    tags: [ascii, acronym, net_suffix, hyphen]
+
+  - name: Midnight Driving
+    source: kinet_history
+    tags: [english, phrase, operational_origin, no_network_suffix]
+  - name: Ｐｏｎ－ＮＥＴ
+    source: kinet_history
+    tags: [fullwidth, net_suffix, hyphen]
+  - name: はんぞーBBS
+    source: hanzou
+    tags: [japanese, nickname, bbs_suffix, mixed_script]
+  - name: T.C.M.network
+    source: tcm
+    tags: [ascii, acronym, lowercase_suffix, punctuation]
+  - name: ミンキームーンネットワーク
+    source: minkymoon
+    tags: [japanese, fandom_flavor, network_suffix]
+  - name: FFC-BBS
+    source: wdic
+    tags: [ascii, acronym, bbs_suffix, hyphen]
+  - name: 魔界ねっと
+    source: wdic
+    tags: [japanese, playful, net_suffix]
+  - name: 大魔界通信網
+    source: wdic
+    tags: [japanese, grandiose, communication_network_suffix]
+
+  - name: 東京BBS
+    source: paradise_grassroots
+    tags: [japanese, place, bbs_suffix]
+  - name: CATCG-NET
+    source: paradise_grassroots
+    tags: [ascii, acronym, net_suffix, hyphen]
+  - name: ナツメネット
+    source: paradise_grassroots
+    tags: [japanese, proper_noun, net_suffix]
+  - name: まきちゃんネット
+    source: paradise_grassroots
+    tags: [japanese, nickname, cute, net_suffix]
+  - name: 聖まりあんぬBBS
+    source: paradise_grassroots
+    tags: [japanese, playful, bbs_suffix, mixed_script]
+  - name: ALTAネット
+    source: paradise_grassroots
+    tags: [mixed_script, ascii, japanese_suffix, net_suffix]
+  - name: ふぁんきぃ核爆ネット
+    source: paradise_grassroots
+    tags: [japanese, joke, eccentric, net_suffix]
+  - name: メイプルタウンネットワーク
+    source: paradise_grassroots
+    tags: [japanese, thematic, network_suffix]
+  - name: Sunday Net
+    source: paradise_grassroots
+    tags: [english, plain, net_suffix]
+
+  - name: Kamishimo Transtation
+    source: astroid
+    tags: [english, coined_word, music_flavor, no_network_suffix]
+  - name: 泉北ニュータウンネット
+    source: sharpnel_interview
+    tags: [japanese, place, local_identity, net_suffix]
+  - name: Mind-NET
+    source: silphium
+    tags: [english, abstract, net_suffix, hyphen]
+  - name: ZOB Station
+    source: silphium
+    tags: [ascii, station_suffix, no_network_suffix]
+  - name: ゆいねっと
+    source: japan_bbs_1998
+    tags: [japanese, hiragana, soft_sound, net_suffix]
+
+  - name: ネットワーク杉並ここと
+    source: welfare_bbs
+    tags: [japanese, place, network_prefix]
+  - name: 夢の扉
+    source: welfare_bbs
+    tags: [japanese, poetic, no_network_suffix]
+  - name: トーコロＢＢＳ
+    source: welfare_bbs
+    tags: [japanese, fullwidth_bbs, bbs_suffix]
+  - name: 稲城ハートフルネット
+    source: welfare_bbs
+    tags: [japanese, place, warm_tone, net_suffix]
+  - name: ピアネット
+    source: welfare_bbs
+    tags: [japanese, short, net_suffix]
+  - name: 埼玉ふれあいネット
+    source: welfare_bbs
+    tags: [japanese, place, warm_tone, net_suffix]
+  - name: みんなのねがいネット
+    source: welfare_bbs
+    tags: [japanese, community_tone, net_suffix]
