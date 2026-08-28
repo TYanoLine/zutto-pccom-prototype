@@ -1,69 +1,107 @@
 // Telephone-line sounds used before a modem carrier exists.
-// These are deliberately separate from modemAudio.ts: ATD can work while the
-// application is completely standalone and before any WebSocket is created.
+// The entire sequence is rendered to one PCM buffer before playback.  This is
+// intentionally friendlier to iOS Safari than creating many scheduled
+// oscillators while an AudioContext is still resuming from a user gesture.
 
 let ctx: AudioContext | null = null;
 
 export type DialMode = 'tone' | 'pulse';
+
+type ToneEvent = {
+  start: number;
+  duration: number;
+  frequency: number;
+  gain: number;
+  modulationHz?: number;
+};
+
+type LinePlan = {
+  events: ToneEvent[];
+  duration: number;
+};
+
+const TAU = Math.PI * 2;
 
 function audio(): AudioContext {
   ctx ??= new AudioContext();
   return ctx;
 }
 
-function scheduleTone(
-  ac: AudioContext,
-  frequency: number,
-  start: number,
-  duration: number,
-  gain: number,
-): void {
-  const osc = ac.createOscillator();
-  const g = ac.createGain();
-  const t0 = ac.currentTime + start;
-  const attack = Math.min(0.006, duration / 4);
-  const release = Math.min(0.010, duration / 4);
-
-  osc.frequency.value = frequency;
-  g.gain.setValueAtTime(0, t0);
-  g.gain.linearRampToValueAtTime(gain, t0 + attack);
-  g.gain.setValueAtTime(gain, Math.max(t0 + attack, t0 + duration - release));
-  g.gain.linearRampToValueAtTime(0, t0 + duration);
-  osc.connect(g).connect(ac.destination);
-  osc.start(t0);
-  osc.stop(t0 + duration);
-}
-
-function scheduleClick(ac: AudioContext, start: number, gain = 0.095): void {
-  // A very short, slightly dirty line-break click. Two partials make it less
-  // like a UI beep and more like a loop-disconnect pulse heard through a modem.
-  scheduleTone(ac, 420, start, 0.014, gain);
-  scheduleTone(ac, 1350, start, 0.006, gain * 0.55);
-}
-
-function scheduleBusyAt(ac: AudioContext, start: number, cycles = 3): number {
-  for (let i = 0; i < cycles; i++) {
-    scheduleTone(ac, 400, start + i * 1.0, 0.50, 0.115);
-  }
-  return cycles;
-}
-
 /**
- * Play Japanese-flavoured dial tone followed by DTMF (ATDT) or
- * loop-disconnect pulses (ATDP).
- *
- * Returns the scheduled duration in seconds so the standalone telephone-line
- * simulation can wait until the number has actually finished dialling.
+ * Call this from a click/key gesture before starting a call.  playPlan() also
+ * resumes the context, but doing it explicitly gives iOS the strongest hint
+ * that the sound belongs to the current user action.
  */
-export function playDialSequence(phone: string, mode: DialMode = 'tone'): number {
-  const ac = audio();
-  void ac.resume();
+export function unlockLineAudio(): void {
+  try {
+    const ac = audio();
+    if (ac.state !== 'running') void ac.resume();
+  } catch {
+    // Audio is atmospheric; callers must continue even without Web Audio.
+  }
+}
 
-  // The old implementation used gains around 0.02, which was almost inaudible
-  // through an iPhone speaker even though modem handshakes were loud. Keep the
-  // line sounds comfortably below clipping but intentionally speaker-audible.
-  // Japanese analogue PSTN flavour: steady ~400 Hz "ツー" before digits.
-  scheduleTone(ac, 400, 0, 0.82, 0.105);
+function addToneToPcm(pcm: Float32Array, sampleRate: number, event: ToneEvent): void {
+  const start = Math.max(0, Math.floor(event.start * sampleRate));
+  const length = Math.max(1, Math.floor(event.duration * sampleRate));
+  const end = Math.min(pcm.length, start + length);
+  const attack = Math.min(0.006, event.duration / 4);
+  const release = Math.min(0.010, event.duration / 4);
+
+  for (let i = start; i < end; i++) {
+    const local = (i - start) / sampleRate;
+    let envelope = 1;
+    if (attack > 0 && local < attack) envelope = local / attack;
+    const remaining = event.duration - local;
+    if (release > 0 && remaining < release) envelope *= Math.max(0, remaining / release);
+
+    const modulation = event.modulationHz
+      ? 0.72 + 0.28 * Math.sin(TAU * event.modulationHz * local)
+      : 1;
+    pcm[i] += Math.sin(TAU * event.frequency * local) * event.gain * envelope * modulation;
+  }
+}
+
+function playPlan(plan: LinePlan): number {
+  try {
+    const ac = audio();
+    const sampleRate = ac.sampleRate;
+    const frameCount = Math.max(1, Math.ceil(plan.duration * sampleRate));
+    const pcm = new Float32Array(frameCount);
+    for (const event of plan.events) addToneToPcm(pcm, sampleRate, event);
+
+    // Mild line/speaker saturation, mostly to keep summed DTMF partials tidy.
+    for (let i = 0; i < pcm.length; i++) pcm[i] = Math.tanh(pcm[i] * 1.18) * 0.92;
+
+    const buffer = ac.createBuffer(1, pcm.length, sampleRate);
+    buffer.getChannelData(0).set(pcm);
+    const start = () => {
+      if (ac.state === 'closed') return;
+      const source = ac.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ac.destination);
+      source.start();
+    };
+
+    if (ac.state === 'running') {
+      start();
+    } else {
+      // Crucially, do not schedule tones on a suspended clock.  Start the PCM
+      // only after resume resolves; this fixes the iPhone case where the later
+      // modem handshake was audible but dial/DTMF tones were lost.
+      void ac.resume().then(start).catch(() => undefined);
+    }
+  } catch {
+    // Keep the telephone state machine working without Web Audio.
+  }
+  return plan.duration;
+}
+
+function dialPlan(phone: string, mode: DialMode): LinePlan {
+  const events: ToneEvent[] = [];
+
+  // Japanese analogue PSTN flavour: steady ~400 Hz 「ツー」 before digits.
+  events.push({ start: 0, duration: 0.82, frequency: 400, gain: 0.17 });
   let t = 1.02;
 
   if (mode === 'pulse') {
@@ -71,13 +109,14 @@ export function playDialSequence(phone: string, mode: DialMode = 'tone'): number
       if (!/\d/.test(digit)) continue;
       const pulses = digit === '0' ? 10 : Number(digit);
       for (let p = 0; p < pulses; p++) {
-        const pulseAt = t + p * 0.100; // 10 pps loop-disconnect dialling
-        scheduleClick(ac, pulseAt, 0.105);
-        scheduleClick(ac, pulseAt + 0.061, 0.060);
+        const pulseAt = t + p * 0.100;
+        events.push({ start: pulseAt, duration: 0.014, frequency: 420, gain: 0.18 });
+        events.push({ start: pulseAt, duration: 0.006, frequency: 1350, gain: 0.085 });
+        events.push({ start: pulseAt + 0.061, duration: 0.012, frequency: 420, gain: 0.10 });
       }
       t += pulses * 0.100 + 0.48;
     }
-    return t + 0.14;
+    return { events, duration: t + 0.14 };
   }
 
   const digits: Record<string, [number, number]> = {
@@ -87,38 +126,75 @@ export function playDialSequence(phone: string, mode: DialMode = 'tone'): number
     '0': [941, 1336], '*': [941, 1209], '#': [941, 1477],
   };
 
-  // Deliberately a little slower and louder than a modern phone UI: this is
-  // meant to sound like digits monitored through a 1990s modem speaker.
   for (const digit of phone) {
     const pair = digits[digit];
     if (!pair) continue;
-    scheduleTone(ac, pair[0], t, 0.105, 0.074);
-    scheduleTone(ac, pair[1], t, 0.105, 0.074);
-    t += 0.155;
+    events.push({ start: t, duration: 0.115, frequency: pair[0], gain: 0.115 });
+    events.push({ start: t, duration: 0.115, frequency: pair[1], gain: 0.115 });
+    t += 0.170;
   }
-  return t + 0.10;
+  return { events, duration: t + 0.12 };
+}
+
+function busyEvents(start: number, cycles: number): ToneEvent[] {
+  const events: ToneEvent[] = [];
+  for (let i = 0; i < cycles; i++) {
+    events.push({ start: start + i * 1.0, duration: 0.50, frequency: 400, gain: 0.18 });
+  }
+  return events;
+}
+
+function ringbackPlan(cycles: number): LinePlan {
+  const count = Math.max(1, cycles);
+  const events: ToneEvent[] = [];
+  for (let i = 0; i < count; i++) {
+    // 400 Hz with a 16 Hz tremolo gives the familiar Japanese ringing flavour.
+    events.push({
+      start: i * 3.0,
+      duration: 1.0,
+      frequency: 400,
+      gain: 0.17,
+      modulationHz: 16,
+    });
+  }
+  return {
+    events,
+    // A BBS normally auto-answers after the first ring, so one cycle does not
+    // need the entire 2-second inter-ring silence before the modem answers.
+    duration: count === 1 ? 1.22 : (count - 1) * 3.0 + 1.22,
+  };
+}
+
+/** 発信音 -> DTMF / pulse dialing. */
+export function playDialSequence(phone: string, mode: DialMode = 'tone'): number {
+  unlockLineAudio();
+  return playPlan(dialPlan(phone, mode));
+}
+
+/** Caller-side ringing tone heard before the remote modem answers. */
+export function playRingback(cycles = 1): number {
+  unlockLineAudio();
+  return playPlan(ringbackPlan(cycles));
 }
 
 /**
- * Complete no-server telephone attempt used by the standalone Vercel build:
- *
- *   ツー → ピポポ… → silence → ツー、ツー、ツー → BUSY(result text)
- *
- * The BUSY text itself is emitted by VirtualModem when this returned duration
- * expires; its busy() callback is a no-op in standalone mode so the cadence is
- * not played twice.
+ * Complete no-server telephone attempt:
+ * ツー -> ピポポ… -> silence -> ツー、ツー、ツー -> BUSY(result text)
  */
 export function playStandaloneBusySequence(phone: string, mode: DialMode = 'tone'): number {
-  const dialEnd = playDialSequence(phone, mode);
-  const ac = audio();
-  const busyStart = dialEnd + 0.85;
-  const busyDuration = scheduleBusyAt(ac, busyStart, 3);
-  return busyStart + busyDuration;
+  unlockLineAudio();
+  const plan = dialPlan(phone, mode);
+  const busyStart = plan.duration + 0.85;
+  const cycles = 3;
+  return playPlan({
+    events: plan.events.concat(busyEvents(busyStart, cycles)),
+    duration: busyStart + cycles,
+  });
 }
 
-/** Play a recognisable Japanese-style 400 Hz busy cadence. */
+/** Recognisable Japanese-style 400 Hz busy cadence. */
 export function playBusy(): number {
-  const ac = audio();
-  void ac.resume();
-  return scheduleBusyAt(ac, 0, 3);
+  unlockLineAudio();
+  const cycles = 3;
+  return playPlan({ events: busyEvents(0, cycles), duration: cycles });
 }
