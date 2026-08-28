@@ -29,8 +29,9 @@ export const DEFAULT_CENTERS: RegisteredCenter[] = [
 ];
 
 export const CENTER_STORAGE_KEY = 'zutto.centers.v1';
-const PRODUCTION_API_FALLBACK = 'https://zutto-pccom-prototype.onrender.com/api/centers';
-const CENTER_FETCH_TIMEOUT_MS = 90_000;
+export const WORLD_KEY_STORAGE_KEY = 'zutto.worldKey.v1';
+const PRODUCTION_API_FALLBACK = 'https://zutto-pccom-prototype.onrender.com/api/world/bootstrap';
+const CENTER_FETCH_TIMEOUT_MS = 120_000;
 
 function digitsOnly(value: unknown): string {
   return typeof value === 'string' ? value.replace(/\D/g, '').slice(0, 20) : '';
@@ -48,6 +49,22 @@ function normalizeCenter(value: Partial<RegisteredCenter>, index: number): Regis
     : `center-${phone}-${index}`;
   const maxBaud = typeof value.maxBaud === 'number' ? value.maxBaud : undefined;
   return { id, name, phone, dialMode, maxBaud, builtIn: value.builtIn === true };
+}
+
+export function getOrCreateWorldKey(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const existing = window.localStorage.getItem(WORLD_KEY_STORAGE_KEY);
+    if (existing && /^[0-9a-f]{32}$/.test(existing)) return existing;
+  } catch {
+    // Continue with an in-memory key for this page load if storage is blocked.
+  }
+
+  const bytes = new Uint8Array(16);
+  window.crypto.getRandomValues(bytes);
+  const key = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  try { window.localStorage.setItem(WORLD_KEY_STORAGE_KEY, key); } catch { /* optional */ }
+  return key;
 }
 
 export function loadCenters(): RegisteredCenter[] {
@@ -83,23 +100,29 @@ export function saveCenters(centers: RegisteredCenter[]): void {
 }
 
 export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]> {
-  let endpoint = isLocalPage() ? '/api/centers' : PRODUCTION_API_FALLBACK;
+  const worldKey = getOrCreateWorldKey();
+  let endpoint = isLocalPage() ? '/api/world/bootstrap' : PRODUCTION_API_FALLBACK;
   if (wsURL) {
     const url = new URL(wsURL, window.location.href);
     url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
-    url.pathname = '/api/centers';
+    url.pathname = '/api/world/bootstrap';
     url.search = '';
     endpoint = url.toString();
   }
+  const url = new URL(endpoint, window.location.href);
+  url.searchParams.set('key', worldKey);
 
-  // Render may need to wake a sleeping service before the OpenAI catalog request
-  // even starts. Keep this client timeout longer than the server's generation
-  // timeout so a cold start is not mistaken for a missing directory.
+  // A first visit may wake Render, create the world, call the naming model and
+  // commit 100 hosts. Later visits to the same browser key should be DB reads.
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), CENTER_FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(endpoint, { signal: controller.signal });
-    if (!response.ok) throw new Error(`center directory: ${response.status}`);
+    const response = await fetch(url.toString(), { signal: controller.signal });
+    if (!response.ok) {
+      let detail = '';
+      try { detail = ((await response.json()) as { error?: string }).error ?? ''; } catch { /* ignore */ }
+      throw new Error(detail || `center directory: ${response.status}`);
+    }
     const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
     if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
     return payload.centers
