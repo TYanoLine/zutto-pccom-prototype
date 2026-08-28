@@ -22,8 +22,8 @@ const configuredApiURL = (import.meta.env.VITE_API_URL as string | undefined)?.t
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const inferredApiURL = configuredWsURL?.replace(/^wss:/, 'https:').replace(/^ws:/, 'http:').replace(/\/ws\/?$/, '');
 const apiBase = (configuredApiURL || inferredApiURL || (typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname) ? 'http://localhost:8080' : '')).replace(/\/$/, '');
-
 const statuses = ['needs_review', 'provisional', 'operator_verified', 'canonical', 'rejected'];
+const API_TIMEOUT_MS = 25000;
 
 export default function HistoricalResearchPage() {
   const [cases, setCases] = useState<ResearchCase[]>([]);
@@ -35,45 +35,54 @@ export default function HistoricalResearchPage() {
   const [supplement, setSupplement] = useState('');
   const [status, setStatus] = useState('needs_review');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('案件一覧を読み込んでいます...');
-
+  const [loadingList, setLoadingList] = useState(false);
+  const [notice, setNotice] = useState('TEST MODE: 認証なしで利用できます。');
   const canCall = apiBase.length > 0;
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
 
   async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-    if (!apiBase) throw new Error('VITE_API_URL / VITE_WS_URL からAPIサーバを特定できません');
-    const response = await fetch(`${apiBase}${path}`, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(init.headers || {}),
-      },
-    });
-    const text = await response.text();
-    let body: unknown = {};
-    try { body = text ? JSON.parse(text) : {}; } catch { body = { error: text }; }
-    if (!response.ok) {
-      const message = typeof body === 'object' && body && 'error' in body ? String((body as { error: unknown }).error) : `${response.status} ${response.statusText}`;
-      throw new Error(message);
+    if (!apiBase) throw new Error('APIサーバを特定できません');
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${apiBase}${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+      });
+      const text = await response.text();
+      let body: unknown = {};
+      try { body = text ? JSON.parse(text) : {}; } catch { body = { error: text }; }
+      if (!response.ok) {
+        const message = typeof body === 'object' && body && 'error' in body ? String((body as { error: unknown }).error) : `${response.status} ${response.statusText}`;
+        throw new Error(message);
+      }
+      return body as T;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') throw new Error('APIが25秒以内に応答しませんでした。Renderの起動/デプロイ状態を確認してください。');
+      throw error;
+    } finally {
+      window.clearTimeout(timer);
     }
-    return body as T;
   }
 
   async function loadCases(preferId?: string | null) {
     if (!canCall) return;
-    const data = await api<{ cases: ResearchCase[] }>('/api/admin/research');
-    setCases(data.cases || []);
-    const nextId = preferId ?? selectedId ?? data.cases?.[0]?.id ?? null;
-    if (nextId) await openCase(nextId, false);
+    setLoadingList(true);
+    try {
+      const data = await api<{ cases: ResearchCase[] }>('/api/admin/research');
+      setCases(data.cases || []);
+      const nextId = preferId ?? selectedId ?? data.cases?.[0]?.id ?? null;
+      if (nextId) await openCase(nextId, false);
+    } finally {
+      setLoadingList(false);
+    }
   }
 
   async function openCase(id: string, reloadList = true) {
     const item = await api<ResearchCase>(`/api/admin/research/case?id=${encodeURIComponent(id)}`);
-    setSelectedId(id);
-    setSelected(item);
-    setSupplement(item.provisionalAnswer || '');
-    setStatus(item.status || 'needs_review');
+    setSelectedId(id); setSelected(item); setSupplement(item.provisionalAnswer || ''); setStatus(item.status || 'needs_review');
     if (reloadList) {
       const data = await api<{ cases: ResearchCase[] }>('/api/admin/research');
       setCases(data.cases || []);
@@ -81,25 +90,15 @@ export default function HistoricalResearchPage() {
   }
 
   async function run(action: () => Promise<void>) {
-    setBusy(true);
-    setNotice('処理中...');
-    try {
-      await action();
-      setNotice('完了しました。');
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
+    setBusy(true); setNotice('処理中...');
+    try { await action(); setNotice('完了しました。'); }
+    catch (error) { setNotice(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
   }
 
   useEffect(() => {
-    if (!canCall) {
-      setNotice('APIサーバを特定できません。');
-      return;
-    }
-    const id = window.setTimeout(() => { void run(() => loadCases()); }, 100);
-    return () => window.clearTimeout(id);
+    if (!canCall) { setNotice('APIサーバを特定できません。'); return; }
+    void loadCases().then(() => setNotice('TEST MODE: 認証なしで利用できます。')).catch(error => setNotice(error instanceof Error ? error.message : String(error)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canCall]);
 
@@ -112,7 +111,7 @@ export default function HistoricalResearchPage() {
     <section className="research-card auth-card">
       <div><span className="api-label">TEST MODE</span><strong>認証なし</strong><p className="muted">PoC中のみResearch APIを開放しています。本番化時に運営認証へ戻します。</p></div>
       <div><span className="api-label">API</span><code>{apiBase || '(未設定)'}</code></div>
-      <button type="button" disabled={!canCall || busy} onClick={() => void run(() => loadCases())}>案件を再読込</button>
+      <button type="button" disabled={!canCall || loadingList} onClick={() => void loadCases().then(() => setNotice('案件一覧を更新しました。')).catch(error => setNotice(error instanceof Error ? error.message : String(error)))}>{loadingList ? '読込中…' : '案件を再読込'}</button>
     </section>
 
     <section className="research-card">
@@ -124,15 +123,13 @@ export default function HistoricalResearchPage() {
       <button type="button" disabled={!canCall || busy || !topic.trim() || !question.trim()} onClick={() => void run(async () => {
         const item = await api<ResearchCase>('/api/admin/research/new', { method: 'POST', body: JSON.stringify({ topic, question }) });
         setTopic(''); setQuestion(''); await loadCases(item.id);
-      })}>Web調査して案件を作成</button>
+      })}>{busy ? '調査中…' : 'Web調査して案件を作成'}</button>
     </section>
 
     <div className="research-layout">
       <aside className="research-card case-list">
         <div className="section-heading"><h2>案件</h2><span>{cases.length}件</span></div>
-        {cases.length === 0 ? <p className="muted">案件はまだありません。上の「新規調査」から最初の案件を作成してください。</p> : cases.map(item => <button type="button" key={item.id} className={`case-button ${selectedId === item.id ? 'active' : ''}`} disabled={busy} onClick={() => void run(() => openCase(item.id))}>
-          <strong>{item.topic}</strong><span>{item.status} / {item.worldDate}</span>
-        </button>)}
+        {cases.length === 0 ? <p className="muted">案件はまだありません。上の「新規調査」から最初の案件を作成してください。</p> : cases.map(item => <button type="button" key={item.id} className={`case-button ${selectedId === item.id ? 'active' : ''}`} disabled={busy} onClick={() => void run(() => openCase(item.id))}><strong>{item.topic}</strong><span>{item.status} / {item.worldDate}</span></button>)}
       </aside>
 
       <section className="research-card case-detail">
