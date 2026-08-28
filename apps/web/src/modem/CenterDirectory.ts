@@ -16,6 +16,13 @@ export const DEFAULT_CENTERS: RegisteredCenter[] = [
     dialMode: 'tone',
     builtIn: true,
   },
+  {
+    id: 'hakata-canal-net',
+    name: 'HAKATA CANAL NET [絵理香K版]',
+    phone: '0920000196',
+    dialMode: 'tone',
+    builtIn: true,
+  },
 ];
 
 export const CENTER_STORAGE_KEY = 'zutto.centers.v1';

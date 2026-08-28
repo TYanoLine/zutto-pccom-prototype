@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"zutto-pccom/apps/server/internal/bbs"
+	"zutto-pccom/apps/server/internal/hostprogram"
 	"zutto-pccom/apps/server/internal/telephone"
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -87,7 +87,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			res := h.Network.Dial(phone, msg.Attempt)
 			sm := serverMessage{Type: "dial_result", Result: string(res.Result), Baud: res.Baud, Line: res.Line}
 			if res.Result == telephone.Connect {
-				runtime := bbs.New(res.Host, h.Store)
+				runtime := hostprogram.New(res.Host, h.Store)
 				session, token, err := sessions.Create(res.Host, res.Baud, res.Line, runtime)
 				if err != nil {
 					_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "could not create call session"})
