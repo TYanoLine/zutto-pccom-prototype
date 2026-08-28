@@ -38,6 +38,20 @@ function audio(): AudioContext {
   return ctx;
 }
 
+/**
+ * Wake the long-lived modem speaker context while a real user gesture is still
+ * active (ATD Enter / CENTER CALL).  iOS Safari can refuse a later resume that
+ * happens only after ringing has completed.
+ */
+export function unlockModemAudio(): void {
+  try {
+    const ac = audio();
+    if (ac.state !== 'running') void ac.resume();
+  } catch {
+    // Web Audio is atmospheric; the call state machine must keep working.
+  }
+}
+
 function randomSeed(): number {
   if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
     const value = new Uint32Array(1);
@@ -511,13 +525,22 @@ function renderHandshake(baud: number, v: Variation): { pcm: Float32Array; durat
 }
 
 function playPcm(ac: AudioContext, pcm: Float32Array): void {
-  void ac.resume();
   const buffer = ac.createBuffer(1, pcm.length, SAMPLE_RATE);
   buffer.getChannelData(0).set(pcm);
-  const source = ac.createBufferSource();
-  source.buffer = buffer;
-  source.connect(ac.destination);
-  source.start();
+
+  const start = () => {
+    if (ac.state === 'closed') return;
+    const source = ac.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ac.destination);
+    source.start();
+  };
+
+  if (ac.state === 'running') {
+    start();
+  } else {
+    void ac.resume().then(start).catch(() => undefined);
+  }
 }
 
 export function playHandshake(baud: number): HandshakeRun {
