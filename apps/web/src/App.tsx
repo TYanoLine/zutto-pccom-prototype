@@ -64,7 +64,7 @@ export default function App() {
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => { try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ } }, [commSettings]);
-  useEffect(() => { if (standaloneLine) return; fetchWorldCenters(wsURL).then(centers => { if (!centers.length) return; centersRef.current = centers; setDirectoryCount(centers.length); }).catch(() => {}); }, []);
+  useEffect(() => { fetchWorldCenters(wsURL).then(centers => { if (!centers.length) return; centersRef.current = centers; setDirectoryCount(centers.length); }).catch(() => {}); }, []);
 
   useEffect(() => {
     showMainMenu();
