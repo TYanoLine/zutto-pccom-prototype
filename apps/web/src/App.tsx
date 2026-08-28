@@ -16,7 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
-const APP_VERSION = '0.04';
+const APP_VERSION = '0.05';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -30,6 +30,7 @@ const SETTINGS_KEY = 'zutto.commSettings.v1';
 type ActiveCall = { phone: string; connectedAt: Date };
 type BootWindow = Window & { __zuttoBootOk?: () => void };
 type HandshakeRun = ReturnType<typeof playHandshake>;
+type DirectoryLoadState = 'loading' | 'ready' | 'error';
 
 function loadCommSettings(): CommSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_COMM_SETTINGS };
@@ -45,7 +46,8 @@ export default function App() {
   const localStationRef = useRef<LocalTestStation | null>(null);
   const directoryRef = useRef<TerminalCenterDirectory | null>(null);
   const centersRef = useRef<RegisteredCenter[]>(loadCenters());
-  const directoryOpenRef = useRef(false);
+  const directoryLoadStateRef = useRef<DirectoryLoadState>('loading');
+  const openDirectoryWhenReadyRef = useRef(false);
   const lastDialWasLocalRef = useRef(false);
   const lastLocalDialModeRef = useRef<DialMode>('tone');
   const echoedInputRef = useRef('');
@@ -61,7 +63,7 @@ export default function App() {
   const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
   const [audioStatus, setAudioStatus] = useState('READY');
   const [commSettings, setCommSettings] = useState<CommSettings>(loadCommSettings);
-  const [directoryCount, setDirectoryCount] = useState(centersRef.current.length);
+  const [directoryCount, setDirectoryCount] = useState(0);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('センター情報読込中...');
 
@@ -71,10 +73,17 @@ export default function App() {
     fetchWorldCenters(wsURL).then(centers => {
       if (!centers.length) throw new Error('empty center directory');
       centersRef.current = centers;
+      directoryLoadStateRef.current = 'ready';
       setDirectoryCount(centers.length);
       setDirectoryStatus(`センター情報読込完了 (${centers.length}局)`);
-      if (directoryOpenRef.current) directoryRef.current?.show();
+      if (openDirectoryWhenReadyRef.current) {
+        openDirectoryWhenReadyRef.current = false;
+        directoryRef.current?.show();
+        setDirectoryOpen(true);
+      }
     }).catch(error => {
+      directoryLoadStateRef.current = 'error';
+      openDirectoryWhenReadyRef.current = false;
       const message = error instanceof Error ? error.message : String(error);
       setDirectoryStatus(`CENTER API ERROR: ${message}`);
     });
@@ -88,7 +97,7 @@ export default function App() {
     modem.setAutoRedial(autoRedial); modemRef.current = modem;
     const localStation = new LocalTestStation(terminal, { audio: { dial: playDialSequence, handshake: playHandshake } });
     localStation.onStatus = setStatus; localStation.onConnectionChange = connected => setLocalTestConnected(connected); localStationRef.current = localStation;
-    directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { directoryOpenRef.current = false; setDirectoryOpen(false); dialCenter(center); }, () => { directoryOpenRef.current = false; setDirectoryOpen(false); showMainMenu(); });
+    directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { setDirectoryOpen(false); dialCenter(center); }, () => { setDirectoryOpen(false); showMainMenu(); });
     return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
@@ -99,14 +108,29 @@ export default function App() {
     terminal.clear(); terminal.write(`\x1b[37;44m ずっとパソコン通信 Ver ${APP_VERSION}                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n`);
     terminal.write('                     \x1b[30;46m　メイン・メニュー　\x1b[0m\r\n\r\n');
     terminal.write('                     1　センターの呼び出し\r\n                     2　通信パラメータの設定\r\n                     3　ターミナル・モード\r\n                     4　ノート・パッド\r\n                     5　ディスク・ユーティリティ\r\n                     6　MS-DOS コマンドへ\r\n                     7　終　了\r\n\r\n');
-    terminal.write(` 登録センター: ${directoryCount}局　　　　　　　　　使用する電話回線: ダイアル(10)\r\n 番号を選択してください > `); setInput(''); echoedInputRef.current = '';
+    const countText = directoryLoadStateRef.current === 'ready' ? `${centersRef.current.length}局` : '---';
+    terminal.write(` 登録センター: ${countText}　　　　　　　　　使用する電話回線: ダイアル(10)\r\n 番号を選択してください > `); setInput(''); echoedInputRef.current = '';
+  }
+  function showDirectoryLoading() {
+    terminal.clear();
+    terminal.write(`\x1b[37;44m ずっとパソコン通信　センター情報読み込み                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
+    terminal.write('                     \x1b[30;46m　センター情報の読み込み　\x1b[0m\r\n\r\n');
+    terminal.write(' センター情報をディスクから読み込んでいます。\r\n');
+    terminal.write(' しばらくお待ちください...\r\n\r\n');
+    terminal.write(' ※ 読み込みが終わると、自動的にセンター・リストを表示します。');
+  }
+  function showDirectoryError() {
+    terminal.clear();
+    terminal.write(`\x1b[37;44m ずっとパソコン通信　センター情報読み込み                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
+    terminal.write('\r\n センター情報を読み込むことができませんでした。\r\n');
+    terminal.write(' ESCキーでメイン・メニューに戻ってください。');
   }
   function syncTerminalInput(next: string) { const p = Array.from(echoedInputRef.current), n = Array.from(next); let c = 0; while (c < p.length && c < n.length && p[c] === n[c]) c++; for (let i = p.length; i > c; i--) terminal.backspace(); if (c < n.length) terminal.write(n.slice(c).join('')); echoedInputRef.current = next; }
   function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
   function compositionStart() { composingRef.current = true; }
   function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
   function routeCommand(raw: string) { const upper = raw.trim().toUpperCase(), station = localStationRef.current; if (station?.isConnected()) { station.submitLine(raw); return; } if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; } let localMode: DialMode | null = null; if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode; if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; } if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; } if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false; modemRef.current?.submitLine(raw); }
-  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; } const native = e.nativeEvent as KeyboardEvent; if (e.key === 'Enter') { if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; } terminal.write('\r\n'); const command = input.trim(); setInput(''); echoedInputRef.current = ''; if (!activeCall && !localTestConnected && command === '1') { directoryOpenRef.current = true; directoryRef.current?.show(); setDirectoryOpen(true); } else routeCommand(input); e.preventDefault(); } }
+  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; } const native = e.nativeEvent as KeyboardEvent; if (e.key === 'Escape' && openDirectoryWhenReadyRef.current) { openDirectoryWhenReadyRef.current = false; showMainMenu(); e.preventDefault(); return; } if (e.key === 'Enter') { if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; } terminal.write('\r\n'); const command = input.trim(); setInput(''); echoedInputRef.current = ''; if (!activeCall && !localTestConnected && command === '1') { if (directoryLoadStateRef.current === 'ready') { directoryRef.current?.show(); setDirectoryOpen(true); } else if (directoryLoadStateRef.current === 'loading') { openDirectoryWhenReadyRef.current = true; showDirectoryLoading(); } else { showDirectoryError(); } } else routeCommand(input); e.preventDefault(); } }
   function softKey(key: string) { directoryRef.current?.handleKey(key); }
   function dialCenter(center: RegisteredCenter) { const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`; terminal.write(`${command}\r\n`); routeCommand(command); setInput(''); echoedInputRef.current = ''; }
   function audition(baud: number) { try { setAudioStatus(`SYNTHESIZING ${baud}bps...`); const run = playHandshake(baud); setLastHandshake(run); setAudioStatus(`PLAYING ${baud}bps`); } catch (error) { setAudioStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`); } }
@@ -122,7 +146,7 @@ export default function App() {
       <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
     </nav>}
     <footer className="statusbar"><span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span><label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label></footer>
-    <aside className="quick-help"><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount}局。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
+    <aside className="quick-help"><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
   </main>;
