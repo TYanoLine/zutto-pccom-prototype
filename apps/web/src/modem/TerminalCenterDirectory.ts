@@ -43,6 +43,8 @@ export class TerminalCenterDirectory {
       case 'PageDown': this.selected = Math.min(centers.length - 1, this.selected + PAGE_SIZE); this.render(); break;
       case 'Home': this.selected = 0; this.render(); break;
       case 'End': this.selected = centers.length - 1; this.render(); break;
+      case 's':
+      case 'S': this.saveList(centers); break;
       case 'Enter': {
         const center = centers[this.selected];
         this.open = false;
@@ -56,7 +58,28 @@ export class TerminalCenterDirectory {
     return true;
   }
 
-  private render() {
+  private saveList(centers: RegisteredCenter[]) {
+    const exportedAt = new Date().toISOString();
+    const payload = {
+      format: 'zutto-center-directory',
+      version: 1,
+      exportedAt,
+      count: centers.length,
+      centers: centers.map(({ id, name, phone, dialMode, maxBaud }) => ({ id, name, phone, dialMode, maxBaud })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `zutto-centers-${exportedAt.slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    this.render('センター・リストをファイルに保存しました。');
+  }
+
+  private render(message = '') {
     const centers = this.centers();
     const page = Math.floor(this.selected / PAGE_SIZE);
     const pages = Math.max(1, Math.ceil(centers.length / PAGE_SIZE));
@@ -84,7 +107,9 @@ export class TerminalCenterDirectory {
       this.terminal.write(absolute === this.selected ? `\x1b[30;46m${padCells(row, 78)}\x1b[0m\r\n` : `${row}\r\n`);
     }
 
-    this.terminal.write('\x1b[36m  ↑↓:選択  ROLL UP/DOWN:頁移動  RETURN:呼び出し  ESC:メインメニュー\x1b[0m');
+    if (message) this.terminal.write(`\x1b[33m  ${fit(message, 76)}\x1b[0m\r\n`);
+    else this.terminal.write('\r\n');
+    this.terminal.write('\x1b[36m  ↑↓:選択  ROLL:頁移動  RETURN:呼出  S:リスト保存  ESC:メニュー\x1b[0m');
   }
 }
 
