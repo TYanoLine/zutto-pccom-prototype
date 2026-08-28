@@ -5,6 +5,7 @@ export type RegisteredCenter = {
   name: string;
   phone: string;
   dialMode: DialMode;
+  maxBaud?: number;
   builtIn?: boolean;
 };
 
@@ -14,6 +15,7 @@ export const DEFAULT_CENTERS: RegisteredCenter[] = [
     name: 'YOKOHAMA MOONLIGHT NETWORK',
     phone: '0451234567',
     dialMode: 'tone',
+    maxBaud: 28800,
     builtIn: true,
   },
   {
@@ -21,6 +23,7 @@ export const DEFAULT_CENTERS: RegisteredCenter[] = [
     name: 'HAKATA CANAL NET [絵理香K版]',
     phone: '0920000196',
     dialMode: 'tone',
+    maxBaud: 14400,
     builtIn: true,
   },
 ];
@@ -41,7 +44,8 @@ function normalizeCenter(value: Partial<RegisteredCenter>, index: number): Regis
   const id = typeof value.id === 'string' && value.id.trim()
     ? value.id.trim()
     : `center-${phone}-${index}`;
-  return { id, name, phone, dialMode, builtIn: value.builtIn === true };
+  const maxBaud = typeof value.maxBaud === 'number' ? value.maxBaud : undefined;
+  return { id, name, phone, dialMode, maxBaud, builtIn: value.builtIn === true };
 }
 
 export function loadCenters(): RegisteredCenter[] {
@@ -74,4 +78,22 @@ export function saveCenters(centers: RegisteredCenter[]): void {
   } catch {
     // Persistence is optional.
   }
+}
+
+export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]> {
+  let endpoint = '/api/centers';
+  if (wsURL) {
+    const url = new URL(wsURL, window.location.href);
+    url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+    url.pathname = '/api/centers';
+    url.search = '';
+    endpoint = url.toString();
+  }
+  const response = await fetch(endpoint);
+  if (!response.ok) throw new Error(`center directory: ${response.status}`);
+  const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
+  if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
+  return payload.centers
+    .map((value, index) => normalizeCenter({ ...value, builtIn: true }, index))
+    .filter((value): value is RegisteredCenter => value !== null);
 }
