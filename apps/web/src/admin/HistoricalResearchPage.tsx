@@ -3,6 +3,7 @@ import './historicalResearch.css';
 
 type ResearchSource = { url: string; title?: string };
 type ResearchMessage = { role: string; body: string; createdAt?: string };
+type BootWindow = Window & { __zuttoBootOk?: () => void };
 type ResearchCase = {
   id: string;
   topic: string;
@@ -38,6 +39,8 @@ export default function HistoricalResearchPage() {
   const [notice, setNotice] = useState('運営トークンを入力すると案件一覧を読み込めます。');
 
   const canCall = useMemo(() => apiBase.length > 0 && token.trim().length > 0, [token]);
+
+  useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
 
   async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (!apiBase) throw new Error('VITE_API_URL / VITE_WS_URL からAPIサーバを特定できません');
