@@ -144,7 +144,7 @@ func loadCatalog(ctx context.Context, conn *pgxpool.Conn, worldKey string) (Cata
 		if errors.Is(err, pgx.ErrNoRows) { return Catalog{}, false, nil }
 		return Catalog{}, false, fmt.Errorf("load world: %w", err)
 	}
-	rows, err := conn.Query(ctx, `SELECT id::text, name, phone_number,
+	rows, err := conn.Query(ctx, `SELECT COALESCE(facts->>'directory_id', id::text), name, phone_number,
 		COALESCE(facts->>'dial_mode', 'tone'), max_baud
 		FROM hosts WHERE world_id = $1::uuid ORDER BY directory_order, phone_number`, catalog.WorldID)
 	if err != nil { return Catalog{}, false, fmt.Errorf("load world hosts: %w", err) }
