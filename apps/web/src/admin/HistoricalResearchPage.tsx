@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import './historicalResearch.css';
 
 type ResearchSource = { url: string; title?: string };
@@ -26,7 +26,6 @@ const apiBase = (configuredApiURL || inferredApiURL || (typeof window !== 'undef
 const statuses = ['needs_review', 'provisional', 'operator_verified', 'canonical', 'rejected'];
 
 export default function HistoricalResearchPage() {
-  const [token, setToken] = useState('');
   const [cases, setCases] = useState<ResearchCase[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selected, setSelected] = useState<ResearchCase | null>(null);
@@ -36,9 +35,9 @@ export default function HistoricalResearchPage() {
   const [supplement, setSupplement] = useState('');
   const [status, setStatus] = useState('needs_review');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('運営トークンを入力すると案件一覧を読み込めます。');
+  const [notice, setNotice] = useState('案件一覧を読み込んでいます...');
 
-  const canCall = useMemo(() => apiBase.length > 0 && token.trim().length > 0, [token]);
+  const canCall = apiBase.length > 0;
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
 
@@ -48,7 +47,6 @@ export default function HistoricalResearchPage() {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        'X-Zutto-Debug-Token': token,
         ...(init.headers || {}),
       },
     });
@@ -96,8 +94,11 @@ export default function HistoricalResearchPage() {
   }
 
   useEffect(() => {
-    if (!canCall) return;
-    const id = window.setTimeout(() => { void run(() => loadCases()); }, 250);
+    if (!canCall) {
+      setNotice('APIサーバを特定できません。');
+      return;
+    }
+    const id = window.setTimeout(() => { void run(() => loadCases()); }, 100);
     return () => window.clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canCall]);
@@ -109,7 +110,7 @@ export default function HistoricalResearchPage() {
     </header>
 
     <section className="research-card auth-card">
-      <label>運営トークン<input type="password" value={token} onChange={e => setToken(e.currentTarget.value)} placeholder="DEBUG_RESET_TOKEN" autoComplete="off" /></label>
+      <div><span className="api-label">TEST MODE</span><strong>認証なし</strong><p className="muted">PoC中のみResearch APIを開放しています。本番化時に運営認証へ戻します。</p></div>
       <div><span className="api-label">API</span><code>{apiBase || '(未設定)'}</code></div>
       <button type="button" disabled={!canCall || busy} onClick={() => void run(() => loadCases())}>案件を再読込</button>
     </section>
@@ -129,13 +130,13 @@ export default function HistoricalResearchPage() {
     <div className="research-layout">
       <aside className="research-card case-list">
         <div className="section-heading"><h2>案件</h2><span>{cases.length}件</span></div>
-        {cases.length === 0 ? <p className="muted">案件はまだありません。</p> : cases.map(item => <button type="button" key={item.id} className={`case-button ${selectedId === item.id ? 'active' : ''}`} disabled={busy} onClick={() => void run(() => openCase(item.id))}>
+        {cases.length === 0 ? <p className="muted">案件はまだありません。上の「新規調査」から最初の案件を作成してください。</p> : cases.map(item => <button type="button" key={item.id} className={`case-button ${selectedId === item.id ? 'active' : ''}`} disabled={busy} onClick={() => void run(() => openCase(item.id))}>
           <strong>{item.topic}</strong><span>{item.status} / {item.worldDate}</span>
         </button>)}
       </aside>
 
       <section className="research-card case-detail">
-        {!selected ? <div className="empty-state">左の案件を選択してください。</div> : <>
+        {!selected ? <div className="empty-state">案件を作成するか、左の案件を選択してください。</div> : <>
           <div className="case-title-row"><div><p className="eyebrow">{selected.worldDate}</p><h2>{selected.topic}</h2><p>{selected.question}</p></div><span className={`status-pill status-${selected.status}`}>{selected.status}</span></div>
           <div className="confidence"><span>confidence</span><strong>{Math.round((selected.confidence || 0) * 100)}%</strong><div><i style={{ width: `${Math.max(0, Math.min(100, (selected.confidence || 0) * 100))}%` }} /></div></div>
           <h3>調査サマリー</h3><p className="preserve">{selected.summary || '(なし)'}</p>
