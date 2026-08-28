@@ -19,6 +19,7 @@ sourceProto.connect = function (destination: AudioNode, ...rest: unknown[]) {
 };
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/';
+// PoC routes deliberately stay outside the historical host-program runtime.
 const Root = path === '/admin/research'
   ? HistoricalResearchPage
   : path === '/poc/knowledge-bbs'
