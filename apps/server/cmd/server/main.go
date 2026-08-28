@@ -24,7 +24,7 @@ type centerDirectoryEntry struct {
 	MaxBaud  int    `json:"maxBaud"`
 }
 
-const temporaryCenterCount = 10
+const temporaryCenterCount = 100
 
 func main() {
 	cfg := config.Load()
