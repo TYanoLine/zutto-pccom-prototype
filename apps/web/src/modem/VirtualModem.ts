@@ -429,9 +429,9 @@ export class VirtualModem {
     if (!this.connected || this.recoveringCarrier || this.pendingLines.length === 0) return;
     const queued = this.pendingLines;
     this.pendingLines = [];
-    for (const line of queued) {
-      if (!this.send({ type: 'line', line })) {
-        this.pendingLines.unshift(line);
+    for (let i = 0; i < queued.length; i++) {
+      if (!this.send({ type: 'line', line: queued[i] })) {
+        this.pendingLines = queued.slice(i);
         this.recoveringCarrier = true;
         this.onStatus?.('LINE INTERRUPTED / RECONNECTING');
         this.scheduleRemoteReconnect();
