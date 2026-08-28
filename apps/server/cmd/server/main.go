@@ -84,10 +84,11 @@ func main() {
 		if !debugAuthorized(r) { http.Error(w, `{"error":"debug reset is disabled or unauthorized"}`, http.StatusForbidden); return false }
 		return true
 	}
-	adminGuard := func(w http.ResponseWriter, r *http.Request) bool {
+	adminGuard := func(w http.ResponseWriter, _ *http.Request) bool {
 		w.Header().Set("Content-Type", "application/json")
 		if historyStore == nil { http.Error(w, `{"error":"historical research database is not configured"}`, http.StatusServiceUnavailable); return false }
-		if !debugAuthorized(r) { http.Error(w, `{"error":"admin research is disabled or unauthorized"}`, http.StatusForbidden); return false }
+		// PoC only: historical research maintenance is intentionally unauthenticated.
+		// Keep debug reset endpoints protected separately via debugGuard.
 		return true
 	}
 
@@ -152,7 +153,7 @@ func main() {
 	mux.HandleFunc("/api/admin/research/supplement", supplementResearch)
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"debug_reset":cfg.DebugResetToken!=""}) })
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5*time.Second}
 	log.Printf("zutto server listening on %s", cfg.Addr)
