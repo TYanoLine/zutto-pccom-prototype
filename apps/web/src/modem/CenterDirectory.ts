@@ -80,8 +80,16 @@ export function saveCenters(centers: RegisteredCenter[]): void {
   }
 }
 
-export async function fetchWorldCenters(): Promise<RegisteredCenter[]> {
-  const response = await fetch('/api/centers');
+export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]> {
+  let endpoint = '/api/centers';
+  if (wsURL) {
+    const url = new URL(wsURL, window.location.href);
+    url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
+    url.pathname = '/api/centers';
+    url.search = '';
+    endpoint = url.toString();
+  }
+  const response = await fetch(endpoint);
   if (!response.ok) throw new Error(`center directory: ${response.status}`);
   const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
   if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
