@@ -11,10 +11,10 @@ The world is not a chatbot wrapped in a terminal. It is a persistent network sim
 - World setting: Japan, 1996.
 - Client environment for the first release: PC-98 family.
 - Client UI: web-based fictional communications application inspired by period Japanese terminal software, not a pixel-for-pixel clone of one commercial/shareware program.
-- Host software: fictional compatibility profiles modeled after commonly used Japanese BBS software families such as KTBBS, BIG-Model, mmm, RT-BBS and VS.
-- Host software shares a common runtime internally but each host may have different menus, command mappings, features, ANSI usage and local modifications.
+- Historical host software families include KTBBS, BIG-Model, 絵理香K版, mmm, RT-BBS and VS, with more possible as research permits.
+- Historical host packages are separate runtimes/state machines. Shared lower layers are allowed, but software-specific UI/commands/semantics must not be flattened into one generic profile runtime.
 - Internal canonical text: UTF-8. Serial/terminal boundary later uses CP932/Shift_JIS bytes.
-- LLM: OpenAI Responses API family behind an internal provider interface.
+- LLM: OpenAI Responses API family behind an internal provider interface when AI is enabled.
 - Canonical world state lives in PostgreSQL, never in an LLM conversation/session.
 
 ## Host discovery
@@ -144,3 +144,7 @@ Inactive hosts are not simulated continuously. Catch them up lazily using coarse
 ## Future real-machine target
 
 The same BBS runtime should eventually be reachable from a real PC-98 communications program over RS-232C through a bridge device/application that emulates enough Hayes-style modem behavior to support dialing and carrier control.
+
+## Documentation policy
+
+This repository is the source of truth for product and implementation decisions. Historical reconstruction rules live in `docs/HISTORICAL_ACCURACY.md`; world behavior in `docs/WORLD_SIMULATION.md`; terminal/transport invariants in `docs/TERMINAL_AND_MODEM.md`; per-program research in `docs/host-programs/`. AI/coding agents should start with `AGENTS.md`.
