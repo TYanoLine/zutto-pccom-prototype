@@ -17,8 +17,7 @@ import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
-const isLocalHost = typeof window !== 'undefined'
-  && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
 const standaloneLine = wsURL.length === 0;
 const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefined)?.trim() ?? '';
@@ -33,10 +32,8 @@ type HandshakeRun = ReturnType<typeof playHandshake>;
 
 function loadCommSettings(): CommSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_COMM_SETTINGS };
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY);
-    return raw ? normalizeCommSettings(JSON.parse(raw) as Partial<CommSettings>) : { ...DEFAULT_COMM_SETTINGS };
-  } catch { return { ...DEFAULT_COMM_SETTINGS }; }
+  try { const raw = window.localStorage.getItem(SETTINGS_KEY); return raw ? normalizeCommSettings(JSON.parse(raw) as Partial<CommSettings>) : { ...DEFAULT_COMM_SETTINGS }; }
+  catch { return { ...DEFAULT_COMM_SETTINGS }; }
 }
 
 export default function App() {
@@ -52,7 +49,6 @@ export default function App() {
   const echoedInputRef = useRef('');
   const composingRef = useRef(false);
   const suppressEnterRef = useRef(false);
-
   const [status, setStatus] = useState('STANDALONE / MODEM IDLE');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
@@ -64,139 +60,56 @@ export default function App() {
   const [audioStatus, setAudioStatus] = useState('READY');
   const [commSettings, setCommSettings] = useState<CommSettings>(loadCommSettings);
   const [directoryCount, setDirectoryCount] = useState(centersRef.current.length);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
-  useEffect(() => {
-    try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ }
-  }, [commSettings]);
-
-  useEffect(() => {
-    if (standaloneLine) return;
-    fetchWorldCenters(wsURL).then(centers => {
-      if (!centers.length) return;
-      centersRef.current = centers;
-      setDirectoryCount(centers.length);
-    }).catch(() => { /* retain local presets if the dummy endpoint is unavailable */ });
-  }, []);
+  useEffect(() => { try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ } }, [commSettings]);
+  useEffect(() => { if (standaloneLine) return; fetchWorldCenters(wsURL).then(centers => { if (!centers.length) return; centersRef.current = centers; setDirectoryCount(centers.length); }).catch(() => {}); }, []);
 
   useEffect(() => {
     showMainMenu();
-    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? {
-      offlineBusyExtraMs: 0,
-      audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake },
-    } : {});
+    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
     modem.onStatus = setStatus;
-    modem.onCallState = call => {
-      const now = clock.now();
-      setWorldNow(now);
-      setActiveCall(previous => {
-        if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now));
-        return call ? { phone: call.phone, connectedAt: now } : null;
-      });
-    };
-    modem.setAutoRedial(autoRedial);
-    modemRef.current = modem;
-
+    modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now } : null; }); };
+    modem.setAutoRedial(autoRedial); modemRef.current = modem;
     const localStation = new LocalTestStation(terminal, { audio: { dial: playDialSequence, handshake: playHandshake } });
-    localStation.onStatus = setStatus;
-    localStation.onConnectionChange = connected => setLocalTestConnected(connected);
-    localStationRef.current = localStation;
-
-    directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, dialCenter, showMainMenu);
-    return () => {
-      modem.onStatus = undefined; modem.onCallState = undefined; modem.dispose(); modemRef.current = null;
-      localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.dispose(); localStationRef.current = null;
-      directoryRef.current = null;
-    };
+    localStation.onStatus = setStatus; localStation.onConnectionChange = connected => setLocalTestConnected(connected); localStationRef.current = localStation;
+    directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { setDirectoryOpen(false); dialCenter(center); }, () => { setDirectoryOpen(false); showMainMenu(); });
+    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
-
   useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
   useEffect(() => { const id = window.setInterval(() => setWorldNow(clock.now()), 1000); return () => window.clearInterval(id); }, [clock]);
 
   function showMainMenu() {
-    terminal.clear();
-    terminal.write('\x1b[37;44m ずっとパソコン通信 Ver 0.02                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n');
+    terminal.clear(); terminal.write('\x1b[37;44m ずっとパソコン通信 Ver 0.02                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n');
     terminal.write('                     \x1b[30;46m　メイン・メニュー　\x1b[0m\r\n\r\n');
-    terminal.write('                     1　センターの呼び出し\r\n');
-    terminal.write('                     2　通信パラメータの設定\r\n');
-    terminal.write('                     3　ターミナル・モード\r\n');
-    terminal.write('                     4　ノート・パッド\r\n');
-    terminal.write('                     5　ディスク・ユーティリティ\r\n');
-    terminal.write('                     6　MS-DOS コマンドへ\r\n');
-    terminal.write('                     7　終　了\r\n\r\n');
-    terminal.write(` 登録センター: ${directoryCount}局　　　　　　　　　使用する電話回線: ダイアル(10)\r\n`);
-    terminal.write(' 番号を選択してください > ');
-    setInput(''); echoedInputRef.current = '';
+    terminal.write('                     1　センターの呼び出し\r\n                     2　通信パラメータの設定\r\n                     3　ターミナル・モード\r\n                     4　ノート・パッド\r\n                     5　ディスク・ユーティリティ\r\n                     6　MS-DOS コマンドへ\r\n                     7　終　了\r\n\r\n');
+    terminal.write(` 登録センター: ${directoryCount}局　　　　　　　　　使用する電話回線: ダイアル(10)\r\n 番号を選択してください > `); setInput(''); echoedInputRef.current = '';
   }
-
-  function syncTerminalInput(next: string) {
-    const previousChars = Array.from(echoedInputRef.current); const nextChars = Array.from(next); let common = 0;
-    while (common < previousChars.length && common < nextChars.length && previousChars[common] === nextChars[common]) common++;
-    for (let i = previousChars.length; i > common; i--) terminal.backspace();
-    if (common < nextChars.length) terminal.write(nextChars.slice(common).join(''));
-    echoedInputRef.current = next;
-  }
+  function syncTerminalInput(next: string) { const p = Array.from(echoedInputRef.current), n = Array.from(next); let c = 0; while (c < p.length && c < n.length && p[c] === n[c]) c++; for (let i = p.length; i > c; i--) terminal.backspace(); if (c < n.length) terminal.write(n.slice(c).join('')); echoedInputRef.current = next; }
   function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
   function compositionStart() { composingRef.current = true; }
   function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
-
-  function routeCommand(raw: string) {
-    const upper = raw.trim().toUpperCase(); const station = localStationRef.current;
-    if (station?.isConnected()) { station.submitLine(raw); return; }
-    if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; }
-    let localMode: DialMode | null = null;
-    if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode;
-    if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; }
-    if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; }
-    if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false;
-    modemRef.current?.submitLine(raw);
-  }
-
-  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; }
-    const native = e.nativeEvent as KeyboardEvent;
-    if (e.key === 'Enter') {
-      if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; }
-      terminal.write('\r\n');
-      const command = input.trim();
-      setInput(''); echoedInputRef.current = '';
-      if (!activeCall && !localTestConnected && command === '1') directoryRef.current?.show(); else routeCommand(input);
-      e.preventDefault();
-    }
-  }
-
-  function dialCenter(center: RegisteredCenter) {
-    const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`;
-    terminal.write(`${command}\r\n`); routeCommand(command); setInput(''); echoedInputRef.current = '';
-  }
+  function routeCommand(raw: string) { const upper = raw.trim().toUpperCase(), station = localStationRef.current; if (station?.isConnected()) { station.submitLine(raw); return; } if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; } let localMode: DialMode | null = null; if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode; if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; } if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; } if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false; modemRef.current?.submitLine(raw); }
+  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; } const native = e.nativeEvent as KeyboardEvent; if (e.key === 'Enter') { if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; } terminal.write('\r\n'); const command = input.trim(); setInput(''); echoedInputRef.current = ''; if (!activeCall && !localTestConnected && command === '1') { directoryRef.current?.show(); setDirectoryOpen(true); } else routeCommand(input); e.preventDefault(); } }
+  function softKey(key: string) { directoryRef.current?.handleKey(key); }
+  function dialCenter(center: RegisteredCenter) { const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`; terminal.write(`${command}\r\n`); routeCommand(command); setInput(''); echoedInputRef.current = ''; }
   function audition(baud: number) { try { setAudioStatus(`SYNTHESIZING ${baud}bps...`); const run = playHandshake(baud); setLastHandshake(run); setAudioStatus(`PLAYING ${baud}bps`); } catch (error) { setAudioStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`); } }
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
-  const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0;
-  const cost = completedCost + runningCost; const teleho = tariff.isTelehodaiWindow(worldNow); const registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow);
-  const framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
-
+  const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
   return <main className="shell">
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver 0.02</span><span>PC-9821 / 1996</span></header>
-    <section className="screen-wrap" onClick={() => document.getElementById('kbd')?.focus()}>
-      <TerminalCanvas terminal={terminal} />
-      <input id="kbd" className="keyboard-capture" value={input} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" spellCheck={false} />
-    </section>
-    <footer className="statusbar">
-      <span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span>
-      <label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label>
-    </footer>
-    <aside className="quick-help">
-      <strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。↑↓ / PageUp(PageDown) / Enter / Esc で操作。現在 {directoryCount}局。<br />
-      <strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code> — always answers locally with the current communication settings.
-      {!activeCall && !localTestConnected && <>
-        <details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()} / {commSettings.characterCode.toUpperCase()}</div><div className="settings-grid">
-          <label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label>
-          <label>DEFAULT DIAL<select value={commSettings.defaultDialMode} onChange={e => setting('defaultDialMode', e.target.value as CommSettings['defaultDialMode'])}><option value="tone">TONE / DTMF</option><option value="pulse">PULSE / 10pps</option></select></label>
-        </div></details>
-        <details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps / {lastHandshake.duration.toFixed(2)}s</div>}</details>
-      </>}
+    <section className="screen-wrap" onClick={() => document.getElementById('kbd')?.focus()}><TerminalCanvas terminal={terminal} /><input id="kbd" className="keyboard-capture" value={input} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" spellCheck={false} /></section>
+    {directoryOpen && <nav className="directory-softkeys" aria-label="センターリスト操作">
+      <button type="button" onClick={() => softKey('ArrowUp')}>▲<small>上</small></button><button type="button" onClick={() => softKey('ArrowDown')}>▼<small>下</small></button>
+      <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
+      <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
+    </nav>}
+    <footer className="statusbar"><span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span><label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label></footer>
+    <aside className="quick-help"><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount}局。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
+      {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
   </main>;
 }
