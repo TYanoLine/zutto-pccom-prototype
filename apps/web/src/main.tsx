@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import HistoricalResearchPage from './admin/HistoricalResearchPage';
+import KnowledgeBbsPage from './poc/KnowledgeBbsPage';
 
 // Keep the modem's monitor speaker a little below the telephone-line tones.
 // Handshake PCM is always longer than 5 s; dial/ringback PCM is shorter.
@@ -18,6 +19,10 @@ sourceProto.connect = function (destination: AudioNode, ...rest: unknown[]) {
 };
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/';
-const Root = path === '/admin/research' ? HistoricalResearchPage : App;
+const Root = path === '/admin/research'
+  ? HistoricalResearchPage
+  : path === '/poc/knowledge-bbs'
+    ? KnowledgeBbsPage
+    : App;
 
 createRoot(document.getElementById('root')!).render(<Root />);
