@@ -24,6 +24,8 @@ type centerDirectoryEntry struct {
 	MaxBaud  int    `json:"maxBaud"`
 }
 
+const temporaryCenterCount = 10
+
 func main() {
 	cfg := config.Load()
 	store := world.NewMemoryStore()
@@ -41,10 +43,10 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
-		names, err := catalog.Generate(ctx, 100, cfg.WorldDate)
+		names, err := catalog.Generate(ctx, temporaryCenterCount, cfg.WorldDate)
 		if err != nil {
 			log.Printf("AI center catalog failed, using fictional fallback: %v", err)
-			_ = json.NewEncoder(w).Encode(map[string]any{"centers": fallbackCenters(), "source": "fallback", "error": err.Error()})
+			_ = json.NewEncoder(w).Encode(map[string]any{"centers": fallbackCenters(temporaryCenterCount), "source": "fallback", "error": err.Error()})
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"centers": centersFromNames(names), "source": "openai", "model": cfg.OpenAIModel})
@@ -72,14 +74,14 @@ func centersFromNames(names []llm.CenterName) []centerDirectoryEntry {
 	return centers
 }
 
-func fallbackCenters() []centerDirectoryEntry {
+func fallbackCenters(count int) []centerDirectoryEntry {
 	names := []string{
 		"MOONLIGHT NETWORK", "風の街ネット", "BLUE MOON STATION", "ぽぷら通信", "WINDY NET",
 		"夢工房BBS", "GALAXY CLUB", "みなとネット", "ORANGE HOUSE", "星空通信",
 		"MIDNIGHT BBS", "電脳茶屋", "SILVER STATION", "北の国ネット", "HARBOR LINK",
 		"パソコン倶楽部ひまわり", "PENGUIN NET", "青空BBS", "MINT BASE", "こもれび通信",
 	}
-	generated := make([]llm.CenterName, 100)
+	generated := make([]llm.CenterName, count)
 	for i := range generated { name := names[i%len(names)]; if i >= len(names) { name = fmt.Sprintf("%s %d", name, i/len(names)+1) }; generated[i] = llm.CenterName{Name: name} }
 	return centersFromNames(generated)
 }
