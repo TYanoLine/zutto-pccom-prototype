@@ -1,5 +1,5 @@
 import { playHandshake } from '../audio/modemAudio';
-import { playBusy, playDialSequence } from '../audio/dialLineAudio';
+import { playBusy, playDialSequence, playRingback } from '../audio/dialLineAudio';
 import type { DialMode } from '../audio/dialLineAudio';
 import type { TerminalCore } from '../terminal/TerminalCore';
 
@@ -24,6 +24,21 @@ type ModemSocket = {
 };
 
 type Timer = ReturnType<typeof globalThis.setTimeout>;
+type HandshakePlayback = void | number | { duration?: number };
+
+type VirtualModemAudio = {
+  dial?(phone: string, mode: DialMode): number | void;
+  ringback?(): number | void;
+  busy?(): number | void;
+  handshake?(baud: number): HandshakePlayback;
+};
+
+type ResolvedAudio = {
+  dial(phone: string, mode: DialMode): number | void;
+  ringback(): number | void;
+  busy(): number | void;
+  handshake(baud: number): HandshakePlayback;
+};
 
 type VirtualModemOptions = {
   socketFactory?: (url: string) => ModemSocket;
@@ -34,11 +49,7 @@ type VirtualModemOptions = {
   reconnectDelayMs?: number;
   setTimeout?: typeof globalThis.setTimeout;
   clearTimeout?: typeof globalThis.clearTimeout;
-  audio?: {
-    dial(phone: string, mode: DialMode): number | void;
-    busy(): number | void;
-    handshake(baud: number): void;
-  };
+  audio?: VirtualModemAudio;
 };
 
 export type CallState = { phone: string; baud: number } | null;
@@ -56,6 +67,7 @@ export class VirtualModem {
   private ws?: ModemSocket;
   private connected = false;
   private dialing = false;
+  private negotiating = false;
   private recoveringCarrier = false;
   private destroyed = false;
   private lastPhone = '';
@@ -64,8 +76,10 @@ export class VirtualModem {
   private sessionID = '';
   private pendingDial?: PendingDial;
   private pendingLines: string[] = [];
+  private preConnectRx = '';
   private retryTimer?: Timer;
   private dialTimer?: Timer;
+  private connectTimer?: Timer;
   private offlineBusyTimer?: Timer;
   private serialTimer?: Timer;
   private currentBaud = 0;
@@ -79,7 +93,7 @@ export class VirtualModem {
   private readonly reconnectDelayMs: number;
   private readonly schedule: typeof globalThis.setTimeout;
   private readonly cancel: typeof globalThis.clearTimeout;
-  private readonly audio: NonNullable<VirtualModemOptions['audio']>;
+  private readonly audio: ResolvedAudio;
   autoRedial = true;
   redialSeconds = 5;
   onStatus?: (status: string) => void;
@@ -98,18 +112,27 @@ export class VirtualModem {
     this.reconnectDelayMs = options.reconnectDelayMs ?? 1_500;
     this.schedule = options.setTimeout ?? globalThis.setTimeout.bind(globalThis);
     this.cancel = options.clearTimeout ?? globalThis.clearTimeout.bind(globalThis);
-    this.audio = options.audio ?? {
-      dial: playDialSequence,
-      busy: playBusy,
-      handshake: playHandshake,
+
+    const supplied = options.audio;
+    this.audio = {
+      dial: supplied?.dial ?? playDialSequence,
+      // A custom audio object is generally used by unit tests or the complete
+      // standalone BUSY sequence; keep those deterministic unless ringback was
+      // explicitly supplied. Real remote calls use the default ringback sound.
+      ringback: supplied ? (supplied.ringback ?? (() => 0)) : playRingback,
+      busy: supplied?.busy ?? playBusy,
+      handshake: supplied?.handshake ?? playHandshake,
     };
-    // Deliberately do not open a socket here. The terminal boots standalone;
-    // the transport represents the telephone call and is created only by ATD.
   }
 
   submitLine(raw: string) {
     if (this.destroyed) return;
     if (this.connected) {
+      if (this.negotiating) {
+        this.pendingLines.push(raw);
+        this.onStatus?.('MODEM NEGOTIATING / INPUT QUEUED');
+        return;
+      }
       if (!this.send({ type: 'line', line: raw }) && this.recoveringCarrier) {
         this.pendingLines.push(raw);
         this.onStatus?.('LINE INTERRUPTED / INPUT QUEUED');
@@ -154,9 +177,11 @@ export class VirtualModem {
     this.clearSerialOutput();
     this.pendingDial = undefined;
     this.pendingLines = [];
+    this.preConnectRx = '';
     if (hadCarrier) this.send({ type: 'hangup' });
     this.connected = false;
     this.dialing = false;
+    this.negotiating = false;
     this.recoveringCarrier = false;
     this.sessionID = '';
     if (hadCarrier) this.onCallState?.(null);
@@ -172,9 +197,11 @@ export class VirtualModem {
     this.clearSerialOutput();
     this.pendingDial = undefined;
     this.pendingLines = [];
+    this.preConnectRx = '';
     if (this.connected) this.onCallState?.(null);
     this.connected = false;
     this.dialing = false;
+    this.negotiating = false;
     this.recoveringCarrier = false;
     this.sessionID = '';
     this.releaseSocket('terminal disposed');
@@ -217,14 +244,12 @@ export class VirtualModem {
 
       if (this.connected) {
         if (this.sessionID) {
-          // The logical call survives a transport interruption. Do not emit
-          // NO CARRIER or stop the toll clock unless the server later rejects
-          // the session resume.
           this.recoveringCarrier = true;
-          this.onStatus?.('LINE INTERRUPTED / RECONNECTING');
+          this.onStatus?.(this.negotiating
+            ? 'NEGOTIATION INTERRUPTED / RECONNECTING'
+            : 'LINE INTERRUPTED / RECONNECTING');
           this.scheduleRemoteReconnect();
         } else {
-          // Backwards compatibility with a server that does not issue session IDs.
           this.finishCarrierLoss('STANDALONE / NO CARRIER');
         }
         return;
@@ -232,9 +257,6 @@ export class VirtualModem {
 
       if (this.dialing || this.pendingDial) {
         if (this.url) {
-          // Render and similar hosts can take many seconds to wake from sleep.
-          // Keep retrying the transport while the overall remote grace timer
-          // remains armed instead of falsely turning a cold start into BUSY.
           this.onStatus?.('SERVER WAKING / RETRYING');
           this.scheduleRemoteReconnect();
         } else {
@@ -278,10 +300,13 @@ export class VirtualModem {
   private dial(phone: string, mode: DialMode, retry: boolean) {
     this.clearRetryTimer();
     this.clearDialTimer();
+    this.clearConnectTimer();
     this.clearOfflineBusyTimer();
     this.sessionID = '';
     this.recoveringCarrier = false;
+    this.negotiating = false;
     this.pendingLines = [];
+    this.preConnectRx = '';
     this.lastPhone = phone;
     this.lastDialMode = mode;
     if (!retry) this.attempt = 0;
@@ -294,11 +319,8 @@ export class VirtualModem {
     this.onStatus?.(`DIAL ${phone} / ${mode.toUpperCase()}`);
 
     if (this.url) {
-      // A configured remote server is authoritative for BUSY/CONNECT. Give a
-      // sleeping host time to wake rather than synthesizing BUSY after ~3 sec.
       this.scheduleOfflineBusyFallback(this.remoteConnectGraceMs);
     } else {
-      // Fully standalone mode still behaves like an analogue telephone line.
       this.scheduleOfflineBusyFallback(dialDurationMs + this.offlineBusyExtraMs);
     }
     this.ensureSocket();
@@ -308,8 +330,6 @@ export class VirtualModem {
     if (!this.pendingDial || !this.ws || this.ws.readyState !== SOCKET_OPEN) return;
     const pending = this.pendingDial;
     this.clearDialTimer();
-    // Do not ask the server for a result until the audible number has actually
-    // been sent. Pulse dialling can therefore take much longer than DTMF.
     const delay = Math.max(this.dialDelayMs, pending.dialDurationMs);
     this.dialTimer = this.schedule(() => {
       this.dialTimer = undefined;
@@ -353,7 +373,11 @@ export class VirtualModem {
 
   private handleServer(msg: ServerMessage) {
     if (msg.type === 'terminal' && msg.text) {
-      this.writeReceived(msg.text);
+      // Servers are allowed to send their welcome screen immediately after
+      // accepting the call.  A real terminal cannot see those bytes until the
+      // modem handshake has finished, so hold them here during ringing/training.
+      if (this.negotiating) this.preConnectRx += msg.text;
+      else this.writeReceived(msg.text);
       return;
     }
     if (msg.type === 'carrier' && msg.result === 'off') {
@@ -365,8 +389,12 @@ export class VirtualModem {
         this.recoveringCarrier = false;
         this.sessionID = msg.session_id ?? this.sessionID;
         if (msg.baud) this.currentBaud = Math.max(300, msg.baud);
-        this.onStatus?.(`ONLINE ${this.currentBaud} / RESUMED`);
-        this.flushPendingLines();
+        if (this.negotiating) {
+          this.onStatus?.(`MODEM NEGOTIATING ${this.currentBaud} / RESUMED`);
+        } else {
+          this.onStatus?.(`ONLINE ${this.currentBaud} / RESUMED`);
+          this.flushPendingLines();
+        }
       } else {
         this.finishCarrierLoss(`SESSION ${String(msg.result ?? 'LOST').toUpperCase()} / NO CARRIER`);
       }
@@ -378,6 +406,7 @@ export class VirtualModem {
     this.clearOfflineBusyTimer();
     this.pendingDial = undefined;
     this.dialing = false;
+
     if (msg.result === 'busy') {
       this.playAudio(() => this.audio.busy());
       this.terminal.write('\r\nBUSY\r\n');
@@ -387,24 +416,77 @@ export class VirtualModem {
       return;
     }
     if (msg.result === 'no_answer') {
-      this.terminal.write('\r\nNO ANSWER\r\n');
-      this.onStatus?.('STANDALONE / NO ANSWER');
-      this.releaseSocket('no answer');
+      const ringSeconds = this.playAudioDuration(() => this.audio.ringback());
+      this.onStatus?.('RINGING / NO ANSWER');
+      const finish = () => {
+        this.connectTimer = undefined;
+        this.terminal.write('\r\nNO ANSWER\r\n');
+        this.onStatus?.('STANDALONE / NO ANSWER');
+        this.releaseSocket('no answer');
+      };
+      if (ringSeconds > 0) this.connectTimer = this.schedule(finish, Math.round(ringSeconds * 1000));
+      else finish();
       return;
     }
     if (msg.result === 'connect') {
       this.clearRetryTimer();
       this.connected = true;
+      this.negotiating = true;
       this.recoveringCarrier = false;
       this.sessionID = msg.session_id ?? '';
       const baud = msg.baud ?? 9600;
+      const phone = msg.host?.phone ?? this.lastPhone;
       this.currentBaud = Math.max(300, baud);
       this.rxByteCredit = 0;
-      this.playAudio(() => this.audio.handshake(baud));
-      this.terminal.write(`\r\nCONNECT ${baud}\r\n`);
-      this.onStatus?.(`ONLINE ${baud}`);
-      this.onCallState?.({ phone: msg.host?.phone ?? this.lastPhone, baud });
+      this.preConnectRx = '';
+
+      // Let the caller hear the remote line ring before the answering modem
+      // grabs the call.  Only after that do the modem training tones begin.
+      const ringSeconds = this.playAudioDuration(() => this.audio.ringback());
+      this.onStatus?.(`RINGING / ${msg.host?.name ?? phone}`);
+      const begin = () => {
+        this.connectTimer = undefined;
+        this.beginRemoteHandshake(phone, baud);
+      };
+      if (ringSeconds > 0) this.connectTimer = this.schedule(begin, Math.round(ringSeconds * 1000));
+      else begin();
     }
+  }
+
+  private beginRemoteHandshake(phone: string, baud: number) {
+    if (this.destroyed || !this.connected || !this.negotiating) return;
+    this.onStatus?.(`MODEM NEGOTIATING ${baud}`);
+    const handshakeSeconds = this.playAudioDuration(() => this.audio.handshake(baud));
+    const finish = () => {
+      this.connectTimer = undefined;
+      this.finishRemoteConnect(phone, baud);
+    };
+    if (handshakeSeconds > 0) {
+      this.connectTimer = this.schedule(finish, Math.round(handshakeSeconds * 1000) + 80);
+    } else {
+      finish();
+    }
+  }
+
+  private finishRemoteConnect(phone: string, baud: number) {
+    if (this.destroyed || !this.connected || !this.negotiating) return;
+    if (this.recoveringCarrier) {
+      this.connectTimer = this.schedule(() => {
+        this.connectTimer = undefined;
+        this.finishRemoteConnect(phone, baud);
+      }, 200);
+      return;
+    }
+
+    this.negotiating = false;
+    this.terminal.write(`\r\nCONNECT ${baud}\r\n`);
+    this.onStatus?.(`ONLINE ${baud}`);
+    this.onCallState?.({ phone, baud });
+
+    const buffered = this.preConnectRx;
+    this.preConnectRx = '';
+    if (buffered) this.writeReceived(buffered);
+    this.flushPendingLines();
   }
 
   private finishCarrierLoss(status: string) {
@@ -412,10 +494,12 @@ export class VirtualModem {
     const hadCarrier = this.connected;
     this.connected = false;
     this.dialing = false;
+    this.negotiating = false;
     this.recoveringCarrier = false;
     this.sessionID = '';
     this.pendingDial = undefined;
     this.pendingLines = [];
+    this.preConnectRx = '';
     this.clearSerialOutput();
     if (hadCarrier) {
       this.terminal.write('\r\nNO CARRIER\r\n');
@@ -426,7 +510,7 @@ export class VirtualModem {
   }
 
   private flushPendingLines() {
-    if (!this.connected || this.recoveringCarrier || this.pendingLines.length === 0) return;
+    if (!this.connected || this.negotiating || this.recoveringCarrier || this.pendingLines.length === 0) return;
     const queued = this.pendingLines;
     this.pendingLines = [];
     for (let i = 0; i < queued.length; i++) {
@@ -532,9 +616,23 @@ export class VirtualModem {
     }
   }
 
+  private playAudioDuration(play: () => HandshakePlayback): number {
+    try {
+      const result = play();
+      if (typeof result === 'number' && Number.isFinite(result)) return Math.max(0, result);
+      if (result && typeof result === 'object' && typeof result.duration === 'number') {
+        return Math.max(0, result.duration);
+      }
+    } catch {
+      // Continue without audio or timing metadata.
+    }
+    return 0;
+  }
+
   private clearCallTimers() {
     this.clearRetryTimer();
     this.clearDialTimer();
+    this.clearConnectTimer();
     this.clearOfflineBusyTimer();
   }
 
@@ -546,6 +644,11 @@ export class VirtualModem {
   private clearDialTimer() {
     if (this.dialTimer !== undefined) this.cancel(this.dialTimer);
     this.dialTimer = undefined;
+  }
+
+  private clearConnectTimer() {
+    if (this.connectTimer !== undefined) this.cancel(this.connectTimer);
+    this.connectTimer = undefined;
   }
 
   private clearOfflineBusyTimer() {
