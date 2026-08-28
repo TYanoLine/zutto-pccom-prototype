@@ -29,6 +29,8 @@ export const DEFAULT_CENTERS: RegisteredCenter[] = [
 ];
 
 export const CENTER_STORAGE_KEY = 'zutto.centers.v1';
+const PRODUCTION_API_FALLBACK = 'https://zutto-pccom-prototype.onrender.com/api/centers';
+const CENTER_FETCH_TIMEOUT_MS = 90_000;
 
 function digitsOnly(value: unknown): string {
   return typeof value === 'string' ? value.replace(/\D/g, '').slice(0, 20) : '';
@@ -81,7 +83,7 @@ export function saveCenters(centers: RegisteredCenter[]): void {
 }
 
 export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]> {
-  let endpoint = '/api/centers';
+  let endpoint = isLocalPage() ? '/api/centers' : PRODUCTION_API_FALLBACK;
   if (wsURL) {
     const url = new URL(wsURL, window.location.href);
     url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
@@ -89,11 +91,26 @@ export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]>
     url.search = '';
     endpoint = url.toString();
   }
-  const response = await fetch(endpoint);
-  if (!response.ok) throw new Error(`center directory: ${response.status}`);
-  const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
-  if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
-  return payload.centers
-    .map((value, index) => normalizeCenter({ ...value, builtIn: true }, index))
-    .filter((value): value is RegisteredCenter => value !== null);
+
+  // Render may need to wake a sleeping service before the OpenAI catalog request
+  // even starts. Keep this client timeout longer than the server's generation
+  // timeout so a cold start is not mistaken for a missing directory.
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), CENTER_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(endpoint, { signal: controller.signal });
+    if (!response.ok) throw new Error(`center directory: ${response.status}`);
+    const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
+    if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
+    return payload.centers
+      .map((value, index) => normalizeCenter({ ...value, builtIn: true }, index))
+      .filter((value): value is RegisteredCenter => value !== null);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+function isLocalPage(): boolean {
+  return typeof window !== 'undefined'
+    && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 }
