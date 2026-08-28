@@ -1,5 +1,6 @@
 import type { RegisteredCenter } from './CenterDirectory';
 import type { TerminalCore } from '../terminal/TerminalCore';
+import { isFullWidth } from '../terminal/TerminalCore';
 
 const PAGE_SIZE = 15;
 
@@ -36,30 +37,12 @@ export class TerminalCenterDirectory {
     }
 
     switch (key) {
-      case 'ArrowUp':
-        this.selected = (this.selected - 1 + centers.length) % centers.length;
-        this.render();
-        break;
-      case 'ArrowDown':
-        this.selected = (this.selected + 1) % centers.length;
-        this.render();
-        break;
-      case 'PageUp':
-        this.selected = Math.max(0, this.selected - PAGE_SIZE);
-        this.render();
-        break;
-      case 'PageDown':
-        this.selected = Math.min(centers.length - 1, this.selected + PAGE_SIZE);
-        this.render();
-        break;
-      case 'Home':
-        this.selected = 0;
-        this.render();
-        break;
-      case 'End':
-        this.selected = centers.length - 1;
-        this.render();
-        break;
+      case 'ArrowUp': this.selected = (this.selected - 1 + centers.length) % centers.length; this.render(); break;
+      case 'ArrowDown': this.selected = (this.selected + 1) % centers.length; this.render(); break;
+      case 'PageUp': this.selected = Math.max(0, this.selected - PAGE_SIZE); this.render(); break;
+      case 'PageDown': this.selected = Math.min(centers.length - 1, this.selected + PAGE_SIZE); this.render(); break;
+      case 'Home': this.selected = 0; this.render(); break;
+      case 'End': this.selected = centers.length - 1; this.render(); break;
       case 'Enter': {
         const center = centers[this.selected];
         this.open = false;
@@ -68,9 +51,7 @@ export class TerminalCenterDirectory {
         this.onDial(center);
         break;
       }
-      case 'Escape':
-        this.close();
-        break;
+      case 'Escape': this.close(); break;
     }
     return true;
   }
@@ -92,10 +73,7 @@ export class TerminalCenterDirectory {
 
     for (let i = 0; i < PAGE_SIZE; i++) {
       const center = rows[i];
-      if (!center) {
-        this.terminal.write('\r\n');
-        continue;
-      }
+      if (!center) { this.terminal.write('\r\n'); continue; }
       const absolute = start + i;
       const marker = absolute === this.selected ? '>' : ' ';
       const no = String(absolute + 1).padStart(3, '0');
@@ -103,28 +81,31 @@ export class TerminalCenterDirectory {
       const phone = formatPhone(center.phone).padEnd(14, ' ');
       const baud = `${center.maxBaud ?? 14400}`.padStart(5, ' ');
       const row = `${marker}${no}  ${name} ${phone} ${baud}`;
-      this.terminal.write(absolute === this.selected ? `\x1b[30;46m${row.padEnd(78, ' ')}\x1b[0m\r\n` : `${row}\r\n`);
+      this.terminal.write(absolute === this.selected ? `\x1b[30;46m${padCells(row, 78)}\x1b[0m\r\n` : `${row}\r\n`);
     }
 
     this.terminal.write('\x1b[36m  ↑↓:選択  ROLL UP/DOWN:頁移動  RETURN:呼び出し  ESC:メインメニュー\x1b[0m');
   }
 }
 
+function cellWidth(value: string) {
+  return Array.from(value).reduce((width, ch) => width + (isFullWidth(ch) ? 2 : 1), 0);
+}
+
+function padCells(value: string, width: number) {
+  return value + ' '.repeat(Math.max(0, width - cellWidth(value)));
+}
+
 function fit(value: string, width: number) {
-  const chars = Array.from(value);
   let used = 0;
   let out = '';
-  for (const ch of chars) {
-    const w = isWide(ch) ? 2 : 1;
+  for (const ch of Array.from(value)) {
+    const w = isFullWidth(ch) ? 2 : 1;
     if (used + w > width) break;
     out += ch;
     used += w;
   }
   return out + ' '.repeat(Math.max(0, width - used));
-}
-
-function isWide(ch: string) {
-  return (ch.codePointAt(0) ?? 0) > 0xff;
 }
 
 function formatPhone(phone: string) {
