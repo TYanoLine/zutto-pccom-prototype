@@ -71,7 +71,11 @@ Return JSON only as {"centers":[{"name":"..."}]}. There must be exactly %d uniqu
 func (g CenterCatalogGenerator) generateWithPrompt(ctx context.Context, count int, prompt string) ([]CenterName, error) {
 	if g.APIKey == "" { return nil, errors.New("OPENAI_API_KEY is not set") }
 	if count <= 0 { return nil, errors.New("center count must be positive") }
-	client := g.Client; if client == nil { client = &http.Client{Timeout: 60 * time.Second} }
+	// A fresh world currently asks Luna for 100 unique station names in one
+	// structured response. Production observations have exceeded 60 seconds,
+	// so allow enough time for that one-time bootstrap. Existing worlds are
+	// loaded from PostgreSQL and do not pay this latency again.
+	client := g.Client; if client == nil { client = &http.Client{Timeout: 180 * time.Second} }
 	payload := map[string]any{
 		"model": g.Model, "input": prompt, "reasoning": map[string]any{"effort": "medium"},
 		"text": map[string]any{"verbosity": "low", "format": map[string]any{
