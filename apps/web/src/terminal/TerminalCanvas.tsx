@@ -19,16 +19,28 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
     ctx.textBaseline = 'top';
     ctx.font = '16px monospace';
 
+    // Paint every cell's background first, including the continuation cell of
+    // a full-width character.  A continuation is still a real 8x16 terminal
+    // cell; skipping it leaves a black stripe through ANSI reverse/highlight
+    // regions containing Japanese text.
+    for (let y = 0; y < terminal.height; y++) {
+      for (let x = 0; x < terminal.width; x++) {
+        const cell = terminal.cells[y][x];
+        if (cell.bg === 0) continue;
+        ctx.fillStyle = PALETTE[cell.bg] ?? '#000';
+        ctx.fillRect(x * 8, y * 16, 8, 16);
+      }
+    }
+
+    // Then draw glyphs only from their leading cells. Full-width glyphs span
+    // the leading cell and its continuation cell, whose background is already
+    // present from the pass above.
     for (let y = 0; y < terminal.height; y++) {
       for (let x = 0; x < terminal.width; x++) {
         const cell = terminal.cells[y][x];
         if (cell.continuation) continue;
         const px = x * 8;
         const py = y * 16;
-        if (cell.bg !== 0) {
-          ctx.fillStyle = PALETTE[cell.bg] ?? '#000';
-          ctx.fillRect(px, py, 8, 16);
-        }
         ctx.fillStyle = PALETTE[cell.fg] ?? '#aaa';
         ctx.fillText(cell.ch, px, py);
         if (cell.bold && cell.ch !== ' ') ctx.fillText(cell.ch, px + 1, py);
