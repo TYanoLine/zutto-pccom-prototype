@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS worlds (
 );
 
 ALTER TABLE hosts ADD COLUMN IF NOT EXISTS world_id uuid REFERENCES worlds(id) ON DELETE CASCADE;
+ALTER TABLE hosts ADD COLUMN IF NOT EXISTS directory_order integer NOT NULL DEFAULT 0;
 
 -- Preserve any old prototype hosts if this migration is applied to an existing DB.
 INSERT INTO worlds (id, world_key, seed, generation_version)
@@ -21,3 +22,4 @@ ALTER TABLE hosts ALTER COLUMN world_id SET NOT NULL;
 ALTER TABLE hosts DROP CONSTRAINT IF EXISTS hosts_phone_number_key;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hosts_world_phone ON hosts(world_id, phone_number);
 CREATE INDEX IF NOT EXISTS idx_hosts_world ON hosts(world_id);
+CREATE INDEX IF NOT EXISTS idx_hosts_world_directory_order ON hosts(world_id, directory_order);
