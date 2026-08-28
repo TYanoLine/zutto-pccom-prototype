@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/admin/research", "destination": "/" }
+    { "source": "/admin/research", "destination": "/" },
+    { "source": "/poc/knowledge-bbs", "destination": "/" }
   ]
 }
