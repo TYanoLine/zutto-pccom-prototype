@@ -1,9 +1,12 @@
+import { playBusy as primeModemSpeakerContext } from './modemAudio';
+
 // Telephone-line sounds used before a modem carrier exists.
 // The entire sequence is rendered to one PCM buffer before playback.  This is
 // intentionally friendlier to iOS Safari than creating many scheduled
 // oscillators while an AudioContext is still resuming from a user gesture.
 
 let ctx: AudioContext | null = null;
+let modemAudioPrimed = false;
 
 export type DialMode = 'tone' | 'pulse';
 
@@ -13,7 +16,6 @@ type ToneEvent = {
   frequency: number;
   gain: number;
   modulationHz?: number;
-  modulationDepth?: number;
 };
 
 type LinePlan = {
@@ -32,6 +34,11 @@ function audio(): AudioContext {
  * Call this from a click/key gesture before starting a call.  playPlan() also
  * resumes the context, but doing it explicitly gives iOS the strongest hint
  * that the sound belongs to the current user action.
+ *
+ * modemAudio.ts has its own long-lived AudioContext.  iOS may refuse to start
+ * that second context several seconds later when negotiation begins, so wake
+ * it here while we still have the ATD/CALL user gesture.  Its tiny 400 Hz
+ * primer is masked by the much louder telephone dial tone and only runs once.
  */
 export function unlockLineAudio(): void {
   try {
@@ -39,6 +46,15 @@ export function unlockLineAudio(): void {
     if (ac.state !== 'running') void ac.resume();
   } catch {
     // Audio is atmospheric; callers must continue even without Web Audio.
+  }
+
+  if (!modemAudioPrimed) {
+    modemAudioPrimed = true;
+    try {
+      primeModemSpeakerContext();
+    } catch {
+      // Negotiation will still proceed silently if Web Audio is unavailable.
+    }
   }
 }
 
@@ -56,13 +72,9 @@ function addToneToPcm(pcm: Float32Array, sampleRate: number, event: ToneEvent): 
     const remaining = event.duration - local;
     if (release > 0 && remaining < release) envelope *= Math.max(0, remaining / release);
 
-    let modulation = 1;
-    if (event.modulationHz) {
-      const depth = Math.max(0, Math.min(1, event.modulationDepth ?? 0.28));
-      // 0..1 LFO, then scale so depth=1 almost fully gates the carrier.
-      const lfo = 0.5 + 0.5 * Math.sin(TAU * event.modulationHz * local);
-      modulation = (1 - depth) + depth * lfo;
-    }
+    const modulation = event.modulationHz
+      ? 0.04 + 0.96 * (0.5 + 0.5 * Math.sin(TAU * event.modulationHz * local))
+      : 1;
     pcm[i] += Math.sin(TAU * event.frequency * local) * event.gain * envelope * modulation;
   }
 }
@@ -153,24 +165,22 @@ function ringbackPlan(cycles: number): LinePlan {
   const count = Math.max(1, cycles);
   const events: ToneEvent[] = [];
   for (let i = 0; i < count; i++) {
-    // Japanese PSTN ringing tone: roughly 400 Hz with a strong ~16 Hz AM,
-    // making the caller hear the familiar 「プルルルル…」 rather than a
-    // nearly steady 400 Hz buzz.  One second ON / about two seconds OFF is the
-    // characteristic cadence; BBS modems often answer on the first ring.
+    // Japanese analogue ringback: a deeply amplitude-modulated 400 Hz tone.
+    // Near-total modulation is intentional; shallow AM sounds like a plain
+    // wavering beep on phone speakers rather than the remembered 「プルルル」.
     events.push({
       start: i * 3.0,
       duration: 1.0,
       frequency: 400,
-      gain: 0.23,
+      gain: 0.21,
       modulationHz: 16,
-      modulationDepth: 0.96,
     });
   }
   return {
     events,
     // A BBS normally auto-answers after the first ring, so one cycle does not
     // need the entire 2-second inter-ring silence before the modem answers.
-    duration: count === 1 ? 1.30 : (count - 1) * 3.0 + 1.30,
+    duration: count === 1 ? 1.22 : (count - 1) * 3.0 + 1.22,
   };
 }
 
