@@ -29,6 +29,8 @@ type VirtualModemOptions = {
   dialDelayMs?: number;
   serialTickMs?: number;
   offlineBusyExtraMs?: number;
+  remoteConnectGraceMs?: number;
+  reconnectDelayMs?: number;
   setTimeout?: typeof globalThis.setTimeout;
   clearTimeout?: typeof globalThis.clearTimeout;
   audio?: {
@@ -69,6 +71,8 @@ export class VirtualModem {
   private readonly dialDelayMs: number;
   private readonly serialTickMs: number;
   private readonly offlineBusyExtraMs: number;
+  private readonly remoteConnectGraceMs: number;
+  private readonly reconnectDelayMs: number;
   private readonly schedule: typeof globalThis.setTimeout;
   private readonly cancel: typeof globalThis.clearTimeout;
   private readonly audio: NonNullable<VirtualModemOptions['audio']>;
@@ -86,6 +90,8 @@ export class VirtualModem {
     this.dialDelayMs = options.dialDelayMs ?? 650;
     this.serialTickMs = options.serialTickMs ?? 16;
     this.offlineBusyExtraMs = options.offlineBusyExtraMs ?? 850;
+    this.remoteConnectGraceMs = options.remoteConnectGraceMs ?? 45_000;
+    this.reconnectDelayMs = options.reconnectDelayMs ?? 1_500;
     this.schedule = options.setTimeout ?? globalThis.setTimeout.bind(globalThis);
     this.cancel = options.clearTimeout ?? globalThis.clearTimeout.bind(globalThis);
     this.audio = options.audio ?? {
@@ -172,9 +178,7 @@ export class VirtualModem {
     try {
       socket = this.socketFactory(this.url);
     } catch {
-      // Keep the locally scheduled telephone simulation alive. A server is an
-      // enhancement to ATD, not a prerequisite for hearing a call attempt.
-      this.onStatus?.('STANDALONE / LINE SIMULATION');
+      this.scheduleRemoteReconnect();
       return;
     }
 
@@ -202,10 +206,16 @@ export class VirtualModem {
       }
 
       if (this.dialing || this.pendingDial) {
-        // If a configured server cannot be reached, fall back to the analogue
-        // line simulation and eventually return BUSY instead of breaking ATD.
-        this.scheduleOfflineBusyFallback(350);
-        this.onStatus?.('STANDALONE / LINE SIMULATION');
+        if (this.url) {
+          // Render and similar hosts can take many seconds to wake from sleep.
+          // Keep retrying the transport while the overall remote grace timer
+          // remains armed instead of falsely turning a cold start into BUSY.
+          this.onStatus?.('SERVER WAKING / RETRYING');
+          this.scheduleRemoteReconnect();
+        } else {
+          this.scheduleOfflineBusyFallback(350);
+          this.onStatus?.('STANDALONE / LINE SIMULATION');
+        }
       } else {
         this.onStatus?.('STANDALONE / MODEM IDLE');
       }
@@ -219,9 +229,18 @@ export class VirtualModem {
       }
     };
     socket.onerror = () => {
-      // Browsers normally deliver onclose after an error. The local BUSY
-      // fallback stays armed until a socket actually opens.
+      // Browsers normally deliver onclose after an error. Reconnect handling
+      // is centralized there so a sleeping remote server can wake cleanly.
     };
+  }
+
+  private scheduleRemoteReconnect() {
+    if (this.destroyed || !this.url || !this.dialing) return;
+    this.clearDialTimer();
+    this.dialTimer = this.schedule(() => {
+      this.dialTimer = undefined;
+      this.ensureSocket();
+    }, this.reconnectDelayMs);
   }
 
   private dial(phone: string, mode: DialMode, retry: boolean) {
@@ -239,10 +258,14 @@ export class VirtualModem {
     this.terminal.write(`\r\nDIALING ${phone} ${mode === 'pulse' ? '(PULSE)' : '(TONE)'} ...\r\n`);
     this.onStatus?.(`DIAL ${phone} / ${mode.toUpperCase()}`);
 
-    // Always arm a local telephone-network outcome. Opening a real server
-    // cancels it. This makes ATDT/ATDP/ATDL useful in a completely standalone
-    // browser and also gives a graceful fallback when the server is down.
-    this.scheduleOfflineBusyFallback(dialDurationMs + this.offlineBusyExtraMs);
+    if (this.url) {
+      // A configured remote server is authoritative for BUSY/CONNECT. Give a
+      // sleeping host time to wake rather than synthesizing BUSY after ~3 sec.
+      this.scheduleOfflineBusyFallback(this.remoteConnectGraceMs);
+    } else {
+      // Fully standalone mode still behaves like an analogue telephone line.
+      this.scheduleOfflineBusyFallback(dialDurationMs + this.offlineBusyExtraMs);
+    }
     this.ensureSocket();
   }
 
@@ -258,6 +281,8 @@ export class VirtualModem {
       if (!this.pendingDial || this.pendingDial !== pending || !this.dialing) return;
       if (this.send({ type: 'dial', phone: pending.phone, attempt: pending.attempt })) {
         this.pendingDial = undefined;
+      } else if (this.url) {
+        this.scheduleRemoteReconnect();
       } else {
         this.scheduleOfflineBusyFallback(300);
       }
@@ -278,10 +303,16 @@ export class VirtualModem {
     this.clearDialTimer();
     this.pendingDial = undefined;
     this.dialing = false;
-    this.releaseSocket('standalone busy');
-    this.playAudio(() => this.audio.busy());
-    this.terminal.write('\r\nBUSY\r\n');
-    this.onStatus?.(`BUSY / STANDALONE LINE / RETRY ${this.attempt}`);
+    this.releaseSocket(this.url ? 'remote timeout' : 'standalone busy');
+
+    if (this.url) {
+      this.terminal.write('\r\nNO DIALTONE\r\n');
+      this.onStatus?.('SERVER UNAVAILABLE / NO DIALTONE');
+    } else {
+      this.playAudio(() => this.audio.busy());
+      this.terminal.write('\r\nBUSY\r\n');
+      this.onStatus?.(`BUSY / STANDALONE LINE / RETRY ${this.attempt}`);
+    }
     this.scheduleAutoRedial();
   }
 
