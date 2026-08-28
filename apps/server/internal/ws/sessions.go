@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"zutto-pccom/apps/server/internal/bbs"
+	"zutto-pccom/apps/server/internal/hostprogram"
 	"zutto-pccom/apps/server/internal/world"
 )
 
@@ -17,7 +17,7 @@ type CallSession struct {
 	Host              world.Host
 	Baud              int
 	Line              int
-	Runtime           *bbs.Runtime
+	Runtime           hostprogram.Runtime
 	ConnectedAt       time.Time
 	ReconnectDeadline time.Time
 
@@ -42,7 +42,7 @@ func NewSessionManager(reconnectGrace time.Duration) *SessionManager {
 	}
 }
 
-func (m *SessionManager) Create(host world.Host, baud, line int, runtime *bbs.Runtime) (*CallSession, uint64, error) {
+func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostprogram.Runtime) (*CallSession, uint64, error) {
 	id, err := newSessionID()
 	if err != nil {
 		return nil, 0, err
@@ -52,14 +52,14 @@ func (m *SessionManager) Create(host world.Host, baud, line int, runtime *bbs.Ru
 	defer m.mu.Unlock()
 
 	s := &CallSession{
-		ID:           id,
-		Host:         host,
-		Baud:         baud,
-		Line:         line,
-		Runtime:      runtime,
-		ConnectedAt:  time.Now(),
-		attached:     true,
-		attachment:   1,
+		ID:          id,
+		Host:        host,
+		Baud:        baud,
+		Line:        line,
+		Runtime:     runtime,
+		ConnectedAt: time.Now(),
+		attached:    true,
+		attachment:  1,
 	}
 	m.sessions[id] = s
 	return s, s.attachment, nil
