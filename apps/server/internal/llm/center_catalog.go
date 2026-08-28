@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -82,7 +83,19 @@ There must be exactly %d entries and all names must be unique.`, count, worldDat
 	resp, err := client.Do(req)
 	if err != nil { return nil, err }
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 { return nil, fmt.Errorf("openai center catalog returned %s", resp.Status) }
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Keep the response body bounded: OpenAI error JSON is useful for diagnosing
+		// quota/rate-limit/model issues, but we never want to echo an unbounded body.
+		b, readErr := io.ReadAll(io.LimitReader(resp.Body, 16*1024))
+		detail := strings.TrimSpace(string(b))
+		if readErr != nil {
+			return nil, fmt.Errorf("openai center catalog returned %s (read error body: %v)", resp.Status, readErr)
+		}
+		if detail == "" {
+			return nil, fmt.Errorf("openai center catalog returned %s", resp.Status)
+		}
+		return nil, fmt.Errorf("openai center catalog returned %s: %s", resp.Status, detail)
+	}
 	var decoded struct { Output []struct { Content []struct { Type string `json:"type"`; Text string `json:"text"` } `json:"content"` } `json:"output"` }
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil { return nil, err }
 	var text string
