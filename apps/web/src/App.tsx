@@ -3,6 +3,9 @@ import { TerminalCore } from './terminal/TerminalCore';
 import { TerminalCanvas } from './terminal/TerminalCanvas';
 import { VirtualModem } from './modem/VirtualModem';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
+import { CenterDirectoryPanel } from './modem/CenterDirectoryPanel';
+import { loadCenters, saveCenters } from './modem/CenterDirectory';
+import type { RegisteredCenter } from './modem/CenterDirectory';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
 import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
@@ -57,9 +60,6 @@ export default function App() {
   const lastDialWasLocalRef = useRef(false);
   const lastLocalDialModeRef = useRef<DialMode>('tone');
 
-  // The hidden HTML input is the source of truth for keyboard/IME text.
-  // echoedInputRef tracks what is currently painted in TerminalCore so an IME
-  // composition can replace its preview instead of appending the committed text.
   const echoedInputRef = useRef('');
   const composingRef = useRef(false);
   const suppressEnterRef = useRef(false);
@@ -74,6 +74,7 @@ export default function App() {
   const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
   const [audioStatus, setAudioStatus] = useState('READY');
   const [commSettings, setCommSettings] = useState<CommSettings>(loadCommSettings);
+  const [centers, setCenters] = useState<RegisteredCenter[]>(loadCenters);
 
   useEffect(() => {
     (window as BootWindow).__zuttoBootOk?.();
@@ -86,6 +87,10 @@ export default function App() {
       // Persistence is optional.
     }
   }, [commSettings]);
+
+  useEffect(() => {
+    saveCenters(centers);
+  }, [centers]);
 
   useEffect(() => {
     terminal.write('ZUTTO COMMUNICATION TERMINAL for PC-98\r\n');
@@ -136,8 +141,6 @@ export default function App() {
       localStation.dispose();
       localStationRef.current = null;
     };
-    // Settings currently affect the local UI/banner; the local test station
-    // receives the latest snapshot at dial time.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
 
@@ -240,6 +243,31 @@ export default function App() {
     }
   }
 
+  function dialCenter(center: RegisteredCenter) {
+    const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`;
+    terminal.write(`${command}\r\n`);
+    routeCommand(command);
+    setInput('');
+    echoedInputRef.current = '';
+  }
+
+  function addCenter(center: Omit<RegisteredCenter, 'id' | 'builtIn'>) {
+    const phone = center.phone.replace(/\D/g, '');
+    if (!phone) return;
+    setCenters(current => {
+      if (current.some(item => item.phone === phone)) return current;
+      return current.concat({
+        ...center,
+        phone,
+        id: `center-${Date.now().toString(36)}-${phone}`,
+      });
+    });
+  }
+
+  function deleteCenter(id: string) {
+    setCenters(current => current.filter(center => center.builtIn || center.id !== id));
+  }
+
   function audition(baud: number) {
     try {
       setAudioStatus(`SYNTHESIZING ${baud}bps...`);
@@ -262,6 +290,7 @@ export default function App() {
   const teleho = tariff.isTelehodaiWindow(worldNow);
   const registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow);
   const framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
+  const callControlsDisabled = Boolean(activeCall || localTestConnected || status.startsWith('DIAL ') || status.startsWith('WAITING '));
 
   return (
     <main className="shell">
@@ -301,6 +330,14 @@ export default function App() {
 
         {!activeCall && !localTestConnected && (
           <>
+            <CenterDirectoryPanel
+              centers={centers}
+              disabled={callControlsDisabled}
+              onDial={dialCenter}
+              onAdd={addCenter}
+              onDelete={deleteCenter}
+            />
+
             <details className="comm-panel">
               <summary>COMM SETTINGS / 通信設定</summary>
               <div className="settings-summary">
