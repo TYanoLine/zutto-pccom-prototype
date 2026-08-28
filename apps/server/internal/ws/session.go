@@ -15,25 +15,30 @@ import (
 )
 
 type Handler struct {
-	Network *telephone.Network
-	Store   world.Store
+	Network  *telephone.Network
+	Store    world.Store
+	Sessions *SessionManager
 }
 
 type clientMessage struct {
-	Type    string `json:"type"`
-	Phone   string `json:"phone,omitempty"`
-	Line    string `json:"line,omitempty"`
-	Attempt int    `json:"attempt,omitempty"`
+	Type      string `json:"type"`
+	Phone     string `json:"phone,omitempty"`
+	Line      string `json:"line,omitempty"`
+	Attempt   int    `json:"attempt,omitempty"`
+	SessionID string `json:"session_id,omitempty"`
 }
 
 type serverMessage struct {
-	Type   string      `json:"type"`
-	Result string      `json:"result,omitempty"`
-	Baud   int         `json:"baud,omitempty"`
-	Line   int         `json:"line,omitempty"`
-	Host   *world.Host `json:"host,omitempty"`
-	Text   string      `json:"text,omitempty"`
+	Type      string      `json:"type"`
+	Result    string      `json:"result,omitempty"`
+	Baud      int         `json:"baud,omitempty"`
+	Line      int         `json:"line,omitempty"`
+	SessionID string      `json:"session_id,omitempty"`
+	Host      *world.Host `json:"host,omitempty"`
+	Text      string      `json:"text,omitempty"`
 }
+
+var fallbackSessions = NewSessionManager(DefaultReconnectGrace)
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
@@ -42,7 +47,19 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.CloseNow()
 	ctx := r.Context()
-	var runtime *bbs.Runtime
+
+	sessions := h.Sessions
+	if sessions == nil {
+		sessions = fallbackSessions
+	}
+
+	var active *CallSession
+	var attachment uint64
+	defer func() {
+		if active != nil {
+			sessions.Detach(active.ID, attachment)
+		}
+	}()
 
 	for {
 		typ, data, err := conn.Read(ctx)
@@ -57,41 +74,98 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "bad request"})
 			continue
 		}
+
 		switch msg.Type {
 		case "dial":
+			if active != nil && sessions.IsCurrent(active.ID, attachment) {
+				sessions.End(active.ID)
+			}
+			active = nil
+			attachment = 0
+
 			phone := digitsOnly(msg.Phone)
 			res := h.Network.Dial(phone, msg.Attempt)
 			sm := serverMessage{Type: "dial_result", Result: string(res.Result), Baud: res.Baud, Line: res.Line}
 			if res.Result == telephone.Connect {
-				sm.Host = &res.Host
-				runtime = bbs.New(res.Host, h.Store)
+				runtime := bbs.New(res.Host, h.Store)
+				session, token, err := sessions.Create(res.Host, res.Baud, res.Line, runtime)
+				if err != nil {
+					_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "could not create call session"})
+					return
+				}
+				active = session
+				attachment = token
+				sm.Host = &active.Host
+				sm.SessionID = active.ID
 			}
 			if err := writeJSON(ctx, conn, sm); err != nil {
 				return
 			}
-			if runtime != nil && res.Result == telephone.Connect {
+			if active != nil && res.Result == telephone.Connect {
 				// Tiny pause so CONNECT appears before host bytes, like a modem handoff.
 				time.Sleep(120 * time.Millisecond)
-				if err := writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: runtime.Welcome()}); err != nil {
+				if err := writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: active.Runtime.Welcome()}); err != nil {
 					return
 				}
 			}
+
+		case "resume":
+			id := strings.TrimSpace(msg.SessionID)
+			if id == "" {
+				_ = writeJSON(ctx, conn, serverMessage{Type: "resume_result", Result: "not_found"})
+				continue
+			}
+
+			if active != nil && sessions.IsCurrent(active.ID, attachment) && active.ID != id {
+				sessions.Detach(active.ID, attachment)
+			}
+			active = nil
+			attachment = 0
+
+			session, token, result := sessions.Resume(id)
+			if result != "ok" {
+				_ = writeJSON(ctx, conn, serverMessage{Type: "resume_result", Result: result, SessionID: id})
+				continue
+			}
+			active = session
+			attachment = token
+			if err := writeJSON(ctx, conn, serverMessage{
+				Type:      "resume_result",
+				Result:    "ok",
+				SessionID: active.ID,
+				Baud:      active.Baud,
+				Line:      active.Line,
+				Host:      &active.Host,
+			}); err != nil {
+				return
+			}
+
 		case "line":
-			if runtime == nil {
+			if active == nil || !sessions.IsCurrent(active.ID, attachment) {
+				active = nil
+				attachment = 0
 				_ = writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: "NO CARRIER\r\n"})
 				continue
 			}
-			out, disconnect := runtime.HandleLine(msg.Line)
+			out, disconnect := active.Runtime.HandleLine(msg.Line)
 			if err := writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: out}); err != nil {
 				return
 			}
 			if disconnect {
-				runtime = nil
+				sessions.End(active.ID)
+				active = nil
+				attachment = 0
 				_ = writeJSON(ctx, conn, serverMessage{Type: "carrier", Result: "off"})
 			}
+
 		case "hangup":
-			runtime = nil
+			if active != nil && sessions.IsCurrent(active.ID, attachment) {
+				sessions.End(active.ID)
+			}
+			active = nil
+			attachment = 0
 			_ = writeJSON(ctx, conn, serverMessage{Type: "carrier", Result: "off"})
+
 		default:
 			_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: fmt.Sprintf("unknown type %q", msg.Type)})
 		}

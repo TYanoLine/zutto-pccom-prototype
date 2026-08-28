@@ -25,9 +25,10 @@ func main() {
 		log.Fatalf("create world clock: %v", err)
 	}
 	network := telephone.New(store, clock)
+	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
 
 	mux := http.NewServeMux()
-	mux.Handle("/ws", wsserver.Handler{Network: network, Store: store})
+	mux.Handle("/ws", wsserver.Handler{Network: network, Store: store, Sessions: sessions})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now()})

@@ -8,6 +8,7 @@ type ServerMessage = {
   result?: string;
   baud?: number;
   line?: number;
+  session_id?: string;
   text?: string;
   host?: { name: string; phone: string };
 };
@@ -55,11 +56,14 @@ export class VirtualModem {
   private ws?: ModemSocket;
   private connected = false;
   private dialing = false;
+  private recoveringCarrier = false;
   private destroyed = false;
   private lastPhone = '';
   private lastDialMode: DialMode = 'tone';
   private attempt = 0;
+  private sessionID = '';
   private pendingDial?: PendingDial;
+  private pendingLines: string[] = [];
   private retryTimer?: Timer;
   private dialTimer?: Timer;
   private offlineBusyTimer?: Timer;
@@ -106,7 +110,10 @@ export class VirtualModem {
   submitLine(raw: string) {
     if (this.destroyed) return;
     if (this.connected) {
-      this.send({ type: 'line', line: raw });
+      if (!this.send({ type: 'line', line: raw }) && this.recoveringCarrier) {
+        this.pendingLines.push(raw);
+        this.onStatus?.('LINE INTERRUPTED / INPUT QUEUED');
+      }
       return;
     }
 
@@ -146,9 +153,12 @@ export class VirtualModem {
     this.clearCallTimers();
     this.clearSerialOutput();
     this.pendingDial = undefined;
+    this.pendingLines = [];
     if (hadCarrier) this.send({ type: 'hangup' });
     this.connected = false;
     this.dialing = false;
+    this.recoveringCarrier = false;
+    this.sessionID = '';
     if (hadCarrier) this.onCallState?.(null);
     this.releaseSocket('hangup');
     this.terminal.write(wasCalling ? '\r\nNO CARRIER\r\n' : '\r\nOK\r\n');
@@ -161,16 +171,22 @@ export class VirtualModem {
     this.clearCallTimers();
     this.clearSerialOutput();
     this.pendingDial = undefined;
+    this.pendingLines = [];
     if (this.connected) this.onCallState?.(null);
     this.connected = false;
     this.dialing = false;
+    this.recoveringCarrier = false;
+    this.sessionID = '';
     this.releaseSocket('terminal disposed');
   }
 
   private ensureSocket() {
     if (this.destroyed || !this.url) return;
     if (this.ws) {
-      if (this.ws.readyState === SOCKET_OPEN) this.flushPendingDial();
+      if (this.ws.readyState === SOCKET_OPEN) {
+        if (this.recoveringCarrier && this.sessionID) this.requestResume();
+        else this.flushPendingDial();
+      }
       return;
     }
 
@@ -185,6 +201,11 @@ export class VirtualModem {
     this.ws = socket;
     socket.onopen = () => {
       if (this.destroyed || socket !== this.ws) return;
+      if (this.recoveringCarrier && this.sessionID) {
+        this.onStatus?.('LINE RESTORING / SESSION RESUME');
+        this.requestResume();
+        return;
+      }
       this.clearOfflineBusyTimer();
       this.onStatus?.('MODEM READY / LINE OPEN');
       this.flushPendingDial();
@@ -195,13 +216,17 @@ export class VirtualModem {
       this.clearDialTimer();
 
       if (this.connected) {
-        this.connected = false;
-        this.dialing = false;
-        this.pendingDial = undefined;
-        this.clearSerialOutput();
-        this.terminal.write('\r\nNO CARRIER\r\n');
-        this.onCallState?.(null);
-        this.onStatus?.('STANDALONE / NO CARRIER');
+        if (this.sessionID) {
+          // The logical call survives a transport interruption. Do not emit
+          // NO CARRIER or stop the toll clock unless the server later rejects
+          // the session resume.
+          this.recoveringCarrier = true;
+          this.onStatus?.('LINE INTERRUPTED / RECONNECTING');
+          this.scheduleRemoteReconnect();
+        } else {
+          // Backwards compatibility with a server that does not issue session IDs.
+          this.finishCarrierLoss('STANDALONE / NO CARRIER');
+        }
         return;
       }
 
@@ -235,7 +260,7 @@ export class VirtualModem {
   }
 
   private scheduleRemoteReconnect() {
-    if (this.destroyed || !this.url || !this.dialing) return;
+    if (this.destroyed || !this.url || (!this.dialing && !this.recoveringCarrier)) return;
     this.clearDialTimer();
     this.dialTimer = this.schedule(() => {
       this.dialTimer = undefined;
@@ -243,10 +268,20 @@ export class VirtualModem {
     }, this.reconnectDelayMs);
   }
 
+  private requestResume() {
+    if (!this.recoveringCarrier || !this.sessionID) return;
+    if (!this.send({ type: 'resume', session_id: this.sessionID })) {
+      this.scheduleRemoteReconnect();
+    }
+  }
+
   private dial(phone: string, mode: DialMode, retry: boolean) {
     this.clearRetryTimer();
     this.clearDialTimer();
     this.clearOfflineBusyTimer();
+    this.sessionID = '';
+    this.recoveringCarrier = false;
+    this.pendingLines = [];
     this.lastPhone = phone;
     this.lastDialMode = mode;
     if (!retry) this.attempt = 0;
@@ -322,18 +357,19 @@ export class VirtualModem {
       return;
     }
     if (msg.type === 'carrier' && msg.result === 'off') {
-      this.clearCallTimers();
-      const hadCarrier = this.connected;
-      this.connected = false;
-      this.dialing = false;
-      this.pendingDial = undefined;
-      this.clearSerialOutput();
-      if (hadCarrier) {
-        this.terminal.write('\r\nNO CARRIER\r\n');
-        this.onCallState?.(null);
+      this.finishCarrierLoss('STANDALONE / MODEM IDLE');
+      return;
+    }
+    if (msg.type === 'resume_result') {
+      if (msg.result === 'ok') {
+        this.recoveringCarrier = false;
+        this.sessionID = msg.session_id ?? this.sessionID;
+        if (msg.baud) this.currentBaud = Math.max(300, msg.baud);
+        this.onStatus?.(`ONLINE ${this.currentBaud} / RESUMED`);
+        this.flushPendingLines();
+      } else {
+        this.finishCarrierLoss(`SESSION ${String(msg.result ?? 'LOST').toUpperCase()} / NO CARRIER`);
       }
-      this.releaseSocket('carrier off');
-      this.onStatus?.('STANDALONE / MODEM IDLE');
       return;
     }
     if (msg.type !== 'dial_result') return;
@@ -359,6 +395,8 @@ export class VirtualModem {
     if (msg.result === 'connect') {
       this.clearRetryTimer();
       this.connected = true;
+      this.recoveringCarrier = false;
+      this.sessionID = msg.session_id ?? '';
       const baud = msg.baud ?? 9600;
       this.currentBaud = Math.max(300, baud);
       this.rxByteCredit = 0;
@@ -366,6 +404,39 @@ export class VirtualModem {
       this.terminal.write(`\r\nCONNECT ${baud}\r\n`);
       this.onStatus?.(`ONLINE ${baud}`);
       this.onCallState?.({ phone: msg.host?.phone ?? this.lastPhone, baud });
+    }
+  }
+
+  private finishCarrierLoss(status: string) {
+    this.clearCallTimers();
+    const hadCarrier = this.connected;
+    this.connected = false;
+    this.dialing = false;
+    this.recoveringCarrier = false;
+    this.sessionID = '';
+    this.pendingDial = undefined;
+    this.pendingLines = [];
+    this.clearSerialOutput();
+    if (hadCarrier) {
+      this.terminal.write('\r\nNO CARRIER\r\n');
+      this.onCallState?.(null);
+    }
+    this.releaseSocket('carrier lost');
+    this.onStatus?.(status);
+  }
+
+  private flushPendingLines() {
+    if (!this.connected || this.recoveringCarrier || this.pendingLines.length === 0) return;
+    const queued = this.pendingLines;
+    this.pendingLines = [];
+    for (let i = 0; i < queued.length; i++) {
+      if (!this.send({ type: 'line', line: queued[i] })) {
+        this.pendingLines = queued.slice(i);
+        this.recoveringCarrier = true;
+        this.onStatus?.('LINE INTERRUPTED / RECONNECTING');
+        this.scheduleRemoteReconnect();
+        break;
+      }
     }
   }
 

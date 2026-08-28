@@ -132,7 +132,92 @@ describe('VirtualModem standalone lifecycle', () => {
     expect(sockets[0].closed).toBe(true);
   });
 
-  it('drops carrier exactly once when a connected socket closes', () => {
+  it('resumes a logical call after the websocket transport is interrupted', () => {
+    const sockets: FakeSocket[] = [];
+    const calls: unknown[] = [];
+    const statuses: string[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+      dialDelayMs: 0,
+      reconnectDelayMs: 10,
+    });
+    modem.onCallState = call => calls.push(call);
+    modem.onStatus = status => statuses.push(status);
+
+    modem.submitLine('ATDT0450000001');
+    sockets[0].open();
+    vi.runOnlyPendingTimers();
+    sockets[0].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 28800,
+      session_id: 'session-123',
+      host: { name: 'TEST', phone: '0450000001' },
+    });
+
+    sockets[0].disconnect();
+    expect(calls).toEqual([{ phone: '0450000001', baud: 28800 }]);
+    expect(statuses.at(-1)).toBe('LINE INTERRUPTED / RECONNECTING');
+
+    vi.advanceTimersByTime(10);
+    expect(sockets).toHaveLength(2);
+    sockets[1].open();
+    expect(sockets[1].sent).toEqual([
+      JSON.stringify({ type: 'resume', session_id: 'session-123' }),
+    ]);
+
+    sockets[1].receive({
+      type: 'resume_result',
+      result: 'ok',
+      baud: 28800,
+      session_id: 'session-123',
+      host: { name: 'TEST', phone: '0450000001' },
+    });
+    expect(calls).toEqual([{ phone: '0450000001', baud: 28800 }]);
+    expect(statuses.at(-1)).toBe('ONLINE 28800 / RESUMED');
+    modem.dispose();
+  });
+
+  it('drops carrier when the server says the resumable session is gone', () => {
+    const sockets: FakeSocket[] = [];
+    const calls: unknown[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+      dialDelayMs: 0,
+      reconnectDelayMs: 10,
+    });
+    modem.onCallState = call => calls.push(call);
+
+    modem.submitLine('ATDT0450000001');
+    sockets[0].open();
+    vi.runOnlyPendingTimers();
+    sockets[0].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 14400,
+      session_id: 'session-expired',
+      host: { name: 'TEST', phone: '0450000001' },
+    });
+    sockets[0].disconnect();
+    vi.advanceTimersByTime(10);
+    sockets[1].open();
+    sockets[1].receive({ type: 'resume_result', result: 'expired', session_id: 'session-expired' });
+
+    expect(calls).toEqual([{ phone: '0450000001', baud: 14400 }, null]);
+    modem.dispose();
+  });
+
+  it('drops carrier exactly once with a legacy server that provides no session id', () => {
     const socket = new FakeSocket();
     const calls: unknown[] = [];
     const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
