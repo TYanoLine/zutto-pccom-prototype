@@ -24,7 +24,7 @@ type centerDirectoryEntry struct {
 	MaxBaud  int    `json:"maxBaud"`
 }
 
-const temporaryCenterCount = 100
+const temporaryCenterCount = 50
 
 func main() {
 	cfg := config.Load()
@@ -43,13 +43,13 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 		defer cancel()
-		names, err := catalog.Generate(ctx, temporaryCenterCount, cfg.WorldDate)
+		names, err := catalog.GenerateRegional(ctx, temporaryCenterCount, cfg.WorldDate)
 		if err != nil {
-			log.Printf("AI center catalog failed, using fictional fallback: %v", err)
+			log.Printf("AI regional center catalog failed, using fictional fallback: %v", err)
 			_ = json.NewEncoder(w).Encode(map[string]any{"centers": fallbackCenters(temporaryCenterCount), "source": "fallback", "error": err.Error()})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"centers": centersFromNames(names), "source": "openai", "model": cfg.OpenAIModel})
+		_ = json.NewEncoder(w).Encode(map[string]any{"centers": centersFromNames(names), "source": "openai-regional-experiment", "model": cfg.OpenAIModel})
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
