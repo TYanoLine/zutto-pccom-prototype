@@ -16,6 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
+const APP_VERSION = '0.03';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -82,7 +83,7 @@ export default function App() {
   useEffect(() => { const id = window.setInterval(() => setWorldNow(clock.now()), 1000); return () => window.clearInterval(id); }, [clock]);
 
   function showMainMenu() {
-    terminal.clear(); terminal.write('\x1b[37;44m ずっとパソコン通信 Ver 0.02                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n');
+    terminal.clear(); terminal.write(`\x1b[37;44m ずっとパソコン通信 Ver ${APP_VERSION}                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n`);
     terminal.write('                     \x1b[30;46m　メイン・メニュー　\x1b[0m\r\n\r\n');
     terminal.write('                     1　センターの呼び出し\r\n                     2　通信パラメータの設定\r\n                     3　ターミナル・モード\r\n                     4　ノート・パッド\r\n                     5　ディスク・ユーティリティ\r\n                     6　MS-DOS コマンドへ\r\n                     7　終　了\r\n\r\n');
     terminal.write(` 登録センター: ${directoryCount}局　　　　　　　　　使用する電話回線: ダイアル(10)\r\n 番号を選択してください > `); setInput(''); echoedInputRef.current = '';
@@ -100,7 +101,7 @@ export default function App() {
 
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
   return <main className="shell">
-    <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver 0.02</span><span>PC-9821 / 1996</span></header>
+    <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
     <section className="screen-wrap" onClick={() => document.getElementById('kbd')?.focus()}><TerminalCanvas terminal={terminal} /><input id="kbd" className="keyboard-capture" value={input} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" spellCheck={false} /></section>
     {directoryOpen && <nav className="directory-softkeys" aria-label="センターリスト操作">
       <button type="button" onClick={() => softKey('ArrowUp')}>▲<small>上</small></button><button type="button" onClick={() => softKey('ArrowDown')}>▼<small>下</small></button>
