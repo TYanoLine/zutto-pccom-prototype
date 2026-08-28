@@ -1,4 +1,4 @@
-import { playBusy as primeModemSpeakerContext } from './modemAudio';
+import { unlockModemAudio } from './modemAudio';
 
 // Telephone-line sounds used before a modem carrier exists.
 // The entire sequence is rendered to one PCM buffer before playback.  This is
@@ -6,7 +6,6 @@ import { playBusy as primeModemSpeakerContext } from './modemAudio';
 // oscillators while an AudioContext is still resuming from a user gesture.
 
 let ctx: AudioContext | null = null;
-let modemAudioPrimed = false;
 
 export type DialMode = 'tone' | 'pulse';
 
@@ -31,14 +30,9 @@ function audio(): AudioContext {
 }
 
 /**
- * Call this from a click/key gesture before starting a call.  playPlan() also
- * resumes the context, but doing it explicitly gives iOS the strongest hint
- * that the sound belongs to the current user action.
- *
- * modemAudio.ts has its own long-lived AudioContext.  iOS may refuse to start
- * that second context several seconds later when negotiation begins, so wake
- * it here while we still have the ATD/CALL user gesture.  Its tiny 400 Hz
- * primer is masked by the much louder telephone dial tone and only runs once.
+ * Call this from the ATD/CALL user gesture.  Both the telephone-line context
+ * and the later modem-handshake context are resumed now, before iOS loses the
+ * user activation while dial/ringback sounds are playing.
  */
 export function unlockLineAudio(): void {
   try {
@@ -48,14 +42,7 @@ export function unlockLineAudio(): void {
     // Audio is atmospheric; callers must continue even without Web Audio.
   }
 
-  if (!modemAudioPrimed) {
-    modemAudioPrimed = true;
-    try {
-      primeModemSpeakerContext();
-    } catch {
-      // Negotiation will still proceed silently if Web Audio is unavailable.
-    }
-  }
+  unlockModemAudio();
 }
 
 function addToneToPcm(pcm: Float32Array, sampleRate: number, event: ToneEvent): void {
@@ -103,9 +90,6 @@ function playPlan(plan: LinePlan): number {
     if (ac.state === 'running') {
       start();
     } else {
-      // Crucially, do not schedule tones on a suspended clock.  Start the PCM
-      // only after resume resolves; this fixes the iPhone case where the later
-      // modem handshake was audible but dial/DTMF tones were lost.
       void ac.resume().then(start).catch(() => undefined);
     }
   } catch {
