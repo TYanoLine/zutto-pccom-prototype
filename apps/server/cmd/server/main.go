@@ -53,16 +53,28 @@ func main() {
 }
 
 func dummyCenters() []centerDirectoryEntry {
-	prefixes := []string{"MOONLIGHT", "BLUE MOON", "WINDY", "GALAXY", "ORANGE", "MIDNIGHT", "SILVER", "HARBOR", "PENGUIN", "MINT"}
-	suffixes := []string{"NETWORK", "BBS", "STATION", "NET", "CLUB", "通信", "倶楽部", "HOUSE", "LINK", "BASE"}
+	// Fictional test names only.  The mix intentionally resembles the heterogeneous
+	// naming styles found in 1990s Japanese personal BBS directories without
+	// borrowing the identity of a specific historical station.
+	names := []string{
+		"MOONLIGHT NETWORK", "風の街ネット", "BLUE MOON STATION", "ぽぷら通信", "WINDY NET",
+		"夢工房BBS", "GALAXY CLUB", "みなとネット", "ORANGE HOUSE", "星空通信",
+		"MIDNIGHT BBS", "電脳茶屋", "SILVER STATION", "北の国ネット", "HARBOR LINK",
+		"パソコン倶楽部ひまわり", "PENGUIN NET", "青空BBS", "MINT BASE", "こもれび通信",
+	}
 	bauds := []int{2400, 9600, 14400, 28800}
 	centers := make([]centerDirectoryEntry, 0, 100)
 	for i := 0; i < 100; i++ {
 		area := 3 + (i % 7)
 		phone := fmt.Sprintf("0%d%08d", area, 10000000+i)
+		cycle := i / len(names)
+		name := names[i%len(names)]
+		if cycle > 0 {
+			name = fmt.Sprintf("%s %d", name, cycle+1)
+		}
 		centers = append(centers, centerDirectoryEntry{
 			ID:       fmt.Sprintf("dummy-%03d", i+1),
-			Name:     fmt.Sprintf("%s %s %02d", prefixes[i%len(prefixes)], suffixes[(i/len(prefixes))%len(suffixes)], i+1),
+			Name:     name,
 			Phone:    phone,
 			DialMode: "tone",
 			MaxBaud:  bauds[i%len(bauds)],
