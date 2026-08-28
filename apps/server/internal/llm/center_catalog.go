@@ -34,7 +34,9 @@ This is historical-fiction test data. Model the population of a messy real telep
 
 Naming goals:
 - Make the naming logic highly heterogeneous. Some names may be Japanese, some English/roman letters, some mixed, some abbreviations, coined words, nicknames, hobby references, computer references, local jokes, or opaque proper-name-like strings.
-- Include a few plain, awkward, nerdy, amateurish, eccentric, or slightly uncool names. Do not make every station poetic, cute, nostalgic, or aesthetically pleasing.
+- Most names should feel sincerely chosen by their SYSOP, even when ordinary, amateurish, nerdy, idiosyncratic, or unfashionable.
+- Include some plain, awkward, eccentric, self-deprecating, or slightly silly names, but keep those a minority rather than the dominant flavor of the directory.
+- Balance the odd names with ordinary hobby names, earnest names, neutral proper-name-like names, modest technical names, and occasional local/community names.
 - Personal/hobby stations should be common. Technical, machine-oriented, radio, game, music, illustration, local-community and other hobby flavors may appear naturally, but do not make every name advertise its subject.
 - Period suffixes/forms such as NET, Network, BBS, Station, Club, House, 通信, ネット, 倶楽部, ～の部屋 may occur, but many names should have no generic BBS suffix at all.
 - Vary capitalization, spacing, punctuation and Japanese/Latin mixing naturally where plausible for the period.
@@ -43,6 +45,7 @@ Naming goals:
 Avoid corpus-wide AI patterns:
 - Do NOT fill the list with poetic nature/season/time-of-day nouns followed by 通信, BBS, NET, Station, 倶楽部, or ～の部屋.
 - Do NOT repeatedly use animals, stars, moon, sky, wind, dreams, sunset, flowers, cozy rooms, cafes, hideaways, or similarly sentimental motifs just to obtain variety.
+- Do NOT turn self-deprecation, jokes, deliberate nonsense, or phrases like 'broken', 'lazy', 'weird', 'no idea', 'still open', etc. into a recurring naming template.
 - Do NOT cycle through suffixes or deliberately make adjacent entries follow a balanced pattern.
 - Do NOT divide the output into obvious blocks such as Japanese names first and English names later. Mix styles irregularly throughout the list.
 - Do NOT make every name semantically self-explanatory. Real directories contain names whose origin would be known only to the SYSOP or regular members.
@@ -52,7 +55,7 @@ Avoid corpus-wide AI patterns:
 - Respect a 1996 knowledge/cultural ceiling. No later internet/SNS terminology or later products/culture.
 - Prefer names that fit comfortably in a Japanese 80-column communications-software center list (roughly <= 30 display cells).
 
-Before producing the final JSON, internally review the whole set as one telephone directory and remove names that make the corpus feel templated, overly tasteful, or generated from a small set of suffixes/motifs.
+Before producing the final JSON, internally review the whole set as one telephone directory. It should contain a believable mix of sincere, ordinary, technical, local, whimsical, opaque, and mildly eccentric names without any one comic or poetic style taking over the population.
 
 Return JSON only, matching this shape exactly:
 {"centers":[{"name":"..."}]}
