@@ -7,6 +7,7 @@ type Config struct {
 	OpenAIKey   string
 	OpenAIModel string
 	WorldDate   string
+	DatabaseURL string
 }
 
 func Load() Config {
@@ -15,6 +16,7 @@ func Load() Config {
 		OpenAIKey:   os.Getenv("OPENAI_API_KEY"),
 		OpenAIModel: env("OPENAI_MODEL", "gpt-5.6-luna"),
 		WorldDate:   env("WORLD_DATE", "1996-08-26"),
+		DatabaseURL: os.Getenv("DATABASE_URL"),
 	}
 }
 
