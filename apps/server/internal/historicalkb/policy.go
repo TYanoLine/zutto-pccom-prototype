@@ -3,12 +3,12 @@ package historicalkb
 import "strings"
 
 type DecisionContext struct {
-	Persistence bool
-	Importance  float64
-	Specificity float64
-	HasExactDate bool
-	HasExactNumber bool
-	HasProductModel bool
+	Persistence      bool
+	Importance       float64
+	Specificity      float64
+	HasExactDate     bool
+	HasExactNumber   bool
+	HasProductModel  bool
 	HasTechnicalSpec bool
 }
 
@@ -38,6 +38,7 @@ func Sufficient(result KnowledgeResult, required EvidenceLevel) bool {
 			if f.Status == FactVerified || f.Status == FactOperatorVerified || f.Status == FactCanonical {
 				return true
 			}
+		}
 		return false
 	default:
 		return false
@@ -46,6 +47,8 @@ func Sufficient(result KnowledgeResult, required EvidenceLevel) bool {
 
 func normalizeRegion(v string) string {
 	v = strings.TrimSpace(v)
-	if v == "" { return "JP" }
+	if v == "" {
+		return "JP"
+	}
 	return v
 }
