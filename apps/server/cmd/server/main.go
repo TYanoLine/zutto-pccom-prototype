@@ -16,6 +16,7 @@ import (
 	"zutto-pccom/apps/server/internal/worldcatalog"
 	"zutto-pccom/apps/server/internal/worldclock"
 	"zutto-pccom/apps/server/internal/worldengine"
+	"zutto-pccom/apps/server/internal/worldrepo"
 	wsserver "zutto-pccom/apps/server/internal/ws"
 )
 
@@ -28,7 +29,6 @@ func main() {
 	if err != nil { log.Fatalf("load Japan timezone: %v", err) }
 	clock, err := worldclock.New(cfg.WorldDate, jst)
 	if err != nil { log.Fatalf("create world clock: %v", err) }
-	network := telephone.New(store, clock)
 	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
 	catalogGenerator := llm.CenterCatalogGenerator{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
 
@@ -52,7 +52,8 @@ func main() {
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
-	_ = worldEngine // production boundary; host/world materializers will consume this engine as they are migrated from prototype stores.
+	runtimeStore := worldrepo.New(store, worldEngine, worldrepo.FallbackMaterializer{}, cfg.WorldDate)
+	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
 		generated, err := catalogGenerator.Generate(ctx, count, cfg.WorldDate)
@@ -119,7 +120,7 @@ func main() {
 	resolveKnowledge := func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type","application/json");if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return};if historyStore==nil{http.Error(w,`{"error":"historical knowledge database is not configured"}`,http.StatusServiceUnavailable);return};var q historicalkb.KnowledgeQuery;if err:=json.NewDecoder(r.Body).Decode(&q);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};ctx,cancel:=context.WithTimeout(r.Context(),75*time.Second);defer cancel();result,err:=knowledgeService.Resolve(ctx,q);if err!=nil{w.WriteHeader(http.StatusBadGateway);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error(),"result":result});return};_=json.NewEncoder(w).Encode(result) }
 
 	mux := http.NewServeMux()
-	mux.Handle("/ws", wsserver.Handler{Network: network, Store: store, Sessions: sessions})
+	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
@@ -132,7 +133,7 @@ func main() {
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5*time.Second}
 	log.Printf("zutto server listening on %s", cfg.Addr)
