@@ -1,11 +1,22 @@
 import { useRef, useState } from 'react';
 
-const PRESETS = [
-  '飼い猫を室内で撮ったスナップ写真',
-  'PC-9821のある1996年の自室の写真',
-  '成人女性が描いたオリジナル美少女CG（登場人物は20歳以上、非性的）',
-  '夏の海辺を撮った旅行写真',
-  '秋葉原で買ったパソコン周辺機器を机に並べた写真',
+type PaletteMode = '256' | '16';
+type Preset = { label: string; prompt: string; palette: PaletteMode };
+
+const PRESETS: Preset[] = [
+  { label:'飼い猫のスナップ写真', prompt:'飼い猫を室内で撮ったスナップ写真', palette:'256' },
+  { label:'1996年のPC-9821のある自室', prompt:'PC-9821のある1996年の自室の写真', palette:'256' },
+  { label:'1990年代の美少女CG・256色', prompt:'1990年代半ばの日本のパソコン通信で配布されていそうな、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。256色程度のパレットを意識した当時のデジタルCG表現', palette:'256' },
+  { label:'1990年代の美少女CG・16色', prompt:'1990年代半ばの日本のPC-98系パソコンで描かれたような、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。最初から16色だけで描くことを強く意識し、色数の少なさをディザや面塗りで補う当時のCG表現', palette:'16' },
+  { label:'夏の海辺の旅行写真', prompt:'夏の海辺を撮った旅行写真', palette:'256' },
+  { label:'秋葉原で買った周辺機器', prompt:'秋葉原で買ったパソコン周辺機器を机に並べた写真', palette:'256' },
+];
+
+const PALETTE16: readonly (readonly [number,number,number])[] = [
+  [0,0,0],[128,0,0],[0,128,0],[128,128,0],
+  [0,0,128],[128,0,128],[0,128,128],[192,192,192],
+  [128,128,128],[255,0,0],[0,255,0],[255,255,0],
+  [0,0,255],[255,0,255],[0,255,255],[255,255,255],
 ];
 
 const configuredApiURL=(import.meta.env.VITE_API_URL as string|undefined)?.trim();
@@ -16,7 +27,8 @@ const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 type Generated = { image: string; model?: string };
 
 export default function ImageArtifactPocPage() {
-  const [prompt, setPrompt] = useState(PRESETS[0]);
+  const [prompt, setPrompt] = useState(PRESETS[0].prompt);
+  const [paletteMode, setPaletteMode] = useState<PaletteMode>(PRESETS[0].palette);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [original, setOriginal] = useState('');
@@ -24,51 +36,93 @@ export default function ImageArtifactPocPage() {
   const [processedBytes, setProcessedBytes] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  function choosePreset(preset: Preset) {
+    setPrompt(preset.prompt);
+    setPaletteMode(preset.palette);
+  }
+
   async function generate() {
     setBusy(true); setError(''); setOriginal(''); setProcessed(''); setProcessedBytes(0);
     try {
       if (!apiBase) throw new Error('Render backend URL is not configured');
-      const res = await fetch(`${apiBase}/api/poc/image-artifact`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt}) });
+      const paletteInstruction = paletteMode === '16'
+        ? 'Generate the source image as deliberately limited-color 16-color computer artwork; avoid gradients that depend on many colors and use period-appropriate dithering or flat color areas where useful.'
+        : 'Generate the source image as period-inspired computer artwork or imagery that can survive conversion to a 256-color palette; avoid relying on subtle modern HDR-like gradients.';
+      const requestPrompt = `${prompt}\n\nTechnical source-image instruction: ${paletteInstruction}`;
+      const res = await fetch(`${apiBase}/api/poc/image-artifact`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:requestPrompt}) });
       const data = await res.json() as Generated & { error?: string };
       if (!res.ok || !data.image) throw new Error(data.error || `HTTP ${res.status}`);
       setOriginal(data.image);
-      await reduce(data.image);
+      await reduce(data.image, paletteMode);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
-  async function reduce(src: string) {
+  async function reduce(src: string, mode: PaletteMode) {
     const img = new Image();
     img.onload = () => {
-      const canvas = canvasRef.current!; canvas.width=640; canvas.height=400;
-      const ctx=canvas.getContext('2d')!; ctx.imageSmoothingEnabled=true;
+      const canvas = canvasRef.current;
+      if (!canvas) { setError('conversion canvas is not available'); return; }
+      canvas.width=640; canvas.height=400;
+      const ctx=canvas.getContext('2d');
+      if (!ctx) { setError('2D canvas is not available'); return; }
+      ctx.imageSmoothingEnabled=true;
       const scale=Math.max(640/img.width,400/img.height), sw=640/scale, sh=400/scale;
       ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,640,400);
       const frame=ctx.getImageData(0,0,640,400), d=frame.data;
-      // Deterministic RGB 3-3-2 quantization: exactly <=256 possible colors.
-      for(let i=0;i<d.length;i+=4){d[i]=Math.round(d[i]/255*7)*255/7;d[i+1]=Math.round(d[i+1]/255*7)*255/7;d[i+2]=Math.round(d[i+2]/255*3)*255/3;}
+
+      if (mode === '16') {
+        for(let i=0;i<d.length;i+=4){
+          let best=PALETTE16[0], bestDistance=Number.POSITIVE_INFINITY;
+          for(const candidate of PALETTE16){
+            const dr=d[i]-candidate[0], dg=d[i+1]-candidate[1], db=d[i+2]-candidate[2];
+            const distance=dr*dr+dg*dg+db*db;
+            if(distance<bestDistance){bestDistance=distance;best=candidate;}
+          }
+          d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2];
+        }
+      } else {
+        // Deterministic RGB 3-3-2 quantization: exactly <=256 possible colors.
+        for(let i=0;i<d.length;i+=4){
+          d[i]=Math.round(d[i]/255*7)*255/7;
+          d[i+1]=Math.round(d[i+1]/255*7)*255/7;
+          d[i+2]=Math.round(d[i+2]/255*3)*255/3;
+        }
+      }
       ctx.putImageData(frame,0,0);
-      canvas.toBlob(blob=>{if(!blob)return;setProcessedBytes(blob.size);setProcessed(URL.createObjectURL(blob));},'image/png');
+
+      // Use a data URL for display. iOS Safari has been unreliable here with the
+      // previous object-URL path even though canvas.toBlob() completed.
+      setProcessed(canvas.toDataURL('image/png'));
+      canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size);},'image/png');
     };
+    img.onerror = () => setError('generated image could not be loaded for conversion');
     img.src=src;
   }
+
+  const colorLabel=paletteMode==='16'?'16色':'≤256色';
 
   return <main style={{fontFamily:'monospace',maxWidth:1100,margin:'0 auto',padding:24,color:'#d8ffe8',background:'#07130d',minHeight:'100vh'}}>
     <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p>
     <h1>画像ファイル生成 PoC</h1>
-    <p>OpenAIで素材を生成し、ブラウザ側で640×400・256色以下へ機械的に変換します。PoCなので変換後はPNGです。</p>
+    <p>OpenAIで素材を生成し、生成時にも色数を意識させたうえで、ブラウザ側で640×400・指定色数へ機械的に再変換します。PoCなので変換後はPNGです。</p>
     <section style={{border:'1px solid #397a53',padding:16}}>
       <strong>題材</strong>
-      <div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p}><input type="radio" name="preset" checked={prompt===p} onChange={()=>setPrompt(p)}/> {i+1}. {p}</label>)}</div>
+      <div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p.label}><input type="radio" name="preset" checked={prompt===p.prompt} onChange={()=>choosePreset(p)}/> {i+1}. {p.label}</label>)}</div>
+      <fieldset style={{marginTop:16,border:'1px solid #397a53'}}>
+        <legend>生成時の色数イメージ + 最終変換</legend>
+        <label style={{marginRight:16}}><input type="radio" name="palette" checked={paletteMode==='256'} onChange={()=>setPaletteMode('256')}/> 256色</label>
+        <label><input type="radio" name="palette" checked={paletteMode==='16'} onChange={()=>setPaletteMode('16')}/> 16色</label>
+      </fieldset>
       <label style={{display:'block',marginTop:16}}>自由入力</label>
-      <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={4} style={{width:'100%',boxSizing:'border-box',marginTop:6}} />
+      <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={5} style={{width:'100%',boxSizing:'border-box',marginTop:6}} />
       <button onClick={generate} disabled={busy||!prompt.trim()} style={{marginTop:12,padding:'8px 18px'}}>{busy?'生成・変換中...':'生成して当時化'}</button>
       <p style={{opacity:.75}}>自由入力もOpenAIの安全基準の範囲で生成されます。人物を含む場合は成人として扱うようRender側でも指示します。</p>
       {error&&<pre style={{color:'#ff9a9a',whiteSpace:'pre-wrap'}}>{error}</pre>}
     </section>
     {(original||processed)&&<section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
-      <div><h2>AI元画像</h2>{original&&<img src={original} style={{width:'100%'}}/>}</div>
-      <div><h2>640×400 / ≤256色</h2>{processed&&<><img src={processed} style={{width:'100%',imageRendering:'auto'}}/><p>{processedBytes.toLocaleString()} bytes (PNG)</p></>}</div>
+      <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
+      <div><h2>変換後 640×400 / {colorLabel}</h2>{processed&&<img src={processed} alt={`640×400 ${colorLabel}変換後`} style={{width:'100%',display:'block',imageRendering:'auto'}}/>}{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
     </section>}
     <canvas ref={canvasRef} style={{display:'none'}} />
   </main>;
