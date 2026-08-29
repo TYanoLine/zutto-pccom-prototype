@@ -8,6 +8,11 @@ const PRESETS = [
   '秋葉原で買ったパソコン周辺機器を机に並べた写真',
 ];
 
+const configuredApiURL=(import.meta.env.VITE_API_URL as string|undefined)?.trim();
+const configuredWsURL=(import.meta.env.VITE_WS_URL as string|undefined)?.trim();
+const inferredApiURL=configuredWsURL?.replace(/^wss:/,'https:').replace(/^ws:/,'http:').replace(/\/ws\/?$/,'');
+const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
+
 type Generated = { image: string; model?: string };
 
 export default function ImageArtifactPocPage() {
@@ -22,7 +27,8 @@ export default function ImageArtifactPocPage() {
   async function generate() {
     setBusy(true); setError(''); setOriginal(''); setProcessed(''); setProcessedBytes(0);
     try {
-      const res = await fetch('/api/image-poc', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt}) });
+      if (!apiBase) throw new Error('Render backend URL is not configured');
+      const res = await fetch(`${apiBase}/api/poc/image-artifact`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt}) });
       const data = await res.json() as Generated & { error?: string };
       if (!res.ok || !data.image) throw new Error(data.error || `HTTP ${res.status}`);
       setOriginal(data.image);
@@ -57,7 +63,7 @@ export default function ImageArtifactPocPage() {
       <label style={{display:'block',marginTop:16}}>自由入力</label>
       <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={4} style={{width:'100%',boxSizing:'border-box',marginTop:6}} />
       <button onClick={generate} disabled={busy||!prompt.trim()} style={{marginTop:12,padding:'8px 18px'}}>{busy?'生成・変換中...':'生成して当時化'}</button>
-      <p style={{opacity:.75}}>自由入力もOpenAIの安全基準の範囲で生成されます。人物を含む場合は成人として扱うようサーバー側でも指示します。</p>
+      <p style={{opacity:.75}}>自由入力もOpenAIの安全基準の範囲で生成されます。人物を含む場合は成人として扱うようRender側でも指示します。</p>
       {error&&<pre style={{color:'#ff9a9a',whiteSpace:'pre-wrap'}}>{error}</pre>}
     </section>
     {(original||processed)&&<section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
