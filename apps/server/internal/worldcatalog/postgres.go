@@ -163,8 +163,8 @@ func randomSeed() (int64,error){ var b [8]byte; if _,err:=rand.Read(b[:]);err!=n
 func mix(seed int64,index,generation int) uint64 { z:=uint64(seed)^uint64(index+1)*0x9e3779b97f4a7c15^uint64(generation)*0xd1b54a32d192ed03; z=(z^(z>>30))*0xbf58476d1ce4e5b9; z=(z^(z>>27))*0x94d049bb133111eb; return z^(z>>31) }
 func makeCenters(names []string,seed int64)[]Center{ out:=make([]Center,len(names)); for i,n:=range names{out[i]=makeCenter(n,seed,i,0)}; return out }
 func makeCenter(name string,seed int64,index,generation int)Center{
-	z:=mix(seed,index,generation); bauds:=[]int{2400,9600,14400,28800}; families:=[]string{"ktbbs","big-model","erika-k","mmm","rt-bbs","vs","other"}
-	area:=3+int(z%7); foundedYear:=1987+int((z>>12)%9); foundedMonth:=1+int((z>>20)%12); foundedDay:=1+int((z>>28)%28)
+	z:=mix(seed,index,generation); identityZ:=mix(seed,index,0); bauds:=[]int{2400,9600,14400,28800}; families:=[]string{"ktbbs","big-model","erika-k","mmm","rt-bbs","vs","other"}
+	area:=3+int(identityZ%7); foundedYear:=1987+int((z>>12)%9); foundedMonth:=1+int((z>>20)%12); foundedDay:=1+int((z>>28)%28)
 	pop:=math.Round((0.15+float64((z>>36)%76)/100)*100)/100; members:=20+int((z>>44)%1981); lines:=1; if (z>>9)%100<22{lines=2}; if (z>>9)%100<5{lines=3}
 	return Center{ID:fmt.Sprintf("world-%03d",index+1),Name:name,Phone:fmt.Sprintf("0%d%08d",area,10000000+index),DialMode:"tone",MaxBaud:bauds[int((z>>8)%uint64(len(bauds)))],SoftwareFamily:families[int((z>>5)%uint64(len(families)))],LineCount:lines,FoundedOn:time.Date(foundedYear,time.Month(foundedMonth),foundedDay,0,0,0,0,time.UTC).Format("2006-01-02"),Popularity:pop,MemberCount:members}
 }
