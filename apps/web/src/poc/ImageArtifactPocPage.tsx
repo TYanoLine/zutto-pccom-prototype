@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type PaletteMode = '256' | '16';
 type Preset = { label: string; prompt: string; palette: PaletteMode };
@@ -26,13 +26,16 @@ const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 const buildTime=(import.meta.env.VITE_BUILD_TIME as string|undefined)||'unknown';
 const buildCommit=(import.meta.env.VITE_BUILD_COMMIT as string|undefined)||'unknown';
 const buildRef=(import.meta.env.VITE_BUILD_REF as string|undefined)||'unknown';
-const converterRevision='jpeg-compat-preview-v3';
+const converterRevision='offscreen-jpeg-preview-v4';
 
 type Generated = { image: string; model?: string };
 
-function nextPaint() {
-  return new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-}
+type ConversionResult = {
+  jpeg: string;
+  pngBytes: number;
+  colorCount: number;
+  centerRgb: string;
+};
 
 export default function ImageArtifactPocPage() {
   const [prompt, setPrompt] = useState(PRESETS[0].prompt);
@@ -40,10 +43,14 @@ export default function ImageArtifactPocPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [original, setOriginal] = useState('');
-  const [convertedReady, setConvertedReady] = useState(false);
   const [compatPreview, setCompatPreview] = useState('');
   const [processedBytes, setProcessedBytes] = useState(0);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [quantizedColorCount, setQuantizedColorCount] = useState(0);
+  const [centerRgb, setCenterRgb] = useState('');
+
+  useEffect(() => {
+    (window as Window & { __zuttoBootOk?: () => void }).__zuttoBootOk?.();
+  }, []);
 
   function choosePreset(preset: Preset) {
     setPrompt(preset.prompt);
@@ -51,7 +58,7 @@ export default function ImageArtifactPocPage() {
   }
 
   async function generate() {
-    setBusy(true); setError(''); setOriginal(''); setConvertedReady(false); setCompatPreview(''); setProcessedBytes(0);
+    setBusy(true); setError(''); setOriginal(''); setCompatPreview(''); setProcessedBytes(0); setQuantizedColorCount(0); setCenterRgb('');
     try {
       if (!apiBase) throw new Error('Render backend URL is not configured');
       const paletteInstruction = paletteMode === '16'
@@ -63,20 +70,24 @@ export default function ImageArtifactPocPage() {
       if (!res.ok || !data.image) throw new Error(data.error || `HTTP ${res.status}`);
 
       setOriginal(data.image);
-      setConvertedReady(true);
-      await nextPaint();
-      await reduce(data.image, paletteMode);
+      const converted = await reduceOffscreen(data.image, paletteMode);
+      setCompatPreview(converted.jpeg);
+      setProcessedBytes(converted.pngBytes);
+      setQuantizedColorCount(converted.colorCount);
+      setCenterRgb(converted.centerRgb);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
-  function reduce(src: string, mode: PaletteMode) {
-    return new Promise<void>((resolve, reject) => {
+  function reduceOffscreen(src: string, mode: PaletteMode) {
+    return new Promise<ConversionResult>((resolve, reject) => {
       const img = new Image();
       img.onload = () => {
         try {
-          const canvas = canvasRef.current;
-          if (!canvas) throw new Error('conversion canvas is not available');
+          // Deliberately keep the working canvas out of React's DOM. React can
+          // rerender as often as it likes without ever touching/resetting the
+          // conversion bitmap. Only the final ordinary JPEG data URL is rendered.
+          const canvas = document.createElement('canvas');
           canvas.width=640; canvas.height=400;
           const ctx=canvas.getContext('2d');
           if (!ctx) throw new Error('2D canvas is not available');
@@ -93,23 +104,28 @@ export default function ImageArtifactPocPage() {
                 const distance=dr*dr+dg*dg+db*db;
                 if(distance<bestDistance){bestDistance=distance;best=candidate;}
               }
-              d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2];
+              d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2]; d[i+3]=255;
             }
           } else {
             for(let i=0;i<d.length;i+=4){
               d[i]=Math.round(d[i]/255*7)*255/7;
               d[i+1]=Math.round(d[i+1]/255*7)*255/7;
               d[i+2]=Math.round(d[i+2]/255*3)*255/3;
+              d[i+3]=255;
             }
           }
           ctx.putImageData(frame,0,0);
 
-          // Compatibility experiment: re-encode the already quantized pixels as
-          // ordinary full-color JPEG. JPEG itself is not palette-indexed and may
-          // introduce additional colors through compression, but the source look
-          // still comes from the 16/256-color quantized frame above.
-          setCompatPreview(canvas.toDataURL('image/jpeg',0.92));
-          canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size); resolve();},'image/png');
+          const colors=new Set<number>();
+          for(let i=0;i<d.length;i+=4) colors.add((d[i]<<16)|(d[i+1]<<8)|d[i+2]);
+          const center=((200*640)+320)*4;
+          const centerValue=`${d[center]}, ${d[center+1]}, ${d[center+2]}`;
+          const jpeg=canvas.toDataURL('image/jpeg',0.92);
+          if (!jpeg.startsWith('data:image/jpeg')) throw new Error('JPEG encoding failed');
+
+          canvas.toBlob(blob => {
+            resolve({ jpeg, pngBytes: blob?.size ?? 0, colorCount: colors.size, centerRgb: centerValue });
+          }, 'image/png');
         } catch (e) {
           reject(e);
         }
@@ -120,7 +136,7 @@ export default function ImageArtifactPocPage() {
   }
 
   const colorLabel=paletteMode==='16'?'16色':'≤256色';
-  const showResults=Boolean(original||convertedReady);
+  const showResults=Boolean(original||compatPreview);
 
   return <main style={{fontFamily:'monospace',maxWidth:1100,margin:'0 auto',padding:24,color:'#d8ffe8',background:'#07130d',minHeight:'100vh'}}>
     <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p>
@@ -131,7 +147,7 @@ export default function ImageArtifactPocPage() {
       REF: {buildRef}<br/>
       CONVERTER: {converterRevision}
     </p>
-    <p>OpenAIで素材を生成し、生成時にも色数を意識させたうえで、ブラウザ側で640×400・指定色数へ機械的に再変換します。互換性確認用に、量子化後の見た目を通常のフルカラーJPEGにも再エンコードして表示します。</p>
+    <p>OpenAIで素材を生成し、640×400へ縮小して画素を指定色数へ量子化します。表示用ファイルは通常のフルカラーJPEGとして再エンコードするため、16色/256色画像フォーマットへのブラウザ対応には依存しません。</p>
     <section style={{border:'1px solid #397a53',padding:16}}>
       <strong>題材</strong>
       <div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p.label}><input type="radio" name="preset" checked={prompt===p.prompt} onChange={()=>choosePreset(p)}/> {i+1}. {p.label}</label>)}</div>
@@ -149,10 +165,9 @@ export default function ImageArtifactPocPage() {
     <section style={{display:showResults?'grid':'none',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
       <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
       <div>
-        <h2>変換後 640×400 / {colorLabel}</h2>
-        <canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none',background:'#000'}} />
-        {processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG計測)</p>}
-        {compatPreview&&<><h3>互換表示：フルカラーJPEG</h3><img src={compatPreview} alt={`量子化後 ${colorLabel} をフルカラーJPEGで再エンコード`} style={{width:'100%',display:'block'}}/><p style={{opacity:.75}}>JPEGは多色フォーマットです。見た目の元は{colorLabel}量子化ですが、JPEG圧縮により実画素色数は増えます。</p></>}
+        <h2>変換後 640×400 / 見た目{colorLabel}</h2>
+        {compatPreview&&<img src={compatPreview} alt={`量子化後 ${colorLabel} のフルカラーJPEG`} style={{width:'100%',display:'block',background:'#000'}}/>}
+        {compatPreview&&<p style={{opacity:.82,lineHeight:1.6}}>DISPLAY: full-color JPEG<br/>QUANTIZED COLORS: {quantizedColorCount}<br/>CENTER RGB: {centerRgb}<br/>PNG SIZE (reference): {processedBytes.toLocaleString()} bytes</p>}
       </div>
     </section>
   </main>;
