@@ -23,6 +23,9 @@ const configuredApiURL=(import.meta.env.VITE_API_URL as string|undefined)?.trim(
 const configuredWsURL=(import.meta.env.VITE_WS_URL as string|undefined)?.trim();
 const inferredApiURL=configuredWsURL?.replace(/^wss:/,'https:').replace(/^ws:/,'http:').replace(/\/ws\/?$/,'');
 const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
+const buildTime=(import.meta.env.VITE_BUILD_TIME as string|undefined)||'unknown';
+const buildCommit=(import.meta.env.VITE_BUILD_COMMIT as string|undefined)||'unknown';
+const buildRef=(import.meta.env.VITE_BUILD_REF as string|undefined)||'unknown';
 
 type Generated = { image: string; model?: string };
 
@@ -103,6 +106,11 @@ export default function ImageArtifactPocPage() {
   return <main style={{fontFamily:'monospace',maxWidth:1100,margin:'0 auto',padding:24,color:'#d8ffe8',background:'#07130d',minHeight:'100vh'}}>
     <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p>
     <h1>画像ファイル生成 PoC</h1>
+    <p style={{fontSize:12,opacity:.72,lineHeight:1.6,border:'1px dashed #397a53',padding:10}}>
+      BUILD: {buildTime}<br/>
+      COMMIT: {buildCommit}<br/>
+      REF: {buildRef}
+    </p>
     <p>OpenAIで素材を生成し、生成時にも色数を意識させたうえで、ブラウザ側で640×400・指定色数へ機械的に再変換します。PoCなので変換後はPNGです。</p>
     <section style={{border:'1px solid #397a53',padding:16}}>
       <strong>題材</strong>
