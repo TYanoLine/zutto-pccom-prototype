@@ -7,7 +7,6 @@ import (
 	"time"
 )
 
-// EvidenceLevel describes how much historical evidence a world decision requires.
 type EvidenceLevel string
 
 const (
@@ -66,31 +65,22 @@ type HistoricalFact struct {
 	UpdatedAt    time.Time        `json:"updatedAt"`
 }
 
-type KnowledgeGap struct {
-	Description string `json:"description"`
-}
+type KnowledgeGap struct { Description string `json:"description"` }
 
 type KnowledgeResult struct {
-	Query       KnowledgeQuery   `json:"query"`
-	Facts       []HistoricalFact `json:"facts"`
-	Coverage    float64          `json:"coverage"`
-	Confidence  float64          `json:"confidence"`
-	Missing     []KnowledgeGap   `json:"missing,omitempty"`
-	Researched  bool             `json:"researched"`
-	ResearchID  string           `json:"researchId,omitempty"`
-	CanUse      bool             `json:"canUse"`
+	Query           KnowledgeQuery   `json:"query"`
+	Facts           []HistoricalFact `json:"facts"`
+	Coverage        float64          `json:"coverage"`
+	Confidence      float64          `json:"confidence"`
+	Missing         []KnowledgeGap   `json:"missing,omitempty"`
+	Researched      bool             `json:"researched"`
+	ResearchPending bool             `json:"researchPending"`
+	ResearchID      string           `json:"researchId,omitempty"`
+	CanUse          bool             `json:"canUse"`
 }
 
-// KnowledgeKey intentionally excludes Need so differently-worded requests for the
-// same historical slice converge on the same shared research/fact bucket.
 func KnowledgeKey(q KnowledgeQuery) string {
-	parts := []string{
-		strings.ToLower(strings.TrimSpace(string(q.Kind))),
-		strings.ToLower(strings.TrimSpace(q.Subject)),
-		strings.TrimSpace(q.WorldDate),
-		strings.ToLower(strings.TrimSpace(q.Region)),
-		strings.ToLower(strings.Join(q.Audience, ",")),
-	}
+	parts := []string{strings.ToLower(strings.TrimSpace(string(q.Kind))), strings.ToLower(strings.TrimSpace(q.Subject)), strings.TrimSpace(q.WorldDate), strings.ToLower(strings.TrimSpace(q.Region)), strings.ToLower(strings.Join(q.Audience, ","))}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(sum[:16])
 }
