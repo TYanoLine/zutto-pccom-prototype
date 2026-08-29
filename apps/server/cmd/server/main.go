@@ -134,6 +134,7 @@ func main() {
 	mux.HandleFunc("/api/admin/research/supplement", supplementResearch)
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
+	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.OpenAIKey))
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"world_post_renderer":"openai-with-fallback","research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
 
