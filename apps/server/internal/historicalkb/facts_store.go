@@ -3,7 +3,10 @@ package historicalkb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func (s *Store) EnsureKnowledgeSchema(ctx context.Context) error {
@@ -65,15 +68,16 @@ ON CONFLICT(id) DO UPDATE SET claim=EXCLUDED.claim,valid_from=EXCLUDED.valid_fro
 	return err
 }
 
-// TryAcquireResearchLease makes concurrent worlds share one web-research job.
 func (s *Store) TryAcquireResearchLease(ctx context.Context, key, owner string, ttl time.Duration) (bool,error) {
 	var acquired bool
+	expiresAt:=time.Now().UTC().Add(ttl)
 	err:=s.pool.QueryRow(ctx,`INSERT INTO historical_research_leases(knowledge_key,owner,expires_at,updated_at)
-VALUES($1,$2,now()+$3::interval,now())
+VALUES($1,$2,$3,now())
 ON CONFLICT(knowledge_key) DO UPDATE SET owner=EXCLUDED.owner,expires_at=EXCLUDED.expires_at,updated_at=now()
 WHERE historical_research_leases.expires_at < now()
-RETURNING true`,key,owner,ttl.String()).Scan(&acquired)
-	if err != nil { return false,nil }
+RETURNING true`,key,owner,expiresAt).Scan(&acquired)
+	if errors.Is(err,pgx.ErrNoRows) { return false,nil }
+	if err != nil { return false,err }
 	return acquired,nil
 }
 
