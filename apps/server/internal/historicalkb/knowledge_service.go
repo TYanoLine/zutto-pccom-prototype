@@ -23,28 +23,23 @@ func (s KnowledgeService) Resolve(ctx context.Context, q KnowledgeQuery) (Knowle
 	}
 	if s.Store == nil { return KnowledgeResult{}, ErrNotConfigured }
 
-	facts, err := s.Store.FindFacts(ctx,key)
+	facts, err := s.Store.FindFacts(ctx,key,q.WorldDate)
 	if err != nil { return KnowledgeResult{}, err }
 	current := summarizeKnowledge(q,facts)
 	if Sufficient(current,q.RequiredEvidence) { current.CanUse=true; return current,nil }
 
-	// Plausible knowledge is deliberately model-first: DB knowledge may enrich it,
-	// but absence must not trigger synchronous web research on ordinary BBS prose.
 	if q.RequiredEvidence == EvidencePlausible {
 		current.CanUse = true
 		if len(current.Missing)==0 { current.Missing=[]KnowledgeGap{{Description:"共有KBに十分な裏付けがないためモデル既知知識で暫定生成可能"}} }
 		return current,nil
 	}
 
+	leaseKey:=ResearchKey(q)
 	owner := fmt.Sprintf("resolve-%d",s.now().UnixNano())
-	acquired,err:=s.Store.TryAcquireResearchLease(ctx,key,owner,2*time.Minute)
+	acquired,err:=s.Store.TryAcquireResearchLease(ctx,leaseKey,owner,2*time.Minute)
 	if err!=nil{return KnowledgeResult{},err}
-	if !acquired {
-		current.ResearchPending=true
-		current.CanUse=false
-		return current,nil
-	}
-	defer s.Store.ReleaseResearchLease(context.Background(),key,owner)
+	if !acquired { current.ResearchPending=true; current.CanUse=false; return current,nil }
+	defer s.Store.ReleaseResearchLease(context.Background(),leaseKey,owner)
 
 	question:=q.Need
 	if question=="" { question=fmt.Sprintf("%sについて、%s時点の%sで利用できる世界事実として必要な範囲を確認",q.Subject,q.WorldDate,q.Region) }
@@ -62,7 +57,7 @@ func (s KnowledgeService) Resolve(ctx context.Context, q KnowledgeQuery) (Knowle
 	f:=HistoricalFact{ID:"fact-"+rid,KnowledgeKey:key,Kind:q.Kind,Subject:q.Subject,Claim:r.ProvisionalAnswer,ValidFrom:q.WorldDate,Region:q.Region,Audience:q.Audience,Confidence:r.Confidence,Status:factStatus,Sources:r.Sources,ResearchID:rid,CreatedAt:now,UpdatedAt:now}
 	if err:=s.Store.UpsertFact(ctx,f);err!=nil{return current,err}
 
-	facts,err=s.Store.FindFacts(ctx,key);if err!=nil{return KnowledgeResult{},err}
+	facts,err=s.Store.FindFacts(ctx,key,q.WorldDate);if err!=nil{return KnowledgeResult{},err}
 	out:=summarizeKnowledge(q,facts);out.Researched=true;out.ResearchID=rid;out.CanUse=Sufficient(out,q.RequiredEvidence)
 	if !out.CanUse { out.Missing=append(out.Missing,KnowledgeGap{Description:"自動調査は完了したが、Verified世界事実としては運営レビューまたは追加資料が必要"}) }
 	return out,nil
