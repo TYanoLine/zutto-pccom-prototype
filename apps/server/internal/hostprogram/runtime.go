@@ -5,6 +5,7 @@ import (
 
 	"zutto-pccom/apps/server/internal/bbs"
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
+	"zutto-pccom/apps/server/internal/hostprogram/materializationdemo"
 	"zutto-pccom/apps/server/internal/world"
 )
 
@@ -20,6 +21,8 @@ func New(host world.Host, store world.Store) Runtime {
 	switch host.SoftwareID {
 	case "erika-k":
 		return erikak.New(host, store)
+	case "materialization-demo":
+		return materializationdemo.New(host, store)
 	}
 
 	// Compatibility with older fixture data while SoftwareID is rolled out.
