@@ -79,8 +79,14 @@ type KnowledgeResult struct {
 	CanUse          bool             `json:"canUse"`
 }
 
+// KnowledgeKey identifies a reusable historical concept. Date validity belongs
+// to the fact rows, so a fact learned on one day can serve later world dates.
 func KnowledgeKey(q KnowledgeQuery) string {
-	parts := []string{strings.ToLower(strings.TrimSpace(string(q.Kind))), strings.ToLower(strings.TrimSpace(q.Subject)), strings.TrimSpace(q.WorldDate), strings.ToLower(strings.TrimSpace(q.Region)), strings.ToLower(strings.Join(q.Audience, ","))}
+	parts := []string{strings.ToLower(strings.TrimSpace(string(q.Kind))), strings.ToLower(strings.TrimSpace(q.Subject)), strings.ToLower(strings.TrimSpace(q.Region)), strings.ToLower(strings.Join(q.Audience, ","))}
 	sum := sha256.Sum256([]byte(strings.Join(parts, "|")))
 	return hex.EncodeToString(sum[:16])
 }
+
+// ResearchKey is narrower than KnowledgeKey so concurrent research for different
+// historical slices cannot incorrectly block each other.
+func ResearchKey(q KnowledgeQuery) string { return KnowledgeKey(q)+"|"+strings.TrimSpace(q.WorldDate) }
