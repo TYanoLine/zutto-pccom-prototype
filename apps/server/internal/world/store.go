@@ -21,18 +21,30 @@ type BoardPostStore interface {
 	ListBoardPosts(host Host, boardID, boardTopic string) []Post
 }
 
+// The following writer capabilities are intentionally optional. WorldRepository
+// uses them to persist materialized state without making every Store implementation
+// support the development materialization demo.
+type HostWriter interface { SaveHost(Host) }
+type BoardStore interface {
+	ListBoards(hostID string) []Board
+	SaveBoards(hostID string, boards []Board)
+}
+type PostUpdater interface { UpdatePost(hostID string, p Post) (Post, bool) }
+
 type MemoryStore struct {
-	mu    sync.RWMutex
-	hosts map[string]Host
-	posts map[string][]Post
-	next  int64
+	mu     sync.RWMutex
+	hosts  map[string]Host
+	boards map[string][]Board
+	posts  map[string][]Post
+	next   int64
 }
 
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
 		hosts: map[string]Host{},
+		boards: map[string][]Board{},
 		posts: map[string][]Post{},
-		next:  1000,
+		next: 1000,
 	}
 
 	h := Host{ID:"moonlight-yokohama",Phone:"0451234567",Name:"YOKOHAMA MOONLIGHT NETWORK",Region:"神奈川県横浜市",Software:"KTBBS compatible / customized",SoftwareID:"generic",Lines:4,Popularity:.70,MaxBaud:14400,Members:187,ANSI:true,GuestAllowed:true,TelehoFriendly:true}
@@ -65,10 +77,18 @@ func NewMemoryStore() *MemoryStore {
 
 	s.hosts["0450000001"]=Host{ID:"quiet-test",Phone:"0450000001",Name:"QUIET TEST BBS",Region:"神奈川県",Software:"mmm compatible",SoftwareID:"generic",Lines:8,Popularity:.05,MaxBaud:28800,Members:22,ANSI:false,GuestAllowed:true}
 	s.hosts["0459999999"]=Host{ID:"busy-test",Phone:"0459999999",Name:"POPULAR TEST BBS",Region:"神奈川県",Software:"BIG-Model compatible",SoftwareID:"generic",Lines:1,Popularity:1,MaxBaud:14400,Members:912,ANSI:true,GuestAllowed:true}
+
+	// Development-only seed: intentionally incomplete. WorldRepository fills the
+	// missing profile when this number is first dialed, then stores the result.
+	s.hosts["0450000196"]=Host{ID:"materialize-demo",Phone:"0450000196",Region:"神奈川県",SoftwareID:"materialization-demo"}
 	return s
 }
 
 func (s *MemoryStore) HostByPhone(phone string)(Host,error){s.mu.RLock();defer s.mu.RUnlock();h,ok:=s.hosts[phone];if !ok{return Host{},errors.New("host not found")};return h,nil}
+func (s *MemoryStore) SaveHost(h Host){s.mu.Lock();defer s.mu.Unlock();s.hosts[h.Phone]=h}
 func (s *MemoryStore) ListPosts(hostID string)[]Post{s.mu.RLock();defer s.mu.RUnlock();p:=s.posts[hostID];out:=make([]Post,len(p));copy(out,p);return out}
 func (s *MemoryStore) ListBoardPosts(host Host,boardID,_ string)[]Post{all:=s.ListPosts(host.ID);out:=make([]Post,0);for _,p:=range all{if p.BoardID==boardID{out=append(out,p)}};return out}
 func (s *MemoryStore) AddPost(hostID string,p Post)Post{s.mu.Lock();defer s.mu.Unlock();s.next++;p.ID=s.next;if p.CreatedAt.IsZero(){p.CreatedAt=time.Now()};s.posts[hostID]=append(s.posts[hostID],p);return p}
+func (s *MemoryStore) UpdatePost(hostID string,p Post)(Post,bool){s.mu.Lock();defer s.mu.Unlock();for i:=range s.posts[hostID]{if s.posts[hostID][i].ID==p.ID{s.posts[hostID][i]=p;return p,true}};return Post{},false}
+func (s *MemoryStore) ListBoards(hostID string)[]Board{s.mu.RLock();defer s.mu.RUnlock();v:=s.boards[hostID];out:=make([]Board,len(v));copy(out,v);return out}
+func (s *MemoryStore) SaveBoards(hostID string,boards []Board){s.mu.Lock();defer s.mu.Unlock();out:=make([]Board,len(boards));copy(out,boards);s.boards[hostID]=out}

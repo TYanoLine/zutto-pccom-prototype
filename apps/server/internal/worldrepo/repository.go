@@ -32,20 +32,31 @@ type Repository struct {
 	Materializer Materializer
 	WorldDate    string
 
-	mu           sync.Mutex
-	materialized map[string]bool
-	hosts        map[string]world.Host
+	mu                 sync.Mutex
+	materialized       map[string]bool
+	hosts              map[string]world.Host
+	hostMaterialized    map[string]bool
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
-	return &Repository{Base:base,Engine:engine,Materializer:materializer,WorldDate:worldDate,materialized:map[string]bool{},hosts:map[string]world.Host{}}
+	return &Repository{Base:base,Engine:engine,Materializer:materializer,WorldDate:worldDate,materialized:map[string]bool{},hosts:map[string]world.Host{},hostMaterialized:map[string]bool{}}
 }
 
 func (r *Repository) HostByPhone(phone string) (world.Host,error) {
 	h,err:=r.Base.HostByPhone(phone)
-	if err==nil { r.mu.Lock();r.hosts[h.ID]=h;r.mu.Unlock() }
-	return h,err
+	if err!=nil{return h,err}
+	if incompleteHost(h) {
+		h = completeDevelopmentHost(h)
+		if w,ok:=r.Base.(world.HostWriter);ok{w.SaveHost(h)}
+		r.mu.Lock();r.hostMaterialized[h.ID]=true;r.mu.Unlock()
+	}
+	r.mu.Lock();r.hosts[h.ID]=h;r.mu.Unlock()
+	return h,nil
 }
+
+// HostWasMaterialized is exposed for the development-only materialization host.
+// Historical host runtimes do not need to render this internal state.
+func (r *Repository) HostWasMaterialized(hostID string) bool { r.mu.Lock();defer r.mu.Unlock();return r.hostMaterialized[hostID] }
 
 // ListPosts is the legacy Store boundary. When a known host has no posts at all,
 // materialize a minimal default board once. More capable host runtimes can use
@@ -53,7 +64,7 @@ func (r *Repository) HostByPhone(phone string) (world.Host,error) {
 func (r *Repository) ListPosts(hostID string) []world.Post {
 	if existing:=r.Base.ListPosts(hostID);len(existing)>0{return existing}
 	r.mu.Lock();h,known:=r.hosts[hostID];r.mu.Unlock()
-	if known { _=r.ensureBoard(h,"main","フリートーク") }
+	if known && h.SoftwareID!="materialization-demo" { _=r.ensureBoard(h,"main","フリートーク") }
 	return r.Base.ListPosts(hostID)
 }
 
@@ -66,6 +77,60 @@ func (r *Repository) ListBoardPosts(host world.Host, boardID, boardTopic string)
 	if existing:=filterBoard(r.Base.ListPosts(host.ID),boardID);len(existing)>0{return existing}
 	_ = r.ensureBoard(host,boardID,boardTopic)
 	return filterBoard(r.Base.ListPosts(host.ID),boardID)
+}
+
+// MaterializationBoards creates and stores only the board catalog. No article
+// prose is generated here; this mirrors the intended lazy hierarchy.
+func (r *Repository) MaterializationBoards(host world.Host)([]world.Board,bool){
+	bs,ok:=r.Base.(world.BoardStore)
+	if !ok{return nil,false}
+	if existing:=bs.ListBoards(host.ID);len(existing)>0{return existing,false}
+	boards:=[]world.Board{{ID:"1",Name:"フリートーク"},{ID:"2",Name:"パソコン通信・モデム"},{ID:"3",Name:"地域の話題"}}
+	bs.SaveBoards(host.ID,boards)
+	return boards,true
+}
+
+// MaterializationArticleHeaders creates lightweight headers when a known board
+// is first entered. Bodies remain empty until the user selects an article.
+func (r *Repository) MaterializationArticleHeaders(host world.Host,board world.Board)([]world.Post,bool){
+	if existing:=filterBoard(r.Base.ListPosts(host.ID),board.ID);len(existing)>0{return existing,false}
+	stamp:=worldTime(r.WorldDate)
+	templates:=[]struct{author,subject string}{
+		{"NEKO",board.Name+"、どうです？"},
+		{"MARI","はじめまして"},
+		{"SYSOP","このボードについて"},
+	}
+	out:=make([]world.Post,0,len(templates))
+	for i,t:=range templates{
+		p:=r.Base.AddPost(host.ID,world.Post{BoardID:board.ID,Author:t.author,Subject:t.subject,CreatedAt:stamp.Add(time.Duration(i)*17*time.Minute)})
+		out=append(out,p)
+	}
+	return out,true
+}
+
+// MaterializationArticle completes article prose only when the article is read.
+// It reuses the normal evidence policy and LLM materializer; the header selected
+// by WorldRepository stays canonical and only the missing body is filled.
+func (r *Repository) MaterializationArticle(host world.Host,board world.Board,postID int64)(world.Post,bool,bool){
+	var selected world.Post
+	found:=false
+	for _,p:=range r.Base.ListPosts(host.ID){if p.ID==postID&&p.BoardID==board.ID{selected=p;found=true;break}}
+	if !found{return world.Post{},false,false}
+	if selected.Body!=""{return selected,true,false}
+	if r.Engine==nil||r.Materializer==nil{return selected,true,false}
+	ctx,cancel:=context.WithTimeout(context.Background(),20*time.Second);defer cancel()
+	decision,err:=r.Engine.ResolveEvidence(ctx,worldengine.EvidenceRequest{
+		Kind:historicalkb.KnowledgeCulturalSignal,Subject:board.Name,WorldDate:r.WorldDate,Region:host.Region,Audience:[]string{host.SoftwareID},
+		Need:fmt.Sprintf("%s の %s ボード、件名『%s』の記事本文を1996年の自然なパソコン通信文体で補完する",host.Name,board.Name,selected.Subject),
+		Persistence:true,Importance:.30,Specificity:.30,
+	})
+	if err!=nil{return selected,true,false}
+	posts,err:=r.Materializer.GenerateBoardPosts(ctx,BoardMaterializationRequest{Host:host,BoardID:board.ID,BoardTopic:board.Name+" / "+selected.Subject,WorldDate:r.WorldDate},decision)
+	if err!=nil||len(posts)==0{return selected,true,false}
+	selected.Body=posts[0].Body
+	if selected.Body==""{return selected,true,false}
+	if u,ok:=r.Base.(world.PostUpdater);ok{updated,ok:=u.UpdatePost(host.ID,selected);if ok{return updated,true,true}}
+	return selected,true,true
 }
 
 func (r *Repository) ensureBoard(host world.Host,boardID,boardTopic string) error {
@@ -96,6 +161,16 @@ func (r *Repository) ensureBoard(host world.Host,boardID,boardTopic string) erro
 }
 
 func filterBoard(all []world.Post,boardID string)[]world.Post{out:=make([]world.Post,0);for _,p:=range all{if p.BoardID==boardID{out=append(out,p)}};return out}
+
+func incompleteHost(h world.Host)bool{return h.Name==""||h.Software==""||h.Lines<=0||h.MaxBaud<=0}
+func completeDevelopmentHost(h world.Host)world.Host{
+	if h.Name==""{h.Name="LAZY MATERIALIZE BBS"}
+	if h.Region==""{h.Region="神奈川県"}
+	if h.Software==""{h.Software="局固有の架空ホスト (development)"}
+	if h.Lines<=0{h.Lines=2};if h.MaxBaud<=0{h.MaxBaud=14400};if h.Members<=0{h.Members=48};if h.Popularity<=0{h.Popularity=.22}
+	h.GuestAllowed=true;h.TelehoFriendly=true
+	return h
+}
 
 // FallbackMaterializer is deterministic/non-AI. It keeps AI optional and gives
 // the materialization pipeline a safe degradation path. A prose renderer can be

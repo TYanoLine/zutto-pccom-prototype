@@ -1,0 +1,96 @@
+package materializationdemo
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+
+	"zutto-pccom/apps/server/internal/world"
+)
+
+type materializingStore interface {
+	world.Store
+	HostWasMaterialized(hostID string) bool
+	MaterializationBoards(host world.Host) ([]world.Board, bool)
+	MaterializationArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
+	MaterializationArticle(host world.Host, board world.Board, postID int64) (world.Post, bool, bool)
+}
+
+type Runtime struct {
+	Host  world.Host
+	Store world.Store
+	state string
+	board world.Board
+}
+
+func New(host world.Host, store world.Store) *Runtime { return &Runtime{Host:host,Store:store,state:"command"} }
+
+func (r *Runtime) Welcome() string {
+	created := "STORED REUSE"
+	if s,ok:=r.Store.(materializingStore);ok && s.HostWasMaterialized(r.Host.ID){ created="MATERIALIZED + STORED" }
+	return fmt.Sprintf("\x1b[2J\x1b[H=== DEVELOPMENT MATERIALIZATION HOST ===\r\n"+
+		"[DEV] HOST PROFILE : %s\r\n\r\n"+
+		"NAME     %s\r\nREGION   %s\r\nSOFTWARE %s\r\nLINES    %d\r\nMAX BAUD %d\r\nMEMBERS  %d\r\n\r\n"+
+		"この局は開発確認用です。初回アクセス時には不足している局設定だけを補完・保存します。\r\n"+
+		"[B] 掲示板一覧  [H] ヘルプ  [G] 切断\r\n\r\nDEV> ",created,r.Host.Name,r.Host.Region,r.Host.Software,r.Host.Lines,r.Host.MaxBaud,r.Host.Members)
+}
+
+func (r *Runtime) HandleLine(line string)(string,bool){
+	line=strings.TrimSpace(line)
+	switch r.state {
+	case "boards": return r.handleBoards(line)
+	case "articles": return r.handleArticles(line)
+	case "article":
+		r.state="articles"
+		return r.renderArticles(false),false
+	}
+	switch strings.ToUpper(line){
+	case "","H","HELP","?": return "\r\nB BOARD  掲示板一覧を要求（未生成なら生成して保存）\r\nG BYE    切断\r\n\r\nDEV> ",false
+	case "B","BOARD": r.state="boards";return r.renderBoards(),false
+	case "G","BYE","GOODBYE": return "\r\nNO CARRIER\r\n",true
+	default:return "? COMMAND ERROR\r\nDEV> ",false
+	}
+}
+
+func (r *Runtime) renderBoards()string{
+	s,ok:=r.Store.(materializingStore);if !ok{return "\r\n[DEV] MATERIALIZATION STORE UNAVAILABLE\r\nDEV> "}
+	boards,created:=s.MaterializationBoards(r.Host)
+	status:="STORED REUSE";if created{status="MATERIALIZED + STORED"}
+	var b strings.Builder
+	fmt.Fprintf(&b,"\r\n[DEV] BOARD CATALOG : %s\r\n",status)
+	b.WriteString("----------------------------------------\r\n")
+	for i,v:=range boards{fmt.Fprintf(&b," %d. %s\r\n",i+1,v.Name)}
+	b.WriteString("----------------------------------------\r\n番号を選択 / Q=戻る > ")
+	return b.String()
+}
+
+func (r *Runtime) handleBoards(line string)(string,bool){
+	if strings.EqualFold(line,"Q")||line=="/"{r.state="command";return "\r\nDEV> ",false}
+	s,ok:=r.Store.(materializingStore);if !ok{return "STORE ERROR\r\n",false}
+	boards,_:=s.MaterializationBoards(r.Host)
+	n,err:=strconv.Atoi(line);if err!=nil||n<1||n>len(boards){return "? BOARD NUMBER\r\n番号を選択 / Q=戻る > ",false}
+	r.board=boards[n-1];r.state="articles";return r.renderArticles(true),false
+}
+
+func (r *Runtime) renderArticles(showMaterialization bool)string{
+	s,ok:=r.Store.(materializingStore);if !ok{return "\r\nSTORE ERROR\r\n"}
+	posts,created:=s.MaterializationArticleHeaders(r.Host,r.board)
+	status:="STORED REUSE";if created{status="HEADERS MATERIALIZED + STORED"}
+	var b strings.Builder
+	fmt.Fprintf(&b,"\r\n[%s]\r\n",r.board.Name)
+	if showMaterialization||created{fmt.Fprintf(&b,"[DEV] ARTICLE INDEX : %s\r\n",status)}
+	b.WriteString("------------------------------------------------------------\r\n")
+	for _,p:=range posts{body:="本文:保存済";if strings.TrimSpace(p.Body)==""{body="本文:未生成"};fmt.Fprintf(&b," %04d %-8s %-28s [%s]\r\n",p.ID,p.Author,p.Subject,body)}
+	b.WriteString("------------------------------------------------------------\r\nMSG No.を選択 / Q=掲示板一覧 > ")
+	return b.String()
+}
+
+func (r *Runtime) handleArticles(line string)(string,bool){
+	if strings.EqualFold(line,"Q")||line=="/"{r.state="boards";return r.renderBoards(),false}
+	id,err:=strconv.ParseInt(line,10,64);if err!=nil{return "? MSG NUMBER\r\nMSG No.を選択 / Q=掲示板一覧 > ",false}
+	s,ok:=r.Store.(materializingStore);if !ok{return "STORE ERROR\r\n",false}
+	p,found,created:=s.MaterializationArticle(r.Host,r.board,id);if !found{return "MSG NOT FOUND\r\nMSG No.を選択 / Q=掲示板一覧 > ",false}
+	status:="STORED REUSE";if created{status="BODY COMPLEMENTED BY WORLD ENGINE + LLM, STORED"};if strings.TrimSpace(p.Body)==""{status="BODY GENERATION FAILED / HEADER KEPT"}
+	r.state="article"
+	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ",status,p.ID,p.Subject,p.Author,p.Body),false
+}

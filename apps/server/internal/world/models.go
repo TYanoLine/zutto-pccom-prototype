@@ -18,6 +18,11 @@ type Host struct {
 	TelehoFriendly bool    `json:"teleho_friendly"`
 }
 
+type Board struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type Post struct {
 	ID        int64     `json:"id"`
 	BoardID   string    `json:"board_id,omitempty"`
