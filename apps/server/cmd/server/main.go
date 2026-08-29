@@ -15,6 +15,7 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldcatalog"
 	"zutto-pccom/apps/server/internal/worldclock"
+	"zutto-pccom/apps/server/internal/worldengine"
 	wsserver "zutto-pccom/apps/server/internal/ws"
 )
 
@@ -47,11 +48,11 @@ func main() {
 		defer historyStore.Close()
 	}
 
-	historyService := historicalkb.Service{
-		Store: historyStore,
-		Researcher: historicalkb.Researcher{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel},
-		WorldDate: cfg.WorldDate,
-	}
+	researcher := historicalkb.Researcher{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
+	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
+	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
+	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
+	_ = worldEngine // production boundary; host/world materializers will consume this engine as they are migrated from prototype stores.
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
 		generated, err := catalogGenerator.Generate(ctx, count, cfg.WorldDate)
@@ -87,8 +88,6 @@ func main() {
 	adminGuard := func(w http.ResponseWriter, _ *http.Request) bool {
 		w.Header().Set("Content-Type", "application/json")
 		if historyStore == nil { http.Error(w, `{"error":"historical research database is not configured"}`, http.StatusServiceUnavailable); return false }
-		// PoC only: historical research maintenance is intentionally unauthenticated.
-		// Keep debug reset endpoints protected separately via debugGuard.
 		return true
 	}
 
@@ -111,34 +110,13 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"reset":"host","center":center})
 	}
 
-	listResearch := func(w http.ResponseWriter, r *http.Request) {
-		if !adminGuard(w,r) { return }
-		cases, err := historyStore.List(r.Context(),100)
-		if err != nil { w.WriteHeader(http.StatusInternalServerError); _=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()}); return }
-		_ = json.NewEncoder(w).Encode(map[string]any{"cases":cases})
-	}
-	getResearch := func(w http.ResponseWriter, r *http.Request) {
-		if !adminGuard(w,r) { return }
-		c,err:=historyStore.Get(r.Context(),r.URL.Query().Get("id")); if err!=nil{w.WriteHeader(http.StatusNotFound);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; _=json.NewEncoder(w).Encode(c)
-	}
-	createResearch := func(w http.ResponseWriter, r *http.Request) {
-		if !adminGuard(w,r) { return }; if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return}
-		var in struct{Topic string `json:"topic"`; Question string `json:"question"`}; if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}
-		ctx,cancel:=context.WithTimeout(r.Context(),90*time.Second);defer cancel(); c,err:=historyService.Create(ctx,in.Topic,in.Question); if err!=nil{w.WriteHeader(http.StatusBadGateway);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; _=json.NewEncoder(w).Encode(c)
-	}
-	chatResearch := func(w http.ResponseWriter, r *http.Request) {
-		if !adminGuard(w,r) { return }; if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return}
-		var in struct{Message string `json:"message"`}; if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}
-		ctx,cancel:=context.WithTimeout(r.Context(),90*time.Second);defer cancel(); c,err:=historyService.Chat(ctx,r.URL.Query().Get("id"),in.Message); if err!=nil{w.WriteHeader(http.StatusBadGateway);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; _=json.NewEncoder(w).Encode(c)
-	}
-	supplementResearch := func(w http.ResponseWriter, r *http.Request) {
-		if !adminGuard(w,r) { return }; if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return}
-		var in struct{Supplement string `json:"supplement"`}; if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; c,err:=historyService.OperatorSupplement(r.Context(),r.URL.Query().Get("id"),in.Supplement); if err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; _=json.NewEncoder(w).Encode(c)
-	}
-	statusResearch := func(w http.ResponseWriter, r *http.Request) {
-		if !adminGuard(w,r) { return }; if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return}
-		var in struct{Status historicalkb.Status `json:"status"`}; if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; c,err:=historyStore.SetStatus(r.Context(),r.URL.Query().Get("id"),in.Status); if err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return}; _=json.NewEncoder(w).Encode(c)
-	}
+	listResearch := func(w http.ResponseWriter, r *http.Request) { if !adminGuard(w,r){return}; cases,err:=historyStore.List(r.Context(),100);if err!=nil{w.WriteHeader(http.StatusInternalServerError);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};_=json.NewEncoder(w).Encode(map[string]any{"cases":cases}) }
+	getResearch := func(w http.ResponseWriter, r *http.Request) { if !adminGuard(w,r){return};c,err:=historyStore.Get(r.Context(),r.URL.Query().Get("id"));if err!=nil{w.WriteHeader(http.StatusNotFound);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};_=json.NewEncoder(w).Encode(c) }
+	createResearch := func(w http.ResponseWriter, r *http.Request) { if !adminGuard(w,r){return};if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return};var in struct{Topic string `json:"topic"`;Question string `json:"question"`};if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};ctx,cancel:=context.WithTimeout(r.Context(),90*time.Second);defer cancel();c,err:=historyService.Create(ctx,in.Topic,in.Question);if err!=nil{w.WriteHeader(http.StatusBadGateway);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};_=json.NewEncoder(w).Encode(c) }
+	chatResearch := func(w http.ResponseWriter, r *http.Request) { if !adminGuard(w,r){return};if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return};var in struct{Message string `json:"message"`};if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};ctx,cancel:=context.WithTimeout(r.Context(),90*time.Second);defer cancel();c,err:=historyService.Chat(ctx,r.URL.Query().Get("id"),in.Message);if err!=nil{w.WriteHeader(http.StatusBadGateway);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};_=json.NewEncoder(w).Encode(c) }
+	supplementResearch := func(w http.ResponseWriter, r *http.Request) { if !adminGuard(w,r){return};if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return};var in struct{Supplement string `json:"supplement"`};if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};c,err:=historyService.OperatorSupplement(r.Context(),r.URL.Query().Get("id"),in.Supplement);if err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};_=json.NewEncoder(w).Encode(c) }
+	statusResearch := func(w http.ResponseWriter, r *http.Request) { if !adminGuard(w,r){return};if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return};var in struct{Status historicalkb.Status `json:"status"`};if err:=json.NewDecoder(r.Body).Decode(&in);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};c,err:=historyService.SetStatus(r.Context(),r.URL.Query().Get("id"),in.Status);if err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};_=json.NewEncoder(w).Encode(c) }
+	resolveKnowledge := func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type","application/json");if r.Method!=http.MethodPost{w.WriteHeader(http.StatusMethodNotAllowed);return};if historyStore==nil{http.Error(w,`{"error":"historical knowledge database is not configured"}`,http.StatusServiceUnavailable);return};var q historicalkb.KnowledgeQuery;if err:=json.NewDecoder(r.Body).Decode(&q);err!=nil{w.WriteHeader(http.StatusBadRequest);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error()});return};ctx,cancel:=context.WithTimeout(r.Context(),75*time.Second);defer cancel();result,err:=knowledgeService.Resolve(ctx,q);if err!=nil{w.WriteHeader(http.StatusBadGateway);_=json.NewEncoder(w).Encode(map[string]any{"error":err.Error(),"result":result});return};_=json.NewEncoder(w).Encode(result) }
 
 	mux := http.NewServeMux()
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: store, Sessions: sessions})
@@ -152,8 +130,9 @@ func main() {
 	mux.HandleFunc("/api/admin/research/chat", chatResearch)
 	mux.HandleFunc("/api/admin/research/supplement", supplementResearch)
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
+	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5*time.Second}
 	log.Printf("zutto server listening on %s", cfg.Addr)
