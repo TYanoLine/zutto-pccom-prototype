@@ -26,7 +26,7 @@ const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 const buildTime=(import.meta.env.VITE_BUILD_TIME as string|undefined)||'unknown';
 const buildCommit=(import.meta.env.VITE_BUILD_COMMIT as string|undefined)||'unknown';
 const buildRef=(import.meta.env.VITE_BUILD_REF as string|undefined)||'unknown';
-const converterRevision='visible-canvas-before-draw-v2';
+const converterRevision='jpeg-compat-preview-v3';
 
 type Generated = { image: string; model?: string };
 
@@ -41,6 +41,7 @@ export default function ImageArtifactPocPage() {
   const [error, setError] = useState('');
   const [original, setOriginal] = useState('');
   const [convertedReady, setConvertedReady] = useState(false);
+  const [compatPreview, setCompatPreview] = useState('');
   const [processedBytes, setProcessedBytes] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -50,7 +51,7 @@ export default function ImageArtifactPocPage() {
   }
 
   async function generate() {
-    setBusy(true); setError(''); setOriginal(''); setConvertedReady(false); setProcessedBytes(0);
+    setBusy(true); setError(''); setOriginal(''); setConvertedReady(false); setCompatPreview(''); setProcessedBytes(0);
     try {
       if (!apiBase) throw new Error('Render backend URL is not configured');
       const paletteInstruction = paletteMode === '16'
@@ -61,9 +62,6 @@ export default function ImageArtifactPocPage() {
       const data = await res.json() as Generated & { error?: string };
       if (!res.ok || !data.image) throw new Error(data.error || `HTTP ${res.status}`);
 
-      // Make the result section and canvas visible first. On iOS Safari the
-      // previous versions drew while the canvas/ancestor was display:none;
-      // the PNG bytes existed, but the preview never painted.
       setOriginal(data.image);
       setConvertedReady(true);
       await nextPaint();
@@ -105,6 +103,12 @@ export default function ImageArtifactPocPage() {
             }
           }
           ctx.putImageData(frame,0,0);
+
+          // Compatibility experiment: re-encode the already quantized pixels as
+          // ordinary full-color JPEG. JPEG itself is not palette-indexed and may
+          // introduce additional colors through compression, but the source look
+          // still comes from the 16/256-color quantized frame above.
+          setCompatPreview(canvas.toDataURL('image/jpeg',0.92));
           canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size); resolve();},'image/png');
         } catch (e) {
           reject(e);
@@ -127,7 +131,7 @@ export default function ImageArtifactPocPage() {
       REF: {buildRef}<br/>
       CONVERTER: {converterRevision}
     </p>
-    <p>OpenAIで素材を生成し、生成時にも色数を意識させたうえで、ブラウザ側で640×400・指定色数へ機械的に再変換します。PoCなので変換後はPNGです。</p>
+    <p>OpenAIで素材を生成し、生成時にも色数を意識させたうえで、ブラウザ側で640×400・指定色数へ機械的に再変換します。互換性確認用に、量子化後の見た目を通常のフルカラーJPEGにも再エンコードして表示します。</p>
     <section style={{border:'1px solid #397a53',padding:16}}>
       <strong>題材</strong>
       <div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p.label}><input type="radio" name="preset" checked={prompt===p.prompt} onChange={()=>choosePreset(p)}/> {i+1}. {p.label}</label>)}</div>
@@ -144,7 +148,12 @@ export default function ImageArtifactPocPage() {
     </section>
     <section style={{display:showResults?'grid':'none',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
       <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
-      <div><h2>変換後 640×400 / {colorLabel}</h2><canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none',background:'#000'}} />{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
+      <div>
+        <h2>変換後 640×400 / {colorLabel}</h2>
+        <canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none',background:'#000'}} />
+        {processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG計測)</p>}
+        {compatPreview&&<><h3>互換表示：フルカラーJPEG</h3><img src={compatPreview} alt={`量子化後 ${colorLabel} をフルカラーJPEGで再エンコード`} style={{width:'100%',display:'block'}}/><p style={{opacity:.75}}>JPEGは多色フォーマットです。見た目の元は{colorLabel}量子化ですが、JPEG圧縮により実画素色数は増えます。</p></>}
+      </div>
     </section>
   </main>;
 }
