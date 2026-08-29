@@ -39,35 +39,48 @@ Return only the post body.`, req.WorldDate, req.HostName, req.Persona, req.EraRu
 }
 
 func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
-	facts := "(none supplied; keep claims generic and atmospheric)"
+	facts := "(none supplied; keep concrete historical claims generic)"
 	if len(req.HistoricalFacts)>0 { facts = "- "+strings.Join(req.HistoricalFacts,"\n- ") }
 	prompt := fmt.Sprintf(`Write exactly one natural message for a Japanese grass-roots personal-computer BBS.
 The message becomes persistent world state, so obey every constraint below.
 
-WORLD DATE: %s
-HOST: %s
-REGION: %s
-HOST SOFTWARE FAMILY: %s
-BOARD: %s (%s)
-ERA RULES: %s
+PRIMARY CONTENT CUE:
+- Current board/header cue: %s
+- Write about what an ordinary member would naturally mean by this cue.
+- Do not pad the message with unrelated setting details merely because they are listed below.
+
+BACKGROUND CONSTRAINTS — THESE ARE GUARDRAILS, NOT TOPICS TO MENTION:
+- World date: %s
+- Host: %s
+- Region: %s
+- Host software family: %s
+- Board ID: %s
+- Era rules: %s
 
 HISTORICAL FACTS ALLOWED AS CONCRETE FACTUAL SUPPORT:
 %s
+
+Important interpretation rules:
+- Background constraints exist to prevent contradictions. They are NOT a checklist of details to mention.
+- Do not mention the region, date, season, host name, host software, or period technology unless the actual message content naturally requires it.
+- Historical facts are permission/constraints for concrete claims, not suggested talking points. Omit them entirely when irrelevant.
+- Never add period props such as floppy disks, magazines, modems, heat/weather, or place names just to make the prose feel "1990s".
+- Natural topic focus is more important than demonstrating that you understood the supplied context.
 
 Rules:
 - Write as an ordinary independent BBS member, not as an assistant or narrator.
 - The human-controlled user is not the center of the world and need not be mentioned.
 - Never mention AI, simulation, prompts, web searches, databases, social media, smartphones, or anything from after the world date.
 - Do not invent exact release dates, prices, model-specific availability, technical specifications, historical events, or other concrete factual claims unless they are supported by the supplied historical facts.
-- When no historical facts are supplied, stay generic: everyday chatter, personal impressions, questions, habits, or non-specific period atmosphere are fine.
+- When no historical facts are supplied, ordinary personal chatter, impressions, questions, habits, and mundane details are fine.
 - Do not imply that all members share the same opinion or equipment.
-- Use plausible mid-1990s Japanese BBS prose. Emoticons are optional and should not be overused.
+- Use plausible mid-1990s Japanese BBS prose, but avoid conspicuous era cosplay. Emoticons are optional and should not be overused.
 - Author handle: 2-12 ASCII letters/digits only.
 - Subject: Japanese, at most 36 characters.
 - Body: Japanese, 1-5 short paragraphs, at most about 500 Japanese characters.
 
 Return ONLY JSON with exactly these keys:
-{"author":"...","subject":"...","body":"..."}`,req.WorldDate,req.HostName,req.HostRegion,req.HostSoftware,req.BoardID,req.BoardTopic,req.EraRules,facts)
+{"author":"...","subject":"...","body":"..."}`,req.BoardTopic,req.WorldDate,req.HostName,req.HostRegion,req.HostSoftware,req.BoardID,req.EraRules,facts)
 	text,err:=p.responseText(ctx,prompt,"low")
 	if err!=nil{return BoardPostDraft{},err}
 	var draft BoardPostDraft

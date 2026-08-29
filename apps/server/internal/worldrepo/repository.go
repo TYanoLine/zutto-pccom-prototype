@@ -125,7 +125,10 @@ func (r *Repository) MaterializationArticle(host world.Host,board world.Board,po
 		Persistence:true,Importance:.30,Specificity:.30,
 	})
 	if err!=nil{return selected,true,false}
-	posts,err:=r.Materializer.GenerateBoardPosts(ctx,BoardMaterializationRequest{Host:host,BoardID:board.ID,BoardTopic:board.Name+" / "+selected.Subject,WorldDate:r.WorldDate},decision)
+	// The canonical article subject is the actual content cue. Board placement,
+	// host region and other world context remain constraints in the renderer and
+	// must not be treated as a checklist of things to mention in the prose.
+	posts,err:=r.Materializer.GenerateBoardPosts(ctx,BoardMaterializationRequest{Host:host,BoardID:board.ID,BoardTopic:selected.Subject,WorldDate:r.WorldDate},decision)
 	if err!=nil||len(posts)==0{return selected,true,false}
 	selected.Body=posts[0].Body
 	if selected.Body==""{return selected,true,false}
