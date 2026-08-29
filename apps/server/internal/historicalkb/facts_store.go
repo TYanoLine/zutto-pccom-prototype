@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS historical_facts (
   kind text NOT NULL,
   subject text NOT NULL,
   claim text NOT NULL,
-  valid_from text NOT NULL DEFAULT '',
-  valid_until text NOT NULL DEFAULT '',
+  valid_from date,
+  valid_until date,
   region text NOT NULL DEFAULT 'JP',
   audience jsonb NOT NULL DEFAULT '[]'::jsonb,
   confidence double precision NOT NULL DEFAULT 0,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS historical_facts (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS historical_facts_lookup_idx ON historical_facts(knowledge_key, status, confidence DESC);
+CREATE INDEX IF NOT EXISTS historical_facts_lookup_idx ON historical_facts(knowledge_key, status, valid_from, valid_until, confidence DESC);
 CREATE INDEX IF NOT EXISTS historical_facts_research_idx ON historical_facts(research_id);
 CREATE TABLE IF NOT EXISTS historical_research_leases (
   knowledge_key text PRIMARY KEY,
@@ -40,8 +40,13 @@ CREATE TABLE IF NOT EXISTS historical_research_leases (
 	return err
 }
 
-func (s *Store) FindFacts(ctx context.Context, key string) ([]HistoricalFact, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id,knowledge_key,kind,subject,claim,valid_from,valid_until,region,audience,confidence,status,sources,research_id,created_at,updated_at FROM historical_facts WHERE knowledge_key=$1 AND status <> 'rejected' ORDER BY confidence DESC, updated_at DESC`, key)
+func (s *Store) FindFacts(ctx context.Context, key, worldDate string) ([]HistoricalFact, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id,knowledge_key,kind,subject,claim,COALESCE(valid_from::text,''),COALESCE(valid_until::text,''),region,audience,confidence,status,sources,research_id,created_at,updated_at
+FROM historical_facts
+WHERE knowledge_key=$1 AND status <> 'rejected'
+  AND (valid_from IS NULL OR valid_from <= NULLIF($2,'')::date)
+  AND (valid_until IS NULL OR valid_until >= NULLIF($2,'')::date)
+ORDER BY confidence DESC, updated_at DESC`, key, worldDate)
 	if err != nil { return nil, err }; defer rows.Close(); out:=make([]HistoricalFact,0)
 	for rows.Next(){var f HistoricalFact;var kind,status string;var audience,sources []byte
 		if err:=rows.Scan(&f.ID,&f.KnowledgeKey,&kind,&f.Subject,&f.Claim,&f.ValidFrom,&f.ValidUntil,&f.Region,&audience,&f.Confidence,&status,&sources,&f.ResearchID,&f.CreatedAt,&f.UpdatedAt);err!=nil{return nil,err}
@@ -52,7 +57,7 @@ func (s *Store) FindFacts(ctx context.Context, key string) ([]HistoricalFact, er
 func (s *Store) UpsertFact(ctx context.Context, f HistoricalFact) error {
 	audience,_:=json.Marshal(f.Audience);sources,_:=json.Marshal(f.Sources)
 	_,err:=s.pool.Exec(ctx,`INSERT INTO historical_facts(id,knowledge_key,kind,subject,claim,valid_from,valid_until,region,audience,confidence,status,sources,research_id,created_at,updated_at)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+VALUES($1,$2,$3,$4,$5,NULLIF($6,'')::date,NULLIF($7,'')::date,$8,$9,$10,$11,$12,$13,$14,$15)
 ON CONFLICT(id) DO UPDATE SET claim=EXCLUDED.claim,valid_from=EXCLUDED.valid_from,valid_until=EXCLUDED.valid_until,region=EXCLUDED.region,audience=EXCLUDED.audience,confidence=EXCLUDED.confidence,status=EXCLUDED.status,sources=EXCLUDED.sources,research_id=EXCLUDED.research_id,updated_at=EXCLUDED.updated_at`,f.ID,f.KnowledgeKey,string(f.Kind),f.Subject,f.Claim,f.ValidFrom,f.ValidUntil,f.Region,audience,f.Confidence,string(f.Status),sources,f.ResearchID,f.CreatedAt,f.UpdatedAt)
 	return err
 }
