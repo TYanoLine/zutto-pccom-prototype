@@ -26,8 +26,13 @@ const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 const buildTime=(import.meta.env.VITE_BUILD_TIME as string|undefined)||'unknown';
 const buildCommit=(import.meta.env.VITE_BUILD_COMMIT as string|undefined)||'unknown';
 const buildRef=(import.meta.env.VITE_BUILD_REF as string|undefined)||'unknown';
+const converterRevision='visible-canvas-before-draw-v2';
 
 type Generated = { image: string; model?: string };
+
+function nextPaint() {
+  return new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+}
 
 export default function ImageArtifactPocPage() {
   const [prompt, setPrompt] = useState(PRESETS[0].prompt);
@@ -55,49 +60,59 @@ export default function ImageArtifactPocPage() {
       const res = await fetch(`${apiBase}/api/poc/image-artifact`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:requestPrompt}) });
       const data = await res.json() as Generated & { error?: string };
       if (!res.ok || !data.image) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Make the result section and canvas visible first. On iOS Safari the
+      // previous versions drew while the canvas/ancestor was display:none;
+      // the PNG bytes existed, but the preview never painted.
       setOriginal(data.image);
+      setConvertedReady(true);
+      await nextPaint();
       await reduce(data.image, paletteMode);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(false); }
   }
 
-  async function reduce(src: string, mode: PaletteMode) {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) { setError('conversion canvas is not available'); return; }
-      canvas.width=640; canvas.height=400;
-      const ctx=canvas.getContext('2d');
-      if (!ctx) { setError('2D canvas is not available'); return; }
-      ctx.imageSmoothingEnabled=true;
-      const scale=Math.max(640/img.width,400/img.height), sw=640/scale, sh=400/scale;
-      ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,640,400);
-      const frame=ctx.getImageData(0,0,640,400), d=frame.data;
+  function reduce(src: string, mode: PaletteMode) {
+    return new Promise<void>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = canvasRef.current;
+          if (!canvas) throw new Error('conversion canvas is not available');
+          canvas.width=640; canvas.height=400;
+          const ctx=canvas.getContext('2d');
+          if (!ctx) throw new Error('2D canvas is not available');
+          ctx.imageSmoothingEnabled=true;
+          const scale=Math.max(640/img.width,400/img.height), sw=640/scale, sh=400/scale;
+          ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,640,400);
+          const frame=ctx.getImageData(0,0,640,400), d=frame.data;
 
-      if (mode === '16') {
-        for(let i=0;i<d.length;i+=4){
-          let best=PALETTE16[0], bestDistance=Number.POSITIVE_INFINITY;
-          for(const candidate of PALETTE16){
-            const dr=d[i]-candidate[0], dg=d[i+1]-candidate[1], db=d[i+2]-candidate[2];
-            const distance=dr*dr+dg*dg+db*db;
-            if(distance<bestDistance){bestDistance=distance;best=candidate;}
+          if (mode === '16') {
+            for(let i=0;i<d.length;i+=4){
+              let best=PALETTE16[0], bestDistance=Number.POSITIVE_INFINITY;
+              for(const candidate of PALETTE16){
+                const dr=d[i]-candidate[0], dg=d[i+1]-candidate[1], db=d[i+2]-candidate[2];
+                const distance=dr*dr+dg*dg+db*db;
+                if(distance<bestDistance){bestDistance=distance;best=candidate;}
+              }
+              d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2];
+            }
+          } else {
+            for(let i=0;i<d.length;i+=4){
+              d[i]=Math.round(d[i]/255*7)*255/7;
+              d[i+1]=Math.round(d[i+1]/255*7)*255/7;
+              d[i+2]=Math.round(d[i+2]/255*3)*255/3;
+            }
           }
-          d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2];
+          ctx.putImageData(frame,0,0);
+          canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size); resolve();},'image/png');
+        } catch (e) {
+          reject(e);
         }
-      } else {
-        for(let i=0;i<d.length;i+=4){
-          d[i]=Math.round(d[i]/255*7)*255/7;
-          d[i+1]=Math.round(d[i+1]/255*7)*255/7;
-          d[i+2]=Math.round(d[i+2]/255*3)*255/3;
-        }
-      }
-      ctx.putImageData(frame,0,0);
-
-      setConvertedReady(true);
-      canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size);},'image/png');
-    };
-    img.onerror = () => setError('generated image could not be loaded for conversion');
-    img.src=src;
+      };
+      img.onerror = () => reject(new Error('generated image could not be loaded for conversion'));
+      img.src=src;
+    });
   }
 
   const colorLabel=paletteMode==='16'?'16色':'≤256色';
@@ -109,7 +124,8 @@ export default function ImageArtifactPocPage() {
     <p style={{fontSize:12,opacity:.72,lineHeight:1.6,border:'1px dashed #397a53',padding:10}}>
       BUILD: {buildTime}<br/>
       COMMIT: {buildCommit}<br/>
-      REF: {buildRef}
+      REF: {buildRef}<br/>
+      CONVERTER: {converterRevision}
     </p>
     <p>OpenAIで素材を生成し、生成時にも色数を意識させたうえで、ブラウザ側で640×400・指定色数へ機械的に再変換します。PoCなので変換後はPNGです。</p>
     <section style={{border:'1px solid #397a53',padding:16}}>
@@ -128,7 +144,7 @@ export default function ImageArtifactPocPage() {
     </section>
     <section style={{display:showResults?'grid':'none',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
       <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
-      <div><h2>変換後 640×400 / {colorLabel}</h2><canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none'}} />{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
+      <div><h2>変換後 640×400 / {colorLabel}</h2><canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none',background:'#000'}} />{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
     </section>
   </main>;
 }
