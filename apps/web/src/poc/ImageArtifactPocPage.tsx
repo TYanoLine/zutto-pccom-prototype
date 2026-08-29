@@ -9,7 +9,7 @@ const PRESETS: Preset[] = [
   { label:'1990年代の美少女CG・256色', prompt:'1990年代半ばの日本のパソコン通信で配布されていそうな、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。256色程度のパレットを意識した当時のデジタルCG表現', palette:'256' },
   { label:'1990年代の美少女CG・16色', prompt:'1990年代半ばの日本のPC-98系パソコンで描かれたような、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。最初から16色だけで描くことを強く意識し、色数の少なさをディザや面塗りで補う当時のCG表現', palette:'16' },
   { label:'夏の海辺の旅行写真', prompt:'夏の海辺を撮った旅行写真', palette:'256' },
-  { label:'秋葉原で買った周辺機器', prompt:'秋葉原で買ったパソコン周辺機器を机に並べた写真', palette:'256' },
+  { label:'秋葉原で買ったパソコン周辺機器', prompt:'秋葉原で買ったパソコン周辺機器を机に並べた写真', palette:'256' },
 ];
 
 const PALETTE16: readonly (readonly [number,number,number])[] = [
@@ -26,12 +26,13 @@ const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 const buildTime=(import.meta.env.VITE_BUILD_TIME as string|undefined)||'unknown';
 const buildCommit=(import.meta.env.VITE_BUILD_COMMIT as string|undefined)||'unknown';
 const buildRef=(import.meta.env.VITE_BUILD_REF as string|undefined)||'unknown';
-const converterRevision='offscreen-jpeg-preview-v4';
+const converterRevision='download-artifacts-v5';
 
 type Generated = { image: string; model?: string };
 
 type ConversionResult = {
   jpeg: string;
+  png: string;
   pngBytes: number;
   colorCount: number;
   centerRgb: string;
@@ -44,6 +45,7 @@ export default function ImageArtifactPocPage() {
   const [error, setError] = useState('');
   const [original, setOriginal] = useState('');
   const [compatPreview, setCompatPreview] = useState('');
+  const [downloadPng, setDownloadPng] = useState('');
   const [processedBytes, setProcessedBytes] = useState(0);
   const [quantizedColorCount, setQuantizedColorCount] = useState(0);
   const [centerRgb, setCenterRgb] = useState('');
@@ -58,7 +60,7 @@ export default function ImageArtifactPocPage() {
   }
 
   async function generate() {
-    setBusy(true); setError(''); setOriginal(''); setCompatPreview(''); setProcessedBytes(0); setQuantizedColorCount(0); setCenterRgb('');
+    setBusy(true); setError(''); setOriginal(''); setCompatPreview(''); setDownloadPng(''); setProcessedBytes(0); setQuantizedColorCount(0); setCenterRgb('');
     try {
       if (!apiBase) throw new Error('Render backend URL is not configured');
       const paletteInstruction = paletteMode === '16'
@@ -72,6 +74,7 @@ export default function ImageArtifactPocPage() {
       setOriginal(data.image);
       const converted = await reduceOffscreen(data.image, paletteMode);
       setCompatPreview(converted.jpeg);
+      setDownloadPng(converted.png);
       setProcessedBytes(converted.pngBytes);
       setQuantizedColorCount(converted.colorCount);
       setCenterRgb(converted.centerRgb);
@@ -84,9 +87,6 @@ export default function ImageArtifactPocPage() {
       const img = new Image();
       img.onload = () => {
         try {
-          // Deliberately keep the working canvas out of React's DOM. React can
-          // rerender as often as it likes without ever touching/resetting the
-          // conversion bitmap. Only the final ordinary JPEG data URL is rendered.
           const canvas = document.createElement('canvas');
           canvas.width=640; canvas.height=400;
           const ctx=canvas.getContext('2d');
@@ -121,10 +121,12 @@ export default function ImageArtifactPocPage() {
           const center=((200*640)+320)*4;
           const centerValue=`${d[center]}, ${d[center+1]}, ${d[center+2]}`;
           const jpeg=canvas.toDataURL('image/jpeg',0.92);
+          const png=canvas.toDataURL('image/png');
           if (!jpeg.startsWith('data:image/jpeg')) throw new Error('JPEG encoding failed');
+          if (!png.startsWith('data:image/png')) throw new Error('PNG encoding failed');
 
           canvas.toBlob(blob => {
-            resolve({ jpeg, pngBytes: blob?.size ?? 0, colorCount: colors.size, centerRgb: centerValue });
+            resolve({ jpeg, png, pngBytes: blob?.size ?? 0, colorCount: colors.size, centerRgb: centerValue });
           }, 'image/png');
         } catch (e) {
           reject(e);
@@ -137,6 +139,7 @@ export default function ImageArtifactPocPage() {
 
   const colorLabel=paletteMode==='16'?'16色':'≤256色';
   const showResults=Boolean(original||compatPreview);
+  const fileBase=`zutto-640x400-${paletteMode}color`;
 
   return <main style={{fontFamily:'monospace',maxWidth:1100,margin:'0 auto',padding:24,color:'#d8ffe8',background:'#07130d',minHeight:'100vh'}}>
     <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p>
@@ -147,7 +150,7 @@ export default function ImageArtifactPocPage() {
       REF: {buildRef}<br/>
       CONVERTER: {converterRevision}
     </p>
-    <p>OpenAIで素材を生成し、640×400へ縮小して画素を指定色数へ量子化します。表示用ファイルは通常のフルカラーJPEGとして再エンコードするため、16色/256色画像フォーマットへのブラウザ対応には依存しません。</p>
+    <p>OpenAIで素材を生成し、640×400へ縮小して画素を指定色数へ量子化します。表示用ファイルは通常のフルカラーJPEGとして再エンコードし、量子化後のPNG/JPEGはそのままダウンロードできます。</p>
     <section style={{border:'1px solid #397a53',padding:16}}>
       <strong>題材</strong>
       <div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p.label}><input type="radio" name="preset" checked={prompt===p.prompt} onChange={()=>choosePreset(p)}/> {i+1}. {p.label}</label>)}</div>
@@ -168,6 +171,10 @@ export default function ImageArtifactPocPage() {
         <h2>変換後 640×400 / 見た目{colorLabel}</h2>
         {compatPreview&&<img src={compatPreview} alt={`量子化後 ${colorLabel} のフルカラーJPEG`} style={{width:'100%',display:'block',background:'#000'}}/>}
         {compatPreview&&<p style={{opacity:.82,lineHeight:1.6}}>DISPLAY: full-color JPEG<br/>QUANTIZED COLORS: {quantizedColorCount}<br/>CENTER RGB: {centerRgb}<br/>PNG SIZE (reference): {processedBytes.toLocaleString()} bytes</p>}
+        {downloadPng&&compatPreview&&<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:12}}>
+          <a href={downloadPng} download={`${fileBase}.png`} style={{color:'#07130d',background:'#75ffac',padding:'10px 14px',textDecoration:'none',fontWeight:700}}>変換後PNGをダウンロード</a>
+          <a href={compatPreview} download={`${fileBase}.jpg`} style={{color:'#d8ffe8',border:'1px solid #75ffac',padding:'10px 14px',textDecoration:'none'}}>互換JPEGをダウンロード</a>
+        </div>}
       </div>
     </section>
   </main>;
