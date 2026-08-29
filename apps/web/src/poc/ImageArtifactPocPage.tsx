@@ -32,7 +32,7 @@ export default function ImageArtifactPocPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [original, setOriginal] = useState('');
-  const [processed, setProcessed] = useState('');
+  const [convertedReady, setConvertedReady] = useState(false);
   const [processedBytes, setProcessedBytes] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -42,7 +42,7 @@ export default function ImageArtifactPocPage() {
   }
 
   async function generate() {
-    setBusy(true); setError(''); setOriginal(''); setProcessed(''); setProcessedBytes(0);
+    setBusy(true); setError(''); setOriginal(''); setConvertedReady(false); setProcessedBytes(0);
     try {
       if (!apiBase) throw new Error('Render backend URL is not configured');
       const paletteInstruction = paletteMode === '16'
@@ -82,7 +82,6 @@ export default function ImageArtifactPocPage() {
           d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2];
         }
       } else {
-        // Deterministic RGB 3-3-2 quantization: exactly <=256 possible colors.
         for(let i=0;i<d.length;i+=4){
           d[i]=Math.round(d[i]/255*7)*255/7;
           d[i+1]=Math.round(d[i+1]/255*7)*255/7;
@@ -91,9 +90,9 @@ export default function ImageArtifactPocPage() {
       }
       ctx.putImageData(frame,0,0);
 
-      // Use a data URL for display. iOS Safari has been unreliable here with the
-      // previous object-URL path even though canvas.toBlob() completed.
-      setProcessed(canvas.toDataURL('image/png'));
+      // The canvas itself is the preview. This avoids asking iOS Safari to decode
+      // a second PNG data/blob URL containing the same pixels.
+      setConvertedReady(true);
       canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size);},'image/png');
     };
     img.onerror = () => setError('generated image could not be loaded for conversion');
@@ -120,10 +119,10 @@ export default function ImageArtifactPocPage() {
       <p style={{opacity:.75}}>自由入力もOpenAIの安全基準の範囲で生成されます。人物を含む場合は成人として扱うようRender側でも指示します。</p>
       {error&&<pre style={{color:'#ff9a9a',whiteSpace:'pre-wrap'}}>{error}</pre>}
     </section>
-    {(original||processed)&&<section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
+    {(original||convertedReady)&&<section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
       <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
-      <div><h2>変換後 640×400 / {colorLabel}</h2>{processed&&<img src={processed} alt={`640×400 ${colorLabel}変換後`} style={{width:'100%',display:'block',imageRendering:'auto'}}/>}{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
+      <div><h2>変換後 640×400 / {colorLabel}</h2><canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none'}} />{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
     </section>}
-    <canvas ref={canvasRef} style={{display:'none'}} />
+    {!original&&!convertedReady&&<canvas ref={canvasRef} width={640} height={400} style={{display:'none'}} />}
   </main>;
 }
