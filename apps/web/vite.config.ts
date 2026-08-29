@@ -12,6 +12,16 @@ export default defineConfig(({ command, mode }) => {
     process.env.VITE_WS_URL = productionWsURL;
   }
 
+  // Bake deployment diagnostics into every frontend build so the production
+  // page can prove which artifact is actually being served.
+  if (command === 'build') {
+    process.env.VITE_BUILD_TIME = new Date().toISOString();
+    process.env.VITE_BUILD_COMMIT =
+      process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? 'unknown';
+    process.env.VITE_BUILD_REF =
+      process.env.VERCEL_GIT_COMMIT_REF ?? process.env.GITHUB_REF_NAME ?? 'unknown';
+  }
+
   return {
     plugins: [react()],
     server: { port: 5173 },
