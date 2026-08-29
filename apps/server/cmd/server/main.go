@@ -52,7 +52,9 @@ func main() {
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
-	runtimeStore := worldrepo.New(store, worldEngine, worldrepo.FallbackMaterializer{}, cfg.WorldDate)
+	postRenderer := llm.OpenAIProvider{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
+	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}}
+	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -133,7 +135,7 @@ func main() {
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"world_post_renderer":"openai-with-fallback","research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5*time.Second}
 	log.Printf("zutto server listening on %s", cfg.Addr)
