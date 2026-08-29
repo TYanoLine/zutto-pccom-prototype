@@ -2,21 +2,15 @@ import { useEffect, useState } from 'react';
 
 type PaletteMode = '256' | '16';
 type Preset = { label: string; prompt: string; palette: PaletteMode };
+type RGB = [number,number,number];
 
 const PRESETS: Preset[] = [
   { label:'飼い猫のスナップ写真', prompt:'飼い猫を室内で撮ったスナップ写真', palette:'256' },
   { label:'1996年のPC-9821のある自室', prompt:'PC-9821のある1996年の自室の写真', palette:'256' },
   { label:'1990年代の美少女CG・256色', prompt:'1990年代半ばの日本のパソコン通信で配布されていそうな、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。256色程度のパレットを意識した当時のデジタルCG表現', palette:'256' },
-  { label:'1990年代の美少女CG・16色', prompt:'1990年代半ばの日本のPC-98系パソコンで描かれたような、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。最初から16色だけで描くことを強く意識し、色数の少なさをディザや面塗りで補う当時のCG表現', palette:'16' },
+  { label:'1990年代の美少女CG・16色', prompt:'1990年代半ばの日本のPC-98系パソコンで描かれたような、成人女性を描いたオリジナル美少女CG。登場人物は20歳以上、非性的。4096色中16色のアナログパレットとディザで中間色を表現する当時のCG表現', palette:'16' },
   { label:'夏の海辺の旅行写真', prompt:'夏の海辺を撮った旅行写真', palette:'256' },
   { label:'秋葉原で買ったパソコン周辺機器', prompt:'秋葉原で買ったパソコン周辺機器を机に並べた写真', palette:'256' },
-];
-
-const PALETTE16: readonly (readonly [number,number,number])[] = [
-  [0,0,0],[128,0,0],[0,128,0],[128,128,0],
-  [0,0,128],[128,0,128],[0,128,128],[192,192,192],
-  [128,128,128],[255,0,0],[0,255,0],[255,255,0],
-  [0,0,255],[255,0,255],[0,255,255],[255,255,255],
 ];
 
 const configuredApiURL=(import.meta.env.VITE_API_URL as string|undefined)?.trim();
@@ -26,156 +20,93 @@ const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 const buildTime=(import.meta.env.VITE_BUILD_TIME as string|undefined)||'unknown';
 const buildCommit=(import.meta.env.VITE_BUILD_COMMIT as string|undefined)||'unknown';
 const buildRef=(import.meta.env.VITE_BUILD_REF as string|undefined)||'unknown';
-const converterRevision='download-artifacts-v5';
+const converterRevision='pc98-adaptive-dither-v6';
 
 type Generated = { image: string; model?: string };
+type ConversionResult = { jpeg:string; png:string; pngBytes:number; colorCount:number; centerRgb:string; palette:RGB[] };
 
-type ConversionResult = {
-  jpeg: string;
-  png: string;
-  pngBytes: number;
-  colorCount: number;
-  centerRgb: string;
-};
+function snap4096(v:number){ return Math.round(Math.max(0,Math.min(255,v))/17)*17; }
+function dist(a:RGB,b:RGB){ const dr=a[0]-b[0],dg=a[1]-b[1],db=a[2]-b[2]; return dr*dr+dg*dg+db*db; }
+function nearest(c:RGB,palette:RGB[]){ let best=palette[0],bd=Infinity; for(const p of palette){const d=dist(c,p);if(d<bd){bd=d;best=p;}} return best; }
 
-export default function ImageArtifactPocPage() {
-  const [prompt, setPrompt] = useState(PRESETS[0].prompt);
-  const [paletteMode, setPaletteMode] = useState<PaletteMode>(PRESETS[0].palette);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const [original, setOriginal] = useState('');
-  const [compatPreview, setCompatPreview] = useState('');
-  const [downloadPng, setDownloadPng] = useState('');
-  const [processedBytes, setProcessedBytes] = useState(0);
-  const [quantizedColorCount, setQuantizedColorCount] = useState(0);
-  const [centerRgb, setCenterRgb] = useState('');
-
-  useEffect(() => {
-    (window as Window & { __zuttoBootOk?: () => void }).__zuttoBootOk?.();
-  }, []);
-
-  function choosePreset(preset: Preset) {
-    setPrompt(preset.prompt);
-    setPaletteMode(preset.palette);
-  }
-
-  async function generate() {
-    setBusy(true); setError(''); setOriginal(''); setCompatPreview(''); setDownloadPng(''); setProcessedBytes(0); setQuantizedColorCount(0); setCenterRgb('');
-    try {
-      if (!apiBase) throw new Error('Render backend URL is not configured');
-      const paletteInstruction = paletteMode === '16'
-        ? 'Generate the source image as deliberately limited-color 16-color computer artwork; avoid gradients that depend on many colors and use period-appropriate dithering or flat color areas where useful.'
-        : 'Generate the source image as period-inspired computer artwork or imagery that can survive conversion to a 256-color palette; avoid relying on subtle modern HDR-like gradients.';
-      const requestPrompt = `${prompt}\n\nTechnical source-image instruction: ${paletteInstruction}`;
-      const res = await fetch(`${apiBase}/api/poc/image-artifact`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:requestPrompt}) });
-      const data = await res.json() as Generated & { error?: string };
-      if (!res.ok || !data.image) throw new Error(data.error || `HTTP ${res.status}`);
-
-      setOriginal(data.image);
-      const converted = await reduceOffscreen(data.image, paletteMode);
-      setCompatPreview(converted.jpeg);
-      setDownloadPng(converted.png);
-      setProcessedBytes(converted.pngBytes);
-      setQuantizedColorCount(converted.colorCount);
-      setCenterRgb(converted.centerRgb);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-    finally { setBusy(false); }
-  }
-
-  function reduceOffscreen(src: string, mode: PaletteMode) {
-    return new Promise<ConversionResult>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width=640; canvas.height=400;
-          const ctx=canvas.getContext('2d');
-          if (!ctx) throw new Error('2D canvas is not available');
-          ctx.imageSmoothingEnabled=true;
-          const scale=Math.max(640/img.width,400/img.height), sw=640/scale, sh=400/scale;
-          ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,640,400);
-          const frame=ctx.getImageData(0,0,640,400), d=frame.data;
-
-          if (mode === '16') {
-            for(let i=0;i<d.length;i+=4){
-              let best=PALETTE16[0], bestDistance=Number.POSITIVE_INFINITY;
-              for(const candidate of PALETTE16){
-                const dr=d[i]-candidate[0], dg=d[i+1]-candidate[1], db=d[i+2]-candidate[2];
-                const distance=dr*dr+dg*dg+db*db;
-                if(distance<bestDistance){bestDistance=distance;best=candidate;}
-              }
-              d[i]=best[0]; d[i+1]=best[1]; d[i+2]=best[2]; d[i+3]=255;
-            }
-          } else {
-            for(let i=0;i<d.length;i+=4){
-              d[i]=Math.round(d[i]/255*7)*255/7;
-              d[i+1]=Math.round(d[i+1]/255*7)*255/7;
-              d[i+2]=Math.round(d[i+2]/255*3)*255/3;
-              d[i+3]=255;
-            }
-          }
-          ctx.putImageData(frame,0,0);
-
-          const colors=new Set<number>();
-          for(let i=0;i<d.length;i+=4) colors.add((d[i]<<16)|(d[i+1]<<8)|d[i+2]);
-          const center=((200*640)+320)*4;
-          const centerValue=`${d[center]}, ${d[center+1]}, ${d[center+2]}`;
-          const jpeg=canvas.toDataURL('image/jpeg',0.92);
-          const png=canvas.toDataURL('image/png');
-          if (!jpeg.startsWith('data:image/jpeg')) throw new Error('JPEG encoding failed');
-          if (!png.startsWith('data:image/png')) throw new Error('PNG encoding failed');
-
-          canvas.toBlob(blob => {
-            resolve({ jpeg, png, pngBytes: blob?.size ?? 0, colorCount: colors.size, centerRgb: centerValue });
-          }, 'image/png');
-        } catch (e) {
-          reject(e);
-        }
-      };
-      img.onerror = () => reject(new Error('generated image could not be loaded for conversion'));
-      img.src=src;
+// Median-cut an image-derived palette, then snap every component to PC-98's
+// 4-bit/channel analogue palette (4096 possible colours). This is much closer
+// to real PC-98 16-colour artwork than a fixed IBM-style 16-colour palette.
+function adaptivePc98Palette(data:Uint8ClampedArray):RGB[]{
+  let samples:RGB[]=[];
+  for(let i=0;i<data.length;i+=64) samples.push([snap4096(data[i]),snap4096(data[i+1]),snap4096(data[i+2])]);
+  let boxes:RGB[][]=[samples];
+  while(boxes.length<16){
+    let bi=-1,range=-1,channel=0;
+    boxes.forEach((box,i)=>{
+      if(box.length<2)return;
+      for(let c=0;c<3;c++){let lo=255,hi=0;for(const p of box){lo=Math.min(lo,p[c]);hi=Math.max(hi,p[c]);}if(hi-lo>range){range=hi-lo;bi=i;channel=c;}}
     });
+    if(bi<0)break;
+    const box=boxes.splice(bi,1)[0].sort((a,b)=>a[channel]-b[channel]);
+    const mid=Math.floor(box.length/2); boxes.push(box.slice(0,mid),box.slice(mid));
   }
+  const result:RGB[]=[];
+  for(const box of boxes){
+    if(!box.length)continue;
+    const avg:RGB=[snap4096(box.reduce((s,p)=>s+p[0],0)/box.length),snap4096(box.reduce((s,p)=>s+p[1],0)/box.length),snap4096(box.reduce((s,p)=>s+p[2],0)/box.length)];
+    if(!result.some(p=>p[0]===avg[0]&&p[1]===avg[1]&&p[2]===avg[2])) result.push(avg);
+  }
+  while(result.length<16) result.push(result[result.length-1]||[0,0,0]);
+  return result.slice(0,16);
+}
 
-  const colorLabel=paletteMode==='16'?'16色':'≤256色';
-  const showResults=Boolean(original||compatPreview);
-  const fileBase=`zutto-640x400-${paletteMode}color`;
+function floydSteinberg16(d:Uint8ClampedArray,w:number,h:number,palette:RGB[]){
+  const work=new Float32Array(d.length);
+  for(let i=0;i<d.length;i++)work[i]=d[i];
+  const add=(x:number,y:number,er:number,eg:number,eb:number,f:number)=>{if(x<0||x>=w||y<0||y>=h)return;const i=(y*w+x)*4;work[i]+=er*f;work[i+1]+=eg*f;work[i+2]+=eb*f;};
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+    const i=(y*w+x)*4; const old:RGB=[work[i],work[i+1],work[i+2]];
+    const p=nearest(old,palette); d[i]=p[0];d[i+1]=p[1];d[i+2]=p[2];d[i+3]=255;
+    const er=old[0]-p[0],eg=old[1]-p[1],eb=old[2]-p[2];
+    add(x+1,y,er,eg,eb,7/16); add(x-1,y+1,er,eg,eb,3/16); add(x,y+1,er,eg,eb,5/16); add(x+1,y+1,er,eg,eb,1/16);
+  }
+}
 
+export default function ImageArtifactPocPage(){
+  const [prompt,setPrompt]=useState(PRESETS[0].prompt),[paletteMode,setPaletteMode]=useState<PaletteMode>(PRESETS[0].palette);
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[original,setOriginal]=useState(''),[compatPreview,setCompatPreview]=useState(''),[downloadPng,setDownloadPng]=useState('');
+  const [processedBytes,setProcessedBytes]=useState(0),[quantizedColorCount,setQuantizedColorCount]=useState(0),[centerRgb,setCenterRgb]=useState(''),[usedPalette,setUsedPalette]=useState<RGB[]>([]);
+  useEffect(()=>{(window as Window&{__zuttoBootOk?:()=>void}).__zuttoBootOk?.();},[]);
+  function choosePreset(p:Preset){setPrompt(p.prompt);setPaletteMode(p.palette);}
+  async function generate(){
+    setBusy(true);setError('');setOriginal('');setCompatPreview('');setDownloadPng('');setUsedPalette([]);
+    try{
+      if(!apiBase)throw new Error('Render backend URL is not configured');
+      const instruction=paletteMode==='16'?'Use a PC-98-like 4096-colour analogue palette with only 16 colours visible at once. Use deliberate pixel dithering to mix palette colours into skin tones, browns and shading; do not imitate a fixed IBM/EGA palette.':'Generate artwork that survives 256-colour conversion.';
+      const res=await fetch(`${apiBase}/api/poc/image-artifact`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt:`${prompt}\n\nTechnical source-image instruction: ${instruction}`})});
+      const data=await res.json() as Generated&{error?:string}; if(!res.ok||!data.image)throw new Error(data.error||`HTTP ${res.status}`);
+      setOriginal(data.image); const c=await reduceOffscreen(data.image,paletteMode); setCompatPreview(c.jpeg);setDownloadPng(c.png);setProcessedBytes(c.pngBytes);setQuantizedColorCount(c.colorCount);setCenterRgb(c.centerRgb);setUsedPalette(c.palette);
+    }catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+  }
+  function reduceOffscreen(src:string,mode:PaletteMode){return new Promise<ConversionResult>((resolve,reject)=>{
+    const img=new Image();img.onload=()=>{try{
+      const canvas=document.createElement('canvas');canvas.width=640;canvas.height=400;const ctx=canvas.getContext('2d');if(!ctx)throw new Error('2D canvas unavailable');
+      ctx.imageSmoothingEnabled=true;const scale=Math.max(640/img.width,400/img.height),sw=640/scale,sh=400/scale;ctx.drawImage(img,(img.width-sw)/2,(img.height-sh)/2,sw,sh,0,0,640,400);
+      const frame=ctx.getImageData(0,0,640,400),d=frame.data;let palette:RGB[]=[];
+      if(mode==='16'){palette=adaptivePc98Palette(d);floydSteinberg16(d,640,400,palette);}else{for(let i=0;i<d.length;i+=4){d[i]=Math.round(d[i]/255*7)*255/7;d[i+1]=Math.round(d[i+1]/255*7)*255/7;d[i+2]=Math.round(d[i+2]/255*3)*255/3;d[i+3]=255;}}
+      ctx.putImageData(frame,0,0);const colors=new Set<number>();for(let i=0;i<d.length;i+=4)colors.add((d[i]<<16)|(d[i+1]<<8)|d[i+2]);const center=((200*640)+320)*4,centerValue=`${d[center]}, ${d[center+1]}, ${d[center+2]}`;
+      const jpeg=canvas.toDataURL('image/jpeg',.92),png=canvas.toDataURL('image/png');canvas.toBlob(blob=>resolve({jpeg,png,pngBytes:blob?.size??0,colorCount:colors.size,centerRgb:centerValue,palette}),'image/png');
+    }catch(e){reject(e);}};img.onerror=()=>reject(new Error('generated image could not be loaded for conversion'));img.src=src;
+  });}
+  const colorLabel=paletteMode==='16'?'16色':'≤256色',showResults=Boolean(original||compatPreview),fileBase=`zutto-640x400-${paletteMode}color`;
   return <main style={{fontFamily:'monospace',maxWidth:1100,margin:'0 auto',padding:24,color:'#d8ffe8',background:'#07130d',minHeight:'100vh'}}>
-    <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p>
-    <h1>画像ファイル生成 PoC</h1>
-    <p style={{fontSize:12,opacity:.72,lineHeight:1.6,border:'1px dashed #397a53',padding:10}}>
-      BUILD: {buildTime}<br/>
-      COMMIT: {buildCommit}<br/>
-      REF: {buildRef}<br/>
-      CONVERTER: {converterRevision}
-    </p>
-    <p>OpenAIで素材を生成し、640×400へ縮小して画素を指定色数へ量子化します。表示用ファイルは通常のフルカラーJPEGとして再エンコードし、量子化後のPNG/JPEGはそのままダウンロードできます。</p>
-    <section style={{border:'1px solid #397a53',padding:16}}>
-      <strong>題材</strong>
-      <div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p.label}><input type="radio" name="preset" checked={prompt===p.prompt} onChange={()=>choosePreset(p)}/> {i+1}. {p.label}</label>)}</div>
-      <fieldset style={{marginTop:16,border:'1px solid #397a53'}}>
-        <legend>生成時の色数イメージ + 最終変換</legend>
-        <label style={{marginRight:16}}><input type="radio" name="palette" checked={paletteMode==='256'} onChange={()=>setPaletteMode('256')}/> 256色</label>
-        <label><input type="radio" name="palette" checked={paletteMode==='16'} onChange={()=>setPaletteMode('16')}/> 16色</label>
-      </fieldset>
-      <label style={{display:'block',marginTop:16}}>自由入力</label>
-      <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={5} style={{width:'100%',boxSizing:'border-box',marginTop:6}} />
-      <button onClick={generate} disabled={busy||!prompt.trim()} style={{marginTop:12,padding:'8px 18px'}}>{busy?'生成・変換中...':'生成して当時化'}</button>
-      <p style={{opacity:.75}}>自由入力もOpenAIの安全基準の範囲で生成されます。人物を含む場合は成人として扱うようRender側でも指示します。</p>
-      {error&&<pre style={{color:'#ff9a9a',whiteSpace:'pre-wrap'}}>{error}</pre>}
+    <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p><h1>画像ファイル生成 PoC</h1>
+    <p style={{fontSize:12,opacity:.72,lineHeight:1.6,border:'1px dashed #397a53',padding:10}}>BUILD: {buildTime}<br/>COMMIT: {buildCommit}<br/>REF: {buildRef}<br/>CONVERTER: {converterRevision}</p>
+    <p>16色ではPC-98の4096色中16色仕様を模し、画像ごとに16色を選択してFloyd–Steinbergディザで中間色を表現します。表示・ダウンロード用PNG/JPEGは現代ブラウザ互換形式です。</p>
+    <section style={{border:'1px solid #397a53',padding:16}}><strong>題材</strong><div style={{display:'grid',gap:8,marginTop:12}}>{PRESETS.map((p,i)=><label key={p.label}><input type="radio" name="preset" checked={prompt===p.prompt} onChange={()=>choosePreset(p)}/> {i+1}. {p.label}</label>)}</div>
+      <fieldset style={{marginTop:16,border:'1px solid #397a53'}}><legend>生成時の色数イメージ + 最終変換</legend><label style={{marginRight:16}}><input type="radio" name="palette" checked={paletteMode==='256'} onChange={()=>setPaletteMode('256')}/> 256色</label><label><input type="radio" name="palette" checked={paletteMode==='16'} onChange={()=>setPaletteMode('16')}/> 16色</label></fieldset>
+      <label style={{display:'block',marginTop:16}}>自由入力</label><textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={5} style={{width:'100%',boxSizing:'border-box',marginTop:6}}/><button onClick={generate} disabled={busy||!prompt.trim()} style={{marginTop:12,padding:'8px 18px'}}>{busy?'生成・変換中...':'生成して当時化'}</button>{error&&<pre style={{color:'#ff9a9a',whiteSpace:'pre-wrap'}}>{error}</pre>}
     </section>
-    <section style={{display:showResults?'grid':'none',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
-      <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
-      <div>
-        <h2>変換後 640×400 / 見た目{colorLabel}</h2>
-        {compatPreview&&<img src={compatPreview} alt={`量子化後 ${colorLabel} のフルカラーJPEG`} style={{width:'100%',display:'block',background:'#000'}}/>}
-        {compatPreview&&<p style={{opacity:.82,lineHeight:1.6}}>DISPLAY: full-color JPEG<br/>QUANTIZED COLORS: {quantizedColorCount}<br/>CENTER RGB: {centerRgb}<br/>PNG SIZE (reference): {processedBytes.toLocaleString()} bytes</p>}
-        {downloadPng&&compatPreview&&<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:12}}>
-          <a href={downloadPng} download={`${fileBase}.png`} style={{color:'#07130d',background:'#75ffac',padding:'10px 14px',textDecoration:'none',fontWeight:700}}>変換後PNGをダウンロード</a>
-          <a href={compatPreview} download={`${fileBase}.jpg`} style={{color:'#d8ffe8',border:'1px solid #75ffac',padding:'10px 14px',textDecoration:'none'}}>互換JPEGをダウンロード</a>
-        </div>}
-      </div>
-    </section>
+    <section style={{display:showResults?'grid':'none',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}><div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div><div><h2>変換後 640×400 / 見た目{colorLabel}</h2>{compatPreview&&<img src={compatPreview} alt={`量子化後 ${colorLabel}`} style={{width:'100%',display:'block'}}/>}
+      {compatPreview&&<p style={{opacity:.82,lineHeight:1.6}}>DISPLAY: full-color JPEG<br/>QUANTIZED COLORS: {quantizedColorCount}<br/>CENTER RGB: {centerRgb}<br/>PNG SIZE: {processedBytes.toLocaleString()} bytes</p>}
+      {usedPalette.length>0&&<div><strong>PC-98 16色パレット</strong><div style={{display:'flex',flexWrap:'wrap',marginTop:6}}>{usedPalette.map((p,i)=><span key={i} title={`${p[0]},${p[1]},${p[2]}`} style={{width:28,height:28,background:`rgb(${p.join(',')})`,border:'1px solid #777'}}/>)}</div></div>}
+      {downloadPng&&compatPreview&&<div style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:12}}><a href={downloadPng} download={`${fileBase}.png`} style={{color:'#07130d',background:'#75ffac',padding:'10px 14px',textDecoration:'none',fontWeight:700}}>変換後PNGをダウンロード</a><a href={compatPreview} download={`${fileBase}.jpg`} style={{color:'#d8ffe8',border:'1px solid #75ffac',padding:'10px 14px',textDecoration:'none'}}>互換JPEGをダウンロード</a></div>}
+    </div></section>
   </main>;
 }
