@@ -90,8 +90,6 @@ export default function ImageArtifactPocPage() {
       }
       ctx.putImageData(frame,0,0);
 
-      // The canvas itself is the preview. This avoids asking iOS Safari to decode
-      // a second PNG data/blob URL containing the same pixels.
       setConvertedReady(true);
       canvas.toBlob(blob=>{if(blob)setProcessedBytes(blob.size);},'image/png');
     };
@@ -100,6 +98,7 @@ export default function ImageArtifactPocPage() {
   }
 
   const colorLabel=paletteMode==='16'?'16色':'≤256色';
+  const showResults=Boolean(original||convertedReady);
 
   return <main style={{fontFamily:'monospace',maxWidth:1100,margin:'0 auto',padding:24,color:'#d8ffe8',background:'#07130d',minHeight:'100vh'}}>
     <p><a href="/" style={{color:'#75ffac'}}>← ずっとパソコン通信</a></p>
@@ -119,10 +118,9 @@ export default function ImageArtifactPocPage() {
       <p style={{opacity:.75}}>自由入力もOpenAIの安全基準の範囲で生成されます。人物を含む場合は成人として扱うようRender側でも指示します。</p>
       {error&&<pre style={{color:'#ff9a9a',whiteSpace:'pre-wrap'}}>{error}</pre>}
     </section>
-    {(original||convertedReady)&&<section style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
+    <section style={{display:showResults?'grid':'none',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:20,marginTop:24}}>
       <div><h2>AI元画像</h2>{original&&<img src={original} alt="AI生成元画像" style={{width:'100%',display:'block'}}/>}</div>
       <div><h2>変換後 640×400 / {colorLabel}</h2><canvas ref={canvasRef} width={640} height={400} aria-label={`640×400 ${colorLabel}変換後`} style={{width:'100%',height:'auto',display:convertedReady?'block':'none'}} />{processedBytes>0&&<p>{processedBytes.toLocaleString()} bytes (PNG)</p>}</div>
-    </section>}
-    {!original&&!convertedReady&&<canvas ref={canvasRef} width={640} height={400} style={{display:'none'}} />}
+    </section>
   </main>;
 }
