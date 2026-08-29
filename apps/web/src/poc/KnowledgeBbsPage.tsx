@@ -2,15 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import './knowledgeBbs.css';
 
 type Source = { url: string; title?: string };
-type ResearchCase = { id:string; topic:string; question:string; status:string; provisionalAnswer:string; confidence:number; sources:Source[] };
+type Fact = { id:string; claim:string; confidence:number; status:string; sources:Source[]; researchId?:string };
+type KnowledgeResult = { facts:Fact[]; coverage:number; confidence:number; researched:boolean; researchPending:boolean; researchId?:string; canUse:boolean; missing?:{description:string}[] };
 type Article = { id:string; title:string; handle:string; time:string; preview:string; evidence:'atmospheric'|'verified'; body:string };
 type Board = { id:string; title:string; description:string; articles:Article[] };
-
 type Stage = 'entrance'|'boards'|'articles'|'article';
 
-const configuredApiURL = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
-const inferredApiURL = configuredWsURL?.replace(/^wss:/,'https:').replace(/^ws:/,'http:').replace(/\/ws\/?$/,'');
+const configuredApiURL=(import.meta.env.VITE_API_URL as string|undefined)?.trim();
+const configuredWsURL=(import.meta.env.VITE_WS_URL as string|undefined)?.trim();
+const inferredApiURL=configuredWsURL?.replace(/^wss:/,'https:').replace(/^ws:/,'http:').replace(/\/ws\/?$/,'');
 const apiBase=(configuredApiURL||inferredApiURL||'').replace(/\/$/,'');
 
 const boards:Board[]=[
@@ -24,45 +24,41 @@ const boards:Board[]=[
   {id:'chat-1',title:'週末なにしてた？',handle:'JUN',time:'08/26 00:12',preview:'こっちはずっと家でごろごろしてました(笑)',evidence:'atmospheric',body:'週末は特に出かけず家でごろごろしてました(笑)\n夜になってから通信してるので、結局いつも通り。'}]}
 ];
 
-const researchTopic='PoC: 1996年8月のモデム速度事情';
-const researchQuestion='1996年8月時点の日本の個人向けパソコン通信利用者にとって、14.4kbps・28.8kbps・33.6kbps級モデムはそれぞれどのような位置づけだったか。発売済みか、一般的か、先端的かを区別し、断定できない点も示す。';
-
 export default function KnowledgeBbsPage(){
  const [stage,setStage]=useState<Stage>('entrance');
- const [boardId,setBoardId]=useState<string>('general');
+ const [boardId,setBoardId]=useState('general');
  const [article,setArticle]=useState<Article|null>(null);
- const [research,setResearch]=useState<ResearchCase|null>(null);
+ const [knowledge,setKnowledge]=useState<KnowledgeResult|null>(null);
  const [busy,setBusy]=useState(false);
  const [log,setLog]=useState<string[]>(['入口を表示: Web検索 0回']);
  const board=useMemo(()=>boards.find(b=>b.id===boardId)!,[boardId]);
- useEffect(()=>{(window as Window & {__zuttoBootOk?:()=>void}).__zuttoBootOk?.();},[]);
-
+ useEffect(()=>{(window as Window&{__zuttoBootOk?:()=>void}).__zuttoBootOk?.();},[]);
  const push=(s:string)=>setLog(v=>[s,...v].slice(0,8));
- async function ensureResearch(){
-  if(research||!apiBase)return;
-  setBusy(true); push('考証が必要 → HistoricalKnowledgeService を照会');
+
+ async function ensureKnowledge(){
+  if(knowledge||!apiBase)return;
+  setBusy(true);push('具体的な永続事実 → WorldEngine/EvidencePolicy は verified');
   try{
-   const listRes=await fetch(`${apiBase}/api/admin/research`); const list=await listRes.json() as {cases?:ResearchCase[]};
-   let found=list.cases?.find(c=>c.topic===researchTopic&&c.question===researchQuestion)||null;
-   if(found){push('共有KBに既存案件あり → Web検索 0回'); setResearch(found); return;}
-   push('共有KBに不足 → Research Agent がWeb検索');
-   const res=await fetch(`${apiBase}/api/admin/research/new`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:researchTopic,question:researchQuestion})});
-   const created=await res.json() as ResearchCase; if(!res.ok)throw new Error((created as unknown as {error?:string}).error||res.statusText);
-   setResearch(created); push('調査結果を共有KBへ保存 / needs_review候補化');
-  }catch(e){push(`調査失敗: ${e instanceof Error?e.message:String(e)}`);}finally{setBusy(false);}
+   const res=await fetch(`${apiBase}/api/internal/knowledge/resolve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'technical_capability',subject:'日本の個人向けV.34モデム速度事情',worldDate:'1996-08-26',region:'JP',audience:['pc_communication_users'],need:'14.4kbps・28.8kbps・33.6kbps級モデムが、1996年8月時点で一般利用者にとってどのような位置づけだったかを確認する',requiredEvidence:'verified'})});
+   const result=await res.json() as KnowledgeResult&{error?:string};if(!res.ok)throw new Error(result.error||res.statusText);setKnowledge(result);
+   if(result.researched)push('KB不足 → bounded Research Sub-Agent がWeb検索してFact化');
+   else if(result.researchPending)push('同じ調査が進行中 → 重複検索せず待機');
+   else push('有効な共有Factあり → Web検索 0回で再利用');
+  }catch(e){push(`Knowledge取得失敗: ${e instanceof Error?e.message:String(e)}`);}finally{setBusy(false);}
  }
- async function openArticle(a:Article){setArticle(a);setStage('article'); if(a.evidence==='verified')await ensureResearch(); else push(`記事「${a.title}」: 雰囲気生成扱い / Web検索 0回`);}
+ async function openArticle(a:Article){setArticle(a);setStage('article');if(a.evidence==='verified')await ensureKnowledge();else push(`記事「${a.title}」: atmospheric / Web検索 0回`);}
+ const bestFact=knowledge?.facts?.[0];
 
  return <main className="kbpoc">
-  <header><div><small>WORLD ENGINE × HISTORICAL KNOWLEDGE PoC</small><h1>MIDI NIGHT NET</h1><p>1996-08-26 / selective evidence demo</p></div><a href="/admin/research">Research案件を見る →</a></header>
+  <header><div><small>WORLD ENGINE × HISTORICAL KNOWLEDGE</small><h1>MIDI NIGHT NET</h1><p>1996-08-26 / selective evidence demo</p></div><a href="/admin/research">Research案件を見る →</a></header>
   <div className="kbgrid">
    <section className="terminal">
-    {stage==='entrance'&&<div className="screen entrance"><pre>{`*** MIDI NIGHT NET ***\n\nいらっしゃいませ。\n夜間は混み合うことがあります。\n長時間接続はほどほどに(^^;\n\n[Enter] 掲示板へ`}</pre><button onClick={()=>{setStage('boards');push('掲示板一覧: atmosphere / Web検索 0回');}}>掲示板へ入る</button></div>}
-    {stage==='boards'&&<div className="screen"><h2>掲示板一覧</h2>{boards.map((b,i)=><button className="row" key={b.id} onClick={()=>{setBoardId(b.id);setStage('articles');push(`「${b.title}」一覧: atmosphere / Web検索 0回`);}}><b>{i+1}. {b.title}</b><span>{b.description}</span></button>)}<button className="back" onClick={()=>setStage('entrance')}>← 戻る</button></div>}
+    {stage==='entrance'&&<div className="screen entrance"><pre>{`*** MIDI NIGHT NET ***\n\nいらっしゃいませ。\n夜間は混み合うことがあります。\n長時間接続はほどほどに(^^;\n\n[Enter] 掲示板へ`}</pre><button onClick={()=>{setStage('boards');push('掲示板一覧: atmospheric / Web検索 0回');}}>掲示板へ入る</button></div>}
+    {stage==='boards'&&<div className="screen"><h2>掲示板一覧</h2>{boards.map((b,i)=><button className="row" key={b.id} onClick={()=>{setBoardId(b.id);setStage('articles');push(`「${b.title}」一覧: atmospheric / Web検索 0回`);}}><b>{i+1}. {b.title}</b><span>{b.description}</span></button>)}<button className="back" onClick={()=>setStage('entrance')}>← 戻る</button></div>}
     {stage==='articles'&&<div className="screen"><h2>{board.title}</h2>{board.articles.map(a=><button className="row articleRow" key={a.id} onClick={()=>void openArticle(a)}><span>{a.time} {a.handle}</span><b>{a.title}</b><em className={a.evidence}>{a.evidence==='verified'?'要考証':'雰囲気'}</em><small>{a.preview}</small></button>)}<button className="back" onClick={()=>setStage('boards')}>← 掲示板一覧</button></div>}
-    {stage==='article'&&article&&<div className="screen"><h2>{article.title}</h2><p className="meta">{article.time} / {article.handle}</p><pre className="body">{article.body}</pre>{article.evidence==='verified'&&<div className="evidenceBox"><b>Historical Knowledge</b>{busy?<p>考証情報を調査中...</p>:research?<><p>{research.provisionalAnswer}</p><p>confidence {Math.round(research.confidence*100)}% / {research.status}</p><div>{research.sources?.slice(0,4).map((s,i)=><a key={i} href={s.url} target="_blank" rel="noreferrer">{s.title||s.url}</a>)}</div></>:<p>考証情報を取得できませんでした。本文自体は暫定表示しています。</p>}</div>}<button className="back" onClick={()=>setStage('articles')}>← 記事一覧</button></div>}
+    {stage==='article'&&article&&<div className="screen"><h2>{article.title}</h2><p className="meta">{article.time} / {article.handle}</p><pre className="body">{article.body}</pre>{article.evidence==='verified'&&<div className="evidenceBox"><b>Historical Knowledge inspector</b>{busy?<p>共有KBを確認中...</p>:knowledge?<><p>{bestFact?.claim||'Verifiedとして使えるFactはまだありません。'}</p><p>confidence {Math.round(knowledge.confidence*100)}% / coverage {Math.round(knowledge.coverage*100)}% / {bestFact?.status||'pending review'}</p>{knowledge.missing?.map((m,i)=><small key={i}>{m.description}</small>)}<div>{bestFact?.sources?.slice(0,4).map((s,i)=><a key={i} href={s.url} target="_blank" rel="noreferrer">{s.title||s.url}</a>)}</div></>:<p>考証情報を取得できませんでした。本文はデモ用の暫定表示です。</p>}</div>}<button className="back" onClick={()=>setStage('articles')}>← 記事一覧</button></div>}
    </section>
-   <aside className="trace"><h2>WorldEngine trace</h2><p>このPoCでは、通常の画面・雑談は検索しません。具体的な歴史事実だけ共有KBを確認します。</p>{log.map((x,i)=><div key={i} className="traceRow"><span>{i===0?'NOW':'·'}</span>{x}</div>)}<div className="legend"><b>atmospheric</b><span>モデル知識/時代ルールで十分</span><b>verified</b><span>具体的事実なのでKB→不足ならWeb調査</span></div></aside>
+   <aside className="trace"><h2>WorldEngine trace</h2><p>通常の画面・雑談は検索せず、永続化する具体的な歴史事実だけ EvidencePolicy が強い証拠を要求します。</p>{log.map((x,i)=><div key={i} className="traceRow"><span>{i===0?'NOW':'·'}</span>{x}</div>)}<div className="legend"><b>atmospheric</b><span>モデル知識/時代ルールだけ。検索しない</span><b>plausible</b><span>KBがあれば使う。不足しても同期検索しない</span><b>verified</b><span>共有Fact必須。不足時だけbounded Research Sub-Agent</span></div></aside>
   </div>
  </main>;
 }
