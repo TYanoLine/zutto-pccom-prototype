@@ -1,0 +1,19 @@
+# Repository-safe acquisition ledger. Third-party bodies belong outside Git.
+schema_version: 1
+policy:
+  concurrency: 1
+  minimum_delay_seconds: 2
+  recursive_crawl: false
+  preserve_raw_bytes: true
+  github_third_party_bodies: false
+entrypoints:
+  pekeroku: https://www.asahi-net.or.jp/~uv2s-oob/x68/
+  midnight_driving: https://webmid.kinet.ne.jp/
+  minkymoon: https://minkymoon.jp/2022/10/09/minkymoonnetwork-30years/
+  bickle: https://bm98.yaneu.com/bickle/
+  mapletown: https://www.maple.town/
+  yokohama_totsuka: https://www.jh1ifz.com/aboutComputer/MemoryOfYTBBS2.html
+  hanzou_bbs: https://www.hanzou.jp/hanzoubbs/index.php
+  tcm_network: https://tcm.jp/
+  tokyo_bbs: https://mubou.seesaa.net/category/320155-1.html
+  jipdec_1986: https://www.jipdec.or.jp/archives/publications/J0001147.pdf
