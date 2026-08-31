@@ -47,7 +47,45 @@ Do not regress this by tying BBS runtime lifetime directly to one WebSocket obje
 
 Long-term BUSY behavior should reflect logical line occupancy, NPC schedules, popularity, line count, time/day, events, and host policy.
 
+A world-generation lease or bounded generation capacity may also make a line temporarily unavailable when admitting the call would require conflicting or over-budget materialization. In that case `BUSY` is an intentional form of runtime backpressure, not a fabricated random failure.
+
 The service may maintain an atmospheric pseudo telephone bill. It never charges real telephone money. Telehodai-style simulation uses registered destination numbers and a 23:00–08:00 window; exact historical tariffs must be researched before being presented as accurate.
+
+## Diegetic backpressure
+
+Operational pressure should be translated into period-appropriate telephone/BBS behavior where possible rather than exposed as modern cloud/API errors.
+
+Possible runtime causes include:
+
+- all logical host lines occupied;
+- another request holding the generation/update lease for the required world scope;
+- generation queue saturation;
+- temporary LLM/provider rate limits or latency;
+- configured rolling generation/token/cost budget pressure;
+- database or host-runtime pressure.
+
+Permitted user-visible outcomes include:
+
+- `BUSY` before carrier when no line/capacity should be admitted;
+- fewer simultaneously available logical lines;
+- a lower negotiated connection speed for a newly established call when the host/modem configuration plausibly supports that outcome;
+- slower host-side output pacing after connection;
+- period-appropriate waiting/status text from the host while a committed result is being prepared;
+- normal auto-redial behavior in the client.
+
+Do not silently change an already established `CONNECT 14400` session into `2400` without a historically plausible retrain/fallback mechanism. If a call is already connected, prefer host-side output pacing or an explicit wait state rather than pretending the modem renegotiated when it did not.
+
+Likewise, do not delay backend work merely to manufacture slowness. Complete persistence/generation as efficiently as possible; the terminal renderer may pace already available output according to the simulated line rate. Real generation delay may be hidden naturally behind dialing, handshake, host banners, menu rendering, or short wait states.
+
+Backpressure should be state-driven and bounded. Do not randomly return `BUSY` solely to save money. If cost protection participates in admission control, it must be represented by an explicit policy/budget state together with queue/line capacity.
+
+## Line-speed presentation
+
+The simulated modem speed and the backend's actual network throughput are separate concepts.
+
+After a result is available, the terminal layer may pace transmitted bytes according to the negotiated simulated bps so that 2400, 9600, 14400, and 28800 connections feel materially different. This pacing is presentation/transport simulation, not permission to hold expensive backend resources open unnecessarily.
+
+When generation itself is slow, avoid double-counting delay: generation wait plus simulated byte pacing should still produce a believable session rather than an artificially punitive one.
 
 ## Real hardware target
 
