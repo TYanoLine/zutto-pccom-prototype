@@ -23,24 +23,39 @@ type Board struct {
 	Name string `json:"name"`
 }
 
+type PostIntent struct {
+	Action     string   `json:"action,omitempty"`
+	Topic      string   `json:"topic,omitempty"`
+	Motivation string   `json:"motivation,omitempty"`
+	Stance     string   `json:"stance,omitempty"`
+	Claims     []string `json:"claims,omitempty"`
+}
+
 type Post struct {
-	ID        int64     `json:"id"`
-	BoardID   string    `json:"board_id,omitempty"`
-	ParentID  int64     `json:"parent_id,omitempty"`
-	Author    string    `json:"author"`
-	Subject   string    `json:"subject"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              int64      `json:"id"`
+	BoardID         string     `json:"board_id,omitempty"`
+	ParentID        int64      `json:"parent_id,omitempty"`
+	Author          string     `json:"author"`
+	AuthorPersonaID string     `json:"author_persona_id,omitempty"`
+	Subject         string     `json:"subject"`
+	Intent          PostIntent `json:"intent,omitempty"`
+	Body            string     `json:"body"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type Persona struct {
-	Handle           string
-	Age              int
-	Gender           string
-	Occupation       string
-	ReplyTendency    float64
-	LurkerTendency   float64
-	NewcomerOpenness float64
-	Interests        map[string]float64
-	Opinions         map[string]float64
+	ID                  string
+	Handle              string
+	Age                 int
+	Gender              string
+	Occupation          string
+	ActivityPattern     string
+	ReplyTendency       float64
+	ThreadStartTendency float64
+	LurkerTendency      float64
+	NewcomerOpenness    float64
+	Argumentativeness   float64
+	WritingStyle        string
+	Interests           map[string]float64
+	Opinions            map[string]float64
 }
