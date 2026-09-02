@@ -14,7 +14,7 @@ type materializingStore interface {
 	PopulationWasMaterialized(hostID string) bool
 	MaterializationPersonas(host world.Host) ([]world.Persona, bool)
 	MaterializationBoards(host world.Host) ([]world.Board, bool)
-	MaterializationArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
+	MaterializationDenseArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
 	MaterializationArticle(host world.Host, board world.Board, postID int64) (world.Post, bool, bool)
 }
 
@@ -140,7 +140,7 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	if !ok {
 		return "\r\nSTORE ERROR\r\n"
 	}
-	posts, created := s.MaterializationArticleHeaders(r.Host, r.board)
+	posts, created := s.MaterializationDenseArticleHeaders(r.Host, r.board)
 	status := "STORED REUSE"
 	if created {
 		status = "POST ENVELOPES MATERIALIZED + STORED"
@@ -148,7 +148,7 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n[%s]\r\n", r.board.Name)
 	if showMaterialization || created {
-		fmt.Fprintf(&b, "[DEV] ARTICLE INDEX : %s\r\n", status)
+		fmt.Fprintf(&b, "[DEV] ARTICLE INDEX : %s / %d ENVELOPES\r\n", status, len(posts))
 	}
 	b.WriteString("------------------------------------------------------------------------\r\n")
 	for _, p := range posts {
