@@ -16,7 +16,7 @@ func TestBBSRenderContextUsesBodiesAndLazyEnvelopes(t *testing.T) {
 	board := boards[1]
 	at := worldTime("1996-08-29").Add(-72 * time.Hour)
 
-	related := base.AddPost(h.ID, world.Post{
+	base.AddPost(h.ID, world.Post{
 		BoardID: board.ID,
 		Author:  "NORI",
 		Subject: "前にも98環境の話",
@@ -27,7 +27,6 @@ func TestBBSRenderContextUsesBodiesAndLazyEnvelopes(t *testing.T) {
 		},
 		CreatedAt: at.Add(-24 * time.Hour),
 	})
-	_ = related
 
 	root := base.AddPost(h.ID, world.Post{
 		BoardID: board.ID,
@@ -41,7 +40,7 @@ func TestBBSRenderContextUsesBodiesAndLazyEnvelopes(t *testing.T) {
 		Body:      "うちは通信とゲームで同じ98を使ってます。\r\n",
 		CreatedAt: at,
 	})
-	reply := base.AddPost(h.ID, world.Post{
+	base.AddPost(h.ID, world.Post{
 		BoardID:  board.ID,
 		ParentID: root.ID,
 		Author:   "NEKO",
@@ -68,7 +67,7 @@ func TestBBSRenderContextUsesBodiesAndLazyEnvelopes(t *testing.T) {
 	})
 
 	context, stats := repo.materializationBBSRenderContext(h, board, selected)
-	for _, want := range []string{"MSG 0002", "うちは通信とゲームで同じ98を使ってます。", "MSG 0003", "semantic envelope", "外付けモデムを使っている", "RELATED EARLIER POSTS", "前にも98環境の話"} {
+	for _, want := range []string{"TAKA] みなさんの98環境", "うちは通信とゲームで同じ98を使ってます。", "NEKO] Re: みなさんの98環境", "semantic envelope", "外付けモデムを使っている", "RELATED EARLIER POSTS", "前にも98環境の話"} {
 		if !strings.Contains(context, want) {
 			t.Fatalf("context missing %q:\n%s", want, context)
 		}
@@ -76,7 +75,6 @@ func TestBBSRenderContextUsesBodiesAndLazyEnvelopes(t *testing.T) {
 	if stats.threadPosts != 2 || stats.threadBodies != 1 || stats.threadEnvelopes != 1 || stats.relatedPosts != 1 {
 		t.Fatalf("unexpected context stats: %+v", stats)
 	}
-	_ = reply
 }
 
 func TestIntentSummaryCarriesTransientBBSContextWithoutPersistingIt(t *testing.T) {
