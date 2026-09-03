@@ -1,6 +1,7 @@
 package worldrepo
 
 import (
+	"context"
 	"math"
 	"sort"
 	"time"
@@ -15,16 +16,10 @@ type demoActivityDay struct {
 	score       float64
 }
 
-// MaterializationPersonaArticleHeaders is the second-stage development PoC.
-// It keeps the actor-first semantics from MaterializationDenseArticleHeaders but
-// avoids letting a short run of lucky random rolls overwhelm persistent traits.
-//
-// For each persona, the expected visible-post count over the bounded 14-day
-// observation window is derived from activity/lurker tendencies and board
-// affinity. Deterministic weighted sampling then chooses which days actually
-// become visible posts. This is not a production quota system: it is a bounded
-// PoC approximation of latent activity that makes persona differences observable
-// in a small sample while remaining deterministic/shared after first commit.
+// MaterializationPersonaArticleHeaders selects only actor/time/reply topology
+// procedurally. Subjects, topics, motivations, goals and concrete persona facts
+// are then planned from the actual board/persona/history context in one generic
+// semantic pass. There is no fixed content catalog in this path.
 func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
 	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
 		return existing, false
@@ -48,9 +43,7 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 			}
 			probability = clamp01(probability)
 			expected += probability
-			roll := demoStableUnit(host.ID, board.ID, persona.ID, day.Format("2006-01-02"), "activity-day-v2")
-			// Dividing by probability makes high-affinity/high-activity days more
-			// competitive without forcing a particular calendar pattern.
+			roll := demoStableUnit(host.ID, board.ID, persona.ID, day.Format("2006-01-02"), "activity-day-v3")
 			score := roll / math.Max(probability, .01)
 			days = append(days, demoActivityDay{persona: persona, day: day, probability: probability, score: score})
 		}
@@ -78,67 +71,111 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 	}
 
 	sort.SliceStable(selected, func(i, j int) bool { return selected[i].createdAt.Before(selected[j].createdAt) })
-	return r.materializePersonaCandidates(host, board, selected)
+	return r.materializePersonaCandidates(host, board, personas, selected)
 }
 
-func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, selected []demoPostCandidate) ([]world.Post, bool) {
-	topics := demoTopicsForBoard(board)
-	topicLastUsed := map[string]time.Time{}
-	personaTopicLastUsed := map[string]map[string]time.Time{}
-	subjectLastUsed := map[string]time.Time{}
-	roots := make([]world.Post, 0, len(selected))
-	out := make([]world.Post, 0, len(selected))
+func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, personas []world.Persona, selected []demoPostCandidate) ([]world.Post, bool) {
+	planner, ok := r.Materializer.(developmentTimelinePlanner)
+	if !ok || len(selected) == 0 {
+		return nil, false
+	}
 
+	// First commit only the topology shell: actor/time/root-vs-reply. Indices are
+	// one-based so zero cleanly means "no parent" in the planner JSON.
+	shells := make([]developmentTimelineShell, 0, len(selected))
+	roots := make([]developmentTimelineShell, 0, len(selected))
 	for i, candidate := range selected {
-		persona := candidate.persona
-		created := candidate.createdAt
-
-		var post world.Post
-		if root, ok := demoChooseReplyTarget(host, board, persona, created, roots, topics, i); ok && demoShouldReply(host, board, persona, created, i) {
-			post = r.demoNaturalReplyEnvelopeWithThread(host, board, persona, root, demoThreadPosts(root, out), created)
+		shell := developmentTimelineShell{
+			index:       i + 1,
+			persona:     candidate.persona,
+			createdAt:   candidate.createdAt,
+			action:      "thread_start",
+			parentIndex: 0,
+		}
+		if parentIndex, found := demoChooseRecentReplyRoot(host, board, candidate.persona, candidate.createdAt, roots, i); found && demoShouldReply(host, board, candidate.persona, candidate.createdAt, i) {
+			shell.action = "reply"
+			shell.parentIndex = parentIndex
 		} else {
-			seed := demoChooseTopic(host, board, persona, created, topics, topicLastUsed, personaTopicLastUsed)
+			roots = append(roots, shell)
+		}
+		shells = append(shells, shell)
+	}
 
-			// If this semantic topic already has a recent active root, continuing
-			// that conversation is preferable to opening a second near-identical
-			// thread merely because the subject wording can be varied.
-			if root, ok := demoRecentRootForTopic(roots, seed.key, created); ok && seed.role != "sysop" {
-				post = r.demoNaturalReplyEnvelopeWithThread(host, board, persona, root, demoThreadPosts(root, out), created)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	factsByPersona := r.existingPersonaFactsByID(personas)
+	plan, err := planner.PlanDevelopmentTimeline(ctx, host, board, r.WorldDate, shells, factsByPersona, planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 12))
+	if err != nil || len(plan.events) != len(shells) {
+		storeDevelopmentPlanningError(r, host.ID, board.ID, err)
+		return nil, false
+	}
+	storeDevelopmentPlanningUsage(r, host.ID, board.ID, plan.usage)
+	clearDevelopmentPlanningError(r, host.ID, board.ID)
+
+	plans := make(map[int]developmentTimelinePlanEvent, len(plan.events))
+	for _, event := range plan.events {
+		plans[event.index] = event
+	}
+
+	committedByIndex := map[int]world.Post{}
+	out := make([]world.Post, 0, len(shells))
+	for _, shell := range shells {
+		semantic, found := plans[shell.index]
+		if !found {
+			continue
+		}
+		subject := semantic.subject
+		parentID := int64(0)
+		respondsToID := int64(0)
+		if shell.action == "reply" {
+			parent, parentFound := committedByIndex[shell.parentIndex]
+			if !parentFound {
+				continue
+			}
+			parentID = parent.ID
+			subject = "Re: " + parent.Subject
+			if target, targetFound := latestPostInThread(parent.ID, out); targetFound {
+				respondsToID = target.ID
 			} else {
-				subject := demoChooseFreshSubject(host, board, persona, created, seed, subjectLastUsed)
-				post = r.demoNaturalRootEnvelope(host, board, persona, seed, subject, created)
-				topicLastUsed[seed.key] = created
-				if personaTopicLastUsed[persona.ID] == nil {
-					personaTopicLastUsed[persona.ID] = map[string]time.Time{}
-				}
-				personaTopicLastUsed[persona.ID][seed.key] = created
-				subjectLastUsed[subject] = created
+				respondsToID = parent.ID
 			}
 		}
-
-		post = r.Base.AddPost(host.ID, post)
-		out = append(out, post)
-		if post.ParentID == 0 {
-			roots = append(roots, post)
+		claims := r.commitPlannedFacts(shell.persona, semantic.topic, semantic.facts, shell.createdAt)
+		post := world.Post{
+			BoardID:         board.ID,
+			ParentID:        parentID,
+			Author:          shell.persona.Handle,
+			AuthorPersonaID: shell.persona.ID,
+			Subject:         subject,
+			Intent: world.PostIntent{
+				Action:           shell.action,
+				Topic:            semantic.topic,
+				Motivation:       semantic.motivation,
+				Stance:           semantic.stance,
+				Goal:             semantic.goal,
+				Claims:           claims,
+				RespondsToPostID: respondsToID,
+			},
+			CreatedAt: shell.createdAt,
 		}
+		post = r.Base.AddPost(host.ID, post)
+		committedByIndex[shell.index] = post
+		out = append(out, post)
 	}
-	return out, true
+	return out, len(out) > 0
 }
 
-// demoChooseFreshSubject makes exact repeated root titles a last resort inside
-// this small observation window. Semantic topic recurrence remains allowed (and
-// replies intentionally repeat the parent subject), but a returning topic first
-// consumes another natural subject variant before showing the exact same title.
-func demoChooseFreshSubject(host world.Host, board world.Board, persona world.Persona, created time.Time, seed demoTopicSeed, used map[string]time.Time) string {
-	if len(seed.subjects) == 0 {
-		return seed.key
-	}
-	start := demoStableIndex(len(seed.subjects), host.ID, board.ID, persona.ID, created.Format(time.RFC3339), seed.key, "fresh-subject")
-	for offset := 0; offset < len(seed.subjects); offset++ {
-		subject := seed.subjects[(start+offset)%len(seed.subjects)]
-		if _, alreadyUsed := used[subject]; !alreadyUsed {
-			return subject
+func latestPostInThread(rootID int64, posts []world.Post) (world.Post, bool) {
+	var latest world.Post
+	found := false
+	for _, post := range posts {
+		if post.ID != rootID && post.ParentID != rootID {
+			continue
+		}
+		if !found || post.CreatedAt.After(latest.CreatedAt) || (post.CreatedAt.Equal(latest.CreatedAt) && post.ID > latest.ID) {
+			latest = post
+			found = true
 		}
 	}
-	return demoChooseSubject(host, board, persona, created, seed, used)
+	return latest, found
 }
