@@ -112,7 +112,7 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 			}
 		} else {
 			seed := demoChooseTopic(host, board, persona, created, topics, topicLastUsed, personaTopicLastUsed)
-			subject := demoChooseSubject(host, board, persona, created, seed, subjectLastUsed)
+			subject := demoChooseFreshSubject(host, board, persona, created, seed, subjectLastUsed)
 			action := "thread_start"
 			if seed.role == "sysop" {
 				action = "announcement"
@@ -145,4 +145,22 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 		}
 	}
 	return out, true
+}
+
+// demoChooseFreshSubject makes exact repeated root titles a last resort inside
+// this small observation window. Semantic topic recurrence remains allowed (and
+// replies intentionally repeat the parent subject), but a returning topic first
+// consumes another natural subject variant before showing the exact same title.
+func demoChooseFreshSubject(host world.Host, board world.Board, persona world.Persona, created time.Time, seed demoTopicSeed, used map[string]time.Time) string {
+	if len(seed.subjects) == 0 {
+		return seed.key
+	}
+	start := demoStableIndex(len(seed.subjects), host.ID, board.ID, persona.ID, created.Format(time.RFC3339), seed.key, "fresh-subject")
+	for offset := 0; offset < len(seed.subjects); offset++ {
+		subject := seed.subjects[(start+offset)%len(seed.subjects)]
+		if _, alreadyUsed := used[subject]; !alreadyUsed {
+			return subject
+		}
+	}
+	return demoChooseSubject(host, board, persona, created, seed, used)
 }
