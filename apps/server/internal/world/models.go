@@ -23,19 +23,19 @@ type Board struct {
 	Name string `json:"name"`
 }
 
+// PostIntent stores only semantic world state that is specific to the actual
+// post. It deliberately has no topic-slot catalog, response-act enum, follow-up
+// checklist, or other fixed conversation template. Topic and Goal are free-form
+// semantic summaries produced for this concrete event and then committed.
 type PostIntent struct {
-	Action             string   `json:"action,omitempty"`
-	Topic              string   `json:"topic,omitempty"`
-	Motivation         string   `json:"motivation,omitempty"`
-	Stance             string   `json:"stance,omitempty"`
-	Claims             []string `json:"claims,omitempty"`
-	RespondsToClaims   []string `json:"responds_to_claims,omitempty"`
-	RespondsToPostID   int64    `json:"responds_to_post_id,omitempty"`
-	RespondsToQuestion string   `json:"responds_to_question,omitempty"`
-	ResponseAct        string   `json:"response_act,omitempty"`
-	InformationSlots   []string `json:"information_slots,omitempty"`
-	FollowUpSlot       string   `json:"follow_up_slot,omitempty"`
-	FollowUpQuestion   string   `json:"follow_up_question,omitempty"`
+	Action           string   `json:"action,omitempty"`
+	Topic            string   `json:"topic,omitempty"`
+	Motivation       string   `json:"motivation,omitempty"`
+	Stance           string   `json:"stance,omitempty"`
+	Goal             string   `json:"goal,omitempty"`
+	Claims           []string `json:"claims,omitempty"`
+	RespondsToClaims []string `json:"responds_to_claims,omitempty"`
+	RespondsToPostID int64    `json:"responds_to_post_id,omitempty"`
 
 	// RenderContext is transient input assembled from canonical BBS data immediately
 	// before prose rendering. It is never canonical world state and must not be
@@ -74,9 +74,9 @@ type Persona struct {
 }
 
 // PersonaFact is a concrete fictional-world fact that did not need to exist in
-// detail when the persona skeleton was first created. A topic/action may lazily
-// materialize only the facts it needs. Once stored, later posts must reuse the
-// same fact instead of improvising a contradictory answer.
+// detail when the persona skeleton was first created. Key is an open semantic
+// key, not a member of a fixed slot catalog. Once stored, later planning must
+// reuse the same key/value instead of improvising a contradiction.
 type PersonaFact struct {
 	PersonaID      string    `json:"persona_id"`
 	Key            string    `json:"key"`
