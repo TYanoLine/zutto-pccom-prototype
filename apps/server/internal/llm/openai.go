@@ -72,19 +72,20 @@ PRIMARY CONTENT CUE:
 PRECOMMITTED ACTOR:
 %s
 
-PRECOMMITTED POST INTENT:
+PRECOMMITTED POST INTENT AND RETRIEVED BBS CONTEXT:
 %s
 
-SEMANTIC INTENT RULES:
+SEMANTIC / CONVERSATION RULES:
 - If the intent contains claims=..., those are concrete fictional-world facts already decided for this person/post. Express them materially in the body instead of replacing them with generic filler.
-- If the intent contains responds_to_claims=..., those are specific facts from an earlier post that this reply is reacting to. Make that connection unmistakable in the reply.
-- If the intent contains responds_to_question=..., answer that actual question before moving on to other material. Do not silently replace it with a different question.
-- response_act describes the conversational job of the post. For answer_and_expand, answer first and then add the actor's new detail. For compare_and_expand, make the comparison explicit and then contribute new information. For add_new_detail, avoid merely repeating agreement already established in the thread.
-- information_slots are internal semantic dimensions that this post is expected to add. Never print the slot names, but make the associated claims feel like genuinely new information in the conversation rather than paraphrasing the earlier post.
-- If follow_up_question=... is supplied, ask that question naturally near the end. It is already part of the committed conversational move. Never print follow_up_slot; that is only an internal label.
-- For action=reply, do not write a standalone post that merely shares the same topic. Respond to the supplied earlier claim/question first, then add the actor's own claims naturally.
-- Do not invent a new owned machine, modem, software setup, family situation, job history, or other durable personal fact merely to make the prose more specific. Durable personal details must come from claims=...; ordinary connective wording and transient feelings are fine.
-- Do not say vague things such as "everyone has interesting setups" unless the committed semantic context actually supports that statement.
+- If the intent contains responds_to_claims=..., those identify an earlier point this reply is especially reacting to. Make the connection natural, but do not mechanically quote or paraphrase it if the surrounding thread already makes the connection obvious.
+- response_act is the actor's selected conversational tendency for this post, not a requirement to advance the thread. `brief_reaction` may genuinely be short. `share_experience` may simply add the actor's example. `different_view` may disagree or qualify. `friendly_compare` compares without forcing a question. `pick_up_recent_point` should react to the recent flow. `ask_naturally` may ask one natural question if it fits.
+- information_slots are metadata describing which durable persona facts were materialized for this post. They are NOT a checklist for the conversation and must never create a questionnaire chain. Never print slot names.
+- If bbs_context is supplied, read THREAD SO FAR like prior messages in a chat. Earlier body text is canonical prose; `semantic envelope` entries are canonical meaning for posts whose prose has not been materialized yet. Use this context to avoid accidental repetition and to make references/replies coherent.
+- RELATED EARLIER POSTS in bbs_context are retrieval hints for duplicate-topic awareness. They do not prove the actor personally read or remembers those posts, so do not refer to them as memories unless THREAD SO FAR supports that.
+- There is no obligation to ask a new question, reveal a new category of information, or keep the conversation alive. A mundane, uneven, occasionally repetitive human BBS exchange is acceptable when it fits the actor and context.
+- Legacy responds_to_question/follow_up_question fields, if present, remain binding, but do not invent such fields yourself.
+- Do not invent a new owned machine, modem, software setup, family situation, job history, or other durable personal fact merely to make the prose more specific. Durable personal details must come from claims=...; ordinary connective wording, opinions, and transient feelings are fine.
+- Do not say vague things such as "everyone has interesting setups" unless the actual supplied context supports that statement.
 
 CANONICAL HEADER RULES:
 - %s
