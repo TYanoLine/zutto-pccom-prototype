@@ -215,10 +215,25 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	if len(p.Intent.Claims) > 0 {
 		claimLine = "[DEV] CLAIMS        : " + strings.Join(p.Intent.Claims, " / ") + "\r\n"
 	}
-	respondsLine := ""
+	semanticLine := ""
+	if p.Intent.ResponseAct != "" {
+		semanticLine += "[DEV] RESPONSE ACT  : " + p.Intent.ResponseAct + "\r\n"
+	}
+	if len(p.Intent.InformationSlots) > 0 {
+		semanticLine += "[DEV] INFO SLOTS    : " + strings.Join(p.Intent.InformationSlots, ", ") + "\r\n"
+	}
+	if p.Intent.RespondsToPostID != 0 {
+		semanticLine += fmt.Sprintf("[DEV] TARGET MSG    : %04d\r\n", p.Intent.RespondsToPostID)
+	}
 	if len(p.Intent.RespondsToClaims) > 0 {
-		respondsLine = "[DEV] RESPONDS TO   : " + strings.Join(p.Intent.RespondsToClaims, " / ") + "\r\n"
+		semanticLine += "[DEV] RESPONDS TO   : " + strings.Join(p.Intent.RespondsToClaims, " / ") + "\r\n"
+	}
+	if p.Intent.RespondsToQuestion != "" {
+		semanticLine += "[DEV] ANSWERS       : " + p.Intent.RespondsToQuestion + "\r\n"
+	}
+	if p.Intent.FollowUpQuestion != "" {
+		semanticLine += "[DEV] FOLLOW-UP     : " + p.Intent.FollowUpQuestion + "\r\n"
 	}
 	r.state = "article"
-	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n%s%s%s\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, claimLine, respondsLine, tokenLine, p.ID, p.Subject, p.Author, p.Body), false
+	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n%s%s%s\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, claimLine, semanticLine, tokenLine, p.ID, p.Subject, p.Author, p.Body), false
 }
