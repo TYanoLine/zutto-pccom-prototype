@@ -13,10 +13,12 @@ import (
 )
 
 // LLMMaterializer turns WorldEngine-selected and world-validated semantic facts
-// into prose. It does not contain a canned prose fallback: a renderer failure
-// leaves the article unmaterialized so a later observation can retry.
+// into prose. Fallback remains as an inert compatibility field for older wiring;
+// it is never called. Renderer failure leaves the article unmaterialized so a
+// later observation can retry rather than committing canned prose.
 type LLMMaterializer struct {
 	Renderer llm.BoardPostRenderer
+	Fallback Materializer
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -24,9 +26,6 @@ func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMateri
 	return posts, err
 }
 
-// GenerateBoardPostsWithUsage is used only by development diagnostics. Token
-// usage is operational metadata, not world state, so the normal Materializer
-// interface deliberately does not require or persist it.
 func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, GenerationUsage, error) {
 	if decision.Level == historicalkb.EvidenceVerified && !decision.Knowledge.CanUse {
 		return nil, GenerationUsage{}, fmt.Errorf("verified historical knowledge unavailable")
@@ -59,9 +58,6 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if err != nil {
 		return nil, GenerationUsage{}, fmt.Errorf("board post renderer failed: %w", err)
 	}
-
-	// Actor and subject are world facts when already selected by WorldRepository.
-	// Never let a prose renderer silently replace them.
 	if req.Persona != nil && req.Persona.Handle != "" {
 		draft.Author = req.Persona.Handle
 	}
