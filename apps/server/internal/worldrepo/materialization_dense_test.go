@@ -19,7 +19,7 @@ func TestDenseMaterializationSamplesPersonaDrivenHistory(t *testing.T) {
 		t.Fatal("no boards")
 	}
 
-	posts, created := repo.MaterializationDenseArticleHeaders(h, boards[0])
+	posts, created := repo.MaterializationPersonaArticleHeaders(h, boards[0])
 	if !created {
 		t.Fatal("persona-driven envelopes should be created on first board observation")
 	}
@@ -77,7 +77,7 @@ func TestDenseMaterializationSamplesPersonaDrivenHistory(t *testing.T) {
 		t.Fatalf("history span too short: %s", posts[len(posts)-1].CreatedAt.Sub(posts[0].CreatedAt))
 	}
 
-	reused, created := repo.MaterializationDenseArticleHeaders(h, boards[0])
+	reused, created := repo.MaterializationPersonaArticleHeaders(h, boards[0])
 	if created {
 		t.Fatal("persona-driven envelopes should be reused after first materialization")
 	}
@@ -95,7 +95,7 @@ func TestDenseMaterializationIsDeterministicBeforeCommit(t *testing.T) {
 			t.Fatal(err)
 		}
 		boards, _ := repo.MaterializationBoards(h)
-		posts, _ := repo.MaterializationDenseArticleHeaders(h, boards[0])
+		posts, _ := repo.MaterializationPersonaArticleHeaders(h, boards[0])
 		return posts
 	}
 
