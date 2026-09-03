@@ -20,11 +20,20 @@ type LLMMaterializer struct {
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
+	posts, _, err := m.GenerateBoardPostsWithUsage(ctx, req, decision)
+	return posts, err
+}
+
+// GenerateBoardPostsWithUsage is used only by development diagnostics. Token
+// usage is operational metadata, not world state, so the normal Materializer
+// interface deliberately does not require or persist it.
+func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, GenerationUsage, error) {
 	if decision.Level == historicalkb.EvidenceVerified && !decision.Knowledge.CanUse {
-		return nil, fmt.Errorf("verified historical knowledge unavailable")
+		return nil, GenerationUsage{}, fmt.Errorf("verified historical knowledge unavailable")
 	}
 	if m.Renderer == nil {
-		return m.fallback(ctx, req, decision, fmt.Errorf("LLM board post renderer is not configured"))
+		posts, err := m.fallback(ctx, req, decision, fmt.Errorf("LLM board post renderer is not configured"))
+		return posts, GenerationUsage{}, err
 	}
 
 	facts := usableClaims(decision)
@@ -49,7 +58,8 @@ func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMateri
 		CanonicalSubject: req.CanonicalSubject,
 	})
 	if err != nil {
-		return m.fallback(ctx, req, decision, err)
+		posts, fallbackErr := m.fallback(ctx, req, decision, err)
+		return posts, GenerationUsage{}, fallbackErr
 	}
 
 	// Actor and subject are world facts when already selected by WorldRepository.
@@ -60,7 +70,15 @@ func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMateri
 	if strings.TrimSpace(req.CanonicalSubject) != "" {
 		draft.Subject = req.CanonicalSubject
 	}
-	return []world.Post{{Author: draft.Author, Subject: draft.Subject, Body: draft.Body, CreatedAt: worldTime(req.WorldDate)}}, nil
+	usage := GenerationUsage{
+		InputTokens:       draft.Usage.InputTokens,
+		CachedInputTokens: draft.Usage.CachedInputTokens,
+		OutputTokens:      draft.Usage.OutputTokens,
+		ReasoningTokens:   draft.Usage.ReasoningTokens,
+		TotalTokens:       draft.Usage.TotalTokens,
+		Model:             draft.Usage.Model,
+	}
+	return []world.Post{{Author: draft.Author, Subject: draft.Subject, Body: draft.Body, CreatedAt: worldTime(req.WorldDate)}}, usage, nil
 }
 
 func (m LLMMaterializer) fallback(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision, cause error) ([]world.Post, error) {
