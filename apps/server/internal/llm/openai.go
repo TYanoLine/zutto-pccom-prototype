@@ -33,11 +33,11 @@ Incoming body:
 %s
 
 Return only the post body.`, req.WorldDate, req.HostName, req.Persona, req.EraRules, req.Subject, req.Body)
-	text, err := p.responseText(ctx, prompt, "low")
+	result, err := p.responseText(ctx, prompt, "low")
 	if err != nil {
 		return "", err
 	}
-	return normalizeCRLF(text), nil
+	return normalizeCRLF(result.Text), nil
 }
 
 func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
@@ -110,12 +110,12 @@ Rules:
 
 Return ONLY JSON with exactly these keys:
 {"author":"...","subject":"...","body":"..."}`, req.BoardTopic, persona, intent, authorRule, subjectRule, req.WorldDate, req.HostName, req.HostRegion, req.HostSoftware, req.BoardID, req.EraRules, facts)
-	text, err := p.responseText(ctx, prompt, "low")
+	result, err := p.responseText(ctx, prompt, "low")
 	if err != nil {
 		return BoardPostDraft{}, err
 	}
 	var draft BoardPostDraft
-	if err := json.Unmarshal([]byte(strings.TrimSpace(text)), &draft); err != nil {
+	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &draft); err != nil {
 		return BoardPostDraft{}, fmt.Errorf("decode board post JSON: %w", err)
 	}
 	if err := validateBoardPostDraft(draft); err != nil {
@@ -124,12 +124,18 @@ Return ONLY JSON with exactly these keys:
 	draft.Author = strings.ToUpper(strings.TrimSpace(draft.Author))
 	draft.Subject = strings.TrimSpace(draft.Subject)
 	draft.Body = normalizeCRLF(draft.Body)
+	draft.Usage = result.Usage
 	return draft, nil
 }
 
-func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity string) (string, error) {
+type responseTextResult struct {
+	Text  string
+	Usage TokenUsage
+}
+
+func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity string) (responseTextResult, error) {
 	if p.APIKey == "" {
-		return "", errors.New("OPENAI_API_KEY is not set")
+		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
 	}
 	client := p.Client
 	if client == nil {
@@ -139,37 +145,60 @@ func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity stri
 	body, _ := json.Marshal(payload)
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return responseTextResult{}, err
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		return "", err
+		return responseTextResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("openai responses API returned %s", resp.Status)
+		return responseTextResult{}, fmt.Errorf("openai responses API returned %s", resp.Status)
 	}
 	var decoded struct {
+		Model  string `json:"model"`
 		Output []struct {
 			Content []struct {
 				Type string `json:"type"`
 				Text string `json:"text"`
 			} `json:"content"`
 		} `json:"output"`
+		Usage struct {
+			InputTokens       int `json:"input_tokens"`
+			InputTokenDetails struct {
+				CachedTokens int `json:"cached_tokens"`
+			} `json:"input_tokens_details"`
+			OutputTokens       int `json:"output_tokens"`
+			OutputTokenDetails struct {
+				ReasoningTokens int `json:"reasoning_tokens"`
+			} `json:"output_tokens_details"`
+			TotalTokens int `json:"total_tokens"`
+		} `json:"usage"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		return "", err
+		return responseTextResult{}, err
+	}
+	usage := TokenUsage{
+		InputTokens:       decoded.Usage.InputTokens,
+		CachedInputTokens: decoded.Usage.InputTokenDetails.CachedTokens,
+		OutputTokens:      decoded.Usage.OutputTokens,
+		ReasoningTokens:   decoded.Usage.OutputTokenDetails.ReasoningTokens,
+		TotalTokens:       decoded.Usage.TotalTokens,
+		Model:             decoded.Model,
+	}
+	if usage.Model == "" {
+		usage.Model = p.Model
 	}
 	for _, out := range decoded.Output {
 		for _, c := range out.Content {
 			if c.Type == "output_text" && strings.TrimSpace(c.Text) != "" {
-				return c.Text, nil
+				return responseTextResult{Text: c.Text, Usage: usage}, nil
 			}
 		}
 	}
-	return "", errors.New("no output_text in OpenAI response")
+	return responseTextResult{}, errors.New("no output_text in OpenAI response")
 }
 
 func validateBoardPostDraft(d BoardPostDraft) error {
