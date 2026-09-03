@@ -12,6 +12,8 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
+const developmentPlanningBatchSize = 6
+
 type developmentTimelineShell struct {
 	index       int
 	persona     world.Persona
@@ -43,65 +45,185 @@ type developmentTimelinePlanner interface {
 // that explicitly implements BBSTimelineIntentPlanner. WorldRepository keeps
 // ownership of actors, times and reply topology; the planner has no fixed topic
 // catalog, subject bank, information slots or response-act enum to choose from.
+//
+// A full two-week board can contain a few dozen event shells. Planning all of
+// them in one Responses API call made the first board observation vulnerable to
+// model latency and HTTP timeouts. We therefore plan bounded chronological
+// batches. Earlier batch semantics and proposed persona facts are fed into later
+// batches as transient context, but nothing is committed until every batch has
+// succeeded, preserving the DB-as-source-of-truth boundary.
 func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world.Host, board world.Board, worldDate string, shells []developmentTimelineShell, factsByPersona map[string][]world.PersonaFact, recentBBS string) (developmentTimelinePlan, error) {
 	planner, ok := m.Renderer.(llm.BBSTimelineIntentPlanner)
 	if !ok {
 		return developmentTimelinePlan{}, errors.New("configured renderer does not implement BBS timeline intent planning")
 	}
-	events := make([]llm.BBSIntentEvent, 0, len(shells))
+	if len(shells) == 0 {
+		return developmentTimelinePlan{}, nil
+	}
+
+	workingFacts := clonePersonaFactsByID(factsByPersona)
+	shellByIndex := make(map[int]developmentTimelineShell, len(shells))
 	for _, shell := range shells {
-		existingFacts := make([]string, 0, len(factsByPersona[shell.persona.ID]))
-		for _, fact := range factsByPersona[shell.persona.ID] {
-			existingFacts = append(existingFacts, fact.Key+"="+fact.Value)
+		shellByIndex[shell.index] = shell
+	}
+
+	planned := make([]developmentTimelinePlanEvent, 0, len(shells))
+	usage := GenerationUsage{}
+	for start := 0; start < len(shells); start += developmentPlanningBatchSize {
+		end := start + developmentPlanningBatchSize
+		if end > len(shells) {
+			end = len(shells)
 		}
-		events = append(events, llm.BBSIntentEvent{
-			Index:             shell.index,
-			AuthorHandle:      shell.persona.Handle,
-			CreatedAt:         shell.createdAt.Format(time.RFC3339),
-			Action:            shell.action,
-			ParentEventIndex:  shell.parentIndex,
-			PersonaProfile:    personaSummary(shell.persona),
-			ExistingFacts:     existingFacts,
+		batchShells := shells[start:end]
+		events := make([]llm.BBSIntentEvent, 0, len(batchShells))
+		for _, shell := range batchShells {
+			existingFacts := make([]string, 0, len(workingFacts[shell.persona.ID]))
+			for _, fact := range workingFacts[shell.persona.ID] {
+				existingFacts = append(existingFacts, fact.Key+"="+fact.Value)
+			}
+			events = append(events, llm.BBSIntentEvent{
+				Index:            shell.index,
+				AuthorHandle:     shell.persona.Handle,
+				CreatedAt:        shell.createdAt.Format(time.RFC3339),
+				Action:           shell.action,
+				ParentEventIndex: shell.parentIndex,
+				PersonaProfile:   personaSummary(shell.persona),
+				ExistingFacts:    existingFacts,
+			})
+		}
+
+		draft, err := planner.GenerateBBSTimelineIntent(ctx, llm.BBSTimelineIntentRequest{
+			HostName:       host.Name,
+			HostRegion:     host.Region,
+			HostSoftware:   host.Software,
+			BoardID:        board.ID,
+			BoardName:      board.Name,
+			WorldDate:      worldDate,
+			EraRules:       "世界時刻より未来の知識を使わない。外部世界の具体的な歴史事実・製品仕様は根拠なしに確定しない。架空住人の個人的事実と史実を区別する。",
+			RecentBBSState: planningTimelineContext(recentBBS, planned, shellByIndex, 12),
+			Events:         events,
 		})
+		if err != nil {
+			return developmentTimelinePlan{}, fmt.Errorf("planning batch %d-%d: %w", start+1, end, err)
+		}
+		if len(draft.Events) != len(batchShells) {
+			return developmentTimelinePlan{}, fmt.Errorf("planning batch %d-%d returned %d events, want %d", start+1, end, len(draft.Events), len(batchShells))
+		}
+
+		batchPlanned := make([]developmentTimelinePlanEvent, 0, len(draft.Events))
+		for _, event := range draft.Events {
+			semantic := developmentTimelinePlanEvent{
+				index:      event.Index,
+				subject:    strings.TrimSpace(event.Subject),
+				topic:      strings.TrimSpace(event.Topic),
+				motivation: strings.TrimSpace(event.Motivation),
+				stance:     strings.TrimSpace(event.Stance),
+				goal:       strings.TrimSpace(event.Goal),
+				facts:      event.Facts,
+			}
+			batchPlanned = append(batchPlanned, semantic)
+			if shell, found := shellByIndex[event.Index]; found {
+				addTransientPlannedFacts(workingFacts, shell.persona.ID, semantic)
+			}
+		}
+		sort.SliceStable(batchPlanned, func(i, j int) bool { return batchPlanned[i].index < batchPlanned[j].index })
+		planned = append(planned, batchPlanned...)
+		addPlanningUsage(&usage, draft.Usage)
 	}
-	draft, err := planner.GenerateBBSTimelineIntent(ctx, llm.BBSTimelineIntentRequest{
-		HostName:       host.Name,
-		HostRegion:     host.Region,
-		HostSoftware:   host.Software,
-		BoardID:        board.ID,
-		BoardName:      board.Name,
-		WorldDate:      worldDate,
-		EraRules:       "世界時刻より未来の知識を使わない。外部世界の具体的な歴史事実・製品仕様は根拠なしに確定しない。架空住人の個人的事実と史実を区別する。",
-		RecentBBSState: recentBBS,
-		Events:         events,
-	})
-	if err != nil {
-		return developmentTimelinePlan{}, err
-	}
-	planned := make([]developmentTimelinePlanEvent, 0, len(draft.Events))
-	for _, event := range draft.Events {
-		planned = append(planned, developmentTimelinePlanEvent{
-			index:      event.Index,
-			subject:    strings.TrimSpace(event.Subject),
-			topic:      strings.TrimSpace(event.Topic),
-			motivation: strings.TrimSpace(event.Motivation),
-			stance:     strings.TrimSpace(event.Stance),
-			goal:       strings.TrimSpace(event.Goal),
-			facts:      event.Facts,
-		})
-	}
+
 	sort.SliceStable(planned, func(i, j int) bool { return planned[i].index < planned[j].index })
-	return developmentTimelinePlan{
-		events: planned,
-		usage: GenerationUsage{
-			InputTokens:       draft.Usage.InputTokens,
-			CachedInputTokens: draft.Usage.CachedInputTokens,
-			OutputTokens:      draft.Usage.OutputTokens,
-			ReasoningTokens:   draft.Usage.ReasoningTokens,
-			TotalTokens:       draft.Usage.TotalTokens,
-			Model:             draft.Usage.Model,
-		},
-	}, nil
+	return developmentTimelinePlan{events: planned, usage: usage}, nil
+}
+
+func clonePersonaFactsByID(src map[string][]world.PersonaFact) map[string][]world.PersonaFact {
+	out := make(map[string][]world.PersonaFact, len(src))
+	for personaID, facts := range src {
+		out[personaID] = append([]world.PersonaFact(nil), facts...)
+	}
+	return out
+}
+
+func addTransientPlannedFacts(factsByPersona map[string][]world.PersonaFact, personaID string, event developmentTimelinePlanEvent) {
+	existing := make(map[string]bool, len(factsByPersona[personaID]))
+	for _, fact := range factsByPersona[personaID] {
+		existing[strings.TrimSpace(strings.ToLower(fact.Key))] = true
+	}
+	for _, draft := range event.facts {
+		key := strings.TrimSpace(strings.ToLower(draft.Key))
+		value := strings.TrimSpace(draft.Value)
+		if key == "" || value == "" || existing[key] {
+			continue
+		}
+		factsByPersona[personaID] = append(factsByPersona[personaID], world.PersonaFact{
+			PersonaID:  personaID,
+			Key:        key,
+			Topic:      event.topic,
+			Value:      value,
+			SourceKind: "transient_semantic_proposal",
+		})
+		existing[key] = true
+	}
+}
+
+func planningTimelineContext(recentBBS string, planned []developmentTimelinePlanEvent, shellByIndex map[int]developmentTimelineShell, limit int) string {
+	var b strings.Builder
+	if strings.TrimSpace(recentBBS) != "" {
+		b.WriteString(strings.TrimSpace(recentBBS))
+		b.WriteByte('\n')
+	}
+	if len(planned) == 0 {
+		return strings.TrimSpace(b.String())
+	}
+	start := 0
+	if limit > 0 && len(planned) > limit {
+		start = len(planned) - limit
+	}
+	b.WriteString("PLANNED EARLIER EVENTS IN THIS SAME TIMELINE:\n")
+	for _, event := range planned[start:] {
+		shell := shellByIndex[event.index]
+		fmt.Fprintf(&b, "EVENT %04d %s %s action=%s", event.index, shell.createdAt.Format("01/02 15:04"), shell.persona.Handle, shell.action)
+		if shell.parentIndex != 0 {
+			fmt.Fprintf(&b, " parent=%04d", shell.parentIndex)
+		}
+		if event.subject != "" {
+			fmt.Fprintf(&b, " subject=%s", event.subject)
+		}
+		if event.topic != "" {
+			fmt.Fprintf(&b, " | topic=%s", event.topic)
+		}
+		if event.goal != "" {
+			fmt.Fprintf(&b, " | goal=%s", event.goal)
+		}
+		if len(event.facts) > 0 {
+			parts := make([]string, 0, len(event.facts))
+			for _, fact := range event.facts {
+				if strings.TrimSpace(fact.Key) != "" && strings.TrimSpace(fact.Value) != "" {
+					parts = append(parts, strings.TrimSpace(fact.Key)+"="+strings.TrimSpace(fact.Value))
+				}
+			}
+			if len(parts) > 0 {
+				fmt.Fprintf(&b, " | facts=%s", strings.Join(parts, " / "))
+			}
+		}
+		b.WriteByte('\n')
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func addPlanningUsage(total *GenerationUsage, usage llm.TokenUsage) {
+	total.InputTokens += usage.InputTokens
+	total.CachedInputTokens += usage.CachedInputTokens
+	total.OutputTokens += usage.OutputTokens
+	total.ReasoningTokens += usage.ReasoningTokens
+	total.TotalTokens += usage.TotalTokens
+	if usage.Model == "" {
+		return
+	}
+	if total.Model == "" {
+		total.Model = usage.Model
+	} else if total.Model != usage.Model {
+		total.Model = "mixed"
+	}
 }
 
 func (r *Repository) existingPersonaFactsByID(personas []world.Persona) map[string][]world.PersonaFact {
