@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { WheelEvent as ReactWheelEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import type { TerminalCore } from './TerminalCore';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
@@ -8,6 +8,9 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
+  const activePointerIdRef = useRef<number | null>(null);
+  const pointerLastYRef = useRef(0);
+  const pointerRemainderRef = useRef(0);
 
   useEffect(() => terminal.subscribe(() => {
     const previousLength = previousScrollbackLengthRef.current;
@@ -26,6 +29,13 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
     draw();
   }), [terminal]);
   useEffect(() => { draw(); });
+
+  function setScrollOffset(next: number) {
+    const clamped = Math.max(0, Math.min(terminal.maxScrollOffset, next));
+    if (clamped === scrollOffsetRef.current) return;
+    scrollOffsetRef.current = clamped;
+    draw();
+  }
 
   function draw() {
     const canvas = ref.current;
@@ -80,9 +90,58 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
     e.preventDefault();
     const lines = Math.max(1, Math.min(8, Math.round(Math.abs(e.deltaY) / 32)));
     const delta = e.deltaY < 0 ? lines : -lines;
-    scrollOffsetRef.current = Math.max(0, Math.min(terminal.maxScrollOffset, scrollOffsetRef.current + delta));
-    draw();
+    setScrollOffset(scrollOffsetRef.current + delta);
   }
 
-  return <canvas ref={ref} width={640} height={400} className="terminal-canvas" onWheel={wheel} />;
+  function pointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (e.pointerType === 'mouse') return;
+    activePointerIdRef.current = e.pointerId;
+    pointerLastYRef.current = e.clientY;
+    pointerRemainderRef.current = 0;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+
+  function pointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (activePointerIdRef.current !== e.pointerId || e.pointerType === 'mouse') return;
+    const canvas = ref.current;
+    if (!canvas) return;
+
+    // Finger moving upward should reveal older lines, just like dragging a
+    // terminal transcript upward. Scale by the displayed row height so the
+    // gesture feels the same on iPhone, iPad and desktop-sized canvases.
+    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const dragPixels = pointerLastYRef.current - e.clientY;
+    pointerLastYRef.current = e.clientY;
+    pointerRemainderRef.current += dragPixels;
+
+    const lines = Math.trunc(pointerRemainderRef.current / rowHeight);
+    if (lines !== 0) {
+      pointerRemainderRef.current -= lines * rowHeight;
+      setScrollOffset(scrollOffsetRef.current + lines);
+    }
+    e.preventDefault();
+  }
+
+  function pointerEnd(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    activePointerIdRef.current = null;
+    pointerRemainderRef.current = 0;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    e.preventDefault();
+  }
+
+  return (
+    <canvas
+      ref={ref}
+      width={640}
+      height={400}
+      className="terminal-canvas"
+      onWheel={wheel}
+      onPointerDown={pointerDown}
+      onPointerMove={pointerMove}
+      onPointerUp={pointerEnd}
+      onPointerCancel={pointerEnd}
+    />
+  );
 }
