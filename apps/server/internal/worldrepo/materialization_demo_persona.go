@@ -18,8 +18,9 @@ type demoActivityDay struct {
 
 // MaterializationPersonaArticleHeaders selects only actor/time/reply topology
 // procedurally. Subjects, topics, motivations, goals and concrete persona facts
-// are then planned from the actual board/persona/history context in one generic
-// semantic pass. There is no fixed content catalog in this path.
+// are then planned from the actual board/persona/history context in generic,
+// bounded chronological semantic batches. There is no fixed content catalog in
+// this path.
 func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
 	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
 		return existing, false
@@ -101,7 +102,10 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 		shells = append(shells, shell)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	// Planning is split into small API calls. The deadline covers the complete
+	// atomic plan, while each individual HTTP request retains its own tighter
+	// client timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	factsByPersona := r.existingPersonaFactsByID(personas)
 	plan, err := planner.PlanDevelopmentTimeline(ctx, host, board, r.WorldDate, shells, factsByPersona, planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 12))
