@@ -92,50 +92,28 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 	for i, candidate := range selected {
 		persona := candidate.persona
 		created := candidate.createdAt
-		stance := demoPersonaStance(persona)
 
 		var post world.Post
 		if root, ok := demoChooseReplyTarget(host, board, persona, created, roots, topics, i); ok && demoShouldReply(host, board, persona, created, i) {
-			post = world.Post{
-				BoardID:         board.ID,
-				ParentID:        root.ID,
-				Author:          persona.Handle,
-				AuthorPersonaID: persona.ID,
-				Subject:         "Re: " + root.Subject,
-				Intent: world.PostIntent{
-					Action:     "reply",
-					Topic:      root.Intent.Topic,
-					Motivation: demoReplyMotivation(persona, root),
-					Stance:     stance,
-				},
-				CreatedAt: created,
-			}
+			post = r.demoReplyEnvelope(host, board, persona, root, created)
 		} else {
 			seed := demoChooseTopic(host, board, persona, created, topics, topicLastUsed, personaTopicLastUsed)
-			subject := demoChooseFreshSubject(host, board, persona, created, seed, subjectLastUsed)
-			action := "thread_start"
-			if seed.role == "sysop" {
-				action = "announcement"
+
+			// If this semantic topic already has a recent active root, continuing
+			// that conversation is preferable to opening a second near-identical
+			// thread merely because the subject wording can be varied.
+			if root, ok := demoRecentRootForTopic(roots, seed.key, created); ok && seed.role != "sysop" {
+				post = r.demoReplyEnvelope(host, board, persona, root, created)
+			} else {
+				subject := demoChooseFreshSubject(host, board, persona, created, seed, subjectLastUsed)
+				post = r.demoRootEnvelope(host, board, persona, seed, subject, created)
+				topicLastUsed[seed.key] = created
+				if personaTopicLastUsed[persona.ID] == nil {
+					personaTopicLastUsed[persona.ID] = map[string]time.Time{}
+				}
+				personaTopicLastUsed[persona.ID][seed.key] = created
+				subjectLastUsed[subject] = created
 			}
-			post = world.Post{
-				BoardID:         board.ID,
-				Author:          persona.Handle,
-				AuthorPersonaID: persona.ID,
-				Subject:         subject,
-				Intent: world.PostIntent{
-					Action:     action,
-					Topic:      seed.key,
-					Motivation: seed.motivation,
-					Stance:     stance,
-				},
-				CreatedAt: created,
-			}
-			topicLastUsed[seed.key] = created
-			if personaTopicLastUsed[persona.ID] == nil {
-				personaTopicLastUsed[persona.ID] = map[string]time.Time{}
-			}
-			personaTopicLastUsed[persona.ID][seed.key] = created
-			subjectLastUsed[subject] = created
 		}
 
 		post = r.Base.AddPost(host.ID, post)
