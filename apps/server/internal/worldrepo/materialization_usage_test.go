@@ -30,7 +30,7 @@ func TestDevelopmentArticleReportsAndRetainsTokenUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 	boards, _ := repo.MaterializationBoards(h)
-	headers, _ := repo.MaterializationDenseArticleHeaders(h, boards[0])
+	headers, _ := repo.MaterializationPersonaArticleHeaders(h, boards[0])
 	if len(headers) == 0 {
 		t.Fatal("no headers")
 	}
