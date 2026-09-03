@@ -24,12 +24,16 @@ type Board struct {
 }
 
 type PostIntent struct {
-	Action           string   `json:"action,omitempty"`
-	Topic            string   `json:"topic,omitempty"`
-	Motivation       string   `json:"motivation,omitempty"`
-	Stance           string   `json:"stance,omitempty"`
-	Claims           []string `json:"claims,omitempty"`
-	RespondsToClaims []string `json:"responds_to_claims,omitempty"`
+	Action            string   `json:"action,omitempty"`
+	Topic             string   `json:"topic,omitempty"`
+	Motivation        string   `json:"motivation,omitempty"`
+	Stance            string   `json:"stance,omitempty"`
+	Claims            []string `json:"claims,omitempty"`
+	RespondsToClaims  []string `json:"responds_to_claims,omitempty"`
+	RespondsToPostID  int64    `json:"responds_to_post_id,omitempty"`
+	ResponseAct       string   `json:"response_act,omitempty"`
+	InformationSlots  []string `json:"information_slots,omitempty"`
+	FollowUpQuestion  string   `json:"follow_up_question,omitempty"`
 }
 
 type Post struct {
