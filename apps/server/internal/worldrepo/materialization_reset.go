@@ -3,9 +3,9 @@ package worldrepo
 import "zutto-pccom/apps/server/internal/world"
 
 // ResetMaterializationConversation clears only development conversation history
-// and topic-triggered persona facts. The host profile, board catalog, memberships
-// and sparse core persona skeletons remain intact so a tester can regenerate the
-// same cast and compare the effect of conversation-materialization changes.
+// and lazily materialized persona facts. The host profile, board catalog,
+// memberships and sparse core persona skeletons remain intact so a tester can
+// regenerate the same cast and compare semantic-planning changes.
 func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCleared int, personaFactsCleared int, ok bool) {
 	resetter, ok := r.Base.(world.DevelopmentConversationResetStore)
 	if !ok {
@@ -21,8 +21,6 @@ func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCle
 	postsCleared = resetter.ClearHostPosts(host.ID)
 	personaFactsCleared = resetter.ClearPersonaFacts(personaIDs)
 
-	// Token usage is operational debug state, not world state. Reset it together
-	// with the demo conversation so before/after token totals are easy to compare.
 	developmentGenerationUsage.Range(func(key, _ any) bool {
 		usageKey, keyOK := key.(generationUsageKey)
 		if keyOK && usageKey.repo == r {
@@ -30,5 +28,6 @@ func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCle
 		}
 		return true
 	})
+	clearDevelopmentPlanningTelemetry(r)
 	return postsCleared, personaFactsCleared, true
 }
