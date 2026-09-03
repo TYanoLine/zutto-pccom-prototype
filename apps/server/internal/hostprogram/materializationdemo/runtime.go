@@ -14,8 +14,9 @@ type materializingStore interface {
 	PopulationWasMaterialized(hostID string) bool
 	MaterializationPersonas(host world.Host) ([]world.Persona, bool)
 	MaterializationBoards(host world.Host) ([]world.Board, bool)
-	MaterializationDenseArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
-	MaterializationArticle(host world.Host, board world.Board, postID int64) (world.Post, bool, bool)
+	MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
+	MaterializationArticleWithDebug(host world.Host, board world.Board, postID int64) (world.Post, bool, bool, string)
+	MaterializationUsageTotalText() string
 }
 
 type Runtime struct {
@@ -61,7 +62,7 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 	}
 	switch strings.ToUpper(line) {
 	case "", "H", "HELP", "?":
-		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成なら生成して保存）\r\nG BYE     切断\r\n\r\nDEV> ", false
+		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成ならPersona駆動で履歴を生成・保存）\r\nG BYE     切断\r\n\r\nDEV> ", false
 	case "P", "PERSON", "PERSONA":
 		return r.renderPersonas(), false
 	case "B", "BOARD":
@@ -140,10 +141,10 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	if !ok {
 		return "\r\nSTORE ERROR\r\n"
 	}
-	posts, created := s.MaterializationDenseArticleHeaders(r.Host, r.board)
+	posts, created := s.MaterializationPersonaArticleHeaders(r.Host, r.board)
 	status := "STORED REUSE"
 	if created {
-		status = "POST ENVELOPES MATERIALIZED + STORED"
+		status = "PERSONA-DRIVEN ENVELOPES MATERIALIZED + STORED"
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n[%s]\r\n", r.board.Name)
@@ -175,7 +176,7 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	if !ok {
 		return "STORE ERROR\r\n", false
 	}
-	p, found, created := s.MaterializationArticle(r.Host, r.board, id)
+	p, found, created, usage := s.MaterializationArticleWithDebug(r.Host, r.board, id)
 	if !found {
 		return "MSG NOT FOUND\r\nMSG No.を選択 / Q=掲示板一覧 > ", false
 	}
@@ -186,6 +187,13 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	if strings.TrimSpace(p.Body) == "" {
 		status = "BODY GENERATION FAILED / ENVELOPE KEPT"
 	}
+	tokenLine := "[DEV] TOKENS        : n/a (fallback / non-OpenAI renderer)\r\n"
+	if usage != "" {
+		tokenLine = "[DEV] TOKENS        : " + usage + "\r\n"
+	}
+	if total := s.MaterializationUsageTotalText(); total != "" {
+		tokenLine += "[DEV] TOKEN TOTAL   : " + total + "\r\n"
+	}
 	r.state = "article"
-	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, p.ID, p.Subject, p.Author, p.Body), false
+	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n%s\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, tokenLine, p.ID, p.Subject, p.Author, p.Body), false
 }
