@@ -44,7 +44,7 @@ func TestDevelopmentArticleReportsAndRetainsTokenUsage(t *testing.T) {
 			t.Fatalf("usage %q missing %q", usage, want)
 		}
 	}
-	if total := repo.MaterializationUsageTotalText(); !strings.Contains(total, "total=780") {
+	if total := repo.MaterializationUsageTotalText(); !strings.Contains(total, "model=gpt-test") || !strings.Contains(total, "total=780") {
 		t.Fatalf("unexpected cumulative usage: %q", total)
 	}
 
