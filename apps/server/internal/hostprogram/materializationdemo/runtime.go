@@ -16,6 +16,7 @@ type materializingStore interface {
 	MaterializationBoards(host world.Host) ([]world.Board, bool)
 	MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
 	MaterializationArticleWithDebug(host world.Host, board world.Board, postID int64) (world.Post, bool, bool, string)
+	MaterializationPlanningDiagnostic(hostID, boardID string) string
 	MaterializationUsageTotalText() string
 	ResetMaterializationConversation(host world.Host) (postsCleared int, personaFactsCleared int, ok bool)
 }
@@ -48,7 +49,7 @@ func (r *Runtime) Welcome() string {
 		"NAME     %s\r\nREGION   %s\r\nSOFTWARE %s\r\nLINES    %d\r\nMAX BAUD %d\r\nMEMBERS  %d\r\n\r\n"+
 		"この局は開発確認用です。会員総数は人口事実として保持し、初回アクセスではコア住人だけを実体化します。\r\n"+
 		"[P] 住人一覧  [B] 掲示板一覧  [H] ヘルプ  [G] 切断\r\n"+
-		"[RESET] 投稿履歴＋話題で具体化したPersona事実を消して再比較\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
+		"[RESET] 投稿履歴＋会話で遅延具体化したPersona事実を消して再比較\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
 }
 
 func (r *Runtime) HandleLine(line string) (string, bool) {
@@ -64,7 +65,7 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 	}
 	switch strings.ToUpper(line) {
 	case "", "H", "HELP", "?":
-		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成ならPersona駆動で履歴を生成・保存）\r\nRESET     投稿履歴と話題依存Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
+		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成ならPersona駆動で履歴を生成・保存）\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
 	case "P", "PERSON", "PERSONA":
 		return r.renderPersonas(), false
 	case "B", "BOARD":
@@ -161,12 +162,15 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	posts, created := s.MaterializationPersonaArticleHeaders(r.Host, r.board)
 	status := "STORED REUSE"
 	if created {
-		status = "PERSONA-DRIVEN ENVELOPES MATERIALIZED + STORED"
+		status = "FREE-FORM SEMANTIC ENVELOPES MATERIALIZED + STORED"
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n[%s]\r\n", r.board.Name)
 	if showMaterialization || created {
 		fmt.Fprintf(&b, "[DEV] ARTICLE INDEX : %s / %d ENVELOPES\r\n", status, len(posts))
+		if diagnostic := s.MaterializationPlanningDiagnostic(r.Host.ID, r.board.ID); diagnostic != "" {
+			fmt.Fprintf(&b, "[DEV] PLANNING      : %s\r\n", diagnostic)
+		}
 	}
 	b.WriteString("------------------------------------------------------------------------\r\n")
 	for _, p := range posts {
@@ -199,12 +203,12 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	}
 	status := "STORED REUSE"
 	if created {
-		status = "BODY RENDERED FROM PERSONA + ENVELOPE, STORED"
+		status = "BODY RENDERED FROM PERSONA + FREE-FORM INTENT + BBS CONTEXT, STORED"
 	}
 	if strings.TrimSpace(p.Body) == "" {
 		status = "BODY GENERATION FAILED / ENVELOPE KEPT"
 	}
-	tokenLine := "[DEV] TOKENS        : n/a (fallback / non-OpenAI renderer)\r\n"
+	tokenLine := "[DEV] TOKENS        : n/a\r\n"
 	if usage != "" {
 		tokenLine = "[DEV] TOKENS        : " + usage + "\r\n"
 	}
@@ -216,23 +220,17 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 		claimLine = "[DEV] CLAIMS        : " + strings.Join(p.Intent.Claims, " / ") + "\r\n"
 	}
 	semanticLine := ""
-	if p.Intent.ResponseAct != "" {
-		semanticLine += "[DEV] RESPONSE ACT  : " + p.Intent.ResponseAct + "\r\n"
+	if p.Intent.Goal != "" {
+		semanticLine += "[DEV] GOAL          : " + p.Intent.Goal + "\r\n"
 	}
-	if len(p.Intent.InformationSlots) > 0 {
-		semanticLine += "[DEV] INFO SLOTS    : " + strings.Join(p.Intent.InformationSlots, ", ") + "\r\n"
+	if p.Intent.Stance != "" {
+		semanticLine += "[DEV] STANCE        : " + p.Intent.Stance + "\r\n"
 	}
 	if p.Intent.RespondsToPostID != 0 {
 		semanticLine += fmt.Sprintf("[DEV] TARGET MSG    : %04d\r\n", p.Intent.RespondsToPostID)
 	}
 	if len(p.Intent.RespondsToClaims) > 0 {
 		semanticLine += "[DEV] RESPONDS TO   : " + strings.Join(p.Intent.RespondsToClaims, " / ") + "\r\n"
-	}
-	if p.Intent.RespondsToQuestion != "" {
-		semanticLine += "[DEV] ANSWERS       : " + p.Intent.RespondsToQuestion + "\r\n"
-	}
-	if p.Intent.FollowUpQuestion != "" {
-		semanticLine += "[DEV] FOLLOW-UP     : " + p.Intent.FollowUpQuestion + "\r\n"
 	}
 	r.state = "article"
 	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n%s%s%s\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, claimLine, semanticLine, tokenLine, p.ID, p.Subject, p.Author, p.Body), false
