@@ -74,26 +74,21 @@ func (r *Repository) HostByPhone(phone string) (world.Host, error) {
 	r.hosts[h.ID] = h
 	r.mu.Unlock()
 
-	// The development host demonstrates the intended split: first observation
-	// fixes a small core cast, while the host's full member count remains only a
-	// population fact. Hundreds of dormant accounts do not need detailed personas.
+	// Development-only sparse cast fixture. These are persistent persona skeletons,
+	// not content templates: concrete life facts remain unknown until an event needs
+	// them and are materialized through the generic semantic planning path.
 	if h.SoftwareID == "materialization-demo" {
 		_, _ = r.MaterializationPersonas(h)
 	}
 	return h, nil
 }
 
-// HostWasMaterialized is exposed for the development-only materialization host.
-// Historical host runtimes do not need to render this internal state.
 func (r *Repository) HostWasMaterialized(hostID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.hostMaterialized[hostID]
 }
 
-// PopulationWasMaterialized reports whether the core cast was first committed
-// during this repository lifetime. It exists only so the development host can
-// make lazy materialization visible to a human tester.
 func (r *Repository) PopulationWasMaterialized(hostID string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -131,9 +126,6 @@ func (r *Repository) MaterializationPersonas(host world.Host) ([]world.Persona, 
 	return ps.ListHostPersonas(host.ID), true
 }
 
-// ListPosts is the legacy Store boundary. When a known host has no posts at all,
-// materialize a minimal default board once. More capable host runtimes can use
-// BoardPostStore below to request a specific, already-known board lazily.
 func (r *Repository) ListPosts(hostID string) []world.Post {
 	if existing := r.Base.ListPosts(hostID); len(existing) > 0 {
 		return existing
@@ -151,9 +143,6 @@ func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
 	return r.Base.AddPost(hostID, p)
 }
 
-// ListBoardPosts is invoked only after a host-program runtime has established
-// that the board path is real. Empty storage therefore means an unmaterialized
-// known board, not permission to invent a nonexistent board.
 func (r *Repository) ListBoardPosts(host world.Host, boardID, boardTopic string) []world.Post {
 	if existing := filterBoard(r.Base.ListPosts(host.ID), boardID); len(existing) > 0 {
 		return existing
@@ -162,8 +151,6 @@ func (r *Repository) ListBoardPosts(host world.Host, boardID, boardTopic string)
 	return filterBoard(r.Base.ListPosts(host.ID), boardID)
 }
 
-// MaterializationBoards creates and stores only the board catalog. No article
-// prose is generated here; this mirrors the intended lazy hierarchy.
 func (r *Repository) MaterializationBoards(host world.Host) ([]world.Board, bool) {
 	bs, ok := r.Base.(world.BoardStore)
 	if !ok {
@@ -177,112 +164,21 @@ func (r *Repository) MaterializationBoards(host world.Host) ([]world.Board, bool
 	return boards, true
 }
 
-// MaterializationArticleHeaders creates the canonical post envelope when a board
-// is first entered: actor, time, subject and semantic intent are committed first.
-// Prose remains empty until the article itself is read.
+// Compatibility entry point: there is no separate fixed three-header fixture.
 func (r *Repository) MaterializationArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
-	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
-		return existing, false
-	}
-	personas, _ := r.MaterializationPersonas(host)
-	stamp := worldTime(r.WorldDate)
-
-	type headerTemplate struct {
-		handle  string
-		subject string
-		intent  world.PostIntent
-	}
-	templates := []headerTemplate{
-		{handle: "NEKO", subject: board.Name + "、どうです？", intent: world.PostIntent{Action: "thread_start", Topic: board.Name, Motivation: "最近の話題を軽く振って常連の反応を見たい", Stance: "好奇心が強く、他の人の意見を聞きたい"}},
-		{handle: "MARI", subject: "はじめまして", intent: world.PostIntent{Action: "thread_start", Topic: board.Name, Motivation: "このボードではまだあまり書いていないので挨拶したい", Stance: "控えめだが友好的"}},
-		{handle: "SYSOP", subject: "このボードについて", intent: world.PostIntent{Action: "announcement", Topic: board.Name, Motivation: "ボードの使い方と雰囲気を簡単に案内したい", Stance: "運営者として穏やかに案内する"}},
-	}
-	out := make([]world.Post, 0, len(templates))
-	for i, t := range templates {
-		persona, ok := personaByHandle(personas, t.handle)
-		p := world.Post{BoardID: board.ID, Author: t.handle, Subject: t.subject, Intent: t.intent, CreatedAt: stamp.Add(time.Duration(i) * 17 * time.Minute)}
-		if ok {
-			p.Author = persona.Handle
-			p.AuthorPersonaID = persona.ID
-		}
-		p = r.Base.AddPost(host.ID, p)
-		out = append(out, p)
-	}
-	return out, true
+	return r.MaterializationPersonaArticleHeaders(host, board)
 }
 
-// MaterializationArticle completes article prose only when the article is read.
-// The actor, subject and semantic intent selected earlier stay canonical; the LLM
-// is only allowed to render those already-committed facts into period prose.
+// Compatibility entry point delegates to the same causal lazy renderer used by
+// the development diagnostics, without exposing diagnostics to legacy callers.
 func (r *Repository) MaterializationArticle(host world.Host, board world.Board, postID int64) (world.Post, bool, bool) {
-	var selected world.Post
-	found := false
-	for _, p := range r.Base.ListPosts(host.ID) {
-		if p.ID == postID && p.BoardID == board.ID {
-			selected = p
-			found = true
-			break
-		}
-	}
-	if !found {
-		return world.Post{}, false, false
-	}
-	if selected.Body != "" {
-		return selected, true, false
-	}
-	if r.Engine == nil || r.Materializer == nil {
-		return selected, true, false
-	}
-
-	var persona *world.Persona
-	if ps, ok := r.Base.(world.PersonaStore); ok && selected.AuthorPersonaID != "" {
-		if p, found := ps.PersonaByID(selected.AuthorPersonaID); found {
-			copy := p
-			persona = &copy
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
-		Kind:        historicalkb.KnowledgeCulturalSignal,
-		Subject:     board.Name,
-		WorldDate:   r.WorldDate,
-		Region:      host.Region,
-		Audience:    []string{host.SoftwareID},
-		Need:        fmt.Sprintf("%s の %s ボード、%sによる件名『%s』の記事本文を、確定済みの投稿意図を変えず1996年の自然なパソコン通信文体で補完する", host.Name, board.Name, selected.Author, selected.Subject),
-		Persistence: true,
-		Importance:  .30,
-		Specificity: .30,
-	})
-	if err != nil {
-		return selected, true, false
-	}
-	posts, err := r.Materializer.GenerateBoardPosts(ctx, BoardMaterializationRequest{
-		Host:             host,
-		BoardID:          board.ID,
-		BoardTopic:       selected.Subject,
-		WorldDate:        r.WorldDate,
-		Persona:          persona,
-		Intent:           selected.Intent,
-		CanonicalSubject: selected.Subject,
-	}, decision)
-	if err != nil || len(posts) == 0 {
-		return selected, true, false
-	}
-	selected.Body = posts[0].Body
-	if selected.Body == "" {
-		return selected, true, false
-	}
-	if u, ok := r.Base.(world.PostUpdater); ok {
-		updated, ok := u.UpdatePost(host.ID, selected)
-		if ok {
-			return updated, true, true
-		}
-	}
-	return selected, true, true
+	post, found, created, _ := r.MaterializationArticleWithDebug(host, board, postID)
+	return post, found, created
 }
 
+// Generic non-development boards can still ask the renderer for one post using
+// the actual board name as an open cue. No hard-coded subject/body fallback is
+// used: renderer failure leaves the board empty and can be retried later.
 func (r *Repository) ensureBoard(host world.Host, boardID, boardTopic string) error {
 	if r.Engine == nil || r.Materializer == nil {
 		return nil
@@ -310,10 +206,16 @@ func (r *Repository) ensureBoard(host world.Host, boardID, boardTopic string) er
 		Specificity: .25,
 	})
 	if err != nil {
+		r.mu.Lock()
+		delete(r.materialized, key)
+		r.mu.Unlock()
 		return err
 	}
 	posts, err := r.Materializer.GenerateBoardPosts(ctx, BoardMaterializationRequest{Host: host, BoardID: boardID, BoardTopic: boardTopic, WorldDate: r.WorldDate}, decision)
 	if err != nil {
+		r.mu.Lock()
+		delete(r.materialized, key)
+		r.mu.Unlock()
 		return err
 	}
 	for _, p := range posts {
@@ -345,6 +247,7 @@ func filterBoard(all []world.Post, boardID string) []world.Post {
 func incompleteHost(h world.Host) bool {
 	return h.Name == "" || h.Software == "" || h.Lines <= 0 || h.MaxBaud <= 0
 }
+
 func completeDevelopmentHost(h world.Host) world.Host {
 	if h.Name == "" {
 		h.Name = "LAZY MATERIALIZE BBS"
@@ -370,26 +273,6 @@ func completeDevelopmentHost(h world.Host) world.Host {
 	h.GuestAllowed = true
 	h.TelehoFriendly = true
 	return h
-}
-
-// FallbackMaterializer is deterministic/non-AI. It keeps AI optional and gives
-// the materialization pipeline a safe degradation path. A prose renderer can be
-// swapped in without changing host-program runtimes or repository semantics.
-type FallbackMaterializer struct{}
-
-func (FallbackMaterializer) GenerateBoardPosts(_ context.Context, r BoardMaterializationRequest, d worldengine.EvidenceDecision) ([]world.Post, error) {
-	if d.Level == historicalkb.EvidenceVerified && !d.Knowledge.CanUse {
-		return nil, fmt.Errorf("verified historical knowledge unavailable")
-	}
-	author := "GUEST"
-	if r.Persona != nil && r.Persona.Handle != "" {
-		author = r.Persona.Handle
-	}
-	subject := r.BoardTopic + "の話"
-	if r.CanonicalSubject != "" {
-		subject = r.CanonicalSubject
-	}
-	return []world.Post{{Author: author, Subject: subject, Body: "このボード、まだ書き込み少ないですね(^^;\r\nとりあえず足あとだけ残しておきます。", CreatedAt: worldTime(r.WorldDate)}}, nil
 }
 
 func worldTime(v string) time.Time {
