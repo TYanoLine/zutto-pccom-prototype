@@ -15,7 +15,7 @@ func Load() Config {
 	return Config{
 		Addr:            env("ADDR", ":8080"),
 		OpenAIKey:       os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:     env("OPENAI_MODEL", "gpt-5.6-luna"),
+		OpenAIModel:     env("OPENAI_MODEL", "gpt-5.6-sol"),
 		WorldDate:       env("WORLD_DATE", "1996-08-26"),
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
 		DebugResetToken: os.Getenv("DEBUG_RESET_TOKEN"),
