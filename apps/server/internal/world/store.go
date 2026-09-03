@@ -41,24 +41,42 @@ type PersonaStore interface {
 	AddMembership(hostID, personaID string)
 }
 
+// PersonaFactStore persists concrete persona details that are generated only
+// when a topic/action needs them. Persona skeletons remain intentionally sparse.
+type PersonaFactStore interface {
+	ListPersonaFacts(personaID string) []PersonaFact
+	SavePersonaFact(PersonaFact)
+}
+
+// DevelopmentConversationResetStore is intentionally a development-only escape
+// hatch. It lets the materialization demo clear observed posts and lazily-created
+// persona details so a tester can compare generation behavior without rebuilding
+// the core cast or host profile.
+type DevelopmentConversationResetStore interface {
+	ClearHostPosts(hostID string) int
+	ClearPersonaFacts(personaIDs []string) int
+}
+
 type MemoryStore struct {
-	mu          sync.RWMutex
-	hosts       map[string]Host
-	boards      map[string][]Board
-	posts       map[string][]Post
-	personas    map[string]Persona
-	memberships map[string][]string
-	next        int64
+	mu           sync.RWMutex
+	hosts        map[string]Host
+	boards       map[string][]Board
+	posts        map[string][]Post
+	personas     map[string]Persona
+	personaFacts map[string][]PersonaFact
+	memberships  map[string][]string
+	next         int64
 }
 
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
-		hosts:       map[string]Host{},
-		boards:      map[string][]Board{},
-		posts:       map[string][]Post{},
-		personas:    map[string]Persona{},
-		memberships: map[string][]string{},
-		next:        1000,
+		hosts:        map[string]Host{},
+		boards:       map[string][]Board{},
+		posts:        map[string][]Post{},
+		personas:     map[string]Persona{},
+		personaFacts: map[string][]PersonaFact{},
+		memberships:  map[string][]string{},
+		next:         1000,
 	}
 
 	h := Host{ID: "moonlight-yokohama", Phone: "0451234567", Name: "YOKOHAMA MOONLIGHT NETWORK", Region: "神奈川県横浜市", Software: "KTBBS compatible / customized", SoftwareID: "generic", Lines: 4, Popularity: .70, MaxBaud: 14400, Members: 187, ANSI: true, GuestAllowed: true, TelehoFriendly: true}
@@ -148,6 +166,13 @@ func (s *MemoryStore) UpdatePost(hostID string, p Post) (Post, bool) {
 	}
 	return Post{}, false
 }
+func (s *MemoryStore) ClearHostPosts(hostID string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := len(s.posts[hostID])
+	delete(s.posts, hostID)
+	return count
+}
 func (s *MemoryStore) ListBoards(hostID string) []Board {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -195,4 +220,35 @@ func (s *MemoryStore) ListHostPersonas(hostID string) []Persona {
 		}
 	}
 	return out
+}
+func (s *MemoryStore) ListPersonaFacts(personaID string) []PersonaFact {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	facts := s.personaFacts[personaID]
+	out := make([]PersonaFact, len(facts))
+	copy(out, facts)
+	return out
+}
+func (s *MemoryStore) SavePersonaFact(f PersonaFact) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	facts := s.personaFacts[f.PersonaID]
+	for i := range facts {
+		if facts[i].Key == f.Key {
+			facts[i] = f
+			s.personaFacts[f.PersonaID] = facts
+			return
+		}
+	}
+	s.personaFacts[f.PersonaID] = append(facts, f)
+}
+func (s *MemoryStore) ClearPersonaFacts(personaIDs []string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for _, id := range personaIDs {
+		count += len(s.personaFacts[id])
+		delete(s.personaFacts, id)
+	}
+	return count
 }

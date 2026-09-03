@@ -17,6 +17,7 @@ type materializingStore interface {
 	MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
 	MaterializationArticleWithDebug(host world.Host, board world.Board, postID int64) (world.Post, bool, bool, string)
 	MaterializationUsageTotalText() string
+	ResetMaterializationConversation(host world.Host) (postsCleared int, personaFactsCleared int, ok bool)
 }
 
 type Runtime struct {
@@ -46,7 +47,8 @@ func (r *Runtime) Welcome() string {
 		"[DEV] POPULATION   : %s\r\n\r\n"+
 		"NAME     %s\r\nREGION   %s\r\nSOFTWARE %s\r\nLINES    %d\r\nMAX BAUD %d\r\nMEMBERS  %d\r\n\r\n"+
 		"この局は開発確認用です。会員総数は人口事実として保持し、初回アクセスではコア住人だけを実体化します。\r\n"+
-		"[P] 住人一覧  [B] 掲示板一覧  [H] ヘルプ  [G] 切断\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
+		"[P] 住人一覧  [B] 掲示板一覧  [H] ヘルプ  [G] 切断\r\n"+
+		"[RESET] 投稿履歴＋話題で具体化したPersona事実を消して再比較\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
 }
 
 func (r *Runtime) HandleLine(line string) (string, bool) {
@@ -62,17 +64,32 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 	}
 	switch strings.ToUpper(line) {
 	case "", "H", "HELP", "?":
-		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成ならPersona駆動で履歴を生成・保存）\r\nG BYE     切断\r\n\r\nDEV> ", false
+		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成ならPersona駆動で履歴を生成・保存）\r\nRESET     投稿履歴と話題依存Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
 	case "P", "PERSON", "PERSONA":
 		return r.renderPersonas(), false
 	case "B", "BOARD":
 		r.state = "boards"
 		return r.renderBoards(), false
+	case "RESET":
+		return r.resetConversation(), false
 	case "G", "BYE", "GOODBYE":
 		return "\r\nNO CARRIER\r\n", true
 	default:
 		return "? COMMAND ERROR\r\nDEV> ", false
 	}
+}
+
+func (r *Runtime) resetConversation() string {
+	s, ok := r.Store.(materializingStore)
+	if !ok {
+		return "\r\n[DEV] RESET STORE UNAVAILABLE\r\nDEV> "
+	}
+	posts, facts, ok := s.ResetMaterializationConversation(r.Host)
+	if !ok {
+		return "\r\n[DEV] RESET STORE UNAVAILABLE\r\nDEV> "
+	}
+	r.board = world.Board{}
+	return fmt.Sprintf("\r\n[DEV] CONVERSATION RESET : posts=%d / persona_facts=%d\r\n[DEV] KEPT               : host + boards + core persona skeletons\r\n次に B で掲示板へ入ると記事Envelopeを再生成します。\r\n\r\nDEV> ", posts, facts)
 }
 
 func (r *Runtime) renderPersonas() string {
@@ -194,6 +211,14 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	if total := s.MaterializationUsageTotalText(); total != "" {
 		tokenLine += "[DEV] TOKEN TOTAL   : " + total + "\r\n"
 	}
+	claimLine := "[DEV] CLAIMS        : (none)\r\n"
+	if len(p.Intent.Claims) > 0 {
+		claimLine = "[DEV] CLAIMS        : " + strings.Join(p.Intent.Claims, " / ") + "\r\n"
+	}
+	respondsLine := ""
+	if len(p.Intent.RespondsToClaims) > 0 {
+		respondsLine = "[DEV] RESPONDS TO   : " + strings.Join(p.Intent.RespondsToClaims, " / ") + "\r\n"
+	}
 	r.state = "article"
-	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n%s\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, tokenLine, p.ID, p.Subject, p.Author, p.Body), false
+	return fmt.Sprintf("\r\n[DEV] ARTICLE BODY : %s\r\n[DEV] ACTOR         : %s (%s)\r\n[DEV] ENVELOPE      : action=%s / topic=%s\r\n[DEV] MOTIVATION    : %s\r\n%s%s%s\r\nMSG No.%04d  %s\r\nFROM: %s\r\n------------------------------------------------------------\r\n%s\r\n------------------------------------------------------------\r\nRETURNで記事一覧 > ", status, p.Author, p.AuthorPersonaID, p.Intent.Action, p.Intent.Topic, p.Intent.Motivation, claimLine, respondsLine, tokenLine, p.ID, p.Subject, p.Author, p.Body), false
 }

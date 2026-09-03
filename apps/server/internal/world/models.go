@@ -24,11 +24,12 @@ type Board struct {
 }
 
 type PostIntent struct {
-	Action     string   `json:"action,omitempty"`
-	Topic      string   `json:"topic,omitempty"`
-	Motivation string   `json:"motivation,omitempty"`
-	Stance     string   `json:"stance,omitempty"`
-	Claims     []string `json:"claims,omitempty"`
+	Action           string   `json:"action,omitempty"`
+	Topic            string   `json:"topic,omitempty"`
+	Motivation       string   `json:"motivation,omitempty"`
+	Stance           string   `json:"stance,omitempty"`
+	Claims           []string `json:"claims,omitempty"`
+	RespondsToClaims []string `json:"responds_to_claims,omitempty"`
 }
 
 type Post struct {
@@ -58,4 +59,17 @@ type Persona struct {
 	WritingStyle        string
 	Interests           map[string]float64
 	Opinions            map[string]float64
+}
+
+// PersonaFact is a concrete fictional-world fact that did not need to exist in
+// detail when the persona skeleton was first created. A topic/action may lazily
+// materialize only the facts it needs. Once stored, later posts must reuse the
+// same fact instead of improvising a contradictory answer.
+type PersonaFact struct {
+	PersonaID      string    `json:"persona_id"`
+	Key            string    `json:"key"`
+	Topic          string    `json:"topic,omitempty"`
+	Value          string    `json:"value"`
+	MaterializedAt time.Time `json:"materialized_at"`
+	SourceKind     string    `json:"source_kind,omitempty"`
 }
