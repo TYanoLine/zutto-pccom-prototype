@@ -54,12 +54,13 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 	if !found {
 		return world.Post{}, false, false, ""
 	}
+	renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(postID)
-		return selected, true, false, formatGenerationUsage(usage)
+		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
 	}
 	if r.Engine == nil || r.Materializer == nil {
-		return selected, true, false, "error stage=setup detail=world engine or materializer unavailable"
+		return selected, true, false, joinDevelopmentDiagnostics("error stage=setup detail=world engine or materializer unavailable", contextStats.String())
 	}
 
 	var persona *world.Persona
@@ -87,16 +88,21 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		Specificity: .30,
 	})
 	if err != nil {
-		return selected, true, false, formatGenerationError("evidence", err)
+		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("evidence", err), contextStats.String())
 	}
 
+	// Context is reconstructed from the canonical BBS store for this rendering
+	// attempt. It is attached only to the local request copy and never persisted as
+	// part of the post envelope.
+	renderIntent := selected.Intent
+	renderIntent.RenderContext = renderContext
 	req := BoardMaterializationRequest{
 		Host:             host,
 		BoardID:          board.ID,
 		BoardTopic:       selected.Subject,
 		WorldDate:        r.WorldDate,
 		Persona:          persona,
-		Intent:           selected.Intent,
+		Intent:           renderIntent,
 		CanonicalSubject: selected.Subject,
 	}
 	var posts []world.Post
@@ -107,24 +113,25 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		posts, err = r.Materializer.GenerateBoardPosts(ctx, req, decision)
 	}
 	if err != nil {
-		return selected, true, false, formatGenerationError("renderer", err)
+		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("renderer", err), contextStats.String())
 	}
 	if len(posts) == 0 {
-		return selected, true, false, "error stage=renderer detail=no post returned"
+		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=no post returned", contextStats.String())
 	}
 	selected.Body = posts[0].Body
 	if selected.Body == "" {
-		return selected, true, false, "error stage=renderer detail=empty body returned"
+		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=empty body returned", contextStats.String())
 	}
 	if usage.TotalTokens > 0 || usage.Model != "" {
 		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: postID}, usage)
 	}
+	diagnostic := joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
-			return updated, true, true, formatGenerationUsage(usage)
+			return updated, true, true, diagnostic
 		}
 	}
-	return selected, true, true, formatGenerationUsage(usage)
+	return selected, true, true, diagnostic
 }
 
 func (r *Repository) MaterializationGenerationUsage(postID int64) (GenerationUsage, bool) {
@@ -193,4 +200,14 @@ func formatGenerationError(stage string, err error) string {
 		message = string(runes[:240]) + "..."
 	}
 	return fmt.Sprintf("error stage=%s detail=%s", stage, message)
+}
+
+func joinDevelopmentDiagnostics(parts ...string) string {
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if value := strings.TrimSpace(part); value != "" {
+			out = append(out, value)
+		}
+	}
+	return strings.Join(out, " ")
 }
