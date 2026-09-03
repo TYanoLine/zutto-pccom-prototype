@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +59,7 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		return selected, true, false, formatGenerationUsage(usage)
 	}
 	if r.Engine == nil || r.Materializer == nil {
-		return selected, true, false, ""
+		return selected, true, false, "error stage=setup detail=world engine or materializer unavailable"
 	}
 
 	var persona *world.Persona
@@ -69,7 +70,10 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	// The provider itself has a 30 second HTTP timeout. The old 20 second outer
+	// context could cancel a healthy request first, producing intermittent silent
+	// fallback. Give the provider enough room to finish and still keep this bounded.
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 		Kind:        historicalkb.KnowledgeCulturalSignal,
@@ -83,7 +87,7 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		Specificity: .30,
 	})
 	if err != nil {
-		return selected, true, false, ""
+		return selected, true, false, formatGenerationError("evidence", err)
 	}
 
 	req := BoardMaterializationRequest{
@@ -102,12 +106,15 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 	} else {
 		posts, err = r.Materializer.GenerateBoardPosts(ctx, req, decision)
 	}
-	if err != nil || len(posts) == 0 {
-		return selected, true, false, ""
+	if err != nil {
+		return selected, true, false, formatGenerationError("renderer", err)
+	}
+	if len(posts) == 0 {
+		return selected, true, false, "error stage=renderer detail=no post returned"
 	}
 	selected.Body = posts[0].Body
 	if selected.Body == "" {
-		return selected, true, false, ""
+		return selected, true, false, "error stage=renderer detail=empty body returned"
 	}
 	if usage.TotalTokens > 0 || usage.Model != "" {
 		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: postID}, usage)
@@ -174,4 +181,16 @@ func formatGenerationUsage(usage GenerationUsage) string {
 		model = "unknown"
 	}
 	return fmt.Sprintf("model=%s input=%d cached=%d output=%d reasoning=%d total=%d", model, usage.InputTokens, usage.CachedInputTokens, usage.OutputTokens, usage.ReasoningTokens, usage.TotalTokens)
+}
+
+func formatGenerationError(stage string, err error) string {
+	if err == nil {
+		return ""
+	}
+	message := strings.Join(strings.Fields(err.Error()), " ")
+	runes := []rune(message)
+	if len(runes) > 240 {
+		message = string(runes[:240]) + "..."
+	}
+	return fmt.Sprintf("error stage=%s detail=%s", stage, message)
 }
