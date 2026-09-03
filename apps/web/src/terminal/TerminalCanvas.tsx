@@ -107,11 +107,12 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
     const canvas = ref.current;
     if (!canvas) return;
 
-    // Finger moving upward should reveal older lines, just like dragging a
-    // terminal transcript upward. Scale by the displayed row height so the
-    // gesture feels the same on iPhone, iPad and desktop-sized canvases.
+    // Follow the direct-manipulation convention used by iOS scrolling:
+    // pulling the content downward reveals older lines above, while pushing
+    // upward moves back toward newer/live output. Scale by displayed row height
+    // so the gesture feels the same on iPhone, iPad and desktop-sized canvases.
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
-    const dragPixels = pointerLastYRef.current - e.clientY;
+    const dragPixels = e.clientY - pointerLastYRef.current;
     pointerLastYRef.current = e.clientY;
     pointerRemainderRef.current += dragPixels;
 
