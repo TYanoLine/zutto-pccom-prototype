@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"zutto-pccom/apps/server/internal/historicalkb"
@@ -11,12 +12,11 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
-// LLMMaterializer turns WorldEngine-selected facts into prose. It does not
-// decide whether an event happens or whether research is needed; those remain
-// WorldEngine/HistoricalKnowledge responsibilities.
+// LLMMaterializer turns WorldEngine-selected and world-validated semantic facts
+// into prose. It does not contain a canned prose fallback: a renderer failure
+// leaves the article unmaterialized so a later observation can retry.
 type LLMMaterializer struct {
 	Renderer llm.BoardPostRenderer
-	Fallback Materializer
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -32,8 +32,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		return nil, GenerationUsage{}, fmt.Errorf("verified historical knowledge unavailable")
 	}
 	if m.Renderer == nil {
-		posts, err := m.fallback(ctx, req, decision, fmt.Errorf("LLM board post renderer is not configured"))
-		return posts, GenerationUsage{}, err
+		return nil, GenerationUsage{}, fmt.Errorf("LLM board post renderer is not configured")
 	}
 
 	facts := usableClaims(decision)
@@ -58,8 +57,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		CanonicalSubject: req.CanonicalSubject,
 	})
 	if err != nil {
-		posts, fallbackErr := m.fallback(ctx, req, decision, fmt.Errorf("board post renderer failed: %w", err))
-		return posts, GenerationUsage{}, fallbackErr
+		return nil, GenerationUsage{}, fmt.Errorf("board post renderer failed: %w", err)
 	}
 
 	// Actor and subject are world facts when already selected by WorldRepository.
@@ -81,36 +79,31 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	return []world.Post{{Author: draft.Author, Subject: draft.Subject, Body: draft.Body, CreatedAt: worldTime(req.WorldDate)}}, usage, nil
 }
 
-func (m LLMMaterializer) fallback(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision, cause error) ([]world.Post, error) {
-	// The development materialization host is an observability harness. Silently
-	// committing generic fallback prose there makes a transient provider failure
-	// look like a World/Envelope quality regression and destroys the very semantic
-	// structure being inspected. Keep the envelope body empty so selecting the
-	// article again retries generation and the diagnostic path can expose the
-	// provider error.
-	if req.Host.SoftwareID == "materialization-demo" {
-		return nil, cause
-	}
-	// Verified materialization must not silently degrade into prose unsupported by
-	// required evidence. For atmospheric/plausible content outside the development
-	// harness, deterministic fallback keeps the world usable when the endpoint is
-	// temporarily unavailable.
-	if decision.Level == historicalkb.EvidenceVerified {
-		return nil, cause
-	}
-	if m.Fallback == nil {
-		return nil, cause
-	}
-	return m.Fallback.GenerateBoardPosts(ctx, req, decision)
-}
-
 func personaSummary(p world.Persona) string {
-	return fmt.Sprintf("age=%d; occupation=%s; activity=%s; reply=%.2f; thread_start=%.2f; lurker=%.2f; newcomer_open=%.2f; argumentative=%.2f; writing=%s",
-		p.Age, p.Occupation, p.ActivityPattern, p.ReplyTendency, p.ThreadStartTendency, p.LurkerTendency, p.NewcomerOpenness, p.Argumentativeness, p.WritingStyle)
+	interestKeys := make([]string, 0, len(p.Interests))
+	for key := range p.Interests {
+		interestKeys = append(interestKeys, key)
+	}
+	sort.Strings(interestKeys)
+	interests := make([]string, 0, len(interestKeys))
+	for _, key := range interestKeys {
+		interests = append(interests, fmt.Sprintf("%s=%.2f", key, p.Interests[key]))
+	}
+	opinionKeys := make([]string, 0, len(p.Opinions))
+	for key := range p.Opinions {
+		opinionKeys = append(opinionKeys, key)
+	}
+	sort.Strings(opinionKeys)
+	opinions := make([]string, 0, len(opinionKeys))
+	for _, key := range opinionKeys {
+		opinions = append(opinions, fmt.Sprintf("%s=%.2f", key, p.Opinions[key]))
+	}
+	return fmt.Sprintf("age=%d; gender=%s; occupation=%s; activity=%s; reply=%.2f; thread_start=%.2f; lurker=%.2f; newcomer_open=%.2f; argumentative=%.2f; writing=%s; interests=[%s]; opinions=[%s]",
+		p.Age, p.Gender, p.Occupation, p.ActivityPattern, p.ReplyTendency, p.ThreadStartTendency, p.LurkerTendency, p.NewcomerOpenness, p.Argumentativeness, p.WritingStyle, strings.Join(interests, ","), strings.Join(opinions, ","))
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 13)
+	parts := make([]string, 0, 10)
 	if i.Action != "" {
 		parts = append(parts, "action="+i.Action)
 	}
@@ -123,11 +116,8 @@ func intentSummary(i world.PostIntent) string {
 	if i.Stance != "" {
 		parts = append(parts, "stance="+i.Stance)
 	}
-	if i.ResponseAct != "" {
-		parts = append(parts, "response_act="+i.ResponseAct)
-	}
-	if len(i.InformationSlots) > 0 {
-		parts = append(parts, "information_slots="+strings.Join(i.InformationSlots, ","))
+	if i.Goal != "" {
+		parts = append(parts, "goal="+i.Goal)
 	}
 	if len(i.Claims) > 0 {
 		parts = append(parts, "claims="+strings.Join(i.Claims, " / "))
@@ -137,15 +127,6 @@ func intentSummary(i world.PostIntent) string {
 	}
 	if len(i.RespondsToClaims) > 0 {
 		parts = append(parts, "responds_to_claims="+strings.Join(i.RespondsToClaims, " / "))
-	}
-	if i.RespondsToQuestion != "" {
-		parts = append(parts, "responds_to_question="+i.RespondsToQuestion)
-	}
-	if i.FollowUpSlot != "" {
-		parts = append(parts, "follow_up_slot="+i.FollowUpSlot)
-	}
-	if i.FollowUpQuestion != "" {
-		parts = append(parts, "follow_up_question="+i.FollowUpQuestion)
 	}
 	if strings.TrimSpace(i.RenderContext) != "" {
 		parts = append(parts, "bbs_context:\n"+strings.TrimSpace(i.RenderContext))
