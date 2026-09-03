@@ -14,7 +14,7 @@ type materializingStore interface {
 	PopulationWasMaterialized(hostID string) bool
 	MaterializationPersonas(host world.Host) ([]world.Persona, bool)
 	MaterializationBoards(host world.Host) ([]world.Board, bool)
-	MaterializationDenseArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
+	MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool)
 	MaterializationArticleWithDebug(host world.Host, board world.Board, postID int64) (world.Post, bool, bool, string)
 	MaterializationUsageTotalText() string
 }
@@ -141,7 +141,7 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	if !ok {
 		return "\r\nSTORE ERROR\r\n"
 	}
-	posts, created := s.MaterializationDenseArticleHeaders(r.Host, r.board)
+	posts, created := s.MaterializationPersonaArticleHeaders(r.Host, r.board)
 	status := "STORED REUSE"
 	if created {
 		status = "PERSONA-DRIVEN ENVELOPES MATERIALIZED + STORED"
