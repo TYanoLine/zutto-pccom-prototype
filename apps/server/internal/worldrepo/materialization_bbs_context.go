@@ -15,10 +15,10 @@ type demoRetrievedPost struct {
 }
 
 type demoRenderContextStats struct {
-	threadPosts    int
-	threadBodies   int
+	threadPosts     int
+	threadBodies    int
 	threadEnvelopes int
-	relatedPosts   int
+	relatedPosts    int
 }
 
 func (s demoRenderContextStats) String() string {
@@ -28,9 +28,9 @@ func (s demoRenderContextStats) String() string {
 // materializationBBSRenderContext builds prompt context from canonical BBS data
 // every time a body is rendered. It deliberately does not use provider-side chat
 // history as world memory. Earlier materialized bodies are included verbatim-ish
-// (bounded), while still-lazy posts contribute their committed semantic envelope.
-// A tiny same-topic retrieval demonstrates the future RAG boundary without making
-// a vector index authoritative world state.
+// (bounded), while still-lazy posts contribute their committed free-form semantic
+// envelope. A tiny related-post retrieval demonstrates the future RAG boundary
+// without making a search index authoritative world state.
 func (r *Repository) materializationBBSRenderContext(host world.Host, board world.Board, selected world.Post) (string, demoRenderContextStats) {
 	all := r.Base.ListPosts(host.ID)
 	rootID := selected.ID
@@ -63,7 +63,7 @@ func (r *Repository) materializationBBSRenderContext(host world.Host, board worl
 			continue
 		}
 		score := 0.0
-		if selected.Intent.Topic != "" && post.Intent.Topic == selected.Intent.Topic {
+		if selected.Intent.Topic != "" && strings.EqualFold(strings.TrimSpace(post.Intent.Topic), strings.TrimSpace(selected.Intent.Topic)) {
 			score += 1.0
 		}
 		if normalizeDemoSubject(post.Subject) == normalizeDemoSubject(selected.Subject) {
@@ -116,6 +116,9 @@ func (r *Repository) materializationBBSRenderContext(host world.Host, board worl
 	for _, candidate := range related {
 		post := candidate.post
 		fmt.Fprintf(&b, "- MSG %04d %s %s: %s", post.ID, post.CreatedAt.Format("01/02"), post.Author, post.Subject)
+		if post.Intent.Topic != "" {
+			fmt.Fprintf(&b, " — topic: %s", truncateDemoContext(post.Intent.Topic, 120))
+		}
 		if len(post.Intent.Claims) > 0 {
 			fmt.Fprintf(&b, " — %s", truncateDemoContext(strings.Join(post.Intent.Claims, " / "), 180))
 		}
@@ -135,9 +138,6 @@ func boundedThreadContext(posts []world.Post, limit int) []world.Post {
 	if limit <= 0 || len(posts) <= limit {
 		return posts
 	}
-	// Keep the root if present, plus the most recent messages. That mirrors how a
-	// chat-like context window can preserve the opening cue without sending an
-	// unbounded thread transcript.
 	out := make([]world.Post, 0, limit)
 	out = append(out, posts[0])
 	start := len(posts) - (limit - 1)
@@ -149,21 +149,21 @@ func boundedThreadContext(posts []world.Post, limit int) []world.Post {
 }
 
 func demoPostSemanticSummary(post world.Post) string {
-	parts := make([]string, 0, 5)
-	if post.Intent.ResponseAct != "" {
-		parts = append(parts, "act="+post.Intent.ResponseAct)
+	parts := make([]string, 0, 6)
+	if post.Intent.Topic != "" {
+		parts = append(parts, "topic="+post.Intent.Topic)
+	}
+	if post.Intent.Goal != "" {
+		parts = append(parts, "goal="+post.Intent.Goal)
 	}
 	if len(post.Intent.Claims) > 0 {
 		parts = append(parts, "claims="+strings.Join(post.Intent.Claims, " / "))
 	}
+	if post.Intent.RespondsToPostID != 0 {
+		parts = append(parts, fmt.Sprintf("responds_to_msg=%04d", post.Intent.RespondsToPostID))
+	}
 	if len(post.Intent.RespondsToClaims) > 0 {
 		parts = append(parts, "reacts_to="+strings.Join(post.Intent.RespondsToClaims, " / "))
-	}
-	if post.Intent.RespondsToQuestion != "" {
-		parts = append(parts, "answers="+post.Intent.RespondsToQuestion)
-	}
-	if post.Intent.FollowUpQuestion != "" {
-		parts = append(parts, "asks="+post.Intent.FollowUpQuestion)
 	}
 	if len(parts) == 0 {
 		return "(no additional semantic detail)"

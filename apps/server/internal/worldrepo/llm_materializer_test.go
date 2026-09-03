@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"zutto-pccom/apps/server/internal/historicalkb"
@@ -12,14 +13,39 @@ import (
 )
 
 type fakeBoardRenderer struct {
-	req   llm.BoardPostRequest
-	draft llm.BoardPostDraft
-	err   error
+	req         llm.BoardPostRequest
+	draft       llm.BoardPostDraft
+	err         error
+	intentReq   llm.BBSTimelineIntentRequest
+	intentDraft llm.BBSTimelineIntentDraft
+	plannerErr  error
 }
 
 func (f *fakeBoardRenderer) GenerateBoardPost(_ context.Context, r llm.BoardPostRequest) (llm.BoardPostDraft, error) {
 	f.req = r
 	return f.draft, f.err
+}
+
+func (f *fakeBoardRenderer) GenerateBBSTimelineIntent(_ context.Context, r llm.BBSTimelineIntentRequest) (llm.BBSTimelineIntentDraft, error) {
+	f.intentReq = r
+	if f.plannerErr != nil {
+		return llm.BBSTimelineIntentDraft{}, f.plannerErr
+	}
+	if len(f.intentDraft.Events) > 0 {
+		return f.intentDraft, nil
+	}
+	out := llm.BBSTimelineIntentDraft{Events: make([]llm.BBSIntentDraft, 0, len(r.Events))}
+	for _, event := range r.Events {
+		out.Events = append(out.Events, llm.BBSIntentDraft{
+			Index:      event.Index,
+			Subject:    fmt.Sprintf("%s %02d", r.BoardName, event.Index),
+			Topic:      fmt.Sprintf("test-topic-%02d", event.Index),
+			Motivation: "test semantic motivation",
+			Stance:     "test semantic stance",
+			Goal:       "test semantic goal",
+		})
+	}
+	return out, nil
 }
 
 type failingFallback struct{ calls int }
@@ -68,16 +94,19 @@ func TestLLMMaterializerBindsCanonicalPersonaAndEnvelope(t *testing.T) {
 	}
 }
 
-func TestLLMMaterializerFallsBackForAtmosphericRenderFailure(t *testing.T) {
+func TestLLMMaterializerDoesNotFallbackForAtmosphericRenderFailure(t *testing.T) {
 	renderer := &fakeBoardRenderer{err: errors.New("model unavailable")}
 	fallback := &failingFallback{}
 	m := LLMMaterializer{Renderer: renderer, Fallback: fallback}
 	posts, err := m.GenerateBoardPosts(context.Background(), BoardMaterializationRequest{BoardTopic: "雑談", WorldDate: "1996-08-29"}, worldengine.EvidenceDecision{Level: historicalkb.EvidenceAtmospheric, Knowledge: historicalkb.KnowledgeResult{CanUse: true}})
-	if err != nil {
-		t.Fatal(err)
+	if err == nil || !errors.Is(err, renderer.err) {
+		t.Fatalf("renderer failure must remain visible: posts=%#v err=%v", posts, err)
 	}
-	if fallback.calls != 1 || len(posts) != 1 || posts[0].Author != "FALLBACK" {
-		t.Fatalf("fallback not used: calls=%d posts=%#v", fallback.calls, posts)
+	if fallback.calls != 0 {
+		t.Fatalf("atmospheric failure invoked canned fallback: %d", fallback.calls)
+	}
+	if len(posts) != 0 {
+		t.Fatalf("render failure returned synthetic posts: %#v", posts)
 	}
 }
 
@@ -93,3 +122,6 @@ func TestLLMMaterializerDoesNotFallbackForVerifiedFailure(t *testing.T) {
 		t.Fatalf("verified failure silently fell back: %d", fallback.calls)
 	}
 }
+
+var _ llm.BoardPostRenderer = (*fakeBoardRenderer)(nil)
+var _ llm.BBSTimelineIntentPlanner = (*fakeBoardRenderer)(nil)

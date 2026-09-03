@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -32,31 +33,45 @@ type generationUsageKey struct {
 	postID int64
 }
 
-// This registry exists only for the development materialization host. Keeping it
-// outside canonical Post state prevents provider billing metadata from leaking
-// into the simulated 1996 world. Production telemetry should eventually move to
-// normal observability/persistence rather than this process-local registry.
 var developmentGenerationUsage sync.Map
 
-// MaterializationArticleWithDebug mirrors the normal lazy body materialization
-// path but also captures renderer token usage when the configured materializer
-// exposes it. The body itself is still the only newly committed world fact.
+// MaterializationArticleWithDebug preserves lazy materialization while enforcing
+// causal prose order. If a user opens a later reply first, earlier posts in that
+// same thread are rendered and committed chronologically before the selected
+// reply. Thus observation order cannot rewrite the textual history of a thread.
 func (r *Repository) MaterializationArticleWithDebug(host world.Host, board world.Board, postID int64) (world.Post, bool, bool, string) {
-	var selected world.Post
-	found := false
-	for _, p := range r.Base.ListPosts(host.ID) {
-		if p.ID == postID && p.BoardID == board.ID {
-			selected = p
-			found = true
-			break
-		}
-	}
+	selected, found := r.findMaterializationPost(host.ID, board.ID, postID)
 	if !found {
 		return world.Post{}, false, false, ""
 	}
+	if selected.Body != "" {
+		renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
+		_ = renderContext
+		usage, _ := r.MaterializationGenerationUsage(postID)
+		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
+	}
+
+	for _, predecessor := range r.materializationThreadPredecessors(host.ID, board.ID, selected) {
+		if predecessor.Body != "" {
+			continue
+		}
+		_, ok, _, diagnostic := r.materializeArticleBodyOnce(host, board, predecessor)
+		if !ok || strings.Contains(diagnostic, "error stage=") {
+			return selected, true, false, joinDevelopmentDiagnostics(fmt.Sprintf("error stage=dependency msg=%04d", predecessor.ID), diagnostic)
+		}
+	}
+
+	selected, found = r.findMaterializationPost(host.ID, board.ID, postID)
+	if !found {
+		return world.Post{}, false, false, ""
+	}
+	return r.materializeArticleBodyOnce(host, board, selected)
+}
+
+func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (world.Post, bool, bool, string) {
 	renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
 	if selected.Body != "" {
-		usage, _ := r.MaterializationGenerationUsage(postID)
+		usage, _ := r.MaterializationGenerationUsage(selected.ID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
 	}
 	if r.Engine == nil || r.Materializer == nil {
@@ -71,9 +86,6 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		}
 	}
 
-	// The provider itself has a 30 second HTTP timeout. The old 20 second outer
-	// context could cancel a healthy request first, producing intermittent silent
-	// fallback. Give the provider enough room to finish and still keep this bounded.
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
@@ -91,9 +103,6 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("evidence", err), contextStats.String())
 	}
 
-	// Context is reconstructed from the canonical BBS store for this rendering
-	// attempt. It is attached only to the local request copy and never persisted as
-	// part of the post envelope.
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = renderContext
 	req := BoardMaterializationRequest{
@@ -123,7 +132,7 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=empty body returned", contextStats.String())
 	}
 	if usage.TotalTokens > 0 || usage.Model != "" {
-		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: postID}, usage)
+		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
 	}
 	diagnostic := joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
@@ -132,6 +141,38 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		}
 	}
 	return selected, true, true, diagnostic
+}
+
+func (r *Repository) findMaterializationPost(hostID, boardID string, postID int64) (world.Post, bool) {
+	for _, post := range r.Base.ListPosts(hostID) {
+		if post.ID == postID && post.BoardID == boardID {
+			return post, true
+		}
+	}
+	return world.Post{}, false
+}
+
+func (r *Repository) materializationThreadPredecessors(hostID, boardID string, selected world.Post) []world.Post {
+	if selected.ParentID == 0 {
+		return nil
+	}
+	rootID := selected.ParentID
+	out := make([]world.Post, 0, 8)
+	for _, post := range r.Base.ListPosts(hostID) {
+		if post.BoardID != boardID || post.ID == selected.ID || !postBefore(post, selected) {
+			continue
+		}
+		if post.ID == rootID || post.ParentID == rootID {
+			out = append(out, post)
+		}
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out
 }
 
 func (r *Repository) MaterializationGenerationUsage(postID int64) (GenerationUsage, bool) {
@@ -150,25 +191,37 @@ func (r *Repository) MaterializationUsageTotal() GenerationUsage {
 		if !ok || usageKey.repo != r {
 			return true
 		}
-		usage, ok := value.(GenerationUsage)
-		if !ok {
+		if usage, ok := value.(GenerationUsage); ok {
+			addGenerationUsage(&total, usage)
+		}
+		return true
+	})
+	developmentPlanningUsage.Range(func(key, value any) bool {
+		planningKey, ok := key.(developmentPlanningKey)
+		if !ok || planningKey.repo != r {
 			return true
 		}
-		total.InputTokens += usage.InputTokens
-		total.CachedInputTokens += usage.CachedInputTokens
-		total.OutputTokens += usage.OutputTokens
-		total.ReasoningTokens += usage.ReasoningTokens
-		total.TotalTokens += usage.TotalTokens
-		if usage.Model != "" {
-			if total.Model == "" {
-				total.Model = usage.Model
-			} else if total.Model != usage.Model {
-				total.Model = "mixed"
-			}
+		if usage, ok := value.(GenerationUsage); ok {
+			addGenerationUsage(&total, usage)
 		}
 		return true
 	})
 	return total
+}
+
+func addGenerationUsage(total *GenerationUsage, usage GenerationUsage) {
+	total.InputTokens += usage.InputTokens
+	total.CachedInputTokens += usage.CachedInputTokens
+	total.OutputTokens += usage.OutputTokens
+	total.ReasoningTokens += usage.ReasoningTokens
+	total.TotalTokens += usage.TotalTokens
+	if usage.Model != "" {
+		if total.Model == "" {
+			total.Model = usage.Model
+		} else if total.Model != usage.Model {
+			total.Model = "mixed"
+		}
+	}
 }
 
 func (r *Repository) MaterializationUsageTotalText() string {
