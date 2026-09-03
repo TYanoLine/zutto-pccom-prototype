@@ -95,7 +95,7 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 
 		var post world.Post
 		if root, ok := demoChooseReplyTarget(host, board, persona, created, roots, topics, i); ok && demoShouldReply(host, board, persona, created, i) {
-			post = r.demoReplyEnvelope(host, board, persona, root, created)
+			post = r.demoReplyEnvelope(host, board, persona, root, demoThreadPosts(root, out), created)
 		} else {
 			seed := demoChooseTopic(host, board, persona, created, topics, topicLastUsed, personaTopicLastUsed)
 
@@ -103,7 +103,7 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 			// that conversation is preferable to opening a second near-identical
 			// thread merely because the subject wording can be varied.
 			if root, ok := demoRecentRootForTopic(roots, seed.key, created); ok && seed.role != "sysop" {
-				post = r.demoReplyEnvelope(host, board, persona, root, created)
+				post = r.demoReplyEnvelope(host, board, persona, root, demoThreadPosts(root, out), created)
 			} else {
 				subject := demoChooseFreshSubject(host, board, persona, created, seed, subjectLastUsed)
 				post = r.demoRootEnvelope(host, board, persona, seed, subject, created)
