@@ -8,7 +8,7 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-func TestPC98PersonaFactsMaterializeOnlyWhenTopicNeedsThem(t *testing.T) {
+func TestPC98PersonaFactsMaterializeOnlyRequestedSlots(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
 	h, err := repo.HostByPhone("0450000196")
@@ -26,26 +26,38 @@ func TestPC98PersonaFactsMaterializeOnlyWhenTopicNeedsThem(t *testing.T) {
 	}
 
 	at := worldTime("1996-08-29").Add(-48 * time.Hour)
-	facts := repo.materializeDemoPersonaTopicFacts(taka, "pc98_environment", at)
-	if len(facts) < 2 {
-		t.Fatalf("pc98 topic facts=%d, want concrete lazy details", len(facts))
+	usageFacts := repo.materializeDemoPersonaFactsForSlots(taka, "pc98_environment", []string{"usage_pattern"}, at)
+	if len(usageFacts) != 1 {
+		t.Fatalf("usage facts=%d, want exactly one lazy slot", len(usageFacts))
 	}
-	if facts[0].Value == "" || facts[0].Topic != "pc98_environment" {
-		t.Fatalf("invalid materialized fact: %+v", facts[0])
+	if usageFacts[0].Key != "computer.pc98.usage" || usageFacts[0].Topic != "pc98_environment" {
+		t.Fatalf("unexpected usage fact: %+v", usageFacts[0])
+	}
+	if got := factStore.ListPersonaFacts(taka.ID); len(got) != 1 {
+		t.Fatalf("materializing one slot created %d facts", len(got))
 	}
 
-	reused := repo.materializeDemoPersonaTopicFacts(taka, "pc98_environment", at.Add(24*time.Hour))
-	if !reflect.DeepEqual(facts, reused) {
-		t.Fatalf("materialized persona facts changed on reuse:\nfirst=%+v\nreused=%+v", facts, reused)
+	modemFacts := repo.materializeDemoPersonaFactsForSlots(taka, "pc98_environment", []string{"modem"}, at.Add(time.Hour))
+	if len(modemFacts) != 1 || modemFacts[0].Key != "computer.pc98.modem" {
+		t.Fatalf("unexpected modem materialization: %+v", modemFacts)
+	}
+	if got := factStore.ListPersonaFacts(taka.ID); len(got) != 2 {
+		t.Fatalf("second requested slot did not extend facts one step at a time: %+v", got)
+	}
+
+	reused := repo.materializeDemoPersonaFactsForSlots(taka, "pc98_environment", []string{"usage_pattern"}, at.Add(24*time.Hour))
+	if !reflect.DeepEqual(usageFacts, reused) {
+		t.Fatalf("materialized persona fact changed on reuse:\nfirst=%+v\nreused=%+v", usageFacts, reused)
 	}
 }
 
-func TestReplyEnvelopeRespondsToConcreteParentClaim(t *testing.T) {
+func TestReplyEnvelopeAnswersQuestionAndAddsNewInformation(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
 	h, _ := repo.HostByPhone("0450000196")
 	personas, _ := repo.MaterializationPersonas(h)
 	taka, _ := personaByHandle(personas, "TAKA")
+	neko, _ := personaByHandle(personas, "NEKO")
 	mari, _ := personaByHandle(personas, "MARI")
 	boards, _ := repo.MaterializationBoards(h)
 	board := boards[1]
@@ -54,21 +66,49 @@ func TestReplyEnvelopeRespondsToConcreteParentClaim(t *testing.T) {
 
 	root := repo.demoRootEnvelope(h, board, taka, seed, "みなさんの98環境", at)
 	root = base.AddPost(h.ID, root)
-	if len(root.Intent.Claims) < 2 {
-		t.Fatalf("root claims too thin: %+v", root.Intent)
+	if len(root.Intent.Claims) != 2 {
+		t.Fatalf("root should reveal only two initial fact slots: %+v", root.Intent)
 	}
-	reply := repo.demoReplyEnvelope(h, board, mari, root, at.Add(3*time.Hour))
-	if reply.ParentID != root.ID || reply.Intent.Action != "reply" {
-		t.Fatalf("reply linkage invalid: %+v", reply)
+	if root.Intent.FollowUpSlot != "configuration" || root.Intent.FollowUpQuestion == "" {
+		t.Fatalf("root did not open a concrete next question: %+v", root.Intent)
 	}
-	if len(reply.Intent.RespondsToClaims) != 1 || reply.Intent.RespondsToClaims[0] != root.Intent.Claims[0] {
-		t.Fatalf("reply does not identify parent semantic hook: %+v", reply.Intent)
+
+	nekoReply := repo.demoReplyEnvelopeWithThread(h, board, neko, root, []world.Post{root}, at.Add(3*time.Hour))
+	if nekoReply.ParentID != root.ID || nekoReply.Intent.Action != "reply" {
+		t.Fatalf("reply linkage invalid: %+v", nekoReply)
 	}
-	if len(reply.Intent.Claims) < 2 {
-		t.Fatalf("reply has no concrete own claims: %+v", reply.Intent)
+	if nekoReply.Intent.ResponseAct != "answer_and_expand" {
+		t.Fatalf("reply act=%q, want answer_and_expand", nekoReply.Intent.ResponseAct)
 	}
-	if reflect.DeepEqual(reply.Intent.Claims, root.Intent.Claims) {
-		t.Fatal("reply copied parent claims instead of using the reply persona's facts")
+	if nekoReply.Intent.RespondsToPostID != root.ID || nekoReply.Intent.RespondsToQuestion != root.Intent.FollowUpQuestion {
+		t.Fatalf("reply did not answer the pending root question: %+v", nekoReply.Intent)
+	}
+	if !containsString(nekoReply.Intent.InformationSlots, "configuration") {
+		t.Fatalf("reply answer did not materialize configuration slot: %+v", nekoReply.Intent)
+	}
+	if len(nekoReply.Intent.Claims) < 2 {
+		t.Fatalf("reply failed to add its own concrete detail: %+v", nekoReply.Intent)
+	}
+	if nekoReply.Intent.FollowUpSlot != "storage_logs" || nekoReply.Intent.FollowUpQuestion == "" {
+		t.Fatalf("reply did not advance to another unanswered dimension: %+v", nekoReply.Intent)
+	}
+	nekoReply = base.AddPost(h.ID, nekoReply)
+
+	mariReply := repo.demoReplyEnvelopeWithThread(h, board, mari, root, []world.Post{root, nekoReply}, at.Add(6*time.Hour))
+	if mariReply.Intent.ResponseAct != "answer_and_expand" {
+		t.Fatalf("second reply act=%q, want answer_and_expand", mariReply.Intent.ResponseAct)
+	}
+	if mariReply.Intent.RespondsToPostID != nekoReply.ID || mariReply.Intent.RespondsToQuestion != nekoReply.Intent.FollowUpQuestion {
+		t.Fatalf("second reply skipped the pending question: %+v", mariReply.Intent)
+	}
+	if !containsString(mariReply.Intent.InformationSlots, "storage_logs") {
+		t.Fatalf("second reply did not answer storage_logs question: %+v", mariReply.Intent)
+	}
+	if !containsString(mariReply.Intent.InformationSlots, "shared_machine") {
+		t.Fatalf("second reply did not expand with a new persona-specific dimension: %+v", mariReply.Intent)
+	}
+	if reflect.DeepEqual(mariReply.Intent.Claims, nekoReply.Intent.Claims) {
+		t.Fatal("second reply merely repeated the prior resident's claims")
 	}
 }
 
@@ -81,9 +121,9 @@ func TestMaterializationConversationResetKeepsPersonaSkeletons(t *testing.T) {
 	boards, _ := repo.MaterializationBoards(h)
 	at := worldTime("1996-08-29").Add(-24 * time.Hour)
 
-	facts := repo.materializeDemoPersonaTopicFacts(taka, "pc98_environment", at)
-	if len(facts) == 0 {
-		t.Fatal("expected persona facts before reset")
+	facts := repo.materializeDemoPersonaFactsForSlots(taka, "pc98_environment", []string{"usage_pattern", "modem"}, at)
+	if len(facts) != 2 {
+		t.Fatalf("expected two lazy persona facts before reset, got %d", len(facts))
 	}
 	base.AddPost(h.ID, world.Post{BoardID: boards[1].ID, Author: taka.Handle, AuthorPersonaID: taka.ID, Subject: "test", CreatedAt: at})
 
@@ -108,21 +148,20 @@ func TestMaterializationConversationResetKeepsPersonaSkeletons(t *testing.T) {
 	}
 }
 
-func TestPersonaHistoryAvoidsRecentDuplicateSemanticRoots(t *testing.T) {
+func TestPersonaHistoryKeepsOnePC98SemanticRootInObservationWindow(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
 	h, _ := repo.HostByPhone("0450000196")
 	boards, _ := repo.MaterializationBoards(h)
 	posts, _ := repo.MaterializationPersonaArticleHeaders(h, boards[1])
 
-	lastRoot := map[string]time.Time{}
+	pc98Roots := 0
 	for _, post := range posts {
-		if post.ParentID != 0 || post.Intent.Topic == "board_housekeeping" {
-			continue
+		if post.ParentID == 0 && post.Intent.Topic == "pc98_environment" {
+			pc98Roots++
 		}
-		if previous, ok := lastRoot[post.Intent.Topic]; ok && post.CreatedAt.Sub(previous) < 10*24*time.Hour {
-			t.Fatalf("duplicate recent semantic root topic=%s previous=%s next=%s", post.Intent.Topic, previous, post.CreatedAt)
-		}
-		lastRoot[post.Intent.Topic] = post.CreatedAt
+	}
+	if pc98Roots > 1 {
+		t.Fatalf("pc98_environment opened %d separate roots inside one 14-day observation window", pc98Roots)
 	}
 }
