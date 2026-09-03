@@ -75,6 +75,13 @@ PRECOMMITTED ACTOR:
 PRECOMMITTED POST INTENT:
 %s
 
+SEMANTIC INTENT RULES:
+- If the intent contains claims=..., those are concrete fictional-world facts already decided for this person/post. Express them materially in the body instead of replacing them with generic filler.
+- If the intent contains responds_to_claims=..., those are specific facts from the earlier post that this reply is reacting to. Make that connection unmistakable in the reply.
+- For action=reply, do not write a standalone post that merely shares the same topic. Respond to the supplied earlier claim first, then add the actor's own claims naturally.
+- Do not invent a new owned machine, modem, software setup, family situation, job history, or other durable personal fact merely to make the prose more specific. Durable personal details must come from claims=...; ordinary connective wording and transient feelings are fine.
+- Do not say vague things such as "everyone has interesting setups" unless the committed semantic context actually supports that statement.
+
 CANONICAL HEADER RULES:
 - %s
 - %s
@@ -103,7 +110,7 @@ Rules:
 - The human-controlled user is not the center of the world and need not be mentioned.
 - Never mention AI, simulation, prompts, web searches, databases, social media, smartphones, or anything from after the world date.
 - Do not invent exact release dates, prices, model-specific availability, technical specifications, historical events, or other concrete factual claims unless they are supported by the supplied historical facts.
-- When no historical facts are supplied, ordinary personal chatter, impressions, questions, habits, and mundane details are fine.
+- When no historical facts are supplied, ordinary personal chatter, impressions, questions, habits, and mundane details are fine, but durable personal facts must still respect the precommitted claims.
 - Do not imply that all members share the same opinion or equipment.
 - Use plausible mid-1990s Japanese BBS prose, but avoid conspicuous era cosplay. Emoticons are optional and should follow the persona rather than being added mechanically.
 - Body: Japanese, 1-5 short paragraphs, at most about 500 Japanese characters.
