@@ -11,6 +11,15 @@ type ReplyRequest struct {
 	EraRules  string
 }
 
+type TokenUsage struct {
+	InputTokens       int
+	CachedInputTokens int
+	OutputTokens      int
+	ReasoningTokens   int
+	TotalTokens       int
+	Model             string
+}
+
 type BoardPostRequest struct {
 	HostName         string
 	HostRegion       string
@@ -27,9 +36,10 @@ type BoardPostRequest struct {
 }
 
 type BoardPostDraft struct {
-	Author  string `json:"author"`
-	Subject string `json:"subject"`
-	Body    string `json:"body"`
+	Author  string     `json:"author"`
+	Subject string     `json:"subject"`
+	Body    string     `json:"body"`
+	Usage   TokenUsage `json:"-"`
 }
 
 type Provider interface {
