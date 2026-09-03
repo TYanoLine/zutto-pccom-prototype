@@ -14,10 +14,12 @@ type demoPersonaFactBlueprint struct {
 }
 
 type demoConversationProgression struct {
-	responseAct      string
-	target           world.Post
-	informationSlots []string
-	followUpQuestion string
+	responseAct       string
+	target            world.Post
+	respondsToQuestion string
+	informationSlots  []string
+	followUpSlot      string
+	followUpQuestion  string
 }
 
 // materializeDemoPersonaFactsForSlots fills only the concrete persona details
@@ -63,6 +65,13 @@ func (r *Repository) materializeDemoPersonaFactsForSlots(persona world.Persona, 
 	return out
 }
 
+// Compatibility helper for tests and diagnostics that intentionally request the
+// whole currently-known topic slice. Runtime conversation generation should use
+// materializeDemoPersonaFactsForSlots so facts remain genuinely lazy.
+func (r *Repository) materializeDemoPersonaTopicFacts(persona world.Persona, topic string, at time.Time) []world.PersonaFact {
+	return r.materializeDemoPersonaFactsForSlots(persona, topic, demoAvailablePersonaSlots(persona, topic), at)
+}
+
 // The first PoC schema intentionally concentrates on the PC-98 environment
 // topic that exposed the thin-conversation problem. These are fictional facts
 // about fictional residents, not historical claims about PC-98 specifications.
@@ -87,6 +96,7 @@ func demoPersonaFactsForTopic(persona world.Persona, topic string) []demoPersona
 			{key: "computer.pc98.modem", slot: "modem", value: "モデムは外付けで、一度つながる設定が決まると普段はあまり触らない"},
 			{key: "computer.pc98.configuration", slot: "configuration", value: "細かい起動設定は得意ではなく、困ると詳しい会員に聞くことが多い"},
 			{key: "computer.pc98.pain_point", slot: "pain_point", value: "ゲームと通信を行き来するときに設定を戻したか不安になることがある"},
+			{key: "computer.pc98.logs", slot: "storage_logs", value: "気に入った会話のログは残すが、たまってくるとまとめて整理している"},
 		}
 	case "MARI":
 		return []demoPersonaFactBlueprint{
@@ -94,6 +104,7 @@ func demoPersonaFactsForTopic(persona world.Persona, topic string) []demoPersona
 			{key: "computer.pc98.other_usage", slot: "other_usage", value: "通信のほかにワープロやゲームにも同じPC-98を使っている"},
 			{key: "computer.pc98.configuration", slot: "configuration", value: "CONFIG.SYSやAUTOEXEC.BATを大きく変えるのは少し不安に感じている"},
 			{key: "computer.pc98.pain_point", slot: "pain_point", value: "家族が使いたい時間と自分が通信したい時間が重なると困ることがある"},
+			{key: "computer.pc98.logs", slot: "storage_logs", value: "あとで読み返したい会話だけログを残し、細かい整理はあまり得意ではない"},
 		}
 	case "NORI":
 		return []demoPersonaFactBlueprint{
@@ -101,6 +112,7 @@ func demoPersonaFactsForTopic(persona world.Persona, topic string) []demoPersona
 			{key: "computer.pc98.modem", slot: "modem", value: "外付けモデムを使い、通信ソフトの設定や巡回マクロは自分で調整している"},
 			{key: "computer.pc98.configuration", slot: "configuration", value: "常駐量や起動設定を確認しながら少しずつ調整するのが習慣になっている"},
 			{key: "computer.pc98.pain_point", slot: "pain_point", value: "用途ごとの設定差が増えすぎると管理が面倒になるので、変更点を増やしすぎないようにしている"},
+			{key: "computer.pc98.logs", slot: "storage_logs", value: "通信ログは後から検索しやすいよう掲示板や時期を意識して整理している"},
 		}
 	case "YUKI":
 		return []demoPersonaFactBlueprint{
@@ -108,6 +120,7 @@ func demoPersonaFactsForTopic(persona world.Persona, topic string) []demoPersona
 			{key: "computer.pc98.configuration", slot: "configuration", value: "ゲーム用と通信用で設定を切り替えるのを面倒に感じている"},
 			{key: "computer.pc98.confidence", slot: "configuration_confidence", value: "細かい設定は分かる範囲だけ触り、動いているところはあまり変えない"},
 			{key: "computer.pc98.pain_point", slot: "pain_point", value: "通信のためにゲーム側の環境を崩すのは避けたいと思っている"},
+			{key: "computer.pc98.logs", slot: "storage_logs", value: "ログは全部は残さず、あとで見たい話題だけ取っておくことが多い"},
 		}
 	case "TAKA":
 		return []demoPersonaFactBlueprint{
@@ -115,11 +128,13 @@ func demoPersonaFactsForTopic(persona world.Persona, topic string) []demoPersona
 			{key: "computer.pc98.modem", slot: "modem", value: "通信には外付けモデムをつないで使っている"},
 			{key: "computer.pc98.configuration", slot: "configuration", value: "構成は標準に近いままで、CONFIG.SYSやAUTOEXEC.BATは必要な時だけ触る"},
 			{key: "computer.pc98.pain_point", slot: "pain_point", value: "ゲームと通信で必要な設定が違う時だけ切り替えるのが少し面倒だと感じている"},
+			{key: "computer.pc98.logs", slot: "storage_logs", value: "通信ログは必要そうなものだけ残し、容量が気になると古いものから整理している"},
 		}
 	default:
 		return []demoPersonaFactBlueprint{
 			{key: "computer.pc98.usage", slot: "usage_pattern", value: "自宅のPC-98を通信以外の用途とも兼用している"},
 			{key: "computer.pc98.configuration", slot: "configuration", value: "普段動いている設定は必要がなければ変えない"},
+			{key: "computer.pc98.logs", slot: "storage_logs", value: "必要な通信ログだけ手元に残している"},
 		}
 	}
 }
@@ -135,6 +150,10 @@ func demoAvailablePersonaSlots(persona world.Persona, topic string) []string {
 		out = append(out, fact.slot)
 	}
 	return out
+}
+
+func demoCanAnswerSlot(persona world.Persona, topic, slot string) bool {
+	return containsString(demoAvailablePersonaSlots(persona, topic), slot)
 }
 
 func demoClaimsFromPersonaFacts(facts []world.PersonaFact) []string {
@@ -182,6 +201,27 @@ func demoLatestSemanticTarget(posts []world.Post) world.Post {
 	return world.Post{}
 }
 
+func demoPendingQuestion(posts []world.Post) (world.Post, bool) {
+	for i := len(posts) - 1; i >= 0; i-- {
+		questionPost := posts[i]
+		if questionPost.Intent.FollowUpSlot == "" || questionPost.Intent.FollowUpQuestion == "" {
+			continue
+		}
+		answered := false
+		for j := i + 1; j < len(posts); j++ {
+			reply := posts[j]
+			if reply.Intent.RespondsToPostID == questionPost.ID && reply.Intent.RespondsToQuestion == questionPost.Intent.FollowUpQuestion {
+				answered = true
+				break
+			}
+		}
+		if !answered {
+			return questionPost, true
+		}
+	}
+	return world.Post{}, false
+}
+
 func demoInitialInformationSlots(persona world.Persona, topic string) []string {
 	available := demoAvailablePersonaSlots(persona, topic)
 	if len(available) <= 2 {
@@ -190,52 +230,60 @@ func demoInitialInformationSlots(persona world.Persona, topic string) []string {
 	return available[:2]
 }
 
-func demoReplyInformationSlots(persona world.Persona, topic string, covered map[string]bool) []string {
+func demoReplyInformationSlots(persona world.Persona, topic string, covered map[string]bool, preferred string) []string {
 	available := demoAvailablePersonaSlots(persona, topic)
 	out := make([]string, 0, 2)
+	if preferred != "" && containsString(available, preferred) {
+		out = append(out, preferred)
+	}
 	for _, slot := range available {
-		if !covered[slot] {
-			out = append(out, slot)
+		if containsString(out, slot) || covered[slot] {
+			continue
 		}
+		out = append(out, slot)
+		if len(out) == 2 {
+			return out
+		}
+	}
+	// If every broad dimension has already appeared, a different resident may
+	// still contribute their own answer to one of those dimensions. Reuse one
+	// available slot instead of inventing a fake new topic dimension.
+	for _, slot := range available {
+		if containsString(out, slot) {
+			continue
+		}
+		out = append(out, slot)
 		if len(out) == 2 {
 			break
 		}
 	}
-	if len(out) > 0 {
-		return out
-	}
-	// Once the thread has covered every broad dimension, reuse one personal slot
-	// rather than fabricating a new dimension just to keep the conversation alive.
-	if len(available) > 0 {
-		return available[:1]
-	}
-	return nil
+	return out
 }
 
-func demoFollowUpQuestion(topic string, covered map[string]bool, justAdded []string) string {
+func demoFollowUpQuestion(topic string, covered map[string]bool, justAdded []string) (string, string) {
 	if topic != "pc98_environment" {
-		return ""
+		return "", ""
 	}
-	for _, slot := range []string{"configuration", "modem", "storage_logs", "pain_point", "shared_machine", "other_usage"} {
+	for _, slot := range []string{"configuration", "storage_logs", "pain_point", "shared_machine", "other_usage", "modem"} {
 		if covered[slot] || containsString(justAdded, slot) {
 			continue
 		}
 		switch slot {
 		case "configuration":
-			return "通信するときと普段使うときで、起動時の設定を分けていますか？"
-		case "modem":
-			return "モデムは内蔵と外付けのどちらを使っていますか？"
+			return slot, "通信するときと普段使うときで、起動時の設定を分けていますか？"
 		case "storage_logs":
-			return "通信ログはどのくらい残していますか？"
+			return slot, "通信ログはどのくらい残していますか？"
 		case "pain_point":
-			return "兼用していて一番面倒に感じるのはどの辺ですか？"
+			return slot, "兼用していて一番面倒に感じるのはどの辺ですか？"
 		case "shared_machine":
-			return "通信に使う98は自分専用ですか、それとも家族と共用ですか？"
+			return slot, "通信に使う98は自分専用ですか、それとも家族と共用ですか？"
 		case "other_usage":
-			return "通信以外にはその98を何に使っていますか？"
+			return slot, "通信以外にはその98を何に使っていますか？"
+		case "modem":
+			return slot, "モデムは内蔵と外付けのどちらを使っていますか？"
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func containsString(values []string, wanted string) bool {
@@ -255,21 +303,35 @@ func demoRespondsToClaims(target world.Post) []string {
 }
 
 func demoConversationMove(persona world.Persona, root world.Post, thread []world.Post) demoConversationProgression {
-	target := demoLatestSemanticTarget(thread)
 	covered := demoCoveredInformationSlots(thread)
-	slots := demoReplyInformationSlots(persona, root.Intent.Topic, covered)
+	target := demoLatestSemanticTarget(thread)
+	preferred := ""
+	respondsToQuestion := ""
 	act := "compare_and_expand"
-	if target.Intent.FollowUpQuestion != "" {
+	answeredPending := false
+
+	if pending, ok := demoPendingQuestion(thread); ok && demoCanAnswerSlot(persona, root.Intent.Topic, pending.Intent.FollowUpSlot) {
+		target = pending
+		preferred = pending.Intent.FollowUpSlot
+		respondsToQuestion = pending.Intent.FollowUpQuestion
 		act = "answer_and_expand"
+		answeredPending = true
 	} else if len(thread) >= 3 {
 		act = "add_new_detail"
 	}
-	question := demoFollowUpQuestion(root.Intent.Topic, covered, slots)
+
+	slots := demoReplyInformationSlots(persona, root.Intent.Topic, covered, preferred)
+	followUpSlot, followUpQuestion := "", ""
+	if _, hasPending := demoPendingQuestion(thread); !hasPending || answeredPending {
+		followUpSlot, followUpQuestion = demoFollowUpQuestion(root.Intent.Topic, covered, slots)
+	}
 	return demoConversationProgression{
-		responseAct:      act,
-		target:           target,
-		informationSlots: slots,
-		followUpQuestion: question,
+		responseAct:        act,
+		target:             target,
+		respondsToQuestion: respondsToQuestion,
+		informationSlots:   slots,
+		followUpSlot:       followUpSlot,
+		followUpQuestion:   followUpQuestion,
 	}
 }
 
@@ -287,7 +349,7 @@ func demoRecentRootForTopic(roots []world.Post, topic string, at time.Time) (wor
 	return world.Post{}, false
 }
 
-func (r *Repository) demoReplyEnvelope(host world.Host, board world.Board, persona world.Persona, root world.Post, thread []world.Post, created time.Time) world.Post {
+func (r *Repository) demoReplyEnvelopeWithThread(host world.Host, board world.Board, persona world.Persona, root world.Post, thread []world.Post, created time.Time) world.Post {
 	move := demoConversationMove(persona, root, thread)
 	facts := r.materializeDemoPersonaFactsForSlots(persona, root.Intent.Topic, move.informationSlots, created)
 	claims := demoClaimsFromPersonaFacts(facts)
@@ -301,19 +363,26 @@ func (r *Repository) demoReplyEnvelope(host world.Host, board world.Board, perso
 		AuthorPersonaID: persona.ID,
 		Subject:         "Re: " + root.Subject,
 		Intent: world.PostIntent{
-			Action:           "reply",
-			Topic:            root.Intent.Topic,
-			Motivation:       demoReplyMotivation(persona, root),
-			Stance:           demoPersonaStance(persona),
-			Claims:           claims,
-			RespondsToClaims: demoRespondsToClaims(move.target),
-			RespondsToPostID: move.target.ID,
-			ResponseAct:      move.responseAct,
-			InformationSlots: move.informationSlots,
-			FollowUpQuestion: move.followUpQuestion,
+			Action:             "reply",
+			Topic:              root.Intent.Topic,
+			Motivation:         demoReplyMotivation(persona, root),
+			Stance:             demoPersonaStance(persona),
+			Claims:             claims,
+			RespondsToClaims:   demoRespondsToClaims(move.target),
+			RespondsToPostID:   move.target.ID,
+			RespondsToQuestion: move.respondsToQuestion,
+			ResponseAct:        move.responseAct,
+			InformationSlots:   move.informationSlots,
+			FollowUpSlot:       move.followUpSlot,
+			FollowUpQuestion:   move.followUpQuestion,
 		},
 		CreatedAt: created,
 	}
+}
+
+// Compatibility wrapper for focused tests that only provide a root post.
+func (r *Repository) demoReplyEnvelope(host world.Host, board world.Board, persona world.Persona, root world.Post, created time.Time) world.Post {
+	return r.demoReplyEnvelopeWithThread(host, board, persona, root, []world.Post{root}, created)
 }
 
 func (r *Repository) demoRootEnvelope(host world.Host, board world.Board, persona world.Persona, seed demoTopicSeed, subject string, created time.Time) world.Post {
@@ -328,20 +397,22 @@ func (r *Repository) demoRootEnvelope(host world.Host, board world.Board, person
 	for _, slot := range slots {
 		covered[slot] = true
 	}
+	followUpSlot, followUpQuestion := demoFollowUpQuestion(seed.key, covered, nil)
 	return world.Post{
 		BoardID:         board.ID,
 		Author:          persona.Handle,
 		AuthorPersonaID: persona.ID,
 		Subject:         subject,
 		Intent: world.PostIntent{
-			Action:           action,
-			Topic:            seed.key,
-			Motivation:       seed.motivation,
-			Stance:           demoPersonaStance(persona),
-			Claims:           claims,
-			ResponseAct:      "thread_start",
-			InformationSlots: slots,
-			FollowUpQuestion: demoFollowUpQuestion(seed.key, covered, nil),
+			Action:            action,
+			Topic:             seed.key,
+			Motivation:        seed.motivation,
+			Stance:            demoPersonaStance(persona),
+			Claims:            claims,
+			ResponseAct:       "thread_start",
+			InformationSlots:  slots,
+			FollowUpSlot:      followUpSlot,
+			FollowUpQuestion:  followUpQuestion,
 		},
 		CreatedAt: created,
 	}
