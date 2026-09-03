@@ -51,7 +51,7 @@ func TestPC98PersonaFactsMaterializeOnlyRequestedSlots(t *testing.T) {
 	}
 }
 
-func TestReplyEnvelopeAnswersQuestionAndAddsNewInformation(t *testing.T) {
+func TestNaturalReplyEnvelopeDoesNotCreateQuestionnaireChain(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
 	h, _ := repo.HostByPhone("0450000196")
@@ -64,51 +64,33 @@ func TestReplyEnvelopeAnswersQuestionAndAddsNewInformation(t *testing.T) {
 	seed := demoTopicSeed{key: "pc98_environment", motivation: "PC-98側の環境について他の利用者の構成も聞いてみたい"}
 	at := worldTime("1996-08-29").Add(-72 * time.Hour)
 
-	root := repo.demoRootEnvelope(h, board, taka, seed, "みなさんの98環境", at)
+	root := repo.demoNaturalRootEnvelope(h, board, taka, seed, "みなさんの98環境", at)
 	root = base.AddPost(h.ID, root)
-	if len(root.Intent.Claims) != 2 {
-		t.Fatalf("root should reveal only two initial fact slots: %+v", root.Intent)
+	if len(root.Intent.Claims) == 0 || len(root.Intent.InformationSlots) == 0 {
+		t.Fatalf("root has no lazily materialized personal detail: %+v", root.Intent)
 	}
-	if root.Intent.FollowUpSlot != "configuration" || root.Intent.FollowUpQuestion == "" {
-		t.Fatalf("root did not open a concrete next question: %+v", root.Intent)
+	if root.Intent.FollowUpSlot != "" || root.Intent.FollowUpQuestion != "" {
+		t.Fatalf("root unexpectedly starts a forced question chain: %+v", root.Intent)
 	}
 
-	nekoReply := repo.demoReplyEnvelopeWithThread(h, board, neko, root, []world.Post{root}, at.Add(3*time.Hour))
+	nekoReply := repo.demoNaturalReplyEnvelopeWithThread(h, board, neko, root, []world.Post{root}, at.Add(3*time.Hour))
 	if nekoReply.ParentID != root.ID || nekoReply.Intent.Action != "reply" {
 		t.Fatalf("reply linkage invalid: %+v", nekoReply)
 	}
-	if nekoReply.Intent.ResponseAct != "answer_and_expand" {
-		t.Fatalf("reply act=%q, want answer_and_expand", nekoReply.Intent.ResponseAct)
+	if nekoReply.Intent.ResponseAct == "" || len(nekoReply.Intent.Claims) == 0 {
+		t.Fatalf("reply missing actor move/claims: %+v", nekoReply.Intent)
 	}
-	if nekoReply.Intent.RespondsToPostID != root.ID || nekoReply.Intent.RespondsToQuestion != root.Intent.FollowUpQuestion {
-		t.Fatalf("reply did not answer the pending root question: %+v", nekoReply.Intent)
-	}
-	if !containsString(nekoReply.Intent.InformationSlots, "configuration") {
-		t.Fatalf("reply answer did not materialize configuration slot: %+v", nekoReply.Intent)
-	}
-	if len(nekoReply.Intent.Claims) < 2 {
-		t.Fatalf("reply failed to add its own concrete detail: %+v", nekoReply.Intent)
-	}
-	if nekoReply.Intent.FollowUpSlot != "storage_logs" || nekoReply.Intent.FollowUpQuestion == "" {
-		t.Fatalf("reply did not advance to another unanswered dimension: %+v", nekoReply.Intent)
+	if nekoReply.Intent.FollowUpSlot != "" || nekoReply.Intent.FollowUpQuestion != "" || nekoReply.Intent.RespondsToQuestion != "" {
+		t.Fatalf("reply still behaves like a questionnaire: %+v", nekoReply.Intent)
 	}
 	nekoReply = base.AddPost(h.ID, nekoReply)
 
-	mariReply := repo.demoReplyEnvelopeWithThread(h, board, mari, root, []world.Post{root, nekoReply}, at.Add(6*time.Hour))
-	if mariReply.Intent.ResponseAct != "answer_and_expand" {
-		t.Fatalf("second reply act=%q, want answer_and_expand", mariReply.Intent.ResponseAct)
+	mariReply := repo.demoNaturalReplyEnvelopeWithThread(h, board, mari, root, []world.Post{root, nekoReply}, at.Add(6*time.Hour))
+	if mariReply.Intent.RespondsToPostID != nekoReply.ID {
+		t.Fatalf("second reply should naturally see the latest semantic post, got target=%d want=%d", mariReply.Intent.RespondsToPostID, nekoReply.ID)
 	}
-	if mariReply.Intent.RespondsToPostID != nekoReply.ID || mariReply.Intent.RespondsToQuestion != nekoReply.Intent.FollowUpQuestion {
-		t.Fatalf("second reply skipped the pending question: %+v", mariReply.Intent)
-	}
-	if !containsString(mariReply.Intent.InformationSlots, "storage_logs") {
-		t.Fatalf("second reply did not answer storage_logs question: %+v", mariReply.Intent)
-	}
-	if !containsString(mariReply.Intent.InformationSlots, "shared_machine") {
-		t.Fatalf("second reply did not expand with a new persona-specific dimension: %+v", mariReply.Intent)
-	}
-	if reflect.DeepEqual(mariReply.Intent.Claims, nekoReply.Intent.Claims) {
-		t.Fatal("second reply merely repeated the prior resident's claims")
+	if mariReply.Intent.FollowUpSlot != "" || mariReply.Intent.FollowUpQuestion != "" || mariReply.Intent.RespondsToQuestion != "" {
+		t.Fatalf("second reply reintroduced forced question progression: %+v", mariReply.Intent)
 	}
 }
 

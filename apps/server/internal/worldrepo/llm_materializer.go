@@ -110,7 +110,7 @@ func personaSummary(p world.Persona) string {
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 12)
+	parts := make([]string, 0, 13)
 	if i.Action != "" {
 		parts = append(parts, "action="+i.Action)
 	}
@@ -146,6 +146,9 @@ func intentSummary(i world.PostIntent) string {
 	}
 	if i.FollowUpQuestion != "" {
 		parts = append(parts, "follow_up_question="+i.FollowUpQuestion)
+	}
+	if strings.TrimSpace(i.RenderContext) != "" {
+		parts = append(parts, "bbs_context:\n"+strings.TrimSpace(i.RenderContext))
 	}
 	return strings.Join(parts, "; ")
 }

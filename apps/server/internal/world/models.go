@@ -36,6 +36,12 @@ type PostIntent struct {
 	InformationSlots   []string `json:"information_slots,omitempty"`
 	FollowUpSlot       string   `json:"follow_up_slot,omitempty"`
 	FollowUpQuestion   string   `json:"follow_up_question,omitempty"`
+
+	// RenderContext is transient input assembled from canonical BBS data immediately
+	// before prose rendering. It is never canonical world state and must not be
+	// persisted/serialized. The PoC uses it for thread history + small related-post
+	// retrieval while keeping the database as the source of truth.
+	RenderContext string `json:"-"`
 }
 
 type Post struct {
