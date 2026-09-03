@@ -145,6 +145,13 @@ func (r *Repository) MaterializationUsageTotal() GenerationUsage {
 		total.OutputTokens += usage.OutputTokens
 		total.ReasoningTokens += usage.ReasoningTokens
 		total.TotalTokens += usage.TotalTokens
+		if usage.Model != "" {
+			if total.Model == "" {
+				total.Model = usage.Model
+			} else if total.Model != usage.Model {
+				total.Model = "mixed"
+			}
+		}
 		return true
 	})
 	return total

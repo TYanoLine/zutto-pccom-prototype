@@ -11,15 +11,35 @@ This is the same lazy-world principle used for hosts and unobserved history: **u
 ```text
 sparse persona skeleton
  -> WorldEngine selects a topic/action
+ -> reconstruct current thread semantic state
+ -> select a conversational move
+    (thread_start / answer_and_expand / compare_and_expand / add_new_detail)
+ -> select information slots needed by that move
  -> required persona fact is missing
- -> materialize only that fact scope
- -> persist the fact as world truth
- -> select PostIntent claims from persisted facts
- -> for replies, select the parent claims being answered
+ -> materialize only those fact slots
+ -> persist the facts as world truth
+ -> commit PostIntent claims + reply/question links
  -> render prose from Persona + PostIntent
 ```
 
 Once a persona fact has been materialized, later posts reuse it. A prose renderer must not silently improvise a contradictory durable fact.
+
+The important boundary is that conversation may **cause a previously unknown part of a persona to become concrete**, but the LLM writing the visible prose does not get to decide that durable fact on its own.
+
+## Thread semantic progression
+
+A reply is not considered meaningful merely because it has `Re:` or shares a semantic topic. The development PoC reconstructs a small thread state from committed post envelopes:
+
+- which semantic information dimensions have already appeared;
+- whether a prior post left a concrete follow-up question unanswered;
+- which post/claim/question the next reply is addressing;
+- which new information dimensions the reply will contribute.
+
+`PostIntent.ResponseAct` records the conversational job. `InformationSlots` records the dimensions being added. `RespondsToPostID`, `RespondsToClaims` and `RespondsToQuestion` identify the semantic target. `FollowUpSlot` and `FollowUpQuestion` can deliberately leave a new question for a later resident.
+
+When a pending question can be answered by the selected persona, that answer is preferred and the necessary persona fact slot is materialized at that moment. A reply may then add another previously uncovered dimension. If the selected persona cannot answer the pending question, the engine must not pretend that it did or pile another unrelated question on top merely to keep prose moving.
+
+This is intentionally **not** a rule that every reply must add maximum information. Silence, short agreement and repetition remain valid future world behaviors. The PoC uses stronger progression pressure because it is specifically testing the previously observed failure mode where several residents independently said little more than “I use mine that way too.” Production behavior should later calibrate progression rates from historical material rather than force every thread to be productive.
 
 ## Historical boundary
 
@@ -31,9 +51,11 @@ Claims about real hardware limits, exact product behavior, release dates, prices
 
 The first concrete schema is `pc98_environment`, because the development materialization host exposed thin replies around the topic `通信に使ってる98の構成`.
 
-The PoC lazily materializes a few facts such as shared/dedicated usage, communication-vs-game use, external modem usage, and confidence about DOS startup configuration. These facts are intentionally about the fictional resident rather than exact historical model specifications.
+The PoC has a small set of topic-specific latent fact candidates for the core demo residents (usage pattern, modem style, startup configuration habits, log retention, shared-machine use, other use and pain points). **They are not all persisted up front.** The semantic move requests one or two slots, and only those slots become persona facts. This fixed candidate set is development scaffolding, not the intended production representation of every possible fact a person can have.
 
-`PostIntent.Claims` records what the actor will actually say. `PostIntent.RespondsToClaims` records which already-committed parent claim a reply is responding to. The LLM verbalizes those facts; it does not decide them.
+The production direction is to let the world engine generate/materialize a bounded fact only when the conversation or another world action requires it, subject to existing persona state, already-observed facts, historical constraints and deterministic/shared-world rules.
+
+`PostIntent.Claims` records what the actor will actually say. The LLM verbalizes the committed semantic move; it does not decide the resident's durable setup, the question being answered, or the new information that enters the thread.
 
 ## Development reset
 

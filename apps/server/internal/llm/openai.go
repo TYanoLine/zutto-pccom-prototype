@@ -77,8 +77,12 @@ PRECOMMITTED POST INTENT:
 
 SEMANTIC INTENT RULES:
 - If the intent contains claims=..., those are concrete fictional-world facts already decided for this person/post. Express them materially in the body instead of replacing them with generic filler.
-- If the intent contains responds_to_claims=..., those are specific facts from the earlier post that this reply is reacting to. Make that connection unmistakable in the reply.
-- For action=reply, do not write a standalone post that merely shares the same topic. Respond to the supplied earlier claim first, then add the actor's own claims naturally.
+- If the intent contains responds_to_claims=..., those are specific facts from an earlier post that this reply is reacting to. Make that connection unmistakable in the reply.
+- If the intent contains responds_to_question=..., answer that actual question before moving on to other material. Do not silently replace it with a different question.
+- response_act describes the conversational job of the post. For answer_and_expand, answer first and then add the actor's new detail. For compare_and_expand, make the comparison explicit and then contribute new information. For add_new_detail, avoid merely repeating agreement already established in the thread.
+- information_slots are internal semantic dimensions that this post is expected to add. Never print the slot names, but make the associated claims feel like genuinely new information in the conversation rather than paraphrasing the earlier post.
+- If follow_up_question=... is supplied, ask that question naturally near the end. It is already part of the committed conversational move. Never print follow_up_slot; that is only an internal label.
+- For action=reply, do not write a standalone post that merely shares the same topic. Respond to the supplied earlier claim/question first, then add the actor's own claims naturally.
 - Do not invent a new owned machine, modem, software setup, family situation, job history, or other durable personal fact merely to make the prose more specific. Durable personal details must come from claims=...; ordinary connective wording and transient feelings are fine.
 - Do not say vague things such as "everyone has interesting setups" unless the committed semantic context actually supports that statement.
 

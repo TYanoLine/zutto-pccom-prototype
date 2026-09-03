@@ -100,7 +100,7 @@ func personaSummary(p world.Persona) string {
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 6)
+	parts := make([]string, 0, 12)
 	if i.Action != "" {
 		parts = append(parts, "action="+i.Action)
 	}
@@ -113,11 +113,29 @@ func intentSummary(i world.PostIntent) string {
 	if i.Stance != "" {
 		parts = append(parts, "stance="+i.Stance)
 	}
+	if i.ResponseAct != "" {
+		parts = append(parts, "response_act="+i.ResponseAct)
+	}
+	if len(i.InformationSlots) > 0 {
+		parts = append(parts, "information_slots="+strings.Join(i.InformationSlots, ","))
+	}
 	if len(i.Claims) > 0 {
 		parts = append(parts, "claims="+strings.Join(i.Claims, " / "))
 	}
+	if i.RespondsToPostID != 0 {
+		parts = append(parts, fmt.Sprintf("responds_to_post_id=%d", i.RespondsToPostID))
+	}
 	if len(i.RespondsToClaims) > 0 {
 		parts = append(parts, "responds_to_claims="+strings.Join(i.RespondsToClaims, " / "))
+	}
+	if i.RespondsToQuestion != "" {
+		parts = append(parts, "responds_to_question="+i.RespondsToQuestion)
+	}
+	if i.FollowUpSlot != "" {
+		parts = append(parts, "follow_up_slot="+i.FollowUpSlot)
+	}
+	if i.FollowUpQuestion != "" {
+		parts = append(parts, "follow_up_question="+i.FollowUpQuestion)
 	}
 	return strings.Join(parts, "; ")
 }
