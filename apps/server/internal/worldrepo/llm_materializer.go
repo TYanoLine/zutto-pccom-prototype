@@ -58,7 +58,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		CanonicalSubject: req.CanonicalSubject,
 	})
 	if err != nil {
-		posts, fallbackErr := m.fallback(ctx, req, decision, err)
+		posts, fallbackErr := m.fallback(ctx, req, decision, fmt.Errorf("board post renderer failed: %w", err))
 		return posts, GenerationUsage{}, fallbackErr
 	}
 
@@ -82,9 +82,19 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 }
 
 func (m LLMMaterializer) fallback(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision, cause error) ([]world.Post, error) {
+	// The development materialization host is an observability harness. Silently
+	// committing generic fallback prose there makes a transient provider failure
+	// look like a World/Envelope quality regression and destroys the very semantic
+	// structure being inspected. Keep the envelope body empty so selecting the
+	// article again retries generation and the diagnostic path can expose the
+	// provider error.
+	if req.Host.SoftwareID == "materialization-demo" {
+		return nil, cause
+	}
 	// Verified materialization must not silently degrade into prose unsupported by
-	// required evidence. For atmospheric/plausible content, deterministic fallback
-	// keeps the world usable when the model endpoint is temporarily unavailable.
+	// required evidence. For atmospheric/plausible content outside the development
+	// harness, deterministic fallback keeps the world usable when the endpoint is
+	// temporarily unavailable.
 	if decision.Level == historicalkb.EvidenceVerified {
 		return nil, cause
 	}
