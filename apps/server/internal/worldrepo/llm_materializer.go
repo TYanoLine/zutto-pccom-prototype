@@ -100,7 +100,7 @@ func personaSummary(p world.Persona) string {
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 5)
+	parts := make([]string, 0, 6)
 	if i.Action != "" {
 		parts = append(parts, "action="+i.Action)
 	}
@@ -115,6 +115,9 @@ func intentSummary(i world.PostIntent) string {
 	}
 	if len(i.Claims) > 0 {
 		parts = append(parts, "claims="+strings.Join(i.Claims, " / "))
+	}
+	if len(i.RespondsToClaims) > 0 {
+		parts = append(parts, "responds_to_claims="+strings.Join(i.RespondsToClaims, " / "))
 	}
 	return strings.Join(parts, "; ")
 }
