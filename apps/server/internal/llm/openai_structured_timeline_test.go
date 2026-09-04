@@ -12,7 +12,7 @@ import (
 func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 	response := `{
 		"model":"gpt-test-structured",
-		"output":[{"content":[{"type":"output_text","text":"{\"events\":[{\"index\":1,\"subject\":\"98の話\",\"topic\":\"自宅のPC環境\",\"motivation\":\"近況を共有したい\",\"stance\":\"気軽に書く\",\"goal\":\"自分の環境について話す\",\"facts\":[]}]}"}]}],
+		"output":[{"content":[{"type":"output_text","text":"{\"events\":[{\"index\":1,\"subject\":\"98の話\",\"topic\":\"PC-98を使っていて気づいたこと\",\"motivation\":\"最近の小さな気づきを書きたい\",\"stance\":\"気軽に書く\",\"goal\":\"最近の気づきを共有する\",\"facts\":[]}]}"}]}],
 		"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":0},"output_tokens":50,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":150}
 	}`
 
@@ -68,7 +68,11 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 			AuthorHandle:   "TAKA",
 			CreatedAt:      "1996-08-20T23:00:00+09:00",
 			Action:         "thread_start",
+			AnchorKey:      "pc98",
+			CauseKind:      "recent_salience",
+			CauseSummary:   "The world layer selected pc98 as the current causal anchor after activity and write sampling.",
 			PersonaProfile: "test persona",
+			ExistingFacts:  []string{"BACKGROUND ONLY: offline_meeting.preference=前向き"},
 		}},
 	})
 	if err != nil {
@@ -82,6 +86,12 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"CRITICAL CAUSAL BOUNDARY",
+		"anchor_key, and cause_kind. These are canonical constraints",
+		"Existing persona facts and persona interests are BACKGROUND/CONSISTENCY context only",
+		"do not treat the list as a menu of possible subjects",
+		`"anchor_key":"pc98"`,
+		`"cause_kind":"recent_salience"`,
 		"SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA",
 		"The subject does NOT need to summarize the body",
 		"Do not default to polite survey/request forms",
@@ -89,7 +99,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		"Do NOT rotate through categories, enforce quotas",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("planner prompt missing historical subject calibration %q:\n%s", want, capturedPrompt)
+			t.Fatalf("planner prompt missing causal/subject calibration %q:\n%s", want, capturedPrompt)
 		}
 	}
 }
