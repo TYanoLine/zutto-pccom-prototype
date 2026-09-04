@@ -38,6 +38,9 @@ The WORLD LAYER has already decided every event's actor, time, and whether it is
 
 There is intentionally NO fixed topic list, subject template bank, information-slot checklist, or response-act menu. Infer each concrete post from the board, the persistent persona, earlier BBS state, and the sequence itself.
 
+SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA:
+%s
+
 WORLD / BOARD:
 - world date: %s
 - host: %s
@@ -55,7 +58,7 @@ WORLD-SELECTED EVENT SHELLS (JSON):
 
 Rules for each event:
 - Preserve index, author, timestamp, action, parent topology, and canonical_subject from the event shell.
-- For a root post, create a natural Japanese BBS subject of at most 36 characters that reflects what this person actually wants to talk about now. Do not select from a canned list.
+- For a root post, follow the subject-line calibration above. The subject must come from this actor and this event, not from a canned list or generic headline-writing habit.
 - For a reply, subject may simply follow the canonical reply subject supplied by the world layer; content should naturally continue the existing thread rather than starting an unrelated topic.
 - topic is a short free-form semantic summary, not an enum or catalog key.
 - motivation, stance, and goal are free-form descriptions of this exact event. goal should say what the actor is trying to communicate or react to; it does not have to advance the conversation.
@@ -68,7 +71,7 @@ Rules for each event:
 - The human-controlled member is not special and need not be mentioned.
 - Never mention AI, simulation, prompts, databases, web searches, social media, smartphones, or anything after the world date.
 - Keep the sequence mutually coherent: later events can react to earlier proposed semantics, but do not make every event mechanically answer the previous one.
-- Return exactly one event object for every supplied event index.`, req.WorldDate, req.HostName, req.HostRegion, req.HostSoftware, req.BoardID, req.BoardName, req.EraRules, recent, string(eventsJSON))
+- Return exactly one event object for every supplied event index.`, historicalBBSSubjectCalibration, req.WorldDate, req.HostName, req.HostRegion, req.HostSoftware, req.BoardID, req.BoardName, req.EraRules, recent, string(eventsJSON))
 
 	maxTokens := 1800 + len(req.Events)*220
 	if maxTokens > 6000 {

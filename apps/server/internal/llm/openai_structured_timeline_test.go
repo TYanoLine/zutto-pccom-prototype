@@ -16,6 +16,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":0},"output_tokens":50,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":150}
 	}`
 
+	var capturedPrompt string
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
 		APIKey: "test-key",
 		Model:  "gpt-test",
@@ -24,6 +25,11 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 				t.Fatalf("decode request: %v", err)
 			}
+			input, ok := payload["input"].(string)
+			if !ok {
+				t.Fatalf("input prompt missing: %#v", payload["input"])
+			}
+			capturedPrompt = input
 			text, ok := payload["text"].(map[string]any)
 			if !ok {
 				t.Fatalf("text config missing: %#v", payload["text"])
@@ -52,10 +58,11 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 	}}
 
 	draft, err := provider.GenerateBBSTimelineIntent(context.Background(), BBSTimelineIntentRequest{
-		HostName:  "TEST BBS",
-		BoardID:   "2",
-		BoardName: "パソコン通信・モデム",
-		WorldDate: "1996-08-29",
+		HostName:       "TEST BBS",
+		BoardID:        "2",
+		BoardName:      "パソコン通信・モデム",
+		WorldDate:      "1996-08-29",
+		RecentBBSState: "MSG 1001 TAKA: 最近どうですか",
 		Events: []BBSIntentEvent{{
 			Index:          1,
 			AuthorHandle:   "TAKA",
@@ -72,5 +79,17 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 	}
 	if draft.Usage.Model != "gpt-test-structured" || draft.Usage.TotalTokens != 150 {
 		t.Fatalf("unexpected usage: %+v", draft.Usage)
+	}
+
+	for _, want := range []string{
+		"SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA",
+		"The subject does NOT need to summarize the body",
+		"Do not default to polite survey/request forms",
+		"Compare the root subjects in this batch with recent supplied subjects",
+		"Do NOT rotate through categories, enforce quotas",
+	} {
+		if !strings.Contains(capturedPrompt, want) {
+			t.Fatalf("planner prompt missing historical subject calibration %q:\n%s", want, capturedPrompt)
+		}
 	}
 }
