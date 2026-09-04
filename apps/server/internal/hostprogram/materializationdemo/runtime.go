@@ -65,7 +65,7 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 	}
 	switch strings.ToUpper(line) {
 	case "", "H", "HELP", "?":
-		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成ならPersona駆動で履歴を生成・保存）\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
+		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成なら訪問→ROM/書込→因果Envelopeを生成・保存）\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
 	case "P", "PERSON", "PERSONA":
 		return r.renderPersonas(), false
 	case "B", "BOARD":
@@ -90,7 +90,7 @@ func (r *Runtime) resetConversation() string {
 		return "\r\n[DEV] RESET STORE UNAVAILABLE\r\nDEV> "
 	}
 	r.board = world.Board{}
-	return fmt.Sprintf("\r\n[DEV] CONVERSATION RESET : posts=%d / persona_facts=%d\r\n[DEV] KEPT               : host + boards + core persona skeletons\r\n次に B で掲示板へ入ると記事Envelopeを再生成します。\r\n\r\nDEV> ", posts, facts)
+	return fmt.Sprintf("\r\n[DEV] CONVERSATION RESET : posts=%d / persona_facts=%d\r\n[DEV] KEPT               : host + boards + core persona skeletons\r\n次に B で掲示板へ入ると因果Envelopeを再生成します。\r\n\r\nDEV> ", posts, facts)
 }
 
 func (r *Runtime) renderPersonas() string {
@@ -162,14 +162,14 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	posts, created := s.MaterializationPersonaArticleHeaders(r.Host, r.board)
 	status := "STORED REUSE"
 	if created {
-		status = "FREE-FORM SEMANTIC ENVELOPES MATERIALIZED + STORED"
+		status = "SPARSE CAUSAL ENVELOPES MATERIALIZED + STORED"
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n[%s]\r\n", r.board.Name)
 	if showMaterialization || created {
 		fmt.Fprintf(&b, "[DEV] ARTICLE INDEX : %s / %d ENVELOPES\r\n", status, len(posts))
 		if diagnostic := s.MaterializationPlanningDiagnostic(r.Host.ID, r.board.ID); diagnostic != "" {
-			fmt.Fprintf(&b, "[DEV] PLANNING      : %s\r\n", diagnostic)
+			fmt.Fprintf(&b, "[DEV] CAUSAL PLAN   : %s\r\n", diagnostic)
 		}
 	}
 	b.WriteString("------------------------------------------------------------------------\r\n")
@@ -203,7 +203,7 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	}
 	status := "STORED REUSE"
 	if created {
-		status = "BODY RENDERED FROM PERSONA + FREE-FORM INTENT + BBS CONTEXT, STORED"
+		status = "BODY RENDERED FROM PERSONA + CAUSAL INTENT + BBS CONTEXT, STORED"
 	}
 	if strings.TrimSpace(p.Body) == "" {
 		status = "BODY GENERATION FAILED / ENVELOPE KEPT"
@@ -220,6 +220,15 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 		claimLine = "[DEV] CLAIMS        : " + strings.Join(p.Intent.Claims, " / ") + "\r\n"
 	}
 	semanticLine := ""
+	if p.Intent.AnchorKey != "" {
+		semanticLine += "[DEV] ANCHOR        : " + p.Intent.AnchorKey + "\r\n"
+	}
+	if p.Intent.CauseKind != "" {
+		semanticLine += "[DEV] CAUSE         : " + p.Intent.CauseKind + "\r\n"
+	}
+	if p.Intent.SourcePostID != 0 {
+		semanticLine += fmt.Sprintf("[DEV] SOURCE MSG    : %04d\r\n", p.Intent.SourcePostID)
+	}
 	if p.Intent.Goal != "" {
 		semanticLine += "[DEV] GOAL          : " + p.Intent.Goal + "\r\n"
 	}
