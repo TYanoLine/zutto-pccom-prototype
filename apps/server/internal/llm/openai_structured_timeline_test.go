@@ -89,7 +89,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		"CRITICAL CAUSAL BOUNDARY",
 		"anchor_key, and cause_kind. These are canonical constraints",
 		"Existing persona facts and persona interests are BACKGROUND/CONSISTENCY context only",
-		"do not treat the list as a menu of possible subjects",
+		"Do not treat the list as a menu of possible subjects",
 		`"anchor_key":"pc98"`,
 		`"cause_kind":"recent_salience"`,
 		"SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA",
