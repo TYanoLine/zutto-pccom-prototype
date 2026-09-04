@@ -1,0 +1,52 @@
+name: Research PC-VAN Keiei SIG 1995-1996
+
+on:
+  push:
+    branches:
+      - research-pcvan-keiei-9596-run
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install collector dependency
+        run: python -m pip install charset-normalizer
+      - name: Acquire bounded observed log links
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os, runpy
+          from pathlib import Path
+          mod = runpy.run_path('scripts/research/archive_pccom_sources.py')
+          base='https://www.zenko3.com/keieisig/index.php?file='
+          items=[]
+          for year in (1995,1996):
+              for month in range(1,13):
+                  fn=f'KE1_{year}{month:02d}.LOG'
+                  items.append((f'pcvan-keiei-ke1-{year}{month:02d}','PC-VAN Keiei SIG',f'commercial-reference/pc-van/keieisig/raw/{fn}',base+fn,'later-preservation','bbs-log',False))
+              for board in range(2,7):
+                  fn=f'ke{board}_{year}.log'
+                  items.append((f'pcvan-keiei-ke{board}-{year}','PC-VAN Keiei SIG',f'commercial-reference/pc-van/keieisig/raw/{fn}',base+fn,'later-preservation','bbs-log',False))
+          root=Path(os.environ['RUNNER_TEMP'])/'zutto-pcvan-keiei-9596'
+          root.mkdir(parents=True,exist_ok=True)
+          robots={}; records=[]
+          for i,item in enumerate(items,1):
+              print(f'[{i}/{len(items)}] {item[0]}',flush=True)
+              records.append(mod['fetch'](item,root,robots,2.0))
+          mod['write_outputs'](root,records)
+          print(json.dumps({r['source_id']:r['status'] for r in records},ensure_ascii=False,indent=2))
+          PY
+      - name: Pack archive
+        run: cd "$RUNNER_TEMP" && zip -qr zutto-pcvan-keiei-9596.zip zutto-pcvan-keiei-9596
+      - name: Upload private archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zutto-pcvan-keiei-9596
+          path: ${{ runner.temp }}/zutto-pcvan-keiei-9596.zip
+          retention-days: 1
+          if-no-files-found: error
