@@ -25,7 +25,7 @@ jobs:
           mod=runpy.run_path('scripts/research/archive_pccom_sources.py')
           items=[]
           for stem in ('rumicworld','communicate'):
-            for page in (1,2,3):
+            for page in (1,2,3,4):
               items.append((f'pcvan-rumic-{stem}{page}p','PC-VAN Rumic World SIG',f'commercial-reference/pc-van/rumic/raw/{stem}{page}p.shtml',f'https://www.rumic.org/forum/{stem}{page}p.shtml','later-preservation','html',False))
           root=Path(os.environ['RUNNER_TEMP'])/'zutto-pcvan-rumic'
           root.mkdir(parents=True,exist_ok=True); robots={}; records=[]
