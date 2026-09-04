@@ -12,10 +12,9 @@ import (
 )
 
 // StructuredOpenAIProvider keeps the normal OpenAIProvider behavior for prose
-// rendering, but requires strict JSON Schema output for BBS semantic planning.
-// This prevents malformed planner JSON from aborting an otherwise valid atomic
-// timeline plan. The world layer still validates all returned semantics before
-// anything becomes canonical world state.
+// rendering, but requires strict JSON Schema output for BBS semantic realization.
+// The world layer already selected whether an event exists and why; this layer
+// must not turn persona background into new world actions.
 type StructuredOpenAIProvider struct {
 	OpenAIProvider
 }
@@ -32,11 +31,14 @@ func (p StructuredOpenAIProvider) GenerateBBSTimelineIntent(ctx context.Context,
 	if recent == "" {
 		recent = "(no earlier materialized BBS state supplied)"
 	}
-	prompt := fmt.Sprintf(`Propose semantic content for a bounded sequence of events in a fictional Japanese grass-roots BBS world.
+	prompt := fmt.Sprintf(`Realize semantic wording for a bounded sequence of events in a fictional Japanese grass-roots BBS world.
 
-The WORLD LAYER has already decided every event's actor, time, and whether it is a root post or reply. You MUST NOT change those facts. You are proposing content semantics only; the application validates and commits accepted results as world state.
+CRITICAL CAUSAL BOUNDARY:
+The WORLD LAYER has already decided whether each event exists, its actor, time, root/reply topology, source event, anchor_key, and cause_kind. These are canonical constraints, not suggestions. You MUST NOT choose a different topic because another persona fact looks more interesting. You MUST NOT invent another post or turn a background preference into a new posting reason.
 
-There is intentionally NO fixed topic list, subject template bank, information-slot checklist, or response-act menu. Infer each concrete post from the board, the persistent persona, earlier BBS state, and the sequence itself.
+The event shell's cause_summary explains why this exact event exists now. Realize that cause into a plausible subject + semantic intent. The application validates and commits accepted results as world state.
+
+There is intentionally NO fixed prose topic list, subject template bank, information-slot checklist, or response-act menu. anchor_key is selected dynamically from this persona/world state; it is not a quota or a request to rotate categories.
 
 SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA:
 %s
@@ -53,29 +55,34 @@ WORLD / BOARD:
 EARLIER BBS STATE:
 %s
 
-WORLD-SELECTED EVENT SHELLS (JSON):
+WORLD-SELECTED CAUSAL EVENT SHELLS (JSON):
 %s
 
 Rules for each event:
-- Preserve index, author, timestamp, action, parent topology, and canonical_subject from the event shell.
-- For a root post, follow the subject-line calibration above. The subject must come from this actor and this event, not from a canned list or generic headline-writing habit.
-- For a reply, subject may simply follow the canonical reply subject supplied by the world layer; content should naturally continue the existing thread rather than starting an unrelated topic.
-- topic is a short free-form semantic summary, not an enum or catalog key.
-- motivation, stance, and goal are free-form descriptions of this exact event. goal should say what the actor is trying to communicate or react to; it does not have to advance the conversation.
-- facts contains zero to three durable FICTIONAL PERSONAL facts that genuinely need to become concrete for this post. Do not manufacture a fact merely to add color. A short reaction may have zero facts.
-- Each fact key is an open lowercase semantic path such as household.shared_computer or computer.communication_usage. It is NOT chosen from a predefined schema. Use the same key when the same personal dimension already appears in existing_facts.
-- If existing_facts contains a key, never contradict its value. Prefer reusing it when relevant.
+- Preserve index, author, timestamp, action, parent/source topology, anchor_key, cause_kind, and canonical_subject from the event shell.
+- anchor_key and cause_summary define the current cause. Existing persona facts and persona interests are BACKGROUND/CONSISTENCY context only. Their presence does not make them current topics.
+- For cause_kind=recent_salience, stay inside the supplied anchor. Make one ordinary current experience/observation/thought in that area concrete enough to support the post, without turning unrelated background facts into the subject.
+- For cause_kind=continuation_progress, there must be materially new progress/change/observation compared with the referenced earlier event. Do not merely restate the old preference, habit, or question in new words.
+- For cause_kind=observed_thread, respond to the supplied parent/source thread. Do not start an unrelated root topic inside a reply.
+- For a root post, follow the subject-line calibration above. The subject must be the exact text this actor would type now, not a polished summary or generic headline.
+- For a reply, the application may canonicalize the subject to Re: <root subject>; the semantic content must still be a genuine response to the selected thread.
+- topic is a short free-form human-readable description of the already-selected causal content. It is not a new topic selection step.
+- motivation, stance, and goal describe this exact event. Motivation must follow cause_summary; do not fabricate a different reason for posting.
+- facts contains zero or one durable FICTIONAL PERSONAL fact only when the realized post genuinely requires a new long-lived fact for consistency. Most ordinary reactions/observations should have zero facts.
+- Never create a fact merely to justify why the post exists: the world-selected cause already justifies the post.
+- Each fact key is an open lowercase semantic path, not a predefined schema. If existing_facts already contains the same dimension, never contradict it.
+- existing_facts entries marked BACKGROUND ONLY are contradiction guards. Reuse one only when the selected cause truly requires it. Do not treat the list as a menu of possible subjects.
 - Facts may describe this fictional person's ordinary ownership, habits, preferences, household situation, or experience. They must NOT assert unprovided real-world hardware limits, exact product specifications, release dates, prices, historical events, or other external historical facts.
-- Do not invent a question merely to keep the thread alive. Ask only if that is naturally the actor's actual goal.
-- Repetition, silence-like brevity, disagreement, or a mundane tangent can be natural. Do not optimize every post for information density.
+- Do not invent a question merely to keep a thread alive. Ask only if asking is naturally part of the already-selected event's goal.
+- Repetition can be natural inside an ongoing thread, but a continuation_progress event must add something new. Do not optimize every post for information density.
 - The human-controlled member is not special and need not be mentioned.
 - Never mention AI, simulation, prompts, databases, web searches, social media, smartphones, or anything after the world date.
-- Keep the sequence mutually coherent: later events can react to earlier proposed semantics, but do not make every event mechanically answer the previous one.
+- Keep the sequence mutually coherent. Later events may react to earlier realized semantics only where their world-selected topology/cause permits it.
 - Return exactly one event object for every supplied event index.`, historicalBBSSubjectCalibration, req.WorldDate, req.HostName, req.HostRegion, req.HostSoftware, req.BoardID, req.BoardName, req.EraRules, recent, string(eventsJSON))
 
-	maxTokens := 1800 + len(req.Events)*220
-	if maxTokens > 6000 {
-		maxTokens = 6000
+	maxTokens := 1500 + len(req.Events)*210
+	if maxTokens > 5200 {
+		maxTokens = 5200
 	}
 	result, err := p.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_timeline_intent", bbsTimelineIntentSchema())
 	if err != nil {
@@ -122,7 +129,7 @@ func bbsTimelineIntentSchema() map[string]any {
 			"motivation": map[string]any{"type": "string"},
 			"stance":     map[string]any{"type": "string"},
 			"goal":       map[string]any{"type": "string"},
-			"facts":      map[string]any{"type": "array", "items": fact},
+			"facts":      map[string]any{"type": "array", "items": fact, "maxItems": 1},
 		},
 		"required":             []string{"index", "subject", "topic", "motivation", "stance", "goal", "facts"},
 		"additionalProperties": false,
