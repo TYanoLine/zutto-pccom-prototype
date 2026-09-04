@@ -50,10 +50,13 @@ func TestDevelopmentTimelinePlanningUsesBoundedChronologicalBatches(t *testing.T
 	shells := make([]developmentTimelineShell, 0, 14)
 	for i := 1; i <= 14; i++ {
 		shells = append(shells, developmentTimelineShell{
-			index:     i,
-			persona:   persona,
-			createdAt: base.Add(time.Duration(i) * time.Hour),
-			action:    "thread_start",
+			index:        i,
+			persona:      persona,
+			createdAt:    base.Add(time.Duration(i) * time.Hour),
+			action:       "thread_start",
+			anchorKey:    "chat",
+			causeKind:    "recent_salience",
+			causeSummary: "test world-selected cause",
 		})
 	}
 
@@ -79,6 +82,11 @@ func TestDevelopmentTimelinePlanningUsesBoundedChronologicalBatches(t *testing.T
 		if len(req.Events) == 0 || len(req.Events) > developmentPlanningBatchSize {
 			t.Fatalf("batch %d size=%d", i+1, len(req.Events))
 		}
+		for _, event := range req.Events {
+			if event.AnchorKey != "chat" || event.CauseKind != "recent_salience" || event.CauseSummary == "" {
+				t.Fatalf("batch %d lost causal shell: %+v", i+1, event)
+			}
+		}
 	}
 	if !strings.Contains(renderer.requests[1].RecentBBSState, "PLANNED EARLIER EVENTS IN THIS SAME TIMELINE") ||
 		!strings.Contains(renderer.requests[1].RecentBBSState, "自由な件名1") {
@@ -87,8 +95,11 @@ func TestDevelopmentTimelinePlanningUsesBoundedChronologicalBatches(t *testing.T
 	if !strings.Contains(renderer.requests[1].RecentBBSState, "MSG 0999 earlier board state") {
 		t.Fatalf("earlier canonical BBS state was dropped: %q", renderer.requests[1].RecentBBSState)
 	}
-	if len(renderer.requests[1].Events) == 0 || !containsString(renderer.requests[1].Events[0].ExistingFacts, "personal.detail.01=投稿1で初めて必要になった事実") {
-		t.Fatalf("later batch did not receive transient earlier persona facts: %#v", renderer.requests[1].Events)
+	if len(renderer.requests[1].Events) == 0 || !containsString(renderer.requests[1].Events[0].ExistingFacts, "BACKGROUND ONLY: personal.detail.01=投稿1で初めて必要になった事実") {
+		t.Fatalf("later batch did not receive transient earlier persona facts as background: %#v", renderer.requests[1].Events)
+	}
+	if !containsString(renderer.requests[1].Events[0].ExistingFacts, "BACKGROUND ONLY: existing.fact=既存事実") {
+		t.Fatalf("canonical persona fact was not marked background-only: %#v", renderer.requests[1].Events[0].ExistingFacts)
 	}
 	if plan.usage.Model != "planner-test" || plan.usage.TotalTokens != 90 {
 		t.Fatalf("aggregated usage=%+v", plan.usage)
