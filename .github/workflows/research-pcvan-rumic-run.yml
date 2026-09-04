@@ -23,12 +23,10 @@ jobs:
           import os,runpy,json
           from pathlib import Path
           mod=runpy.run_path('scripts/research/archive_pccom_sources.py')
-          items=[
-            ('pcvan-rumic-rumicworld1p','PC-VAN Rumic World SIG','commercial-reference/pc-van/rumic/raw/rumicworld1p.shtml','https://www.rumic.org/forum/rumicworld1p.shtml','later-preservation','html',False),
-            ('pcvan-rumic-rumicworld2p','PC-VAN Rumic World SIG','commercial-reference/pc-van/rumic/raw/rumicworld2p.shtml','https://www.rumic.org/forum/rumicworld2p.shtml','later-preservation','html',False),
-            ('pcvan-rumic-communicate1p','PC-VAN Rumic World SIG','commercial-reference/pc-van/rumic/raw/communicate1p.shtml','https://www.rumic.org/forum/communicate1p.shtml','later-preservation','html',False),
-            ('pcvan-rumic-communicate2p','PC-VAN Rumic World SIG','commercial-reference/pc-van/rumic/raw/communicate2p.shtml','https://www.rumic.org/forum/communicate2p.shtml','later-preservation','html',False),
-          ]
+          items=[]
+          for stem in ('rumicworld','communicate'):
+            for page in (1,2,3):
+              items.append((f'pcvan-rumic-{stem}{page}p','PC-VAN Rumic World SIG',f'commercial-reference/pc-van/rumic/raw/{stem}{page}p.shtml',f'https://www.rumic.org/forum/{stem}{page}p.shtml','later-preservation','html',False))
           root=Path(os.environ['RUNNER_TEMP'])/'zutto-pcvan-rumic'
           root.mkdir(parents=True,exist_ok=True); robots={}; records=[]
           for i,item in enumerate(items,1):
