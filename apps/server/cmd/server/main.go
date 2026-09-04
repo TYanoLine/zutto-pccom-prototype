@@ -128,6 +128,7 @@ func main() {
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
+	mux.HandleFunc("/api/debug/export", newDebugExportHandler(store))
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)
 	mux.HandleFunc("/api/admin/research", listResearch)
