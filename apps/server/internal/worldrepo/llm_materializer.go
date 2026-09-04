@@ -12,10 +12,10 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
-// LLMMaterializer turns WorldEngine-selected and world-validated semantic facts
-// into prose. Fallback remains as an inert compatibility field for older wiring;
-// it is never called. Renderer failure leaves the article unmaterialized so a
-// later observation can retry rather than committing canned prose.
+// LLMMaterializer turns world-selected, causally anchored semantic state into
+// prose. Fallback remains as an inert compatibility field for older wiring; it
+// is never called. Renderer failure leaves the article unmaterialized so a later
+// observation can retry rather than committing canned prose.
 type LLMMaterializer struct {
 	Renderer llm.BoardPostRenderer
 	Fallback Materializer
@@ -99,9 +99,18 @@ func personaSummary(p world.Persona) string {
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 10)
+	parts := make([]string, 0, 14)
 	if i.Action != "" {
 		parts = append(parts, "action="+i.Action)
+	}
+	if i.AnchorKey != "" {
+		parts = append(parts, "world_anchor="+i.AnchorKey)
+	}
+	if i.CauseKind != "" {
+		parts = append(parts, "world_cause="+i.CauseKind)
+	}
+	if i.SourcePostID != 0 {
+		parts = append(parts, fmt.Sprintf("source_post_id=%d", i.SourcePostID))
 	}
 	if i.Topic != "" {
 		parts = append(parts, "topic="+i.Topic)
