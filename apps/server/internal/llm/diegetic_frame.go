@@ -24,6 +24,13 @@ const DiegeticWorldFrame = `DIEGETIC PRESENT / ERA NORMALITY:
 - In an existing thread, read what has already been said. Do not paraphrase an agreement, anecdote, or explanation that the same actor or another participant has already contributed unless the selected event contains a genuinely new reason to repeat or update it. If the actor has already replied, write as someone returning to the thread, not as a first-time responder.
 - The same rule applies beyond computers: games, music, local life, BBS participation, operating systems, communication tools, and everyday culture are not automatically "period flavor" to call attention to.
 - When the supplied world state does not justify a retrospective, novelty, specificity, or explanatory framing, leave that framing out rather than inventing a reason for it.
+
+CONTRASTIVE INTERPRETATION EXAMPLES — these illustrate meaning only; they are NOT reusable content templates and do not authorize inventing any named detail:
+- BAD when ordinary baseline is all we know: 「PC-98からでも入れました」「久しぶりに98を起動しました」. GOOD pattern: leave the ordinary machine family unspoken; if a supplied concrete model/setup difference causes the event, mention that exact difference instead.
+- BAD on a local-information board: generic chat etiquette or generic connection talk with no local relevance. GOOD pattern: the root concerns the selected board's local/social context; if no canonical local detail is available, do not fabricate a station/shop merely to decorate it.
+- BAD after several people already agreed: another near-identical 「私もそうです」「わかります」 that contributes no selected new reason. GOOD pattern: react to the newest relevant point, use a distinct supported angle, or keep the returning response very small without inventing a new anecdote.
+- BAD prose shape: a casual member question rewritten as a complete help-desk answer with exhaustive steps and reassuring closure. GOOD pattern: the amount of explanation, certainty, and politeness follows this persona and this exact exchange.
+- BAD specificity repair: an unnamed game/problem is assigned a title/model/place not present in canonical state. GOOD pattern: preserve natural shared-context ambiguity until the world actually establishes the missing detail.
 `
 
 func withDiegeticWorldFrame(extra string) string {
