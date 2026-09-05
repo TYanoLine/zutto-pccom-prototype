@@ -90,10 +90,12 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 		return nil, false
 	}
 
-	// Planning is split into small API calls. The deadline covers the complete
-	// atomic plan, while each individual HTTP request retains its own tighter
-	// client timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	// Planning is split into bounded API batches. Each structured request can use
+	// almost the provider's 90s HTTP timeout, so the atomic plan must budget time
+	// per batch rather than applying one 90s deadline to the entire multi-batch
+	// sequence. This keeps free-talk boards with more selected writers from being
+	// truncated merely because they need a second semantic-planning request.
+	ctx, cancel := context.WithTimeout(context.Background(), developmentPlanningTimeout(len(shells)))
 	defer cancel()
 	factsByPersona := r.existingPersonaFactsByID(personas)
 	plan, err := planner.PlanDevelopmentTimeline(ctx, host, board, r.WorldDate, shells, factsByPersona, planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 12))
@@ -165,6 +167,14 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 		out = append(out, post)
 	}
 	return out, len(out) > 0
+}
+
+func developmentPlanningTimeout(shellCount int) time.Duration {
+	batches := (shellCount + developmentPlanningBatchSize - 1) / developmentPlanningBatchSize
+	if batches < 1 {
+		batches = 1
+	}
+	return time.Duration(batches)*90*time.Second + 15*time.Second
 }
 
 func latestPostInThread(rootID int64, posts []world.Post) (world.Post, bool) {
