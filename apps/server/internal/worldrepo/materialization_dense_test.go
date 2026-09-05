@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,11 +102,30 @@ func TestTechnicalBoardRootsUseWorldSelectedRelevantAnchors(t *testing.T) {
 	posts, created := repo.MaterializationPersonaArticleHeaders(h, boards[1])
 	if !created || len(posts) == 0 { t.Fatal("technical board should materialize some causal posts") }
 
-	allowed := map[string]bool{"modem": true, "software": true, "pc98": true, "bbs": true}
+	allowed := map[string]bool{"communications": true, "modem": true, "software": true, "bbs": true}
 	for _, post := range posts {
 		if !allowed[post.Intent.AnchorKey] {
 			t.Fatalf("technical board post escaped world-selected board anchors: msg=%d anchor=%q intent=%+v", post.ID, post.Intent.AnchorKey, post.Intent)
 		}
+		if post.Intent.AnchorKey == "pc98" {
+			t.Fatalf("ordinary machine family leaked back into topic routing: msg=%d", post.ID)
+		}
+	}
+}
+
+func TestPersonaSeparatesEverydayBaselineFromInterests(t *testing.T) {
+	base := world.NewMemoryStore()
+	repo := New(base, nil, nil, "1996-08-29")
+	h, _ := repo.HostByPhone("0450000196")
+	personas, _ := repo.MaterializationPersonas(h)
+	nori, _ := personaByHandle(personas, "NORI")
+	taka, _ := personaByHandle(personas, "TAKA")
+	if _, found := nori.Interests["pc98"]; found { t.Fatal("PC-98 family must not be modeled as NORI's conversational interest") }
+	if _, found := taka.Interests["pc98"]; found { t.Fatal("PC-98 family must not be modeled as TAKA's conversational interest") }
+	if len(nori.EverydayContext) == 0 || len(taka.EverydayContext) == 0 { t.Fatal("ordinary environment baseline should be explicit") }
+	summary := personaSummary(nori)
+	if !strings.Contains(summary, "everyday_baseline=") || !strings.Contains(summary, "normally unspoken") {
+		t.Fatalf("persona summary does not distinguish ordinary baseline: %s", summary)
 	}
 }
 
@@ -120,5 +140,6 @@ func TestBoardAffinityUsesPersonaInterestsWithoutChoosingProse(t *testing.T) {
 	if demoBoardAffinity(nori, boards[1]) <= demoBoardAffinity(yuki, boards[1]) { t.Fatal("NORI should have stronger technical-board affinity than YUKI") }
 	if demoBoardAffinity(yuki, boards[0]) <= 0 { t.Fatal("YUKI should have nonzero free-talk affinity") }
 	if demoInterestBoardRelevance(boards[1], "games") != 0 { t.Fatal("games should not seed a technical-board root in this development fixture") }
-	if demoInterestBoardRelevance(boards[1], "modem") <= 0 { t.Fatal("modem should be a relevant technical-board causal anchor") }
+	if demoInterestBoardRelevance(boards[1], "communications") <= 0 { t.Fatal("communications should be a relevant technical-board routing domain") }
+	if demoInterestBoardRelevance(boards[1], "pc98") != 0 { t.Fatal("ordinary machine family must not seed a root topic") }
 }
