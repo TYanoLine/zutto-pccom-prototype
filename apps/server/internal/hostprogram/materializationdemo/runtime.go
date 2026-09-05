@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"zutto-pccom/apps/server/internal/world"
@@ -28,11 +29,32 @@ type Runtime struct {
 	Store world.Store
 	state string
 	board world.Board
+
+	bulkMu  sync.Mutex
+	bulkJob *bulkBodyJob
 }
 
 type bulkBodyTarget struct {
 	board  world.Board
 	postID int64
+}
+
+type bulkBodyJob struct {
+	state           string
+	startedAt       time.Time
+	finishedAt      time.Time
+	cancelRequested bool
+	boardsTotal     int
+	boardsDone      int
+	envelopes       int
+	initialBodies   int
+	requestsDone    int
+	complete        int
+	current         string
+	seed            int64
+	order           []bulkBodyTarget
+	emptyBoards     []string
+	failures        []string
 }
 
 func New(host world.Host, store world.Store) *Runtime {
@@ -55,12 +77,22 @@ func (r *Runtime) Welcome() string {
 		"[DEV] POPULATION   : %s\r\n\r\n"+
 		"NAME     %s\r\nREGION   %s\r\nSOFTWARE %s\r\nLINES    %d\r\nMAX BAUD %d\r\nMEMBERS  %d\r\n\r\n"+
 		"この局は開発確認用です。会員総数は人口事実として保持し、初回アクセスではコア住人だけを実体化します。\r\n"+
-		"[P] 住人一覧  [B] 掲示板一覧  [ALLBODY] 全本文一括生成  [H] ヘルプ  [G] 切断\r\n"+
-		"[RESET] 投稿履歴＋会話で遅延具体化したPersona事実を消して再比較\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
+		"[P] 住人一覧  [B] 掲示板一覧  [ALLBODY] 全本文一括生成  [STATUS] 進捗  [CANCEL] 中断\r\n"+
+		"[RESET] 投稿履歴＋会話で遅延具体化したPersona事実を消して再比較  [H] ヘルプ  [G] 切断\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
 }
 
 func (r *Runtime) HandleLine(line string) (string, bool) {
 	line = strings.TrimSpace(line)
+	upper := strings.ToUpper(line)
+
+	// Progress/cancellation stay globally reachable even while browsing boards.
+	switch upper {
+	case "STATUS", "PROGRESS", "ALLSTATUS":
+		return r.bulkRenderStatus(), false
+	case "CANCEL", "STOP", "ALLCANCEL":
+		return r.cancelBulkRenderBodies(), false
+	}
+
 	switch r.state {
 	case "boards":
 		return r.handleBoards(line)
@@ -70,40 +102,73 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 		r.state = "articles"
 		return r.renderArticles(false), false
 	}
-	switch strings.ToUpper(line) {
+	switch upper {
 	case "", "H", "HELP", "?":
-		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成なら訪問→ROM/書込→因果Envelopeを生成・保存）\r\nALLBODY   全板のEnvelopeを生成後、全記事をランダムなアクセス順で開いて本文を一括生成\r\n          ※返信を先に開いた場合も、そのスレッドの先行記事は因果順を守って先に本文化されます\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
+		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成なら訪問→ROM/書込→因果Envelopeを生成・保存）\r\nALLBODY   全板Envelope生成＋本文生成をバックグラウンド開始。ランダムな記事アクセス順で処理\r\nSTATUS    ALLBODYの進捗を表示（PROGRESS/ALLSTATUSも可）\r\nCANCEL    ALLBODYの中断を要求（STOP/ALLCANCELも可）\r\n          ※現在実行中の1回の生成/計画呼び出しは直ちには止まらず、その終了後に中断します\r\n          ※返信を先に開いた場合も、そのスレッドの先行記事は因果順を守って先に本文化されます\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）。ALLBODY実行中は不可\r\nG BYE     切断（実行中ALLBODYには中断要求を出します）\r\n\r\nDEV> ", false
 	case "P", "PERSON", "PERSONA":
 		return r.renderPersonas(), false
 	case "B", "BOARD":
 		r.state = "boards"
 		return r.renderBoards(), false
 	case "ALLBODY", "BULK", "RENDERALL":
-		return r.bulkRenderBodies(), false
+		return r.startBulkRenderBodies(), false
 	case "RESET":
 		return r.resetConversation(), false
 	case "G", "BYE", "GOODBYE":
+		r.requestBulkCancel()
 		return "\r\nNO CARRIER\r\n", true
 	default:
 		return "? COMMAND ERROR\r\nDEV> ", false
 	}
 }
 
-func (r *Runtime) bulkRenderBodies() string {
-	s, ok := r.Store.(materializingStore)
-	if !ok {
+func (r *Runtime) startBulkRenderBodies() string {
+	if _, ok := r.Store.(materializingStore); !ok {
 		return "\r\n[DEV] BULK BODY STORE UNAVAILABLE\r\nDEV> "
 	}
 
+	r.bulkMu.Lock()
+	if r.bulkJob != nil && bulkJobRunning(r.bulkJob.state) {
+		job := cloneBulkBodyJob(r.bulkJob)
+		r.bulkMu.Unlock()
+		return "\r\n[DEV] BULK BODY ALREADY RUNNING\r\n" + formatBulkBodyJobStatus(job) + "\r\nDEV> "
+	}
+	job := &bulkBodyJob{state: "STARTING", startedAt: time.Now()}
+	r.bulkJob = job
+	r.bulkMu.Unlock()
+
+	go r.runBulkRenderBodies(job)
+	return "\r\n[DEV] BULK BODY STARTED\r\n[DEV] Processing now runs in background so the terminal stays usable.\r\n[DEV] STATUS=進捗表示 / CANCEL=中断要求\r\n\r\nDEV> "
+}
+
+func (r *Runtime) runBulkRenderBodies(job *bulkBodyJob) {
+	s, ok := r.Store.(materializingStore)
+	if !ok {
+		r.finishBulkJob(job, "FAILED", "bulk body store unavailable")
+		return
+	}
+
 	boards, _ := s.MaterializationBoards(r.Host)
+	r.updateBulkJob(job, func(j *bulkBodyJob) {
+		j.state = "ENVELOPES"
+		j.boardsTotal = len(boards)
+		j.current = "board envelope planning"
+	})
+
 	targets := make([]bulkBodyTarget, 0, 48)
-	initialBodies := 0
 	emptyBoards := make([]string, 0, len(boards))
-	for _, board := range boards {
+	initialBodies := 0
+	for i, board := range boards {
+		if r.bulkCancellationRequested(job) {
+			r.finishBulkJob(job, "CANCELLED", "")
+			return
+		}
+		r.updateBulkJob(job, func(j *bulkBodyJob) {
+			j.current = fmt.Sprintf("board %d/%d %s envelope planning", i+1, len(boards), board.Name)
+		})
 		posts, _ := s.MaterializationPersonaArticleHeaders(r.Host, board)
 		if len(posts) == 0 {
 			emptyBoards = append(emptyBoards, board.Name)
-			continue
 		}
 		for _, post := range posts {
 			targets = append(targets, bulkBodyTarget{board: board, postID: post.ID})
@@ -111,65 +176,210 @@ func (r *Runtime) bulkRenderBodies() string {
 				initialBodies++
 			}
 		}
+		r.updateBulkJob(job, func(j *bulkBodyJob) {
+			j.boardsDone = i + 1
+			j.envelopes = len(targets)
+			j.initialBodies = initialBodies
+			j.emptyBoards = append([]string(nil), emptyBoards...)
+		})
+	}
+
+	if r.bulkCancellationRequested(job) {
+		r.finishBulkJob(job, "CANCELLED", "")
+		return
 	}
 	if len(targets) == 0 {
-		return "\r\n[DEV] BULK BODY : NO ARTICLE ENVELOPES\r\n[DEV] Boards may be empty by simulation or semantic planning may have failed.\r\nDEV> "
+		r.finishBulkJob(job, "COMPLETED", "no article envelopes")
+		return
 	}
 
 	seed := time.Now().UnixNano()
 	order := shuffledBulkBodyTargets(targets, seed)
+	r.updateBulkJob(job, func(j *bulkBodyJob) {
+		j.state = "BODIES"
+		j.seed = seed
+		j.order = append([]bulkBodyTarget(nil), order...)
+		j.current = "waiting for first randomized article access"
+	})
+
 	failures := make([]string, 0)
-	for _, target := range order {
+	for i, target := range order {
+		if r.bulkCancellationRequested(job) {
+			r.finishBulkJob(job, "CANCELLED", "")
+			return
+		}
+		r.updateBulkJob(job, func(j *bulkBodyJob) {
+			j.current = fmt.Sprintf("request %d/%d %s:%04d", i+1, len(order), target.board.ID, target.postID)
+		})
 		post, found, _, diagnostic := s.MaterializationArticleWithDebug(r.Host, target.board, target.postID)
 		if !found {
 			failures = append(failures, fmt.Sprintf("%s:%04d not-found", target.board.ID, target.postID))
-			continue
-		}
-		if strings.TrimSpace(post.Body) == "" {
+		} else if strings.TrimSpace(post.Body) == "" {
 			failure := fmt.Sprintf("%s:%04d empty-body", target.board.ID, target.postID)
 			if diagnostic = strings.TrimSpace(diagnostic); diagnostic != "" {
 				failure += " (" + diagnostic + ")"
 			}
 			failures = append(failures, failure)
 		}
+		complete := countBulkCompleteBodies(s, r.Host.ID, targets)
+		r.updateBulkJob(job, func(j *bulkBodyJob) {
+			j.requestsDone = i + 1
+			j.complete = complete
+			j.failures = append([]string(nil), failures...)
+		})
 	}
 
-	targetSet := make(map[string]struct{}, len(targets))
-	for _, target := range targets {
-		targetSet[bulkBodyTargetKey(target)] = struct{}{}
+	r.finishBulkJob(job, "COMPLETED", "")
+}
+
+func (r *Runtime) bulkRenderStatus() string {
+	r.bulkMu.Lock()
+	if r.bulkJob == nil {
+		r.bulkMu.Unlock()
+		return "\r\n[DEV] BULK STATUS : IDLE / no ALLBODY job has been started in this session\r\nDEV> "
 	}
-	complete := 0
-	for _, post := range s.ListPosts(r.Host.ID) {
-		key := post.BoardID + ":" + strconv.FormatInt(post.ID, 10)
-		if _, wanted := targetSet[key]; wanted && strings.TrimSpace(post.Body) != "" {
-			complete++
-		}
+	job := cloneBulkBodyJob(r.bulkJob)
+	r.bulkMu.Unlock()
+	return "\r\n" + formatBulkBodyJobStatus(job) + "\r\nDEV> "
+}
+
+func (r *Runtime) cancelBulkRenderBodies() string {
+	r.bulkMu.Lock()
+	if r.bulkJob == nil {
+		r.bulkMu.Unlock()
+		return "\r\n[DEV] BULK CANCEL : no active ALLBODY job\r\nDEV> "
 	}
-	generated := complete - initialBodies
+	if !bulkJobRunning(r.bulkJob.state) {
+		job := cloneBulkBodyJob(r.bulkJob)
+		r.bulkMu.Unlock()
+		return "\r\n[DEV] BULK CANCEL : job is not running\r\n" + formatBulkBodyJobStatus(job) + "\r\nDEV> "
+	}
+	r.bulkJob.cancelRequested = true
+	r.bulkJob.state = "CANCELLING"
+	current := r.bulkJob.current
+	r.bulkMu.Unlock()
+	if strings.TrimSpace(current) == "" {
+		current = "between steps"
+	}
+	return fmt.Sprintf("\r\n[DEV] BULK CANCEL REQUESTED\r\n[DEV] CURRENT : %s\r\n[DEV] The current provider/planning call cannot be preempted by this debug wrapper; processing stops before the next board/article.\r\n[DEV] STATUSで停止完了を確認できます。\r\n\r\nDEV> ", current)
+}
+
+func (r *Runtime) requestBulkCancel() {
+	r.bulkMu.Lock()
+	defer r.bulkMu.Unlock()
+	if r.bulkJob != nil && bulkJobRunning(r.bulkJob.state) {
+		r.bulkJob.cancelRequested = true
+		r.bulkJob.state = "CANCELLING"
+	}
+}
+
+func (r *Runtime) bulkJobIsRunning() bool {
+	r.bulkMu.Lock()
+	defer r.bulkMu.Unlock()
+	return r.bulkJob != nil && bulkJobRunning(r.bulkJob.state)
+}
+
+func (r *Runtime) bulkCancellationRequested(job *bulkBodyJob) bool {
+	r.bulkMu.Lock()
+	defer r.bulkMu.Unlock()
+	return r.bulkJob != job || job.cancelRequested
+}
+
+func (r *Runtime) updateBulkJob(job *bulkBodyJob, update func(*bulkBodyJob)) {
+	r.bulkMu.Lock()
+	defer r.bulkMu.Unlock()
+	if r.bulkJob != job {
+		return
+	}
+	update(job)
+}
+
+func (r *Runtime) finishBulkJob(job *bulkBodyJob, state, detail string) {
+	r.bulkMu.Lock()
+	defer r.bulkMu.Unlock()
+	if r.bulkJob != job {
+		return
+	}
+	job.state = state
+	job.finishedAt = time.Now()
+	job.current = strings.TrimSpace(detail)
+}
+
+func bulkJobRunning(state string) bool {
+	switch state {
+	case "STARTING", "ENVELOPES", "BODIES", "CANCELLING":
+		return true
+	default:
+		return false
+	}
+}
+
+func cloneBulkBodyJob(job *bulkBodyJob) bulkBodyJob {
+	clone := *job
+	clone.order = append([]bulkBodyTarget(nil), job.order...)
+	clone.emptyBoards = append([]string(nil), job.emptyBoards...)
+	clone.failures = append([]string(nil), job.failures...)
+	return clone
+}
+
+func formatBulkBodyJobStatus(job bulkBodyJob) string {
+	elapsedEnd := time.Now()
+	if !job.finishedAt.IsZero() {
+		elapsedEnd = job.finishedAt
+	}
+	elapsed := elapsedEnd.Sub(job.startedAt).Round(time.Second)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	generated := job.complete - job.initialBodies
 	if generated < 0 {
 		generated = 0
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "\r\n[DEV] BULK BODY      : boards=%d envelopes=%d initial_bodies=%d generated=%d complete=%d failures=%d\r\n", len(boards), len(targets), initialBodies, generated, complete, len(failures))
-	fmt.Fprintf(&b, "[DEV] ACCESS SEED    : %d\r\n", seed)
-	b.WriteString("[DEV] REQUEST ORDER  : randomized across boards/articles\r\n")
-	b.WriteString(formatBulkBodyOrder(order))
-	b.WriteString("[DEV] THREAD ORDER   : predecessor bodies may be generated first when a random request lands on a later reply\r\n")
-	if len(emptyBoards) > 0 {
-		fmt.Fprintf(&b, "[DEV] EMPTY BOARDS   : %s\r\n", strings.Join(emptyBoards, " / "))
+	fmt.Fprintf(&b, "[DEV] BULK STATUS    : %s / elapsed=%s\r\n", job.state, elapsed)
+	fmt.Fprintf(&b, "[DEV] BOARDS         : %d/%d / envelopes=%d\r\n", job.boardsDone, job.boardsTotal, job.envelopes)
+	if len(job.order) > 0 {
+		fmt.Fprintf(&b, "[DEV] REQUESTS       : %d/%d / bodies=%d/%d / generated=%d / failures=%d\r\n", job.requestsDone, len(job.order), job.complete, len(job.order), generated, len(job.failures))
+	} else {
+		fmt.Fprintf(&b, "[DEV] REQUESTS       : not started / bodies=%d / initial=%d\r\n", job.complete, job.initialBodies)
 	}
-	if len(failures) > 0 {
-		b.WriteString("[DEV] FAILURES       :\r\n")
-		for _, failure := range failures {
-			fmt.Fprintf(&b, "  %s\r\n", failure)
+	if job.current != "" {
+		fmt.Fprintf(&b, "[DEV] CURRENT        : %s\r\n", job.current)
+	}
+	if job.seed != 0 {
+		fmt.Fprintf(&b, "[DEV] ACCESS SEED    : %d\r\n", job.seed)
+	}
+	if len(job.emptyBoards) > 0 {
+		fmt.Fprintf(&b, "[DEV] EMPTY BOARDS   : %s\r\n", strings.Join(job.emptyBoards, " / "))
+	}
+	if len(job.failures) > 0 {
+		fmt.Fprintf(&b, "[DEV] LAST FAILURE   : %s\r\n", job.failures[len(job.failures)-1])
+	}
+	if job.cancelRequested && bulkJobRunning(job.state) {
+		b.WriteString("[DEV] CANCEL         : requested; waiting for current call to return\r\n")
+	}
+	if len(job.order) > 0 && !bulkJobRunning(job.state) {
+		b.WriteString("[DEV] REQUEST ORDER  : randomized across boards/articles\r\n")
+		b.WriteString(formatBulkBodyOrder(job.order))
+		b.WriteString("[DEV] THREAD ORDER   : predecessor bodies may have been generated first when a random request landed on a later reply\r\n")
+	}
+	return b.String()
+}
+
+func countBulkCompleteBodies(s materializingStore, hostID string, targets []bulkBodyTarget) int {
+	targetSet := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		targetSet[bulkBodyTargetKey(target)] = struct{}{}
+	}
+	complete := 0
+	for _, post := range s.ListPosts(hostID) {
+		key := post.BoardID + ":" + strconv.FormatInt(post.ID, 10)
+		if _, wanted := targetSet[key]; wanted && strings.TrimSpace(post.Body) != "" {
+			complete++
 		}
 	}
-	if total := s.MaterializationUsageTotalText(); total != "" {
-		fmt.Fprintf(&b, "[DEV] TOKEN TOTAL    : %s\r\n", total)
-	}
-	b.WriteString("\r\nDEV> ")
-	return b.String()
+	return complete
 }
 
 func shuffledBulkBodyTargets(targets []bulkBodyTarget, seed int64) []bulkBodyTarget {
@@ -202,6 +412,9 @@ func formatBulkBodyOrder(order []bulkBodyTarget) string {
 }
 
 func (r *Runtime) resetConversation() string {
+	if r.bulkJobIsRunning() {
+		return "\r\n[DEV] RESET BLOCKED : ALLBODY is still running. Use CANCEL, wait for STATUS=CANCELLED, then RESET.\r\nDEV> "
+	}
 	s, ok := r.Store.(materializingStore)
 	if !ok {
 		return "\r\n[DEV] RESET STORE UNAVAILABLE\r\nDEV> "
