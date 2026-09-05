@@ -12,7 +12,7 @@ import (
 func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 	response := `{
 		"model":"gpt-test-structured",
-		"output":[{"content":[{"type":"output_text","text":"{\"events\":[{\"index\":1,\"subject\":\"98の話\",\"topic\":\"PC-98を使っていて気づいたこと\",\"motivation\":\"最近の小さな気づきを書きたい\",\"stance\":\"気軽に書く\",\"goal\":\"最近の気づきを共有する\",\"facts\":[]}]}"}]}],
+		"output":[{"content":[{"type":"output_text","text":"{\"events\":[{\"index\":1,\"subject\":\"途中で切れた\",\"topic\":\"通信中の突然の切断\",\"motivation\":\"通信中に切断が起きたため\",\"stance\":\"状況を短く記す\",\"goal\":\"切断について共有する\",\"facts\":[]}]}"}]}],
 		"usage":{"input_tokens":100,"input_tokens_details":{"cached_tokens":0},"output_tokens":50,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":150}
 	}`
 
@@ -62,16 +62,17 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		BoardID:        "2",
 		BoardName:      "パソコン通信・モデム",
 		WorldDate:      "1996-08-29",
-		RecentBBSState: "MSG 1001 TAKA: 最近どうですか",
+		EraRules:       DiegeticWorldFrame,
+		RecentBBSState: "MSG 1001 TAKA: 設定変えました",
 		Events: []BBSIntentEvent{{
 			Index:          1,
 			AuthorHandle:   "TAKA",
 			CreatedAt:      "1996-08-20T23:00:00+09:00",
 			Action:         "thread_start",
-			AnchorKey:      "pc98",
+			AnchorKey:      "communications",
 			CauseKind:      "recent_salience",
-			CauseSummary:   "The world layer selected pc98 as the current causal anchor after activity and write sampling.",
-			PersonaProfile: "test persona",
+			CauseSummary:   `The world layer selected broad interest domain "communications" as routing context; ordinary participation itself is not the event.`,
+			PersonaProfile: "everyday_baseline=[自宅のパソコンと通信環境は日常の道具]; interests=[communications=0.44]",
 			ExistingFacts:  []string{"BACKGROUND ONLY: offline_meeting.preference=前向き"},
 		}},
 	})
@@ -87,10 +88,15 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 
 	for _, want := range []string{
 		"CRITICAL CAUSAL BOUNDARY",
-		"anchor_key, and cause_kind. These are canonical constraints",
-		"Existing persona facts and persona interests are BACKGROUND/CONSISTENCY context only",
+		"anchor_key is INTERNAL ROUTING METADATA",
+		"DIEGETIC PRESENT / ERA NORMALITY",
+		"Ordinary baseline conditions stay implicit",
+		"everyday_baseline is deliberately ordinary and normally UNMENTIONED",
+		"A recent_salience event does NOT authorize you to invent a purchase",
+		"Do not use retrospective shortcuts such as",
+		"〜からでも入れた",
 		"Do not treat the list as a menu of possible subjects",
-		`"anchor_key":"pc98"`,
+		`"anchor_key":"communications"`,
 		`"cause_kind":"recent_salience"`,
 		"SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA",
 		"The subject does NOT need to summarize the body",
@@ -99,7 +105,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		"Do NOT rotate through categories, enforce quotas",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("planner prompt missing causal/subject calibration %q:\n%s", want, capturedPrompt)
+			t.Fatalf("planner prompt missing diegetic/causal/subject calibration %q:\n%s", want, capturedPrompt)
 		}
 	}
 }
