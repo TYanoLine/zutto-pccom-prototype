@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"zutto-pccom/apps/server/internal/buildinfo"
 	"zutto-pccom/apps/server/internal/world"
 )
 
@@ -49,19 +50,20 @@ type debugExportCounts struct {
 }
 
 type debugRuntimeExport struct {
-	SchemaVersion int                           `json:"schema_version"`
-	ReadOnly      bool                          `json:"read_only"`
-	Scope         string                        `json:"scope"`
-	GeneratedAt   time.Time                     `json:"generated_at"`
-	Host          world.Host                    `json:"host"`
-	BoardFilter   string                        `json:"board_filter,omitempty"`
-	BodiesIncluded bool                         `json:"bodies_included"`
-	Boards        []world.Board                 `json:"boards"`
-	Personas      []debugExportPersona           `json:"personas"`
-	PersonaFacts  map[string][]world.PersonaFact `json:"persona_facts"`
-	Posts         []debugExportPost              `json:"posts"`
-	Counts        debugExportCounts              `json:"counts"`
-	Note          string                         `json:"note"`
+	SchemaVersion  int                            `json:"schema_version"`
+	ReadOnly       bool                           `json:"read_only"`
+	Scope          string                         `json:"scope"`
+	GeneratedAt    time.Time                      `json:"generated_at"`
+	Build          buildinfo.Info                 `json:"build"`
+	Host           world.Host                     `json:"host"`
+	BoardFilter    string                         `json:"board_filter,omitempty"`
+	BodiesIncluded bool                           `json:"bodies_included"`
+	Boards         []world.Board                  `json:"boards"`
+	Personas       []debugExportPersona           `json:"personas"`
+	PersonaFacts   map[string][]world.PersonaFact `json:"persona_facts"`
+	Posts          []debugExportPost              `json:"posts"`
+	Counts         debugExportCounts              `json:"counts"`
+	Note           string                         `json:"note"`
 }
 
 // newDebugExportHandler exposes a development-only, read-only snapshot of the
@@ -164,6 +166,7 @@ func newDebugExportHandler(store *world.MemoryStore) http.HandlerFunc {
 			ReadOnly:       true,
 			Scope:          "current-server-memory",
 			GeneratedAt:    time.Now().UTC(),
+			Build:          buildinfo.Current(),
 			Host:           host,
 			BoardFilter:    boardFilter,
 			BodiesIncluded: full,
