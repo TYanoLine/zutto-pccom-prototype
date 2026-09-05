@@ -11,6 +11,8 @@ import (
 )
 
 func TestDebugExportDoesNotMaterializeDemoHost(t *testing.T) {
+	t.Setenv("ZUTTO_BUILD_COMMIT", "fedcba9876543210")
+	t.Setenv("ZUTTO_BUILD_BRANCH", "debug-test")
 	store := world.NewMemoryStore()
 	before := store.ListPosts("materialize-demo")
 	if len(before) != 0 {
@@ -33,6 +35,9 @@ func TestDebugExportDoesNotMaterializeDemoHost(t *testing.T) {
 	}
 	if !out.ReadOnly || out.Scope != "current-server-memory" {
 		t.Fatalf("unexpected export metadata: %+v", out)
+	}
+	if out.Build.Commit != "fedcba9876543210" || out.Build.ShortCommit != "fedcba987654" || out.Build.Branch != "debug-test" {
+		t.Fatalf("unexpected build metadata: %+v", out.Build)
 	}
 	if out.Host.ID != "materialize-demo" || out.Host.Phone != "0450000196" {
 		t.Fatalf("unexpected host: %+v", out.Host)
