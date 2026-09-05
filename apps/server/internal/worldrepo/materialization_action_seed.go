@@ -65,17 +65,17 @@ func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits 
 
 		postOrdinal := len(shells) + 1
 		if len(roots) > 0 && demoShouldReply(host, board, candidate.persona, candidate.createdAt, visitOrdinal) {
-			if parent, found := demoChooseCausalReplyRoot(host, board, candidate.persona, candidate.createdAt, roots, visitOrdinal); found {
+			if target, found := demoChooseCausalReplyTarget(host, board, candidate.persona, candidate.createdAt, roots, shells, visitOrdinal); found {
 				shell := developmentTimelineShell{
 					index:        postOrdinal,
 					persona:      candidate.persona,
 					createdAt:    candidate.createdAt,
 					action:       "reply",
-					parentIndex:  parent.index,
-					anchorKey:    parent.anchorKey,
+					parentIndex:  target.root.index,
+					anchorKey:    target.root.anchorKey,
 					causeKind:    "observed_thread",
-					causeSummary: fmt.Sprintf("The actor read the existing thread rooted at event %04d and independently chose to respond. Keep the response inside that thread's world-selected routing domain %q; do not replace it with a more salient persona fact or narrate the routing label itself.", parent.index, parent.anchorKey),
-					sourceIndex:  parent.index,
+					causeSummary: developmentReplyCauseSummary(target),
+					sourceIndex:  target.source.index,
 				}
 				shells = append(shells, shell)
 				stats.Replies++
