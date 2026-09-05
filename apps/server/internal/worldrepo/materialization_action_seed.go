@@ -43,8 +43,8 @@ type developmentAnchorCandidate struct {
 // exist". Most visits are allowed to resolve to ROM/no-op before any LLM call.
 //
 // For an actual write, the world layer also fixes root-vs-reply and a causal
-// anchor. The LLM is therefore never asked to invent a topic merely because the
-// scheduler happened to allocate a posting slot.
+// routing domain. The routing key is internal metadata: it must not be treated as
+// the user's vocabulary or as evidence that ordinary use of that domain is news.
 func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits []demoPostCandidate) ([]developmentTimelineShell, developmentSelectionStats) {
 	stats := developmentSelectionStats{Visits: len(visits)}
 	if len(visits) == 0 {
@@ -74,7 +74,7 @@ func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits 
 					parentIndex:  parent.index,
 					anchorKey:    parent.anchorKey,
 					causeKind:    "observed_thread",
-					causeSummary: fmt.Sprintf("The actor read the existing thread rooted at event %04d and independently chose to respond. Keep the response inside that thread's world-selected anchor %q; do not replace it with a more salient persona fact.", parent.index, parent.anchorKey),
+					causeSummary: fmt.Sprintf("The actor read the existing thread rooted at event %04d and independently chose to respond. Keep the response inside that thread's world-selected routing domain %q; do not replace it with a more salient persona fact or narrate the routing label itself.", parent.index, parent.anchorKey),
 					sourceIndex:  parent.index,
 				}
 				shells = append(shells, shell)
@@ -187,7 +187,7 @@ func demoSelectRootCause(host world.Host, board world.Board, p world.Persona, at
 			anchorKey:   prior.anchorKey,
 			causeKind:   "continuation_progress",
 			sourceIndex: prior.index,
-			causeSummary: fmt.Sprintf("A new development occurred since this actor's earlier root event %04d about anchor %q. The new post must add a materially new observation/progress/change instead of restating the earlier preference or background fact.", prior.index, prior.anchorKey),
+			causeSummary: fmt.Sprintf("A new development occurred since this actor's earlier root event %04d in routing domain %q. The new post must add a materially new observation/progress/change instead of restating the earlier preference, baseline context, or category label.", prior.index, prior.anchorKey),
 		}, true
 	}
 
@@ -198,7 +198,7 @@ func demoSelectRootCause(host world.Host, board world.Board, p world.Persona, at
 	return developmentRootCause{
 		anchorKey: anchor,
 		causeKind: "recent_salience",
-		causeSummary: fmt.Sprintf("After activity, board-visit, and write sampling, the world layer selected persistent interest key %q as the current causal anchor. A small recent experience, observation, or thought in this area became salient enough to mention now. Existing persona facts are consistency background only and are not themselves a reason to revisit a topic.", anchor),
+		causeSummary: fmt.Sprintf("After activity, board-visit, and write sampling, the world layer selected broad interest domain %q as routing context. The domain itself is NOT the event or wording. Realize only a concrete present-tense difference, problem, decision, interaction, question, or other small occurrence inside that domain that would actually be worth mentioning to this actor's contemporaries. Ordinary use of period-normal tools, media, places, services, or habits stays implicit. Do not invent a hiatus, rediscovery, nostalgia, compatibility surprise, purchase, upgrade, membership change, or 'still works' framing merely to make the domain post-worthy. Existing persona facts and everyday baseline context are consistency background only.", anchor),
 	}, true
 }
 
@@ -260,20 +260,19 @@ func demoSelectFreshAnchor(host world.Host, board world.Board, p world.Persona, 
 }
 
 // demoInterestBoardRelevance is fixture-level routing metadata, not a content
-// catalog. The actual anchor keys come from each persona's persisted Interests
-// map. It only answers whether one of those already-existing interests belongs
-// naturally on this development board.
+// catalog. The actual routing-domain keys come from each persona's persisted
+// Interests map. Ordinary equipment families belong in EverydayContext instead.
 func demoInterestBoardRelevance(board world.Board, key string) float64 {
 	key = strings.ToLower(strings.TrimSpace(key))
 	switch board.ID {
 	case "2": // パソコン通信・モデム
 		switch key {
-		case "modem":
+		case "communications":
 			return 1
+		case "modem":
+			return .98
 		case "software":
 			return .95
-		case "pc98":
-			return .90
 		case "bbs":
 			return .55
 		default:
@@ -306,9 +305,7 @@ func demoInterestBoardRelevance(board world.Board, key string) float64 {
 			return .65
 		case "bbs":
 			return .35
-		case "pc98":
-			return .18
-		case "modem", "software":
+		case "communications", "modem", "software":
 			return .12
 		default:
 			// Unknown future persona interests are not banned from free talk. Giving
