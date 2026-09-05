@@ -67,6 +67,19 @@ In addition, every in-world generation must use **diegetic present / era normali
 
 The model should sound like a person living inside the date, not like a person who knows how that date will later be remembered.
 
+### Period-native conversational economy
+
+The inside view also changes what contemporary residents omit, name and explain. Prompting must preserve that economy rather than translating every event into a self-contained modern explanatory post.
+
+- Shared context may remain implicit. Subjects and bodies may be elliptical, fragmentary or locally understandable without explaining every referent to an outside reader.
+- If canonical state supplies a concrete name/model/place/version and that distinction matters, prefer the concrete period-native term instead of broad later umbrella terminology.
+- If canonical state does **not** supply the missing specificity, do not invent a product model, game title, station, shop, neighborhood, software version or other identifier merely to make the prose feel concrete.
+- Board placement is semantic context. A root must plausibly belong on the exact selected board; a broad routing interest is not permission to drift into a generic version of the topic that would fit equally well elsewhere.
+- Avoid assistant/FAQ voice. Casual members need not give complete tutorials, checklists, reassuring closure, or polished summaries. Explanation depth, politeness and certainty should follow the persona and the actual exchange.
+- In a thread, inspect what has already been said. Do not simply paraphrase an agreement, anecdote or explanation already contributed. If the same actor has already replied, later prose should read as a return to the thread and should only repeat itself when the selected event genuinely supplies a new reason.
+
+Contrastive examples in prompts are interpretation tests, not content templates. They may demonstrate why `PC-98からでも入れた` is wrong when PC-98 is only ordinary baseline, why generic chat etiquette does not belong as a root on a local-information board, or why the fourth near-identical `私もそうです` adds no value. Those examples must never be treated as permission to invent the named machine, place, game or anecdote.
+
 ## Activity pipeline
 
 Preferred sequence:
