@@ -16,11 +16,11 @@ type demoActivityDay struct {
 	score       float64
 }
 
-// MaterializationPersonaArticleHeaders selects only actor/time/reply topology
-// procedurally. Subjects, topics, motivations, goals and concrete persona facts
-// are then planned from the actual board/persona/history context in generic,
-// bounded chronological semantic batches. There is no fixed content catalog in
-// this path.
+// MaterializationPersonaArticleHeaders first selects plausible board visits over
+// the catch-up window. A visit is intentionally NOT a post. The causal action
+// selector then decides ROM/no-op vs write, root-vs-reply, and a world anchor
+// before any LLM call. Only those already-causal write events are semantically
+// realized and persisted.
 func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
 	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
 		return existing, false
@@ -28,7 +28,7 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 
 	personas, _ := r.MaterializationPersonas(host)
 	stamp := worldTime(r.WorldDate)
-	selected := make([]demoPostCandidate, 0, 32)
+	visits := make([]demoPostCandidate, 0, 32)
 
 	for _, persona := range personas {
 		days := make([]demoActivityDay, 0, 14)
@@ -67,39 +67,27 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 			if created.After(stamp) {
 				continue
 			}
-			selected = append(selected, demoPostCandidate{persona: persona, createdAt: created})
+			visits = append(visits, demoPostCandidate{persona: persona, createdAt: created})
 		}
 	}
 
-	sort.SliceStable(selected, func(i, j int) bool { return selected[i].createdAt.Before(selected[j].createdAt) })
-	return r.materializePersonaCandidates(host, board, personas, selected)
+	sort.SliceStable(visits, func(i, j int) bool { return visits[i].createdAt.Before(visits[j].createdAt) })
+	return r.materializePersonaCandidates(host, board, personas, visits)
 }
 
-func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, personas []world.Persona, selected []demoPostCandidate) ([]world.Post, bool) {
+func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, personas []world.Persona, visits []demoPostCandidate) ([]world.Post, bool) {
 	planner, ok := r.Materializer.(developmentTimelinePlanner)
-	if !ok || len(selected) == 0 {
+	if !ok || len(visits) == 0 {
 		return nil, false
 	}
 
-	// First commit only the topology shell: actor/time/root-vs-reply. Indices are
-	// one-based so zero cleanly means "no parent" in the planner JSON.
-	shells := make([]developmentTimelineShell, 0, len(selected))
-	roots := make([]developmentTimelineShell, 0, len(selected))
-	for i, candidate := range selected {
-		shell := developmentTimelineShell{
-			index:       i + 1,
-			persona:     candidate.persona,
-			createdAt:   candidate.createdAt,
-			action:      "thread_start",
-			parentIndex: 0,
-		}
-		if parentIndex, found := demoChooseRecentReplyRoot(host, board, candidate.persona, candidate.createdAt, roots, i); found && demoShouldReply(host, board, candidate.persona, candidate.createdAt, i) {
-			shell.action = "reply"
-			shell.parentIndex = parentIndex
-		} else {
-			roots = append(roots, shell)
-		}
-		shells = append(shells, shell)
+	// Cheap world simulation ends here. The selected shells already contain a
+	// causal reason to exist; semantic planning cannot create posts that the world
+	// layer did not select.
+	shells, selectionStats := selectDevelopmentTimelineShells(host, board, visits)
+	storeDevelopmentSelectionStats(r, host.ID, board.ID, selectionStats)
+	if len(shells) == 0 {
+		return nil, false
 	}
 
 	// Planning is split into small API calls. The deadline covers the complete
@@ -131,12 +119,19 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 		subject := semantic.subject
 		parentID := int64(0)
 		respondsToID := int64(0)
+		sourcePostID := int64(0)
+		if shell.sourceIndex != 0 {
+			if source, sourceFound := committedByIndex[shell.sourceIndex]; sourceFound {
+				sourcePostID = source.ID
+			}
+		}
 		if shell.action == "reply" {
 			parent, parentFound := committedByIndex[shell.parentIndex]
 			if !parentFound {
 				continue
 			}
 			parentID = parent.ID
+			sourcePostID = parent.ID
 			subject = "Re: " + parent.Subject
 			if target, targetFound := latestPostInThread(parent.ID, out); targetFound {
 				respondsToID = target.ID
@@ -153,6 +148,9 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 			Subject:         subject,
 			Intent: world.PostIntent{
 				Action:           shell.action,
+				AnchorKey:        shell.anchorKey,
+				CauseKind:        shell.causeKind,
+				SourcePostID:     sourcePostID,
 				Topic:            semantic.topic,
 				Motivation:       semantic.motivation,
 				Stance:           semantic.stance,

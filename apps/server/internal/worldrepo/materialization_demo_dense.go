@@ -17,20 +17,22 @@ type demoPostCandidate struct {
 }
 
 // MaterializationDenseArticleHeaders is kept as a compatibility alias for older
-// development callers. Content generation now lives exclusively in the generic
-// persona timeline path; there is no separate dense fixture/topic catalog.
+// development callers. Content generation now lives exclusively in the sparse
+// causal persona timeline path; there is no separate dense fixture/topic catalog.
 func (r *Repository) MaterializationDenseArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
 	return r.MaterializationPersonaArticleHeaders(host, board)
 }
 
+// demoActivityProbability is board-visit eligibility, not posting probability.
+// A selected visit can resolve to ROM/no-op without invoking the LLM.
 func demoActivityProbability(p world.Persona, board world.Board) float64 {
 	affinity := demoBoardAffinity(p, board)
 	return .03 + (1-p.LurkerTendency)*.12 + affinity*.25 + math.Min(1, p.ReplyTendency+p.ThreadStartTendency)*.05
 }
 
 // demoBoardAffinity is behavioral metadata for the development fixture, not a
-// content template. It affects whether a persona is likely to appear on a board;
-// it never selects a topic, subject, claim, question, or piece of prose.
+// content template. It affects whether a persona is likely to visit a board; it
+// never creates a subject, claim, question, or piece of prose.
 func demoBoardAffinity(p world.Persona, board world.Board) float64 {
 	interest := func(key string) float64 { return p.Interests[key] }
 	var values []float64
@@ -51,43 +53,13 @@ func demoBoardAffinity(p world.Persona, board world.Board) float64 {
 	return clamp01(best)
 }
 
+// demoShouldReply decides action topology only after a visit has independently
+// survived the write gate. The actual target is selected by the causal helper
+// using recency + world-selected anchor affinity.
 func demoShouldReply(host world.Host, board world.Board, p world.Persona, at time.Time, ordinal int) bool {
 	chance := .12 + p.ReplyTendency*.48 - p.ThreadStartTendency*.12
 	chance = math.Max(.08, math.Min(.62, chance))
 	return demoStableUnit(host.ID, board.ID, p.ID, at.Format(time.RFC3339), fmt.Sprintf("reply-%d", ordinal)) < chance
-}
-
-// demoChooseRecentReplyRoot selects only reply topology. It deliberately knows
-// nothing about a fixed semantic topic catalog. Content semantics are proposed
-// later from the actual board/persona/history context.
-func demoChooseRecentReplyRoot(host world.Host, board world.Board, p world.Persona, at time.Time, roots []developmentTimelineShell, ordinal int) (int, bool) {
-	if len(roots) == 0 {
-		return -1, false
-	}
-	bestScore := -10.0
-	bestIndex := -1
-	start := len(roots) - 1
-	stop := start - 7
-	if stop < 0 {
-		stop = 0
-	}
-	for i := start; i >= stop; i-- {
-		root := roots[i]
-		age := at.Sub(root.createdAt)
-		if age < 0 || age > 6*24*time.Hour {
-			continue
-		}
-		score := 1 - age.Hours()/(6*24)
-		if root.persona.ID == p.ID {
-			score -= .65
-		}
-		score += demoStableUnit(host.ID, board.ID, p.ID, fmt.Sprint(root.index), fmt.Sprintf("target-%d", ordinal)) * .22
-		if score > bestScore {
-			bestScore = score
-			bestIndex = root.index
-		}
-	}
-	return bestIndex, bestIndex >= 0
 }
 
 func demoPersonaTimestampForDay(day time.Time, p world.Persona, hostID, boardID string) time.Time {

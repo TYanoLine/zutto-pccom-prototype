@@ -15,11 +15,15 @@ import (
 const developmentPlanningBatchSize = 6
 
 type developmentTimelineShell struct {
-	index       int
-	persona     world.Persona
-	createdAt   time.Time
-	action      string
-	parentIndex int
+	index        int
+	persona      world.Persona
+	createdAt    time.Time
+	action       string
+	parentIndex  int
+	anchorKey    string
+	causeKind    string
+	causeSummary string
+	sourceIndex  int
 }
 
 type developmentTimelinePlanEvent struct {
@@ -41,17 +45,16 @@ type developmentTimelinePlanner interface {
 	PlanDevelopmentTimeline(context.Context, world.Host, world.Board, string, []developmentTimelineShell, map[string][]world.PersonaFact, string) (developmentTimelinePlan, error)
 }
 
-// PlanDevelopmentTimeline delegates free-form semantic proposal to a renderer
-// that explicitly implements BBSTimelineIntentPlanner. WorldRepository keeps
-// ownership of actors, times and reply topology; the planner has no fixed topic
-// catalog, subject bank, information slots or response-act enum to choose from.
+// PlanDevelopmentTimeline realizes free-form semantics for events whose causal
+// existence has already been selected by the world layer. Actor, time,
+// root-vs-reply topology, causal anchor, and cause kind are fixed before the LLM
+// is called. Persona facts are supplied only as contradiction guards/background;
+// their mere presence must never be interpreted as a reason to post about them.
 //
-// A full two-week board can contain a few dozen event shells. Planning all of
-// them in one Responses API call made the first board observation vulnerable to
-// model latency and HTTP timeouts. We therefore plan bounded chronological
-// batches. Earlier batch semantics and proposed persona facts are fed into later
-// batches as transient context, but nothing is committed until every batch has
-// succeeded, preserving the DB-as-source-of-truth boundary.
+// A full two-week board can still contain multiple selected write events. We
+// realize them in bounded chronological batches for latency/cost control. Earlier
+// accepted semantics and newly proposed persona facts are available as transient
+// consistency context, but nothing is committed until every batch succeeds.
 func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world.Host, board world.Board, worldDate string, shells []developmentTimelineShell, factsByPersona map[string][]world.PersonaFact, recentBBS string) (developmentTimelinePlan, error) {
 	planner, ok := m.Renderer.(llm.BBSTimelineIntentPlanner)
 	if !ok {
@@ -79,7 +82,7 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 		for _, shell := range batchShells {
 			existingFacts := make([]string, 0, len(workingFacts[shell.persona.ID]))
 			for _, fact := range workingFacts[shell.persona.ID] {
-				existingFacts = append(existingFacts, fact.Key+"="+fact.Value)
+				existingFacts = append(existingFacts, "BACKGROUND ONLY: "+fact.Key+"="+fact.Value)
 			}
 			events = append(events, llm.BBSIntentEvent{
 				Index:            shell.index,
@@ -87,6 +90,10 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 				CreatedAt:        shell.createdAt.Format(time.RFC3339),
 				Action:           shell.action,
 				ParentEventIndex: shell.parentIndex,
+				SourceEventIndex: shell.sourceIndex,
+				AnchorKey:        shell.anchorKey,
+				CauseKind:        shell.causeKind,
+				CauseSummary:     shell.causeSummary,
 				PersonaProfile:   personaSummary(shell.persona),
 				ExistingFacts:    existingFacts,
 			})
@@ -185,6 +192,15 @@ func planningTimelineContext(recentBBS string, planned []developmentTimelinePlan
 		if shell.parentIndex != 0 {
 			fmt.Fprintf(&b, " parent=%04d", shell.parentIndex)
 		}
+		if shell.sourceIndex != 0 && shell.sourceIndex != shell.parentIndex {
+			fmt.Fprintf(&b, " source=%04d", shell.sourceIndex)
+		}
+		if shell.anchorKey != "" {
+			fmt.Fprintf(&b, " anchor=%s", shell.anchorKey)
+		}
+		if shell.causeKind != "" {
+			fmt.Fprintf(&b, " cause=%s", shell.causeKind)
+		}
 		if event.subject != "" {
 			fmt.Fprintf(&b, " subject=%s", event.subject)
 		}
@@ -238,10 +254,10 @@ func (r *Repository) existingPersonaFactsByID(personas []world.Persona) map[stri
 	return out
 }
 
-// commitPlannedFacts accepts generic semantic keys proposed for this concrete
-// event. Existing world facts always win. This removes the old predefined fact
-// slot schema while preserving the important invariant that an observed durable
-// fact cannot silently change later.
+// commitPlannedFacts accepts generic semantic keys that genuinely became
+// necessary while realizing this already-causal event. Existing world facts
+// always win. Persona facts are persistence/consistency state, never future topic
+// suggestions.
 func (r *Repository) commitPlannedFacts(persona world.Persona, topic string, proposed []llm.BBSIntentFactDraft, at time.Time) []string {
 	store, ok := r.Base.(world.PersonaFactStore)
 	if !ok || len(proposed) == 0 {
@@ -296,6 +312,12 @@ func planningBBSState(posts []world.Post, limit int) string {
 	var b strings.Builder
 	for _, post := range ordered {
 		fmt.Fprintf(&b, "MSG %04d %s %s: %s", post.ID, post.CreatedAt.Format("01/02 15:04"), post.Author, post.Subject)
+		if post.Intent.AnchorKey != "" {
+			fmt.Fprintf(&b, " | anchor=%s", post.Intent.AnchorKey)
+		}
+		if post.Intent.CauseKind != "" {
+			fmt.Fprintf(&b, " | cause=%s", post.Intent.CauseKind)
+		}
 		if post.Intent.Topic != "" {
 			fmt.Fprintf(&b, " | topic=%s", post.Intent.Topic)
 		}

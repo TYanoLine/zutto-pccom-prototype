@@ -23,12 +23,19 @@ type Board struct {
 	Name string `json:"name"`
 }
 
-// PostIntent stores only semantic world state that is specific to the actual
-// post. It deliberately has no topic-slot catalog, response-act enum, follow-up
-// checklist, or other fixed conversation template. Topic and Goal are free-form
-// semantic summaries produced for this concrete event and then committed.
+// PostIntent stores canonical semantic state for an actual post. Action,
+// AnchorKey and CauseKind are selected by the world layer before LLM semantic
+// realization. Topic/Motivation/Stance/Goal are human-readable realization of
+// that fixed cause, not an invitation for the LLM to choose what happens.
+//
+// PersonaFact is deliberately separate: a persistent fact is background for
+// consistency and never becomes a posting trigger merely because it exists.
 type PostIntent struct {
-	Action           string   `json:"action,omitempty"`
+	Action       string `json:"action,omitempty"`
+	AnchorKey    string `json:"anchor_key,omitempty"`
+	CauseKind    string `json:"cause_kind,omitempty"`
+	SourcePostID int64  `json:"source_post_id,omitempty"`
+
 	Topic            string   `json:"topic,omitempty"`
 	Motivation       string   `json:"motivation,omitempty"`
 	Stance           string   `json:"stance,omitempty"`

@@ -42,18 +42,23 @@ type BoardPostDraft struct {
 	Usage   TokenUsage `json:"-"`
 }
 
-// BBSIntentEvent is a WorldEngine-decided event shell. The planner is not allowed
-// to change actor, timestamp, or root/reply topology; it only proposes semantic
-// content for that already-selected event.
+// BBSIntentEvent is a world-selected causal event shell. The semantic planner is
+// not allowed to change actor, timestamp, root/reply topology, source event,
+// anchor key, or cause kind. It only realizes human-readable semantics and the
+// exact subject text for an event that already has a reason to exist.
 type BBSIntentEvent struct {
-	Index            int    `json:"index"`
-	AuthorHandle     string `json:"author_handle"`
-	CreatedAt        string `json:"created_at"`
-	Action           string `json:"action"`
-	ParentEventIndex int    `json:"parent_event_index,omitempty"`
-	CanonicalSubject string `json:"canonical_subject,omitempty"`
-	PersonaProfile   string `json:"persona_profile"`
-	ExistingFacts    []string `json:"existing_facts,omitempty"`
+	Index             int      `json:"index"`
+	AuthorHandle      string   `json:"author_handle"`
+	CreatedAt         string   `json:"created_at"`
+	Action            string   `json:"action"`
+	ParentEventIndex  int      `json:"parent_event_index,omitempty"`
+	SourceEventIndex  int      `json:"source_event_index,omitempty"`
+	AnchorKey         string   `json:"anchor_key"`
+	CauseKind         string   `json:"cause_kind"`
+	CauseSummary      string   `json:"cause_summary"`
+	CanonicalSubject string   `json:"canonical_subject,omitempty"`
+	PersonaProfile    string   `json:"persona_profile"`
+	ExistingFacts     []string `json:"existing_facts,omitempty"`
 }
 
 type BBSTimelineIntentRequest struct {
@@ -96,9 +101,10 @@ type BoardPostRenderer interface {
 	GenerateBoardPost(context.Context, BoardPostRequest) (BoardPostDraft, error)
 }
 
-// BBSTimelineIntentPlanner proposes free-form semantic content for event shells
-// selected by the world layer. There is intentionally no fixed topic catalog,
-// information-slot enum, subject bank, or canned response-act list here.
+// BBSTimelineIntentPlanner realizes free-form semantic wording for causal event
+// shells selected by the world layer. It does not select whether anyone writes,
+// which board they visit, root-vs-reply, or the posting anchor. There is also no
+// fixed prose/subject template bank or response-act menu here.
 type BBSTimelineIntentPlanner interface {
 	GenerateBBSTimelineIntent(context.Context, BBSTimelineIntentRequest) (BBSTimelineIntentDraft, error)
 }

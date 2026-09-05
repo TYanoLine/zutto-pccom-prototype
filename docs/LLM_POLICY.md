@@ -25,6 +25,14 @@ Persist opinions/interests/relationships independently of prose. Example:
 
 If a human praises Windows 95, a persona with `windows95=-0.65` should not flip position unless a separate world event explicitly changes that opinion.
 
+### Persona facts are not action triggers
+
+A persisted persona fact is a contradiction guard / durable identity fact, not a queue of future topics.
+
+For example, `offline_meeting.preference=positive` constrains future characterization but does not make an offline-meeting post more likely by itself. Likewise `computer.communication_usage=PC-98` does not justify repeatedly starting PC-98 threads.
+
+Before an LLM can realize a new post, the world layer must independently select a current causal anchor/action. Background facts may be supplied to the LLM only for consistency with that already-selected cause.
+
 ## Historical ceiling
 
 Every generation request receives the world date and a compact era rule set. Reject/regenerate obvious anachronisms such as modern SNS terminology, smartphones or later products/events.
@@ -38,14 +46,23 @@ observation / scheduled eligibility
  -> determine stale scopes that actually matter
  -> online/activity sampling
  -> board/read sampling
+ -> write/no-write decision
+      -> ROM/no-op is a normal terminal result
  -> action selection
- -> topic selection
- -> if prose is necessary: LLM
+      -> root/reply + source thread/event
+ -> causal anchor/topic selection by world layer
+ -> if semantic/text realization is necessary: LLM
  -> validation
  -> persistence
 ```
 
 Never:
+
+```text
+activity slot -> LLM invents why this person must post
+```
+
+and never:
 
 ```text
 human post -> LLM invents all consequences
@@ -54,6 +71,21 @@ human post -> LLM invents all consequences
 The normal production path is observation-driven. Do not run broad periodic LLM generation for every host/person merely to make the world appear alive. Unobserved detail should remain unmaterialized until an observation or a necessary shared-world dependency requires it.
 
 When a stale scope has been unobserved for a long time, prefer a bounded catch-up request that summarizes/selects important transitions over replaying every hour or day with separate LLM calls. Persist durable selected facts first; generate individual prose only for details that become visible or otherwise necessary.
+
+## Causal event shell contract
+
+Any LLM call that realizes a BBS event should receive an event shell whose world-owned fields are already fixed. At minimum for the current prototype:
+
+- actor;
+- timestamp;
+- root/reply action;
+- source/parent when applicable;
+- causal anchor;
+- cause kind.
+
+The model may realize exact subject wording and human-readable semantic summaries within those constraints. It must not swap the anchor for a more salient background fact, manufacture an unrelated reason for posting, or create an additional event.
+
+A continuation is especially strict: "this person discussed X recently" is insufficient. A new root continuation requires a separate world progress/change gate; the LLM must add a materially new development rather than paraphrasing the prior post.
 
 ## Generation classes
 
