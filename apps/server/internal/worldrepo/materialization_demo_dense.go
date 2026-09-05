@@ -32,17 +32,18 @@ func demoActivityProbability(p world.Persona, board world.Board) float64 {
 
 // demoBoardAffinity is behavioral metadata for the development fixture, not a
 // content template. It affects whether a persona is likely to visit a board; it
-// never creates a subject, claim, question, or piece of prose.
+// never creates a subject, claim, question, or piece of prose. In particular,
+// ordinary equipment families are baseline context, not interests.
 func demoBoardAffinity(p world.Persona, board world.Board) float64 {
 	interest := func(key string) float64 { return p.Interests[key] }
 	var values []float64
 	switch board.ID {
 	case "2":
-		values = []float64{interest("modem"), interest("software"), interest("pc98") * .85, interest("bbs") * .65}
+		values = []float64{interest("communications"), interest("modem"), interest("software"), interest("bbs") * .65}
 	case "3":
 		values = []float64{interest("local"), interest("chat") * .55, interest("games") * .20}
 	default:
-		values = []float64{interest("chat"), interest("music") * .80, interest("games") * .75, interest("local") * .55, interest("bbs") * .30}
+		values = []float64{interest("chat"), interest("music") * .80, interest("games") * .75, interest("local") * .55, interest("bbs") * .30, interest("communications") * .12}
 	}
 	best := 0.0
 	for _, value := range values {
