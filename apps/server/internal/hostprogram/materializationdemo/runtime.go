@@ -2,8 +2,10 @@ package materializationdemo
 
 import (
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -28,6 +30,11 @@ type Runtime struct {
 	board world.Board
 }
 
+type bulkBodyTarget struct {
+	board  world.Board
+	postID int64
+}
+
 func New(host world.Host, store world.Store) *Runtime {
 	return &Runtime{Host: host, Store: store, state: "command"}
 }
@@ -48,7 +55,7 @@ func (r *Runtime) Welcome() string {
 		"[DEV] POPULATION   : %s\r\n\r\n"+
 		"NAME     %s\r\nREGION   %s\r\nSOFTWARE %s\r\nLINES    %d\r\nMAX BAUD %d\r\nMEMBERS  %d\r\n\r\n"+
 		"この局は開発確認用です。会員総数は人口事実として保持し、初回アクセスではコア住人だけを実体化します。\r\n"+
-		"[P] 住人一覧  [B] 掲示板一覧  [H] ヘルプ  [G] 切断\r\n"+
+		"[P] 住人一覧  [B] 掲示板一覧  [ALLBODY] 全本文一括生成  [H] ヘルプ  [G] 切断\r\n"+
 		"[RESET] 投稿履歴＋会話で遅延具体化したPersona事実を消して再比較\r\n\r\nDEV> ", created, population, r.Host.Name, r.Host.Region, r.Host.Software, r.Host.Lines, r.Host.MaxBaud, r.Host.Members)
 }
 
@@ -65,12 +72,14 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 	}
 	switch strings.ToUpper(line) {
 	case "", "H", "HELP", "?":
-		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成なら訪問→ROM/書込→因果Envelopeを生成・保存）\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
+		return "\r\nP PERSON  コア住人一覧（初回ホスト観測で固定）\r\nB BOARD   掲示板一覧を要求（未生成なら訪問→ROM/書込→因果Envelopeを生成・保存）\r\nALLBODY   全板のEnvelopeを生成後、全記事をランダムなアクセス順で開いて本文を一括生成\r\n          ※返信を先に開いた場合も、そのスレッドの先行記事は因果順を守って先に本文化されます\r\nRESET     投稿履歴と遅延Persona事実だけ消去（Persona骨格・局・板は保持）\r\nG BYE     切断\r\n\r\nDEV> ", false
 	case "P", "PERSON", "PERSONA":
 		return r.renderPersonas(), false
 	case "B", "BOARD":
 		r.state = "boards"
 		return r.renderBoards(), false
+	case "ALLBODY", "BULK", "RENDERALL":
+		return r.bulkRenderBodies(), false
 	case "RESET":
 		return r.resetConversation(), false
 	case "G", "BYE", "GOODBYE":
@@ -78,6 +87,118 @@ func (r *Runtime) HandleLine(line string) (string, bool) {
 	default:
 		return "? COMMAND ERROR\r\nDEV> ", false
 	}
+}
+
+func (r *Runtime) bulkRenderBodies() string {
+	s, ok := r.Store.(materializingStore)
+	if !ok {
+		return "\r\n[DEV] BULK BODY STORE UNAVAILABLE\r\nDEV> "
+	}
+
+	boards, _ := s.MaterializationBoards(r.Host)
+	targets := make([]bulkBodyTarget, 0, 48)
+	initialBodies := 0
+	emptyBoards := make([]string, 0, len(boards))
+	for _, board := range boards {
+		posts, _ := s.MaterializationPersonaArticleHeaders(r.Host, board)
+		if len(posts) == 0 {
+			emptyBoards = append(emptyBoards, board.Name)
+			continue
+		}
+		for _, post := range posts {
+			targets = append(targets, bulkBodyTarget{board: board, postID: post.ID})
+			if strings.TrimSpace(post.Body) != "" {
+				initialBodies++
+			}
+		}
+	}
+	if len(targets) == 0 {
+		return "\r\n[DEV] BULK BODY : NO ARTICLE ENVELOPES\r\n[DEV] Boards may be empty by simulation or semantic planning may have failed.\r\nDEV> "
+	}
+
+	seed := time.Now().UnixNano()
+	order := shuffledBulkBodyTargets(targets, seed)
+	failures := make([]string, 0)
+	for _, target := range order {
+		post, found, _, diagnostic := s.MaterializationArticleWithDebug(r.Host, target.board, target.postID)
+		if !found {
+			failures = append(failures, fmt.Sprintf("%s:%04d not-found", target.board.ID, target.postID))
+			continue
+		}
+		if strings.TrimSpace(post.Body) == "" {
+			failure := fmt.Sprintf("%s:%04d empty-body", target.board.ID, target.postID)
+			if diagnostic = strings.TrimSpace(diagnostic); diagnostic != "" {
+				failure += " (" + diagnostic + ")"
+			}
+			failures = append(failures, failure)
+		}
+	}
+
+	targetSet := make(map[string]struct{}, len(targets))
+	for _, target := range targets {
+		targetSet[bulkBodyTargetKey(target)] = struct{}{}
+	}
+	complete := 0
+	for _, post := range s.ListPosts(r.Host.ID) {
+		key := post.BoardID + ":" + strconv.FormatInt(post.ID, 10)
+		if _, wanted := targetSet[key]; wanted && strings.TrimSpace(post.Body) != "" {
+			complete++
+		}
+	}
+	generated := complete - initialBodies
+	if generated < 0 {
+		generated = 0
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "\r\n[DEV] BULK BODY      : boards=%d envelopes=%d initial_bodies=%d generated=%d complete=%d failures=%d\r\n", len(boards), len(targets), initialBodies, generated, complete, len(failures))
+	fmt.Fprintf(&b, "[DEV] ACCESS SEED    : %d\r\n", seed)
+	b.WriteString("[DEV] REQUEST ORDER  : randomized across boards/articles\r\n")
+	b.WriteString(formatBulkBodyOrder(order))
+	b.WriteString("[DEV] THREAD ORDER   : predecessor bodies may be generated first when a random request lands on a later reply\r\n")
+	if len(emptyBoards) > 0 {
+		fmt.Fprintf(&b, "[DEV] EMPTY BOARDS   : %s\r\n", strings.Join(emptyBoards, " / "))
+	}
+	if len(failures) > 0 {
+		b.WriteString("[DEV] FAILURES       :\r\n")
+		for _, failure := range failures {
+			fmt.Fprintf(&b, "  %s\r\n", failure)
+		}
+	}
+	if total := s.MaterializationUsageTotalText(); total != "" {
+		fmt.Fprintf(&b, "[DEV] TOKEN TOTAL    : %s\r\n", total)
+	}
+	b.WriteString("\r\nDEV> ")
+	return b.String()
+}
+
+func shuffledBulkBodyTargets(targets []bulkBodyTarget, seed int64) []bulkBodyTarget {
+	out := append([]bulkBodyTarget(nil), targets...)
+	rng := rand.New(rand.NewSource(seed))
+	rng.Shuffle(len(out), func(i, j int) {
+		out[i], out[j] = out[j], out[i]
+	})
+	return out
+}
+
+func bulkBodyTargetKey(target bulkBodyTarget) string {
+	return target.board.ID + ":" + strconv.FormatInt(target.postID, 10)
+}
+
+func formatBulkBodyOrder(order []bulkBodyTarget) string {
+	var b strings.Builder
+	for i, target := range order {
+		if i%8 == 0 {
+			b.WriteString("                      ")
+		}
+		fmt.Fprintf(&b, "%s:%04d", target.board.ID, target.postID)
+		if i == len(order)-1 || i%8 == 7 {
+			b.WriteString("\r\n")
+		} else {
+			b.WriteString(" ")
+		}
+	}
+	return b.String()
 }
 
 func (r *Runtime) resetConversation() string {
