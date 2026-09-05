@@ -33,7 +33,7 @@ func TestGenerateBoardPostCapturesResponsesUsage(t *testing.T) {
 			"input_tokens":812,
 			"input_tokens_details":{"cached_tokens":256},
 			"output_tokens":94,
-			"output_token_details":{"reasoning_tokens":18},
+			"output_tokens_details":{"reasoning_tokens":18},
 			"total_tokens":906
 		}
 	}`
