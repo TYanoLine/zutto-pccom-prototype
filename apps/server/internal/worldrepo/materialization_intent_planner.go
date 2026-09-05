@@ -106,7 +106,7 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 			BoardID:        board.ID,
 			BoardName:      board.Name,
 			WorldDate:      worldDate,
-			EraRules:       "世界時刻より未来の知識を使わない。外部世界の具体的な歴史事実・製品仕様は根拠なしに確定しない。架空住人の個人的事実と史実を区別する。",
+			EraRules:       "世界時刻より未来の知識を使わない。外部世界の具体的な歴史事実・製品仕様は根拠なしに確定しない。架空住人の個人的事実と史実を区別する。\n" + llm.DiegeticWorldFrame,
 			RecentBBSState: planningTimelineContext(recentBBS, planned, shellByIndex, 12),
 			Events:         events,
 		})
@@ -196,7 +196,7 @@ func planningTimelineContext(recentBBS string, planned []developmentTimelinePlan
 			fmt.Fprintf(&b, " source=%04d", shell.sourceIndex)
 		}
 		if shell.anchorKey != "" {
-			fmt.Fprintf(&b, " anchor=%s", shell.anchorKey)
+			fmt.Fprintf(&b, " routing_domain=%s", shell.anchorKey)
 		}
 		if shell.causeKind != "" {
 			fmt.Fprintf(&b, " cause=%s", shell.causeKind)
@@ -313,7 +313,7 @@ func planningBBSState(posts []world.Post, limit int) string {
 	for _, post := range ordered {
 		fmt.Fprintf(&b, "MSG %04d %s %s: %s", post.ID, post.CreatedAt.Format("01/02 15:04"), post.Author, post.Subject)
 		if post.Intent.AnchorKey != "" {
-			fmt.Fprintf(&b, " | anchor=%s", post.Intent.AnchorKey)
+			fmt.Fprintf(&b, " | routing_domain=%s", post.Intent.AnchorKey)
 		}
 		if post.Intent.CauseKind != "" {
 			fmt.Fprintf(&b, " | cause=%s", post.Intent.CauseKind)
