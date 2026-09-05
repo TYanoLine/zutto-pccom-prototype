@@ -9,7 +9,19 @@ import (
 
 	"zutto-pccom/apps/server/internal/buildinfo"
 	"zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/worldpersist"
 )
+
+type debugExportStore interface {
+	world.Store
+	world.BoardStore
+	world.PersonaStore
+	world.PersonaFactStore
+}
+
+type persistenceStatusStore interface {
+	DevelopmentPersistenceStatus() worldpersist.Status
+}
 
 type debugExportPersona struct {
 	ID                  string             `json:"id"`
@@ -55,6 +67,7 @@ type debugRuntimeExport struct {
 	Scope          string                         `json:"scope"`
 	GeneratedAt    time.Time                      `json:"generated_at"`
 	Build          buildinfo.Info                 `json:"build"`
+	Persistence    *worldpersist.Status           `json:"persistence,omitempty"`
 	Host           world.Host                     `json:"host"`
 	BoardFilter    string                         `json:"board_filter,omitempty"`
 	BodiesIncluded bool                           `json:"bodies_included"`
@@ -67,10 +80,10 @@ type debugRuntimeExport struct {
 }
 
 // newDebugExportHandler exposes a development-only, read-only snapshot of the
-// already materialized in-memory runtime state. It deliberately reads the base
-// store directly: exporting must never trigger world catch-up, an LLM call, or
-// any other materialization side effect.
-func newDebugExportHandler(store *world.MemoryStore) http.HandlerFunc {
+// already materialized runtime state. It deliberately reads the base store
+// directly: exporting must never trigger world catch-up, an LLM call, or any
+// other materialization side effect.
+func newDebugExportHandler(store debugExportStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
@@ -161,12 +174,18 @@ func newDebugExportHandler(store *world.MemoryStore) http.HandlerFunc {
 			})
 		}
 
+		var persistence *worldpersist.Status
+		if persistent, ok := store.(persistenceStatusStore); ok {
+			status := persistent.DevelopmentPersistenceStatus()
+			persistence = &status
+		}
 		result := debugRuntimeExport{
 			SchemaVersion:  1,
 			ReadOnly:       true,
 			Scope:          "current-server-memory",
 			GeneratedAt:    time.Now().UTC(),
 			Build:          buildinfo.Current(),
+			Persistence:    persistence,
 			Host:           host,
 			BoardFilter:    boardFilter,
 			BodiesIncluded: full,

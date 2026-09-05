@@ -12,7 +12,6 @@ import (
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/telephone"
-	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldcatalog"
 	"zutto-pccom/apps/server/internal/worldclock"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -24,7 +23,7 @@ const generatedCenterCount = 100
 
 func main() {
 	cfg := config.Load()
-	store := world.NewMemoryStore()
+	store := newRuntimeStore(cfg.DatabaseURL)
 	jst, err := time.LoadLocation("Asia/Tokyo")
 	if err != nil { log.Fatalf("load Japan timezone: %v", err) }
 	clock, err := worldclock.New(cfg.WorldDate, jst)
