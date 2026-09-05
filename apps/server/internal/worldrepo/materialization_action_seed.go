@@ -198,7 +198,7 @@ func demoSelectRootCause(host world.Host, board world.Board, p world.Persona, at
 	return developmentRootCause{
 		anchorKey: anchor,
 		causeKind: "recent_salience",
-		causeSummary: fmt.Sprintf("After activity, board-visit, and write sampling, the world layer selected broad interest domain %q as routing context. The domain itself is NOT the event or wording. Realize only a concrete present-tense difference, problem, decision, interaction, question, or other small occurrence inside that domain that would actually be worth mentioning to this actor's contemporaries. Ordinary use of period-normal tools, media, places, services, or habits stays implicit. Do not invent a hiatus, rediscovery, nostalgia, compatibility surprise, purchase, upgrade, membership change, or 'still works' framing merely to make the domain post-worthy. Existing persona facts and everyday baseline context are consistency background only.", anchor),
+		causeSummary: fmt.Sprintf("After activity, board-visit, write sampling, and the board-scope gate, the world layer selected broad interest domain %q as routing context. The domain itself is NOT the event or wording. Realize only a concrete present-tense difference, problem, decision, interaction, question, or other small occurrence inside that domain that would actually be worth mentioning to this actor's contemporaries AND belongs as a root on this exact board. Ordinary use of period-normal tools, media, places, services, or habits stays implicit. Do not invent a cross-topic bridge, hiatus, rediscovery, nostalgia, compatibility surprise, purchase, upgrade, membership change, or 'still works' framing merely to make the domain post-worthy. Existing persona facts and everyday baseline context are consistency background only.", anchor),
 	}, true
 }
 
@@ -234,7 +234,7 @@ func demoSelectFreshAnchor(host world.Host, board world.Board, p world.Persona, 
 	total := 0.0
 	for _, key := range keys {
 		strength := clamp01(p.Interests[key])
-		relevance := demoInterestBoardRelevance(board, key)
+		relevance := demoRootBoardScopeRelevance(board, key)
 		if strength <= 0 || relevance <= 0 {
 			continue
 		}
@@ -249,7 +249,7 @@ func demoSelectFreshAnchor(host world.Host, board world.Board, p world.Persona, 
 		return "", false
 	}
 
-	roll := demoStableUnit(host.ID, board.ID, p.ID, at.Format(time.RFC3339), fmt.Sprintf("root-anchor-v2-%d", ordinal)) * total
+	roll := demoStableUnit(host.ID, board.ID, p.ID, at.Format(time.RFC3339), fmt.Sprintf("root-anchor-v3-%d", ordinal)) * total
 	for _, choice := range choices {
 		if roll < choice.weight {
 			return choice.key, true
@@ -259,9 +259,47 @@ func demoSelectFreshAnchor(host world.Host, board world.Board, p world.Persona, 
 	return choices[len(choices)-1].key, true
 }
 
+// demoRootBoardScopeRelevance is deliberately stricter than general board
+// affinity. A persona may visit a specialized board, read it, or socially reply
+// there because adjacent interests overlap. Starting a new root is different: the
+// world must already have a reason that belongs on that exact board before prose
+// generation begins.
+//
+// The development shell currently carries only one broad routing anchor and no
+// explicit cross-domain bridge evidence. Therefore a specialized board does not
+// accept an adjacent root domain and ask the LLM to invent the missing bridge.
+// When production events gain typed bridge/provenance data, that evidence can be
+// evaluated here (or by the production equivalent) without weakening the invariant.
+func demoRootBoardScopeRelevance(board world.Board, key string) float64 {
+	key = strings.ToLower(strings.TrimSpace(key))
+	switch board.ID {
+	case "2": // パソコン通信・モデム
+		switch key {
+		case "communications":
+			return 1
+		case "modem":
+			return .98
+		case "software":
+			return .90
+		case "bbs":
+			return .72
+		default:
+			return 0
+		}
+	case "3": // 地域の話題
+		if key == "local" {
+			return 1
+		}
+		return 0
+	default: // フリートーク has intentionally broad root scope.
+		return demoInterestBoardRelevance(board, key)
+	}
+}
+
 // demoInterestBoardRelevance is fixture-level routing metadata, not a content
-// catalog. The actual routing-domain keys come from each persona's persisted
-// Interests map. Ordinary equipment families belong in EverydayContext instead.
+// catalog. It represents broad affinity for visiting/reading/replying and must not
+// by itself authorize a new root on a specialized board. Root creation uses the
+// stricter demoRootBoardScopeRelevance gate above.
 func demoInterestBoardRelevance(board world.Board, key string) float64 {
 	key = strings.ToLower(strings.TrimSpace(key))
 	switch board.ID {
