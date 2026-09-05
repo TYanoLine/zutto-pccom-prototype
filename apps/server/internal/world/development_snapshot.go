@@ -1,9 +1,6 @@
 package world
 
-import (
-	"errors"
-	"sort"
-)
+import "errors"
 
 const DevelopmentHostSnapshotSchemaVersion = 1
 
@@ -131,14 +128,4 @@ func clonePost(post Post) Post {
 	post.Intent.RespondsToClaims = append([]string(nil), post.Intent.RespondsToClaims...)
 	post.Intent.RenderContext = ""
 	return post
-}
-
-// NormalizeDevelopmentSnapshot keeps persisted JSON deterministic enough for
-// diagnostics and tests without making order itself part of world semantics.
-func NormalizeDevelopmentSnapshot(snapshot *DevelopmentHostSnapshot) {
-	if snapshot == nil {
-		return
-	}
-	sort.Strings(snapshot.Memberships)
-	sort.SliceStable(snapshot.Personas, func(i, j int) bool { return snapshot.Personas[i].ID < snapshot.Personas[j].ID })
 }
