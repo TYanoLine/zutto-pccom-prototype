@@ -1,5 +1,7 @@
 package llm
 
+import "strings"
+
 // DiegeticWorldFrame is the shared interpretation contract for in-world prose
 // and semantic planning. Historical ceilings prevent future knowledge; this
 // frame additionally prevents a modern observer's retrospective meaning from
@@ -16,3 +18,14 @@ const DiegeticWorldFrame = `DIEGETIC PRESENT / ERA NORMALITY:
 - The same rule applies beyond computers: games, music, local life, BBS participation, operating systems, communication tools, and everyday culture are not automatically "period flavor" to call attention to.
 - When the supplied world state does not justify a retrospective or novelty framing, leave that framing out rather than inventing a reason for it.
 `
+
+func withDiegeticWorldFrame(extra string) string {
+	extra = strings.TrimSpace(extra)
+	if strings.Contains(extra, "DIEGETIC PRESENT / ERA NORMALITY") {
+		return extra
+	}
+	if extra == "" {
+		return strings.TrimSpace(DiegeticWorldFrame)
+	}
+	return extra + "\n" + strings.TrimSpace(DiegeticWorldFrame)
+}
