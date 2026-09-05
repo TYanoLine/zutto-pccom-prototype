@@ -49,7 +49,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		BoardTopic:       req.BoardTopic,
 		WorldDate:        req.WorldDate,
 		HistoricalFacts:  facts,
-		EraRules:         "世界時刻より未来の知識を使わない。具体的な歴史事実は supplied historical facts の範囲に限定する。局固有の架空設定と史実を混同しない。",
+		EraRules:         "世界時刻より未来の知識を使わない。具体的な歴史事実は supplied historical facts の範囲に限定する。局固有の架空設定と史実を混同しない。\n" + llm.DiegeticWorldFrame,
 		AuthorHandle:     author,
 		PersonaProfile:   personaProfile,
 		PostIntent:       intentSummary(req.Intent),
@@ -94,8 +94,12 @@ func personaSummary(p world.Persona) string {
 	for _, key := range opinionKeys {
 		opinions = append(opinions, fmt.Sprintf("%s=%.2f", key, p.Opinions[key]))
 	}
-	return fmt.Sprintf("age=%d; gender=%s; occupation=%s; activity=%s; reply=%.2f; thread_start=%.2f; lurker=%.2f; newcomer_open=%.2f; argumentative=%.2f; writing=%s; interests=[%s]; opinions=[%s]",
-		p.Age, p.Gender, p.Occupation, p.ActivityPattern, p.ReplyTendency, p.ThreadStartTendency, p.LurkerTendency, p.NewcomerOpenness, p.Argumentativeness, p.WritingStyle, strings.Join(interests, ","), strings.Join(opinions, ","))
+	baseline := "(none supplied)"
+	if len(p.EverydayContext) > 0 {
+		baseline = strings.Join(p.EverydayContext, " / ")
+	}
+	return fmt.Sprintf("age=%d; gender=%s; occupation=%s; activity=%s; reply=%.2f; thread_start=%.2f; lurker=%.2f; newcomer_open=%.2f; argumentative=%.2f; writing=%s; everyday_baseline=[%s]; interests=[%s]; opinions=[%s]; IMPORTANT: everyday_baseline is ordinary already-established context, normally unspoken and never a novelty/topic by itself",
+		p.Age, p.Gender, p.Occupation, p.ActivityPattern, p.ReplyTendency, p.ThreadStartTendency, p.LurkerTendency, p.NewcomerOpenness, p.Argumentativeness, p.WritingStyle, baseline, strings.Join(interests, ","), strings.Join(opinions, ","))
 }
 
 func intentSummary(i world.PostIntent) string {
@@ -104,7 +108,7 @@ func intentSummary(i world.PostIntent) string {
 		parts = append(parts, "action="+i.Action)
 	}
 	if i.AnchorKey != "" {
-		parts = append(parts, "world_anchor="+i.AnchorKey)
+		parts = append(parts, "internal_routing_domain="+i.AnchorKey)
 	}
 	if i.CauseKind != "" {
 		parts = append(parts, "world_cause="+i.CauseKind)

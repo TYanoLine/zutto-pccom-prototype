@@ -2,7 +2,7 @@
 
 The development BBS semantic layer uses the Responses API Structured Outputs path (`text.format.type = json_schema`, `strict = true`) rather than relying on prompt-only JSON formatting.
 
-The important boundary is now **causal selection before semantic realization**. Structured output is an operational transport contract, not the mechanism that decides what the world does.
+The important boundary is **causal selection before semantic realization**, together with **diegetic present / era normality**. Structured output is an operational transport contract, not the mechanism that decides what the world does or what contemporary residents should find historically noteworthy.
 
 ## Sparse causal pipeline
 
@@ -16,10 +16,11 @@ observation of a board
  -> world action selection
       -> root or reply
       -> source thread/event when applicable
- -> world causal anchor selection
+ -> world routing-domain selection
       -> a persisted persona interest relevant to this board
       -> or a gated continuation of the actor's own recent root
  -> bounded structured LLM realization
+      -> concrete contemporaneously meaningful matter inside that domain
       -> exact subject text
       -> human-readable topic/motivation/stance/goal
       -> at most one genuinely necessary new durable persona fact
@@ -34,13 +35,15 @@ The LLM does **not** receive an empty posting slot and then decide what topic wo
 - timestamp;
 - root/reply topology;
 - source event when applicable;
-- `anchor_key` selected by the world layer;
+- `anchor_key` selected by the world layer as internal routing metadata;
 - `cause_kind`;
-- a causal summary explaining why this event exists now.
+- a causal summary explaining the allowed reason/shape of this event.
+
+`anchor_key` is not the actor's vocabulary, headline, or proof that the category itself is notable. It only constrains the semantic domain. A broad key such as `communications`, `games`, `music`, `local`, `bbs`, or `software` must not mechanically become "I used X" or "X still works".
 
 The currently used cause kinds are intentionally small operational semantics rather than content categories:
 
-- `recent_salience` — a board-relevant persisted interest has a current small experience/observation/thought worth mentioning;
+- `recent_salience` — inside a board-relevant routing domain, a concrete present-tense difference/problem/decision/interaction/question/observation is worth mentioning; ordinary participation in the domain itself is not the event;
 - `observed_thread` — the actor read a selected thread and chose to reply;
 - `continuation_progress` — a deterministic progress gate allows the actor to revisit one of their own recent roots because something materially changed.
 
@@ -54,9 +57,28 @@ A major invariant is:
 board visit != post
 ```
 
-Activity sampling only creates plausible visits. A separate write probability uses lurker tendency, reply/thread-start tendency, and board affinity. Even a write-capable visit can still end as ROM if there is no plausible board-relevant root anchor or reply target.
+Activity sampling only creates plausible visits. A separate write probability uses lurker tendency, reply/thread-start tendency, and board affinity. Even a write-capable visit can still end as ROM if there is no plausible board-relevant root domain or reply target.
 
 This matters both for realism and scale: silence/no-op is decided before any LLM call.
+
+## Everyday baseline is not salience
+
+The actor model distinguishes interests from ordinary already-established context. The current PoC stores the latter in `Persona.EverydayContext`.
+
+Examples of baseline context include a person's normal computer/communication environment, ordinary membership in the BBS, usual local life, and other conditions that contemporaries would normally leave implicit. They are supplied for interpretation and contradiction avoidance, not as article ideas.
+
+The realization layer follows these invariants:
+
+```text
+normally uses X       != reason to post about X
+belongs to this BBS   != reason to announce BBS participation
+likes games/music     != proof of a recent hiatus or rediscovery
+lives locally         != reason to narrate the locality as period flavor
+```
+
+A baseline detail may become visible when a concrete event makes the distinction relevant. For example, a model/setup name may matter to a technical comparison or malfunction. If the distinction does not matter, the ordinary environment stays unspoken.
+
+This is deliberately general rather than PC-specific. The same rule applies to operating systems, communication tools, games, music, local life, school/work, BBS usage and other everyday culture.
 
 ## Persona facts are not topic suggestions
 
@@ -70,17 +92,29 @@ offline_meeting.preference = positive
 
 means later text must not contradict that preference without a world event changing it. It does **not** mean that the persona should repeatedly start threads about offline meetings.
 
-Existing facts are therefore labeled as background-only in the structured realization request. A fact may be reused only when the already-selected causal anchor genuinely requires it.
+Existing facts are therefore labeled as background-only in the structured realization request. A fact may be reused only when the already-selected causal event genuinely requires it.
 
 The development planner may propose at most one new durable persona fact for an event, and most ordinary posts should propose none.
 
-## Board relevance without a global topic catalog
+## Board relevance without a global prose topic catalog
 
 The development fixture has three known boards, so it has fixture-level routing weights connecting existing persona interest keys to those boards. The keys still come from each persona's persisted `Interests` map; there is no global prose topic bank.
 
-For example, the technical board can select existing interests such as `modem`, `software`, `pc98`, or `bbs`. A persona with only `games`/`music` interests may still visit that board or socially reply to a thread, but they are not forced to manufacture an unrelated game root merely because they were online.
+For example, the technical board can route through existing domains such as `communications`, `modem`, `software`, or `bbs`. A persona with only `games`/`music` interests may still visit that board or socially reply to a thread, but they are not forced to manufacture an unrelated game root merely because they were online.
 
-Production host/program implementations should replace fixture-specific routing with host/board/world data while preserving the same causal boundary.
+Ordinary equipment families are intentionally not used as root domains simply because they are common in the actor's environment. Such environment belongs in baseline state and appears only when a concrete event makes a specific distinction relevant.
+
+Production host/program implementations should replace fixture-specific routing with host/board/world data while preserving the same causal and diegetic boundary.
+
+## Diegetic present / era normality
+
+The world date is the actor's literal present. Semantic realization must not use a later historian's or retro-computing enthusiast's interpretation of ordinary contemporary life.
+
+The planner/body renderer therefore must not invent a hiatus, nostalgia, rediscovery, `still usable` framing, compatibility surprise, purchase, upgrade, new arrival, membership growth, maintenance or other world transition merely to make a broad routing domain interesting. Such a transition needs canonical support.
+
+Likewise, internal classification labels are not automatically words a resident would choose. If a broad machine family or cultural category is ordinary background, it normally remains unnamed. A specific product/model/setup can be mentioned only when the exact distinction matters and the claim is supported by canonical state or allowed historical evidence.
+
+This supplements, rather than replaces, the historical ceiling: avoiding future knowledge and avoiding retrospective meaning are separate requirements.
 
 ## Short-lived open loops
 
@@ -108,9 +142,9 @@ Once committed, `PostIntent` keeps the causal provenance alongside the human-rea
 
 ```text
 action
-anchor_key
+anchor_key          (internal routing domain)
 cause_kind
-source_post_id   (when applicable)
+source_post_id      (when applicable)
 topic
 motivation
 stance
@@ -119,4 +153,4 @@ claims
 responds_to_post_id
 ```
 
-The article body remains lazily materialized. Body rendering receives these canonical causal fields and is not allowed to change them.
+The article body remains lazily materialized. Body rendering receives these canonical causal fields and the persona's baseline context and is not allowed to change them or reinterpret them from a later historical viewpoint.

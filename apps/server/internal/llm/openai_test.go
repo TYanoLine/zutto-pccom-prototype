@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -57,5 +58,57 @@ func TestGenerateBoardPostCapturesResponsesUsage(t *testing.T) {
 	}
 	if draft.Usage.Model != "gpt-test-1996" {
 		t.Fatalf("model=%q, want response model", draft.Usage.Model)
+	}
+}
+
+func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) {
+	response := `{
+		"model":"gpt-test-1996",
+		"output":[{"content":[{"type":"output_text","text":"{\"author\":\"TAKA\",\"subject\":\"途中で切れた\",\"body\":\"さっき途中で切れました。もう一度つないだら今度は大丈夫みたいです。\"}"}]}],
+		"usage":{"input_tokens":10,"output_tokens":10,"total_tokens":20}
+	}`
+	var capturedPrompt string
+	provider := OpenAIProvider{
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			var payload map[string]any
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			capturedPrompt, _ = payload["input"].(string)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(response)),
+			}, nil
+		})},
+	}
+
+	_, err := provider.GenerateBoardPost(context.Background(), BoardPostRequest{
+		BoardTopic:       "パソコン通信・モデム",
+		WorldDate:        "1996-08-29",
+		EraRules:         "世界時刻より未来の知識を使わない。",
+		AuthorHandle:     "TAKA",
+		PersonaProfile:   "everyday_baseline=[自宅のパソコンと通信環境は普段使いの道具]; interests=[communications=0.44]",
+		PostIntent:       "internal_routing_domain=communications; topic=通信中の切断; motivation=さっき通信中に切れたため; goal=起きたことを短く共有する",
+		CanonicalSubject: "途中で切れた",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"DIEGETIC PRESENT / ERA NORMALITY",
+		"Ordinary baseline conditions stay implicit",
+		"internal_routing_domain=...",
+		"everyday_baseline=[...]",
+		"Never convert them into novelty, rediscovery, nostalgia",
+		"Write from inside the actor's present",
+		"Never add period props",
+	} {
+		if !strings.Contains(capturedPrompt, want) {
+			t.Fatalf("board-post prompt missing diegetic rule %q:\n%s", want, capturedPrompt)
+		}
 	}
 }

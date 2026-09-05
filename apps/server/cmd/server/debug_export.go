@@ -23,6 +23,7 @@ type debugExportPersona struct {
 	NewcomerOpenness    float64            `json:"newcomer_openness"`
 	Argumentativeness   float64            `json:"argumentativeness"`
 	WritingStyle        string             `json:"writing_style"`
+	EverydayContext     []string           `json:"everyday_context,omitempty"`
 	Interests           map[string]float64 `json:"interests,omitempty"`
 	Opinions            map[string]float64 `json:"opinions,omitempty"`
 }
@@ -118,6 +119,7 @@ func newDebugExportHandler(store *world.MemoryStore) http.HandlerFunc {
 				NewcomerOpenness:    persona.NewcomerOpenness,
 				Argumentativeness:   persona.Argumentativeness,
 				WritingStyle:        persona.WritingStyle,
+				EverydayContext:     persona.EverydayContext,
 				Interests:           persona.Interests,
 				Opinions:            persona.Opinions,
 			})

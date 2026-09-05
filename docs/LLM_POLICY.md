@@ -12,30 +12,60 @@ This document is product behavior, not merely prompt advice.
 
 ## Persona persistence
 
-Persist opinions/interests/relationships independently of prose. Example:
+Persist opinions/interests/relationships independently of prose. Interests describe things this person actually tends to care or talk about, not every tool/environment they happen to use. Example:
 
 ```json
 {
-  "pc98": 0.8,
-  "windows95": -0.65,
-  "internet": 0.3,
-  "games": 0.9
+  "interests": {
+    "communications": 0.8,
+    "games": 0.9,
+    "music": 0.4
+  },
+  "opinions": {
+    "windows95": -0.65,
+    "internet": 0.3
+  }
 }
 ```
 
 If a human praises Windows 95, a persona with `windows95=-0.65` should not flip position unless a separate world event explicitly changes that opinion.
 
+### Everyday baseline is not an interest
+
+Ordinary already-established conditions belong in baseline/world context, not automatically in `Interests`.
+
+Examples include the person's normal computer/terminal environment, ordinary BBS membership, normal commute or neighborhood, usual communication method, routine work/school state, and other facts that contemporary residents normally leave implicit. A machine family may be useful as internal world metadata while being completely unremarkable to the person using it every day.
+
+The current prototype exposes this distinction as `Persona.EverydayContext`. The field is intentionally small and human-readable for the PoC; production persistence may normalize it differently. Its semantic contract matters more than its storage form:
+
+- baseline is a contradiction/interpretation constraint;
+- baseline normally remains unspoken;
+- baseline does not create salience;
+- a baseline fact can become relevant only when an independently selected event introduces a meaningful difference, failure, comparison, change, decision, or interaction.
+
+Do not convert `normally uses X` into `tried X`, `X still works`, `returned to X`, `rediscovered X`, or `X feels nostalgic` unless canonical world state explicitly supports that transition.
+
 ### Persona facts are not action triggers
 
 A persisted persona fact is a contradiction guard / durable identity fact, not a queue of future topics.
 
-For example, `offline_meeting.preference=positive` constrains future characterization but does not make an offline-meeting post more likely by itself. Likewise `computer.communication_usage=PC-98` does not justify repeatedly starting PC-98 threads.
+For example, `offline_meeting.preference=positive` constrains future characterization but does not make an offline-meeting post more likely by itself. Likewise an ordinary computing-environment fact does not justify repeatedly starting threads about the equipment category.
 
-Before an LLM can realize a new post, the world layer must independently select a current causal anchor/action. Background facts may be supplied to the LLM only for consistency with that already-selected cause.
+Before an LLM can realize a new post, the world layer must independently select a current causal action. Background facts may be supplied to the LLM only for consistency with that already-selected cause.
 
-## Historical ceiling
+## Historical ceiling and diegetic present
 
-Every generation request receives the world date and a compact era rule set. Reject/regenerate obvious anachronisms such as modern SNS terminology, smartphones or later products/events.
+Every generation request receives the world date and era rules. Historical ceiling rejects anachronisms such as modern SNS terminology, smartphones or later products/events.
+
+In addition, every in-world generation must use **diegetic present / era normality**:
+
+- the world date is the actor's actual present, not a period being reenacted by a later author;
+- later historical reputation must not determine what the actor finds old, retro, nostalgic, surprising or worth explaining;
+- ordinary contemporary tools, services, media, habits, BBS participation and local life remain unmarked unless this concrete event makes them relevant;
+- do not add period props or explanatory period vocabulary merely to demonstrate historical setting;
+- do not invent hiatuses, rediscoveries, purchases, upgrades, compatibility surprises, new arrivals, membership growth, maintenance or other world transitions to make a broad domain interesting.
+
+The model should sound like a person living inside the date, not like a person who knows how that date will later be remembered.
 
 ## Activity pipeline
 
@@ -50,7 +80,7 @@ observation / scheduled eligibility
       -> ROM/no-op is a normal terminal result
  -> action selection
       -> root/reply + source thread/event
- -> causal anchor/topic selection by world layer
+ -> causal routing/domain selection by world layer
  -> if semantic/text realization is necessary: LLM
  -> validation
  -> persistence
@@ -60,6 +90,12 @@ Never:
 
 ```text
 activity slot -> LLM invents why this person must post
+```
+
+and never:
+
+```text
+baseline/category label -> LLM invents a novelty around it
 ```
 
 and never:
@@ -80,10 +116,12 @@ Any LLM call that realizes a BBS event should receive an event shell whose world
 - timestamp;
 - root/reply action;
 - source/parent when applicable;
-- causal anchor;
+- causal routing domain/anchor;
 - cause kind.
 
-The model may realize exact subject wording and human-readable semantic summaries within those constraints. It must not swap the anchor for a more salient background fact, manufacture an unrelated reason for posting, or create an additional event.
+`anchor_key` is internal routing metadata. It constrains the semantic area in which a selected event is realized, but it is not the actor's wording, not a subject line, and not proof that ordinary use of that category is notable. Broad keys such as `communications`, `games`, `music`, `local`, `bbs`, or `software` must not be mechanically echoed into article semantics.
+
+The model may realize exact subject wording and human-readable semantic summaries within world-owned constraints. It must not swap the domain for a more salient background fact, manufacture an unrelated reason for posting, or create an additional world transition. For `recent_salience`, ordinary use of the domain itself is not enough; the realization must concern a concrete contemporaneously meaningful difference/problem/decision/interaction/question/observation permitted by the shell.
 
 A continuation is especially strict: "this person discussed X recently" is insufficient. A new root continuation requires a separate world progress/change gate; the LLM must add a materially new development rather than paraphrasing the prior post.
 

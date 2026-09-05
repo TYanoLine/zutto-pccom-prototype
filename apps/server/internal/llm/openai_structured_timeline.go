@@ -38,7 +38,7 @@ The WORLD LAYER has already decided whether each event exists, its actor, time, 
 
 The event shell's cause_summary explains why this exact event exists now. Realize that cause into a plausible subject + semantic intent. The application validates and commits accepted results as world state.
 
-There is intentionally NO fixed prose topic list, subject template bank, information-slot checklist, or response-act menu. anchor_key is selected dynamically from this persona/world state; it is not a quota or a request to rotate categories.
+anchor_key is INTERNAL ROUTING METADATA. It is not the actor's wording, not a headline, and not evidence that the category itself is unusual. A broad domain such as communications, games, music, local life, BBS activity, or software must not become a generic "I used/did this thing" post merely because it was selected.
 
 SUBJECT-LINE CALIBRATION FROM PRESERVED PERIOD CORPORA:
 %s
@@ -60,13 +60,18 @@ WORLD-SELECTED CAUSAL EVENT SHELLS (JSON):
 
 Rules for each event:
 - Preserve index, author, timestamp, action, parent/source topology, anchor_key, cause_kind, and canonical_subject from the event shell.
-- anchor_key and cause_summary define the current cause. Existing persona facts and persona interests are BACKGROUND/CONSISTENCY context only. Their presence does not make them current topics.
-- For cause_kind=recent_salience, stay inside the supplied anchor. Make one ordinary current experience/observation/thought in that area concrete enough to support the post, without turning unrelated background facts into the subject.
-- For cause_kind=continuation_progress, there must be materially new progress/change/observation compared with the referenced earlier event. Do not merely restate the old preference, habit, or question in new words.
-- For cause_kind=observed_thread, respond to the supplied parent/source thread. Do not start an unrelated root topic inside a reply.
+- Follow the DIEGETIC PRESENT / ERA NORMALITY rules literally. The actor lives inside the world date; never write from a later nostalgic, preservationist, retro, or historical-explainer viewpoint unless canonical state explicitly establishes that viewpoint.
+- anchor_key and cause_summary constrain the event. Existing persona facts, interests, and everyday_baseline are BACKGROUND/CONSISTENCY context only. Their presence does not make them current topics or novelties.
+- everyday_baseline is deliberately ordinary and normally UNMENTIONED. Do not turn "normally uses/does X" into "tried X", "could still use X", "returned to X", "rediscovered X", or "X was nostalgic" unless the supplied event explicitly establishes that change.
+- For cause_kind=recent_salience, stay inside the supplied routing domain but make the post about a concrete contemporaneously meaningful difference, problem, decision, interaction, question, or observation. Ordinary participation/use of the domain itself is not the event.
+- A recent_salience event does NOT authorize you to invent a purchase, upgrade, hiatus, rediscovery, compatibility surprise, new member, membership growth, maintenance, popularity change, move, or other durable world transition. Such transitions require explicit canonical support in cause_summary, existing facts, earlier BBS state, or supplied historical facts.
+- Do not use retrospective shortcuts such as 「久しぶりに」「懐かしい」「〜からでも入れた」「まだ使える」「昔使っていた」 unless the supplied canonical state actually establishes the corresponding hiatus, nostalgia, compatibility doubt, age comparison, or past usage.
+- When a technical distinction matters, name only a model/setup/version that is actually supplied or otherwise historically supported. If only a broad internal family/classification is known, normally leave that classification unspoken rather than turning it into a topic.
+- For cause_kind=continuation_progress, there must be materially new progress/change/observation compared with the referenced earlier event. Do not merely restate the old preference, baseline condition, habit, or question in new words.
+- For cause_kind=observed_thread, respond to the supplied parent/source thread. Do not start an unrelated root topic inside a reply, and do not add a new world event merely to make the reply interesting.
 - For a root post, follow the subject-line calibration above. The subject must be the exact text this actor would type now, not a polished summary or generic headline.
 - For a reply, the application may canonicalize the subject to Re: <root subject>; the semantic content must still be a genuine response to the selected thread.
-- topic is a short free-form human-readable description of the already-selected causal content. It is not a new topic selection step.
+- topic is a short free-form human-readable description of the already-selected causal content. It is not a new topic selection step and should describe the concrete matter, not merely repeat anchor_key.
 - motivation, stance, and goal describe this exact event. Motivation must follow cause_summary; do not fabricate a different reason for posting.
 - facts contains zero or one durable FICTIONAL PERSONAL fact only when the realized post genuinely requires a new long-lived fact for consistency. Most ordinary reactions/observations should have zero facts.
 - Never create a fact merely to justify why the post exists: the world-selected cause already justifies the post.
