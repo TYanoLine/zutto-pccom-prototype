@@ -76,8 +76,16 @@ type Persona struct {
 	NewcomerOpenness    float64
 	Argumentativeness   float64
 	WritingStyle        string
-	Interests           map[string]float64
-	Opinions            map[string]float64
+
+	// EverydayContext describes ordinary, already-established baseline conditions
+	// in this person's life. These facts are primarily contradiction/interpretation
+	// context and are normally left unspoken. They are deliberately separate from
+	// Interests so an ordinary machine, service, membership, commute or habit does
+	// not become a posting topic merely because it is part of the person's life.
+	EverydayContext []string
+
+	Interests map[string]float64
+	Opinions  map[string]float64
 }
 
 // PersonaFact is a concrete fictional-world fact that did not need to exist in
