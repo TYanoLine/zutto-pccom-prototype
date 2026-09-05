@@ -73,6 +73,7 @@ func (r *Runtime) Welcome() string {
 		}
 	}
 	return fmt.Sprintf("\x1b[2J\x1b[H=== DEVELOPMENT MATERIALIZATION HOST ===\r\n"+
+		runtimeBuildLine()+
 		"[DEV] HOST PROFILE : %s\r\n"+
 		"[DEV] POPULATION   : %s\r\n\r\n"+
 		"NAME     %s\r\nREGION   %s\r\nSOFTWARE %s\r\nLINES    %d\r\nMAX BAUD %d\r\nMEMBERS  %d\r\n\r\n"+
