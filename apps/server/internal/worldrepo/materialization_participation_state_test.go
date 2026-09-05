@@ -121,7 +121,6 @@ func TestParticipationReturnGateIsSparseRatherThanAutomatic(t *testing.T) {
 func TestParticipationReturnCauseNamesNewSourceAndForbidsRestatement(t *testing.T) {
 	base := time.Date(1996, 8, 20, 21, 0, 0, 0, time.UTC)
 	taka := participationPersona("taka", "TAKA")
-	mari := participationPersona("mari", "MARI")
 	sysop := participationPersona("sysop", "SYSOP")
 	root := participationShell(1, 0, taka, base)
 	source := participationShell(3, 1, sysop, base.Add(2*time.Hour))
