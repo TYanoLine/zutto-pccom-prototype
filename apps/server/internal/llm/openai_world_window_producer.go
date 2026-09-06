@@ -61,11 +61,14 @@ ABSOLUTE WORLD BOUNDARY:
 - You MUST NOT make the human-controlled member the center of the world.
 - Treat the supplied event shells as immutable production slots whose causes already exist.
 - The database, not your prose, is the eventual source of truth. Make the briefs consistent enough to be committed as canonical semantic state.
+- A relationship between current-window events exists ONLY when parent_event_id or source_event_id explicitly names it. Same board, same actor, nearby time, similar topic, or editorial convenience does NOT create a relationship.
+- If action=thread_start and both parent_event_id/source_event_id are absent, it is a STANDALONE ROOT. Do not describe it as reading, replying to, continuing, or sharing the same occurrence/referent with another selected current-window event. Its audience_context MUST be empty and its subject MUST NOT begin with Re:.
+- For a reply/continuation, only the explicitly named parent_event_id/source_event_id may supply current-window causal/thread context. Never borrow a different event merely because it would make a nicer story.
 
 PRODUCER RESPONSIBILITIES:
 - Coordinate the WHOLE WINDOW across all boards and personas before any article worker writes prose.
 - Make each event's small episode concrete enough that a worker does not have to invent why the post exists.
-- Reuse the same referent consistently when multiple events concern the same thing. Referents may be compact descriptions or stable labels; they do not need to be public-facing IDs.
+- Reuse the same referent wording only when the immutable topology explicitly relates the events, or earlier canonical BBS state already establishes that identity. Never merge two standalone current-window roots into one occurrence.
 - Track what the actor actually knows at that moment and what earlier BBS context makes safe to leave implicit.
 - For replies, make contribution describe the NEW contribution to the selected source/thread, not a restatement of the root.
 - For returning participants, respect cause_summary literally: a newer contribution is the reason they can speak again.
@@ -101,19 +104,17 @@ Return briefs as ONE JSON object keyed by the exact supplied event_id strings. E
 Brief fields:
 - subject: exact subject this actor would type. Replies may still be canonicalized by the application to Re: root subject.
 - episode: one concise description of the concrete contemporaneous occurrence/state difference that makes this exact post worth writing now.
-- referents: zero or more concrete referents that the worker must keep stable. Reuse wording across related briefs when it is the same object/place/problem. Do not invent unsupported named real-world entities.
+- referents: zero or more concrete referents that the worker must keep stable. Reuse wording only inside an explicitly related event component. Do not invent unsupported named real-world entities.
 - actor_knowledge: facts this actor is entitled to know when writing this article. Do not include omniscient producer knowledge.
-- audience_context: facts legitimately established in this BBS/thread/window that make natural ellipsis such as 「あの面」 or 「さっきの件」 understandable. If there is no shared referent, do not pretend there is one.
+- audience_context: facts legitimately established in the explicitly selected thread/source that make natural ellipsis such as 「あの面」 or 「さっきの件」 understandable. Standalone roots must return an empty array.
 - contribution: the information/reaction/question this article must actually add. Replies should react to their source, and repeat participants need a genuinely newer contribution.
 - must_not: event-specific prohibitions that prevent fact theft, unsupported specificity, retrospective framing or contradiction.
 - topic/motivation/stance/goal: compact semantic state for the article worker. These must describe this exact event, not choose a different topic.
 - facts: zero or one durable FICTIONAL PERSONAL fact only if the already-selected episode genuinely requires persistence. Most briefs should have none.
 
 Additional rules:
-- Internal anchor_key values are routing metadata, never resident vocabulary.
+- Internal anchor_key values are routing metadata, never resident vocabulary, but the episode must remain inside that routing domain. A games root cannot become a connection incident; a communications root cannot become BBS etiquette merely because communication articles are involved.
 - Do not manufacture a story merely to connect unrelated posts. Cross-window consistency is more important than forced interconnection.
-- If two events plausibly share an already-supported referent, make that identity explicit in referents/audience_context so workers can use natural shorthand later.
-- If they do not share a referent, keep them separate.
 - A reply actor must not appropriate another person's first-person experience. Put ownership in actor_knowledge/must_not clearly when needed.
 - Board placement is semantic. The brief must make sense on the exact supplied board without inventing a bridge.
 - Subject lines may be terse/contextual like period BBS subjects, but contextual ellipsis is only allowed when audience_context actually establishes the referent.
@@ -236,6 +237,21 @@ func validateBBSWorldWindowEventIDs(events []BBSWorldWindowEvent) error {
 		}
 		seen[id] = true
 	}
+	for _, event := range events {
+		id := strings.TrimSpace(event.EventID)
+		for kind, ref := range map[string]string{"parent_event_id": event.ParentEventID, "source_event_id": event.SourceEventID} {
+			ref = strings.TrimSpace(ref)
+			if ref == "" {
+				continue
+			}
+			if !seen[ref] {
+				return fmt.Errorf("world-window event %q has unknown %s %q", id, kind, ref)
+			}
+			if ref == id {
+				return fmt.Errorf("world-window event %q cannot reference itself as %s", id, kind)
+			}
+		}
+	}
 	return nil
 }
 
@@ -246,14 +262,15 @@ func validateBBSWorldWindowProduction(req BBSWorldWindowProductionRequest, draft
 	if len(draft.Briefs) != len(req.Events) {
 		return fmt.Errorf("world-window producer returned %d briefs, want %d", len(draft.Briefs), len(req.Events))
 	}
-	want := make(map[string]bool, len(req.Events))
+	eventByID := make(map[string]BBSWorldWindowEvent, len(req.Events))
 	for _, event := range req.Events {
-		want[strings.TrimSpace(event.EventID)] = true
+		eventByID[strings.TrimSpace(event.EventID)] = event
 	}
 	seen := map[string]bool{}
 	for _, brief := range draft.Briefs {
 		id := strings.TrimSpace(brief.EventID)
-		if !want[id] {
+		event, wanted := eventByID[id]
+		if !wanted {
 			return fmt.Errorf("world-window producer returned unknown event_id %q", id)
 		}
 		if seen[id] {
@@ -266,8 +283,103 @@ func validateBBSWorldWindowProduction(req BBSWorldWindowProductionRequest, draft
 		if len(brief.Facts) > 1 {
 			return fmt.Errorf("world-window brief %q proposed %d durable facts, max 1", id, len(brief.Facts))
 		}
+		if isStandaloneWorldWindowRoot(event) {
+			if hasReplySubjectPrefix(brief.Subject) {
+				return fmt.Errorf("world-window standalone root %q used reply subject %q", id, strings.TrimSpace(brief.Subject))
+			}
+			if len(cleanStringList(brief.AudienceContext)) > 0 {
+				return fmt.Errorf("world-window standalone root %q invented audience_context", id)
+			}
+		}
+	}
+	if err := validateBBSWorldWindowReferentIsolation(req.Events, draft.Briefs); err != nil {
+		return err
 	}
 	return nil
+}
+
+func isStandaloneWorldWindowRoot(event BBSWorldWindowEvent) bool {
+	return strings.EqualFold(strings.TrimSpace(event.Action), "thread_start") &&
+		strings.TrimSpace(event.ParentEventID) == "" && strings.TrimSpace(event.SourceEventID) == ""
+}
+
+func hasReplySubjectPrefix(subject string) bool {
+	s := strings.ToLower(strings.TrimSpace(subject))
+	return strings.HasPrefix(s, "re:") || strings.HasPrefix(s, "re：") || strings.HasPrefix(s, "ｒｅ:") || strings.HasPrefix(s, "ｒｅ：")
+}
+
+func validateBBSWorldWindowReferentIsolation(events []BBSWorldWindowEvent, briefs []BBSArticleBriefDraft) error {
+	componentByID, err := worldWindowRelationComponents(events)
+	if err != nil {
+		return err
+	}
+	componentByReferent := map[string]string{}
+	eventByReferent := map[string]string{}
+	for _, brief := range briefs {
+		id := strings.TrimSpace(brief.EventID)
+		component := componentByID[id]
+		for _, referent := range cleanStringList(brief.Referents) {
+			key := normalizeProducerReferent(referent)
+			if key == "" {
+				continue
+			}
+			if priorComponent, ok := componentByReferent[key]; ok && priorComponent != component {
+				return fmt.Errorf("world-window producer reused referent %q across unrelated events %q and %q", referent, eventByReferent[key], id)
+			}
+			componentByReferent[key] = component
+			eventByReferent[key] = id
+		}
+	}
+	return nil
+}
+
+func worldWindowRelationComponents(events []BBSWorldWindowEvent) (map[string]string, error) {
+	if err := validateBBSWorldWindowEventIDs(events); err != nil {
+		return nil, err
+	}
+	adj := make(map[string][]string, len(events))
+	order := make([]string, 0, len(events))
+	for _, event := range events {
+		id := strings.TrimSpace(event.EventID)
+		order = append(order, id)
+		if _, ok := adj[id]; !ok {
+			adj[id] = nil
+		}
+		for _, ref := range []string{event.ParentEventID, event.SourceEventID} {
+			ref = strings.TrimSpace(ref)
+			if ref == "" {
+				continue
+			}
+			adj[id] = append(adj[id], ref)
+			adj[ref] = append(adj[ref], id)
+		}
+	}
+	componentByID := make(map[string]string, len(events))
+	for _, start := range order {
+		if _, seen := componentByID[start]; seen {
+			continue
+		}
+		component := start
+		stack := []string{start}
+		componentByID[start] = component
+		for len(stack) > 0 {
+			id := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			for _, next := range adj[id] {
+				if _, seen := componentByID[next]; seen {
+					continue
+				}
+				componentByID[next] = component
+				stack = append(stack, next)
+			}
+		}
+	}
+	return componentByID, nil
+}
+
+func normalizeProducerReferent(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Join(strings.Fields(value), "")
 }
 
 func cleanStringList(values []string) []string {
@@ -297,31 +409,37 @@ func bbsWorldWindowProductionSchema(events []BBSWorldWindowEvent) map[string]any
 		"required":             []string{"key", "value"},
 		"additionalProperties": false,
 	}
-	brief := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"subject":          map[string]any{"type": "string"},
-			"episode":          map[string]any{"type": "string"},
-			"referents":        stringArray(4),
-			"actor_knowledge":  stringArray(4),
-			"audience_context": stringArray(4),
-			"contribution":     stringArray(4),
-			"must_not":         stringArray(4),
-			"topic":            map[string]any{"type": "string"},
-			"motivation":       map[string]any{"type": "string"},
-			"stance":           map[string]any{"type": "string"},
-			"goal":             map[string]any{"type": "string"},
-			"facts":            map[string]any{"type": "array", "items": fact, "maxItems": 1},
-		},
-		"required":             []string{"subject", "episode", "referents", "actor_knowledge", "audience_context", "contribution", "must_not", "topic", "motivation", "stance", "goal", "facts"},
-		"additionalProperties": false,
+	briefSchema := func(event BBSWorldWindowEvent) map[string]any {
+		audienceMax := 4
+		if isStandaloneWorldWindowRoot(event) {
+			audienceMax = 0
+		}
+		return map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"subject":          map[string]any{"type": "string"},
+				"episode":          map[string]any{"type": "string"},
+				"referents":        stringArray(4),
+				"actor_knowledge":  stringArray(4),
+				"audience_context": stringArray(audienceMax),
+				"contribution":     stringArray(4),
+				"must_not":         stringArray(4),
+				"topic":            map[string]any{"type": "string"},
+				"motivation":       map[string]any{"type": "string"},
+				"stance":           map[string]any{"type": "string"},
+				"goal":             map[string]any{"type": "string"},
+				"facts":            map[string]any{"type": "array", "items": fact, "maxItems": 1},
+			},
+			"required":             []string{"subject", "episode", "referents", "actor_knowledge", "audience_context", "contribution", "must_not", "topic", "motivation", "stance", "goal", "facts"},
+			"additionalProperties": false,
+		}
 	}
 
 	briefProperties := make(map[string]any, len(events))
 	required := make([]string, 0, len(events))
 	for _, event := range events {
 		id := strings.TrimSpace(event.EventID)
-		briefProperties[id] = brief
+		briefProperties[id] = briefSchema(event)
 		required = append(required, id)
 	}
 	return map[string]any{
