@@ -4,11 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
+	"time"
 )
 
 var _ BBSWorldWindowProducer = StructuredOpenAIProvider{}
+
+const worldWindowProducerHTTPTimeout = 225 * time.Second
 
 // GenerateBBSWorldWindowProduction is the semantic producer pass. Unlike the
 // older board-local timeline planner, it sees the complete bounded host window
@@ -97,7 +101,8 @@ Additional rules:
 	if maxTokens > 16000 {
 		maxTokens = 16000
 	}
-	result, err := p.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema())
+	producer := p.withWorldWindowHTTPTimeout()
+	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema())
 	if err != nil {
 		return BBSWorldWindowProductionDraft{}, err
 	}
@@ -129,6 +134,25 @@ Additional rules:
 	}
 	draft.Usage = result.Usage
 	return draft, nil
+}
+
+// The server's shared renderer client intentionally uses a shorter timeout for
+// ordinary article/timeline calls. A host-wide producer request is much larger
+// and has a 165-210s caller context, so reusing a 90s HTTP deadline silently
+// defeats that budget. Clone the client only for this request; cancellation from
+// ctx remains authoritative and shorter than this transport ceiling.
+func (p StructuredOpenAIProvider) withWorldWindowHTTPTimeout() StructuredOpenAIProvider {
+	clone := p
+	if p.Client == nil {
+		clone.Client = &http.Client{Timeout: worldWindowProducerHTTPTimeout}
+		return clone
+	}
+	client := *p.Client
+	if client.Timeout <= 0 || client.Timeout < worldWindowProducerHTTPTimeout {
+		client.Timeout = worldWindowProducerHTTPTimeout
+	}
+	clone.Client = &client
+	return clone
 }
 
 func validateBBSWorldWindowProduction(req BBSWorldWindowProductionRequest, draft BBSWorldWindowProductionDraft) error {
@@ -196,21 +220,21 @@ func bbsWorldWindowProductionSchema() map[string]any {
 	brief := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"event_id":          map[string]any{"type": "string"},
-			"subject":           map[string]any{"type": "string"},
-			"episode":           map[string]any{"type": "string"},
-			"referents":         stringArray(8),
-			"actor_knowledge":   stringArray(8),
-			"audience_context":  stringArray(8),
-			"contribution":      stringArray(8),
-			"must_not":          stringArray(8),
-			"topic":             map[string]any{"type": "string"},
-			"motivation":        map[string]any{"type": "string"},
-			"stance":            map[string]any{"type": "string"},
-			"goal":              map[string]any{"type": "string"},
-			"facts":             map[string]any{"type": "array", "items": fact, "maxItems": 1},
+			"event_id":         map[string]any{"type": "string"},
+			"subject":          map[string]any{"type": "string"},
+			"episode":          map[string]any{"type": "string"},
+			"referents":        stringArray(8),
+			"actor_knowledge":  stringArray(8),
+			"audience_context": stringArray(8),
+			"contribution":     stringArray(8),
+			"must_not":         stringArray(8),
+			"topic":            map[string]any{"type": "string"},
+			"motivation":       map[string]any{"type": "string"},
+			"stance":           map[string]any{"type": "string"},
+			"goal":             map[string]any{"type": "string"},
+			"facts":            map[string]any{"type": "array", "items": fact, "maxItems": 1},
 		},
-		"required": []string{"event_id", "subject", "episode", "referents", "actor_knowledge", "audience_context", "contribution", "must_not", "topic", "motivation", "stance", "goal", "facts"},
+		"required":             []string{"event_id", "subject", "episode", "referents", "actor_knowledge", "audience_context", "contribution", "must_not", "topic", "motivation", "stance", "goal", "facts"},
 		"additionalProperties": false,
 	}
 	return map[string]any{
