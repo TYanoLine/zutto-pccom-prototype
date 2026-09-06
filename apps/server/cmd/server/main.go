@@ -132,6 +132,7 @@ func main() {
 	mux.HandleFunc("/api/debug/materialization-lab", materializationLab.handler())
 	mux.HandleFunc("/api/debug/materialization-lab-random", materializationLab.randomHandler())
 	mux.HandleFunc("/api/debug/materialization-lab-allbody", materializationLab.allBodyHandler())
+	mux.HandleFunc("/api/debug/materialization-lab-fresh", materializationLab.freshHandler())
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)
 	mux.HandleFunc("/api/admin/research", listResearch)
