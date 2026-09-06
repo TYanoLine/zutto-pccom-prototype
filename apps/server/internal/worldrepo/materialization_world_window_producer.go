@@ -291,11 +291,12 @@ func (r *Repository) materializeProducerWorldWindow(host world.Host) ([]world.Po
 }
 
 func developmentWorldWindowPlanningTimeout(eventCount int) time.Duration {
-	// One structured producer request covers the whole bounded window. Give it a
-	// larger budget than a six-event board-local batch without allowing an
-	// unbounded background job.
+	// This is intentionally generous for the PoC: the host-wide producer is a
+	// single large structured request and runs in the ALLBODY background job. The
+	// production design will later partition the work instead of relying on a
+	// several-minute monolithic call.
 	if eventCount > 40 {
-		return 210 * time.Second
+		return 360 * time.Second
 	}
-	return 165 * time.Second
+	return 300 * time.Second
 }
