@@ -57,6 +57,7 @@ func main() {
 	postRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
 	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}}
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
+	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -128,6 +129,7 @@ func main() {
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
 	mux.HandleFunc("/api/debug/export", newDebugExportHandler(store))
+	mux.HandleFunc("/api/debug/materialization-lab", materializationLab.handler())
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)
 	mux.HandleFunc("/api/admin/research", listResearch)
@@ -139,7 +141,7 @@ func main() {
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
 	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.OpenAIKey))
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"world_post_renderer":"openai-with-fallback","openai_model":cfg.OpenAIModel,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!=""}) })
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"world_post_renderer":"openai-with-fallback","openai_model":cfg.OpenAIModel,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!="","materialization_lab":cfg.MaterializationLabToken!=""}) })
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5*time.Second}
 	log.Printf("zutto server listening on %s", cfg.Addr)
@@ -149,7 +151,7 @@ func main() {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Zutto-Debug-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Zutto-Debug-Token, X-Zutto-Lab-Token")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		if r.Method == http.MethodOptions { w.WriteHeader(http.StatusNoContent); return }
 		next.ServeHTTP(w,r)
