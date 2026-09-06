@@ -93,6 +93,63 @@ type BBSTimelineIntentDraft struct {
 	Usage  TokenUsage       `json:"-"`
 }
 
+// BBSWorldWindowEvent is the producer-facing view of one already-selected world
+// action. EventID is unique across boards for the materialized time window. The
+// producer may add semantic specificity and editorial instructions, but it may
+// not change whether the event exists, its board, actor, time or thread topology.
+type BBSWorldWindowEvent struct {
+	EventID        string   `json:"event_id"`
+	BoardID        string   `json:"board_id"`
+	BoardName      string   `json:"board_name"`
+	AuthorHandle   string   `json:"author_handle"`
+	CreatedAt      string   `json:"created_at"`
+	Action         string   `json:"action"`
+	ParentEventID  string   `json:"parent_event_id,omitempty"`
+	SourceEventID  string   `json:"source_event_id,omitempty"`
+	AnchorKey      string   `json:"anchor_key"`
+	CauseKind      string   `json:"cause_kind"`
+	CauseSummary   string   `json:"cause_summary"`
+	PersonaProfile string   `json:"persona_profile"`
+	ExistingFacts  []string `json:"existing_facts,omitempty"`
+}
+
+type BBSWorldWindowProductionRequest struct {
+	HostName       string
+	HostRegion     string
+	HostSoftware   string
+	WorldDate      string
+	WindowStart    string
+	WindowEnd      string
+	EraRules       string
+	RecentBBSState string
+	Events         []BBSWorldWindowEvent
+}
+
+// BBSArticleBriefDraft is the producer's canonical semantic/editorial brief for
+// one article. It is intentionally richer than prose intent: the later article
+// renderer is a worker that must follow this brief rather than inventing a new
+// event or backstory.
+type BBSArticleBriefDraft struct {
+	EventID         string               `json:"event_id"`
+	Subject         string               `json:"subject"`
+	Episode         string               `json:"episode"`
+	Referents       []string             `json:"referents"`
+	ActorKnowledge  []string             `json:"actor_knowledge"`
+	AudienceContext []string             `json:"audience_context"`
+	Contribution    []string             `json:"contribution"`
+	MustNot         []string             `json:"must_not"`
+	Topic           string               `json:"topic"`
+	Motivation      string               `json:"motivation"`
+	Stance          string               `json:"stance"`
+	Goal            string               `json:"goal"`
+	Facts           []BBSIntentFactDraft `json:"facts"`
+}
+
+type BBSWorldWindowProductionDraft struct {
+	Briefs []BBSArticleBriefDraft `json:"briefs"`
+	Usage  TokenUsage             `json:"-"`
+}
+
 type Provider interface {
 	GenerateReply(context.Context, ReplyRequest) (string, error)
 }
@@ -101,10 +158,17 @@ type BoardPostRenderer interface {
 	GenerateBoardPost(context.Context, BoardPostRequest) (BoardPostDraft, error)
 }
 
-// BBSTimelineIntentPlanner realizes free-form semantic wording for causal event
-// shells selected by the world layer. It does not select whether anyone writes,
-// which board they visit, root-vs-reply, or the posting anchor. There is also no
-// fixed prose/subject template bank or response-act menu here.
+// BBSTimelineIntentPlanner is retained as a compatibility path for tests and
+// older development callers. Production materialization prefers the world-window
+// producer below so cross-board/persona consistency is planned before articles
+// are rendered.
 type BBSTimelineIntentPlanner interface {
 	GenerateBBSTimelineIntent(context.Context, BBSTimelineIntentRequest) (BBSTimelineIntentDraft, error)
+}
+
+// BBSWorldWindowProducer receives the whole bounded materialization window and
+// issues detailed briefs to downstream article workers. World-selected action
+// topology remains immutable; the producer coordinates semantic consistency.
+type BBSWorldWindowProducer interface {
+	GenerateBBSWorldWindowProduction(context.Context, BBSWorldWindowProductionRequest) (BBSWorldWindowProductionDraft, error)
 }
