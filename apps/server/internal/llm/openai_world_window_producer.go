@@ -12,7 +12,7 @@ import (
 
 var _ BBSWorldWindowProducer = StructuredOpenAIProvider{}
 
-const worldWindowProducerHTTPTimeout = 225 * time.Second
+const worldWindowProducerHTTPTimeout = 390 * time.Second
 
 // GenerateBBSWorldWindowProduction is the semantic producer pass. Unlike the
 // older board-local timeline planner, it sees the complete bounded host window
@@ -49,6 +49,7 @@ PRODUCER RESPONSIBILITIES:
 - For returning participants, respect cause_summary literally: a newer contribution is the reason they can speak again.
 - Prefer sparse, mundane causality. A two-week BBS window is not a TV drama and does not need an arc for every person.
 - Cross-board coherence matters: the same person's life, possessions, current activities and known facts must not mutate just because the board changed.
+- KEEP THE BRIEFS COMPACT: each list should normally have 0-2 short items and never more than 4; each scalar field should normally be one short sentence. Do not spend tokens restating the supplied event shell.
 
 SPECIFICITY BOUNDARY:
 - Specificity must come from supplied canonical state, earlier BBS state, or safe fictional local detail that does not masquerade as an external historical fact.
@@ -97,9 +98,9 @@ Additional rules:
 - Never mention AI, simulation, prompts, databases, web searches, social media, smartphones or anything after the world date.
 - Return exactly one brief for every supplied event_id and no extra briefs.`, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, recent, string(eventsJSON))
 
-	maxTokens := 2200 + len(req.Events)*420
-	if maxTokens > 16000 {
-		maxTokens = 16000
+	maxTokens := 1800 + len(req.Events)*360
+	if maxTokens > 12000 {
+		maxTokens = 12000
 	}
 	producer := p.withWorldWindowHTTPTimeout()
 	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema())
@@ -138,9 +139,9 @@ Additional rules:
 
 // The server's shared renderer client intentionally uses a shorter timeout for
 // ordinary article/timeline calls. A host-wide producer request is much larger
-// and has a 165-210s caller context, so reusing a 90s HTTP deadline silently
-// defeats that budget. Clone the client only for this request; cancellation from
-// ctx remains authoritative and shorter than this transport ceiling.
+// and has a several-minute caller context in the PoC, so reusing the shared 90s
+// HTTP deadline defeats that budget. Clone the client only for this request;
+// cancellation from ctx remains authoritative and shorter than this ceiling.
 func (p StructuredOpenAIProvider) withWorldWindowHTTPTimeout() StructuredOpenAIProvider {
 	clone := p
 	if p.Client == nil {
@@ -223,11 +224,11 @@ func bbsWorldWindowProductionSchema() map[string]any {
 			"event_id":         map[string]any{"type": "string"},
 			"subject":          map[string]any{"type": "string"},
 			"episode":          map[string]any{"type": "string"},
-			"referents":        stringArray(8),
-			"actor_knowledge":  stringArray(8),
-			"audience_context": stringArray(8),
-			"contribution":     stringArray(8),
-			"must_not":         stringArray(8),
+			"referents":        stringArray(4),
+			"actor_knowledge":  stringArray(4),
+			"audience_context": stringArray(4),
+			"contribution":     stringArray(4),
+			"must_not":         stringArray(4),
 			"topic":            map[string]any{"type": "string"},
 			"motivation":       map[string]any{"type": "string"},
 			"stance":           map[string]any{"type": "string"},
