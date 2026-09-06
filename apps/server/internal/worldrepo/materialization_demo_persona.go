@@ -16,20 +16,40 @@ type demoActivityDay struct {
 	score       float64
 }
 
-// MaterializationPersonaArticleHeaders first selects plausible board visits over
-// the catch-up window. A visit is intentionally NOT a post. The causal action
-// selector then decides ROM/no-op vs write, root-vs-reply, and a world anchor
-// before any LLM call. Only those already-causal write events are semantically
-// realized and persisted.
+// MaterializationPersonaArticleHeaders prefers the host-wide producer path when
+// the configured materializer supports it. The first board observation selects
+// causal actions for ALL boards in the bounded window, sends the complete shell
+// set to one producer, and persists detailed article briefs. Later board reads
+// only expose the already-produced slice for that board.
+//
+// The older board-local planner remains as a compatibility path for tests and
+// development materializers that do not implement developmentWorldWindowPlanner.
 func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
-	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+	hostPosts := r.Base.ListPosts(host.ID)
+	if existing := filterBoard(hostPosts, board.ID); len(existing) > 0 {
 		return existing, false
+	}
+	if hasProducerMaterialization(hostPosts) {
+		// A producer window may legitimately leave a board empty. Presence of any
+		// producer event proves the host window was already planned, including its
+		// silence, so do not manufacture a second board-local plan.
+		return nil, false
+	}
+	if len(hostPosts) == 0 {
+		if _, ok := r.Materializer.(developmentWorldWindowPlanner); ok {
+			posts, created := r.materializeProducerWorldWindow(host)
+			return filterBoard(posts, board.ID), created
+		}
 	}
 
 	personas, _ := r.MaterializationPersonas(host)
-	stamp := worldTime(r.WorldDate)
-	visits := make([]demoPostCandidate, 0, 32)
+	visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
+	return r.materializePersonaCandidates(host, board, personas, visits)
+}
 
+func developmentVisitsForBoard(host world.Host, board world.Board, personas []world.Persona, worldDate string) []demoPostCandidate {
+	stamp := worldTime(worldDate)
+	visits := make([]demoPostCandidate, 0, 32)
 	for _, persona := range personas {
 		days := make([]demoActivityDay, 0, 14)
 		expected := 0.0
@@ -70,9 +90,13 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 			visits = append(visits, demoPostCandidate{persona: persona, createdAt: created})
 		}
 	}
-
-	sort.SliceStable(visits, func(i, j int) bool { return visits[i].createdAt.Before(visits[j].createdAt) })
-	return r.materializePersonaCandidates(host, board, personas, visits)
+	sort.SliceStable(visits, func(i, j int) bool {
+		if visits[i].createdAt.Equal(visits[j].createdAt) {
+			return visits[i].persona.ID < visits[j].persona.ID
+		}
+		return visits[i].createdAt.Before(visits[j].createdAt)
+	})
+	return visits
 }
 
 func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, personas []world.Persona, visits []demoPostCandidate) ([]world.Post, bool) {
@@ -90,11 +114,9 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 		return nil, false
 	}
 
-	// Planning is split into bounded API batches. Each structured request can use
-	// almost the provider's 90s HTTP timeout, so the atomic plan must budget time
-	// per batch rather than applying one 90s deadline to the entire multi-batch
-	// sequence. This keeps free-talk boards with more selected writers from being
-	// truncated merely because they need a second semantic-planning request.
+	// Compatibility planner: production uses the host-wide producer above. This
+	// board-local path stays batched so existing tests/fakes and non-producer
+	// development callers remain usable.
 	ctx, cancel := context.WithTimeout(context.Background(), developmentPlanningTimeout(len(shells)))
 	defer cancel()
 	factsByPersona := r.existingPersonaFactsByID(personas)
@@ -133,8 +155,10 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 				continue
 			}
 			parentID = parent.ID
-			sourcePostID = parent.ID
 			subject = "Re: " + parent.Subject
+			if sourcePostID == 0 {
+				sourcePostID = parent.ID
+			}
 			if target, targetFound := latestPostInThread(parent.ID, out); targetFound {
 				respondsToID = target.ID
 			} else {
