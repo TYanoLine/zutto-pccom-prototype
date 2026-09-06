@@ -28,6 +28,11 @@ type Board struct {
 // realization. Topic/Motivation/Stance/Goal are human-readable realization of
 // that fixed cause, not an invitation for the LLM to choose what happens.
 //
+// Producer* fields are the canonical article brief created by the host-window
+// semantic producer after world action selection and before article prose is
+// rendered. They let the later per-article worker write freely at the wording
+// level without inventing a new event, referent, owner, backstory or purpose.
+//
 // PersonaFact is deliberately separate: a persistent fact is background for
 // consistency and never becomes a posting trigger merely because it exists.
 type PostIntent struct {
@@ -43,6 +48,14 @@ type PostIntent struct {
 	Claims           []string `json:"claims,omitempty"`
 	RespondsToClaims []string `json:"responds_to_claims,omitempty"`
 	RespondsToPostID int64    `json:"responds_to_post_id,omitempty"`
+
+	ProducerEventID         string   `json:"producer_event_id,omitempty"`
+	ProducerEpisode         string   `json:"producer_episode,omitempty"`
+	ProducerReferents       []string `json:"producer_referents,omitempty"`
+	ProducerActorKnowledge  []string `json:"producer_actor_knowledge,omitempty"`
+	ProducerAudienceContext []string `json:"producer_audience_context,omitempty"`
+	ProducerContribution    []string `json:"producer_contribution,omitempty"`
+	ProducerMustNot         []string `json:"producer_must_not,omitempty"`
 
 	// RenderContext is transient input assembled from canonical BBS data immediately
 	// before prose rendering. It is never canonical world state and must not be
