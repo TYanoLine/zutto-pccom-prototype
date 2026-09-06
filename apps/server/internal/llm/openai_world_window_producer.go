@@ -103,7 +103,7 @@ Additional rules:
 		maxTokens = 12000
 	}
 	producer := p.withWorldWindowHTTPTimeout()
-	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema())
+	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema(len(req.Events)))
 	if err != nil {
 		return BBSWorldWindowProductionDraft{}, err
 	}
@@ -205,7 +205,7 @@ func cleanStringList(values []string) []string {
 	return out
 }
 
-func bbsWorldWindowProductionSchema() map[string]any {
+func bbsWorldWindowProductionSchema(eventCount int) map[string]any {
 	stringArray := func(max int) map[string]any {
 		return map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": max}
 	}
@@ -241,7 +241,7 @@ func bbsWorldWindowProductionSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"briefs": map[string]any{"type": "array", "items": brief},
+			"briefs": map[string]any{"type": "array", "items": brief, "minItems": eventCount, "maxItems": eventCount},
 		},
 		"required":             []string{"briefs"},
 		"additionalProperties": false,
