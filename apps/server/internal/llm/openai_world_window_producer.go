@@ -14,12 +14,34 @@ var _ BBSWorldWindowProducer = StructuredOpenAIProvider{}
 
 const worldWindowProducerHTTPTimeout = 390 * time.Second
 
+type bbsArticleBriefWire struct {
+	Subject         string               `json:"subject"`
+	Episode         string               `json:"episode"`
+	Referents       []string             `json:"referents"`
+	ActorKnowledge  []string             `json:"actor_knowledge"`
+	AudienceContext []string             `json:"audience_context"`
+	Contribution    []string             `json:"contribution"`
+	MustNot         []string             `json:"must_not"`
+	Topic           string               `json:"topic"`
+	Motivation      string               `json:"motivation"`
+	Stance          string               `json:"stance"`
+	Goal            string               `json:"goal"`
+	Facts           []BBSIntentFactDraft `json:"facts"`
+}
+
+type bbsWorldWindowProductionWire struct {
+	Briefs map[string]bbsArticleBriefWire `json:"briefs"`
+}
+
 // GenerateBBSWorldWindowProduction is the semantic producer pass. Unlike the
 // older board-local timeline planner, it sees the complete bounded host window
 // across boards and personas before any article prose is rendered. It cannot add
 // or remove actions; it only turns world-selected shells into mutually coherent,
 // detailed article briefs.
 func (p StructuredOpenAIProvider) GenerateBBSWorldWindowProduction(ctx context.Context, req BBSWorldWindowProductionRequest) (BBSWorldWindowProductionDraft, error) {
+	if err := validateBBSWorldWindowEventIDs(req.Events); err != nil {
+		return BBSWorldWindowProductionDraft{}, err
+	}
 	eventsJSON, err := json.Marshal(req.Events)
 	if err != nil {
 		return BBSWorldWindowProductionDraft{}, err
@@ -74,7 +96,7 @@ EARLIER CANONICAL BBS STATE BEFORE THIS WINDOW/PLAN:
 WORLD-SELECTED EVENTS ACROSS ALL BOARDS (JSON):
 %s
 
-For EACH event return one brief with exactly the same event_id.
+Return briefs as ONE JSON object keyed by the exact supplied event_id strings. Every supplied event_id is a required object key, and no other key is allowed. Do NOT repeat event_id inside a brief; the application owns identity and will attach it from the object key.
 
 Brief fields:
 - subject: exact subject this actor would type. Replies may still be canonicalized by the application to Re: root subject.
@@ -95,21 +117,24 @@ Additional rules:
 - A reply actor must not appropriate another person's first-person experience. Put ownership in actor_knowledge/must_not clearly when needed.
 - Board placement is semantic. The brief must make sense on the exact supplied board without inventing a bridge.
 - Subject lines may be terse/contextual like period BBS subjects, but contextual ellipsis is only allowed when audience_context actually establishes the referent.
-- Never mention AI, simulation, prompts, databases, web searches, social media, smartphones or anything after the world date.
-- Return exactly one brief for every supplied event_id and no extra briefs.`, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, recent, string(eventsJSON))
+- Never mention AI, simulation, prompts, databases, web searches, social media, smartphones or anything after the world date.`, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, recent, string(eventsJSON))
 
 	maxTokens := 1800 + len(req.Events)*360
 	if maxTokens > 12000 {
 		maxTokens = 12000
 	}
 	producer := p.withWorldWindowHTTPTimeout()
-	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema(len(req.Events)))
+	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_window_production", bbsWorldWindowProductionSchema(req.Events))
 	if err != nil {
 		return BBSWorldWindowProductionDraft{}, err
 	}
-	var draft BBSWorldWindowProductionDraft
-	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &draft); err != nil {
+	var wire bbsWorldWindowProductionWire
+	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &wire); err != nil {
 		return BBSWorldWindowProductionDraft{}, fmt.Errorf("decode BBS world-window production JSON: %w", err)
+	}
+	draft, err := bbsWorldWindowDraftFromWire(req, wire)
+	if err != nil {
+		return BBSWorldWindowProductionDraft{}, err
 	}
 	if err := validateBBSWorldWindowProduction(req, draft); err != nil {
 		return BBSWorldWindowProductionDraft{}, err
@@ -137,6 +162,49 @@ Additional rules:
 	return draft, nil
 }
 
+func bbsWorldWindowDraftFromWire(req BBSWorldWindowProductionRequest, wire bbsWorldWindowProductionWire) (BBSWorldWindowProductionDraft, error) {
+	if err := validateBBSWorldWindowEventIDs(req.Events); err != nil {
+		return BBSWorldWindowProductionDraft{}, err
+	}
+	if len(wire.Briefs) != len(req.Events) {
+		return BBSWorldWindowProductionDraft{}, fmt.Errorf("world-window producer returned %d keyed briefs, want %d", len(wire.Briefs), len(req.Events))
+	}
+	want := make(map[string]bool, len(req.Events))
+	for _, event := range req.Events {
+		want[strings.TrimSpace(event.EventID)] = true
+	}
+	for id := range wire.Briefs {
+		if !want[id] {
+			return BBSWorldWindowProductionDraft{}, fmt.Errorf("world-window producer returned unknown event key %q", id)
+		}
+	}
+
+	briefs := make([]BBSArticleBriefDraft, 0, len(req.Events))
+	for _, event := range req.Events {
+		id := strings.TrimSpace(event.EventID)
+		brief, ok := wire.Briefs[id]
+		if !ok {
+			return BBSWorldWindowProductionDraft{}, fmt.Errorf("world-window producer omitted required event key %q", id)
+		}
+		briefs = append(briefs, BBSArticleBriefDraft{
+			EventID:         id,
+			Subject:         brief.Subject,
+			Episode:         brief.Episode,
+			Referents:       append([]string(nil), brief.Referents...),
+			ActorKnowledge:  append([]string(nil), brief.ActorKnowledge...),
+			AudienceContext: append([]string(nil), brief.AudienceContext...),
+			Contribution:    append([]string(nil), brief.Contribution...),
+			MustNot:         append([]string(nil), brief.MustNot...),
+			Topic:           brief.Topic,
+			Motivation:      brief.Motivation,
+			Stance:          brief.Stance,
+			Goal:            brief.Goal,
+			Facts:           append([]BBSIntentFactDraft(nil), brief.Facts...),
+		})
+	}
+	return BBSWorldWindowProductionDraft{Briefs: briefs}, nil
+}
+
 // The server's shared renderer client intentionally uses a shorter timeout for
 // ordinary article/timeline calls. A host-wide producer request is much larger
 // and has a several-minute caller context in the PoC, so reusing the shared 90s
@@ -156,20 +224,31 @@ func (p StructuredOpenAIProvider) withWorldWindowHTTPTimeout() StructuredOpenAIP
 	return clone
 }
 
+func validateBBSWorldWindowEventIDs(events []BBSWorldWindowEvent) error {
+	seen := make(map[string]bool, len(events))
+	for _, event := range events {
+		id := strings.TrimSpace(event.EventID)
+		if id == "" {
+			return fmt.Errorf("world-window request contains empty event_id")
+		}
+		if seen[id] {
+			return fmt.Errorf("world-window request contains duplicate event_id %q", id)
+		}
+		seen[id] = true
+	}
+	return nil
+}
+
 func validateBBSWorldWindowProduction(req BBSWorldWindowProductionRequest, draft BBSWorldWindowProductionDraft) error {
+	if err := validateBBSWorldWindowEventIDs(req.Events); err != nil {
+		return err
+	}
 	if len(draft.Briefs) != len(req.Events) {
 		return fmt.Errorf("world-window producer returned %d briefs, want %d", len(draft.Briefs), len(req.Events))
 	}
 	want := make(map[string]bool, len(req.Events))
 	for _, event := range req.Events {
-		id := strings.TrimSpace(event.EventID)
-		if id == "" {
-			return fmt.Errorf("world-window request contains empty event_id")
-		}
-		if want[id] {
-			return fmt.Errorf("world-window request contains duplicate event_id %q", id)
-		}
-		want[id] = true
+		want[strings.TrimSpace(event.EventID)] = true
 	}
 	seen := map[string]bool{}
 	for _, brief := range draft.Briefs {
@@ -205,7 +284,7 @@ func cleanStringList(values []string) []string {
 	return out
 }
 
-func bbsWorldWindowProductionSchema(eventCount int) map[string]any {
+func bbsWorldWindowProductionSchema(events []BBSWorldWindowEvent) map[string]any {
 	stringArray := func(max int) map[string]any {
 		return map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": max}
 	}
@@ -221,7 +300,6 @@ func bbsWorldWindowProductionSchema(eventCount int) map[string]any {
 	brief := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"event_id":         map[string]any{"type": "string"},
 			"subject":          map[string]any{"type": "string"},
 			"episode":          map[string]any{"type": "string"},
 			"referents":        stringArray(4),
@@ -235,13 +313,26 @@ func bbsWorldWindowProductionSchema(eventCount int) map[string]any {
 			"goal":             map[string]any{"type": "string"},
 			"facts":            map[string]any{"type": "array", "items": fact, "maxItems": 1},
 		},
-		"required":             []string{"event_id", "subject", "episode", "referents", "actor_knowledge", "audience_context", "contribution", "must_not", "topic", "motivation", "stance", "goal", "facts"},
+		"required":             []string{"subject", "episode", "referents", "actor_knowledge", "audience_context", "contribution", "must_not", "topic", "motivation", "stance", "goal", "facts"},
 		"additionalProperties": false,
+	}
+
+	briefProperties := make(map[string]any, len(events))
+	required := make([]string, 0, len(events))
+	for _, event := range events {
+		id := strings.TrimSpace(event.EventID)
+		briefProperties[id] = brief
+		required = append(required, id)
 	}
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"briefs": map[string]any{"type": "array", "items": brief, "minItems": eventCount, "maxItems": eventCount},
+			"briefs": map[string]any{
+				"type":                 "object",
+				"properties":           briefProperties,
+				"required":             required,
+				"additionalProperties": false,
+			},
 		},
 		"required":             []string{"briefs"},
 		"additionalProperties": false,
