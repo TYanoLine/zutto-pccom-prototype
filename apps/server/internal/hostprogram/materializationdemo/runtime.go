@@ -156,9 +156,10 @@ func (r *Runtime) runBulkRenderBodies(job *bulkBodyJob) {
 		j.current = "board envelope planning"
 	})
 
-	targets := make([]bulkBodyTarget, 0, 48)
-	emptyBoards := make([]string, 0, len(boards))
-	initialBodies := 0
+	// Ask every board to observe/materialize its envelope state first. A host-wide
+	// producer is allowed to create posts for multiple boards during any one of
+	// these calls, including a later retry after an earlier board returned empty.
+	// Therefore the per-call return slice is not a stable inventory for ALLBODY.
 	for i, board := range boards {
 		if r.bulkCancellationRequested(job) {
 			r.finishBulkJob(job, "CANCELLED", "")
@@ -167,21 +168,9 @@ func (r *Runtime) runBulkRenderBodies(job *bulkBodyJob) {
 		r.updateBulkJob(job, func(j *bulkBodyJob) {
 			j.current = fmt.Sprintf("board %d/%d %s envelope planning", i+1, len(boards), board.Name)
 		})
-		posts, _ := s.MaterializationPersonaArticleHeaders(r.Host, board)
-		if len(posts) == 0 {
-			emptyBoards = append(emptyBoards, board.Name)
-		}
-		for _, post := range posts {
-			targets = append(targets, bulkBodyTarget{board: board, postID: post.ID})
-			if strings.TrimSpace(post.Body) != "" {
-				initialBodies++
-			}
-		}
+		_, _ = s.MaterializationPersonaArticleHeaders(r.Host, board)
 		r.updateBulkJob(job, func(j *bulkBodyJob) {
 			j.boardsDone = i + 1
-			j.envelopes = len(targets)
-			j.initialBodies = initialBodies
-			j.emptyBoards = append([]string(nil), emptyBoards...)
 		})
 	}
 
@@ -189,6 +178,19 @@ func (r *Runtime) runBulkRenderBodies(job *bulkBodyJob) {
 		r.finishBulkJob(job, "CANCELLED", "")
 		return
 	}
+
+	// Re-read canonical state only after all envelope planning calls have returned.
+	// This closes the late host-wide materialization hole where board 1/2 could be
+	// reported empty, board 3 could finally succeed and create all three boards,
+	// yet ALLBODY would render only board 3 because it never revisited earlier
+	// return values.
+	targets, initialBodies, emptyBoards := collectCanonicalBulkBodyTargets(s, r.Host.ID, boards)
+	r.updateBulkJob(job, func(j *bulkBodyJob) {
+		j.envelopes = len(targets)
+		j.initialBodies = initialBodies
+		j.complete = initialBodies
+		j.emptyBoards = append([]string(nil), emptyBoards...)
+	})
 	if len(targets) == 0 {
 		r.finishBulkJob(job, "COMPLETED", "no article envelopes")
 		return
@@ -366,6 +368,36 @@ func formatBulkBodyJobStatus(job bulkBodyJob) string {
 		b.WriteString("[DEV] THREAD ORDER   : predecessor bodies may have been generated first when a random request landed on a later reply\r\n")
 	}
 	return b.String()
+}
+
+func collectCanonicalBulkBodyTargets(s materializingStore, hostID string, boards []world.Board) ([]bulkBodyTarget, int, []string) {
+	boardByID := make(map[string]world.Board, len(boards))
+	counts := make(map[string]int, len(boards))
+	for _, board := range boards {
+		boardByID[board.ID] = board
+	}
+
+	targets := make([]bulkBodyTarget, 0, 48)
+	initialBodies := 0
+	for _, post := range s.ListPosts(hostID) {
+		board, known := boardByID[post.BoardID]
+		if !known {
+			continue
+		}
+		targets = append(targets, bulkBodyTarget{board: board, postID: post.ID})
+		counts[board.ID]++
+		if strings.TrimSpace(post.Body) != "" {
+			initialBodies++
+		}
+	}
+
+	emptyBoards := make([]string, 0, len(boards))
+	for _, board := range boards {
+		if counts[board.ID] == 0 {
+			emptyBoards = append(emptyBoards, board.Name)
+		}
+	}
+	return targets, initialBodies, emptyBoards
 }
 
 func countBulkCompleteBodies(s materializingStore, hostID string, targets []bulkBodyTarget) int {
