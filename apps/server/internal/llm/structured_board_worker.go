@@ -1,0 +1,24 @@
+package llm
+
+import (
+	"context"
+	"strings"
+)
+
+// GenerateBoardPost makes the structured provider's prose pass an explicit
+// article worker when a producer brief is present. The underlying OpenAIProvider
+// still owns the period-native body prompt; this wrapper strengthens the
+// producer/worker authority boundary without duplicating that large prompt.
+func (p StructuredOpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
+	if strings.Contains(req.PostIntent, "producer_event_id=") {
+		req.PostIntent = `ARTICLE WORKER CONTRACT:
+The host-window PRODUCER already coordinated this article with the rest of the world window. All producer_* fields below are canonical production instructions, not suggestions.
+You may choose natural Japanese wording, omissions that are justified by producer_audience_context, line breaks, quoting style, emoticons consistent with the persona, and other surface expression.
+You MUST NOT replace producer_episode, invent a different referent, give the actor knowledge outside producer_actor_knowledge/context, omit the producer_required_contribution in favor of a different story, or violate producer_must_not.
+If producer_audience_context says a referent is not shared, do not use unexplained shorthand such as 「あれ」「あの面」「例の件」 as though readers already know it.
+If a concrete external product/place name is absent from the brief and historical facts, do not invent one merely for specificity.
+
+` + req.PostIntent
+	}
+	return p.OpenAIProvider.GenerateBoardPost(ctx, req)
+}

@@ -103,7 +103,7 @@ func personaSummary(p world.Persona) string {
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 14)
+	parts := make([]string, 0, 24)
 	if i.Action != "" {
 		parts = append(parts, "action="+i.Action)
 	}
@@ -136,6 +136,32 @@ func intentSummary(i world.PostIntent) string {
 	}
 	if len(i.RespondsToClaims) > 0 {
 		parts = append(parts, "responds_to_claims="+strings.Join(i.RespondsToClaims, " / "))
+	}
+
+	// Producer fields are canonical editorial instructions. The article renderer
+	// is deliberately a worker: it may choose wording, line breaks and period-native
+	// conversational texture, but it must not replace these facts with a different
+	// event or invent missing story state.
+	if i.ProducerEventID != "" {
+		parts = append(parts, "producer_event_id="+i.ProducerEventID)
+	}
+	if i.ProducerEpisode != "" {
+		parts = append(parts, "producer_episode="+i.ProducerEpisode)
+	}
+	if len(i.ProducerReferents) > 0 {
+		parts = append(parts, "producer_referents="+strings.Join(i.ProducerReferents, " / "))
+	}
+	if len(i.ProducerActorKnowledge) > 0 {
+		parts = append(parts, "producer_actor_knowledge="+strings.Join(i.ProducerActorKnowledge, " / "))
+	}
+	if len(i.ProducerAudienceContext) > 0 {
+		parts = append(parts, "producer_audience_context="+strings.Join(i.ProducerAudienceContext, " / "))
+	}
+	if len(i.ProducerContribution) > 0 {
+		parts = append(parts, "producer_required_contribution="+strings.Join(i.ProducerContribution, " / "))
+	}
+	if len(i.ProducerMustNot) > 0 {
+		parts = append(parts, "producer_must_not="+strings.Join(i.ProducerMustNot, " / "))
 	}
 	if strings.TrimSpace(i.RenderContext) != "" {
 		parts = append(parts, "bbs_context:\n"+strings.TrimSpace(i.RenderContext))
