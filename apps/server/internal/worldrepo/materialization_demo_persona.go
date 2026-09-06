@@ -35,11 +35,9 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 		// silence, so do not manufacture a second board-local plan.
 		return nil, false
 	}
-	if len(hostPosts) == 0 {
-		if _, ok := r.Materializer.(developmentWorldWindowPlanner); ok {
-			posts, created := r.materializeProducerWorldWindow(host)
-			return filterBoard(posts, board.ID), created
-		}
+	if len(hostPosts) == 0 && developmentWorldWindowAvailable(r.Materializer) {
+		posts, created := r.materializeProducerWorldWindow(host)
+		return filterBoard(posts, board.ID), created
 	}
 
 	personas, _ := r.MaterializationPersonas(host)
