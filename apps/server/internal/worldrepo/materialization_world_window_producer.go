@@ -11,6 +11,8 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
+const developmentWorldWindowPoCMaxShellsPerBoard = 5
+
 type developmentWindowShell struct {
 	eventID string
 	board   world.Board
@@ -157,6 +159,28 @@ func hasProducerMaterialization(posts []world.Post) bool {
 	return false
 }
 
+func limitDevelopmentShellsForProducer(shells []developmentTimelineShell, stats developmentSelectionStats) ([]developmentTimelineShell, developmentSelectionStats) {
+	if len(shells) <= developmentWorldWindowPoCMaxShellsPerBoard {
+		return shells, stats
+	}
+	limited := append([]developmentTimelineShell(nil), shells[:developmentWorldWindowPoCMaxShellsPerBoard]...)
+	stats.Posts = len(limited)
+	stats.Roots = 0
+	stats.Replies = 0
+	for _, shell := range limited {
+		if shell.action == "reply" {
+			stats.Replies++
+		} else {
+			stats.Roots++
+		}
+	}
+	stats.ROM = stats.Visits - stats.Posts
+	if stats.ROM < 0 {
+		stats.ROM = 0
+	}
+	return limited, stats
+}
+
 // materializeProducerWorldWindow performs world action selection independently
 // per board, then hands ALL selected shells to one host-wide producer pass. The
 // producer therefore coordinates semantics across boards while BoardScope and
@@ -175,10 +199,15 @@ func (r *Repository) materializeProducerWorldWindow(host world.Host) ([]world.Po
 		return nil, false
 	}
 
-	windowShells := make([]developmentWindowShell, 0, 48)
+	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentWorldWindowPoCMaxShellsPerBoard)
 	for _, board := range boards {
 		visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
 		shells, stats := selectDevelopmentTimelineShells(host, board, visits)
+		// PoC only: one monolithic producer still sees the whole host window, but
+		// keep each board to a small chronological prefix so the structured response
+		// reliably finishes. Prefixing preserves parent/source dependencies because
+		// reply targets always refer to earlier shells on the same board.
+		shells, stats = limitDevelopmentShellsForProducer(shells, stats)
 		storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 		for _, shell := range shells {
 			windowShells = append(windowShells, developmentWindowShell{
