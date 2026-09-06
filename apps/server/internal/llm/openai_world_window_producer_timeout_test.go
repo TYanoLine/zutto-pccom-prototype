@@ -34,10 +34,10 @@ func TestWorldWindowProducerCreatesLongClientWhenMissing(t *testing.T) {
 }
 
 func TestWorldWindowProducerPreservesLongerClientTimeout(t *testing.T) {
-	originalClient := &http.Client{Timeout: 300 * time.Second}
+	originalClient := &http.Client{Timeout: 420 * time.Second}
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{Client: originalClient}}
 	producer := provider.withWorldWindowHTTPTimeout()
-	if got := producer.Client.Timeout; got != 300*time.Second {
-		t.Fatalf("producer timeout = %s, want 5m", got)
+	if got := producer.Client.Timeout; got != 420*time.Second {
+		t.Fatalf("producer timeout = %s, want 7m", got)
 	}
 }
