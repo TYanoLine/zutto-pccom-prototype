@@ -48,6 +48,24 @@ func TestBBSWorldWindowProductionSchemaKeysBriefsByExactEventID(t *testing.T) {
 	}
 }
 
+func TestBBSWorldWindowProductionSchemaForbidsAudienceContextOnStandaloneRoot(t *testing.T) {
+	events := []BBSWorldWindowEvent{
+		{EventID: "root", Action: "thread_start"},
+		{EventID: "reply", Action: "reply", ParentEventID: "root", SourceEventID: "root"},
+	}
+	schema := bbsWorldWindowProductionSchema(events)
+	briefs := schema["properties"].(map[string]any)["briefs"].(map[string]any)
+	briefProperties := briefs["properties"].(map[string]any)
+	rootFields := briefProperties["root"].(map[string]any)["properties"].(map[string]any)
+	replyFields := briefProperties["reply"].(map[string]any)["properties"].(map[string]any)
+	if got := rootFields["audience_context"].(map[string]any)["maxItems"]; got != 0 {
+		t.Fatalf("root audience_context maxItems=%v want 0", got)
+	}
+	if got := replyFields["audience_context"].(map[string]any)["maxItems"]; got != 4 {
+		t.Fatalf("reply audience_context maxItems=%v want 4", got)
+	}
+}
+
 func TestBBSWorldWindowDraftFromWireUsesCanonicalKeysAndRequestOrder(t *testing.T) {
 	req := BBSWorldWindowProductionRequest{Events: []BBSWorldWindowEvent{
 		{EventID: "board-1:event-0001"},
@@ -87,6 +105,55 @@ func TestBBSWorldWindowDraftFromWireRejectsMissingOrUnknownKey(t *testing.T) {
 	}
 }
 
+func TestValidateBBSWorldWindowProductionRejectsReplySemanticsOnStandaloneRoot(t *testing.T) {
+	req := BBSWorldWindowProductionRequest{Events: []BBSWorldWindowEvent{{EventID: "root", Action: "thread_start"}}}
+
+	draft := BBSWorldWindowProductionDraft{Briefs: []BBSArticleBriefDraft{validProductionBrief("root", "Re: unrelated", nil, nil)}}
+	if err := validateBBSWorldWindowProduction(req, draft); err == nil {
+		t.Fatal("standalone root with Re: subject should fail")
+	}
+
+	draft = BBSWorldWindowProductionDraft{Briefs: []BBSArticleBriefDraft{validProductionBrief("root", "standalone", nil, []string{"another selected post"})}}
+	if err := validateBBSWorldWindowProduction(req, draft); err == nil {
+		t.Fatal("standalone root with audience_context should fail")
+	}
+}
+
+func TestValidateBBSWorldWindowProductionRejectsReferentReuseAcrossUnrelatedRoots(t *testing.T) {
+	req := BBSWorldWindowProductionRequest{Events: []BBSWorldWindowEvent{
+		{EventID: "root-a", Action: "thread_start"},
+		{EventID: "root-b", Action: "thread_start"},
+	}}
+	draft := BBSWorldWindowProductionDraft{Briefs: []BBSArticleBriefDraft{
+		validProductionBrief("root-a", "a", []string{"13日夜の接続切れ"}, nil),
+		validProductionBrief("root-b", "b", []string{"13日夜の接続切れ"}, nil),
+	}}
+	if err := validateBBSWorldWindowProduction(req, draft); err == nil {
+		t.Fatal("same referent across unrelated roots should fail")
+	}
+}
+
+func TestValidateBBSWorldWindowProductionAllowsReferentReuseInsideExplicitThread(t *testing.T) {
+	req := BBSWorldWindowProductionRequest{Events: []BBSWorldWindowEvent{
+		{EventID: "root", Action: "thread_start"},
+		{EventID: "reply", Action: "reply", ParentEventID: "root", SourceEventID: "root"},
+	}}
+	draft := BBSWorldWindowProductionDraft{Briefs: []BBSArticleBriefDraft{
+		validProductionBrief("root", "root subject", []string{"13日夜の接続切れ"}, nil),
+		validProductionBrief("reply", "reply subject", []string{"13日夜の接続切れ"}, []string{"root context"}),
+	}}
+	if err := validateBBSWorldWindowProduction(req, draft); err != nil {
+		t.Fatalf("explicit thread should allow stable referent reuse: %v", err)
+	}
+}
+
+func TestValidateBBSWorldWindowEventIDsRejectsUnknownTopologyReference(t *testing.T) {
+	events := []BBSWorldWindowEvent{{EventID: "reply", Action: "reply", ParentEventID: "missing"}}
+	if err := validateBBSWorldWindowEventIDs(events); err == nil {
+		t.Fatal("unknown parent event should fail")
+	}
+}
+
 func validBriefWire(subject string) bbsArticleBriefWire {
 	return bbsArticleBriefWire{
 		Subject:    subject,
@@ -95,5 +162,19 @@ func validBriefWire(subject string) bbsArticleBriefWire {
 		Motivation: "motivation",
 		Stance:     "stance",
 		Goal:       "goal",
+	}
+}
+
+func validProductionBrief(id, subject string, referents, audienceContext []string) BBSArticleBriefDraft {
+	return BBSArticleBriefDraft{
+		EventID:         id,
+		Subject:         subject,
+		Episode:         "episode",
+		Referents:       referents,
+		AudienceContext: audienceContext,
+		Topic:           "topic",
+		Motivation:      "motivation",
+		Stance:          "stance",
+		Goal:            "goal",
 	}
 }
