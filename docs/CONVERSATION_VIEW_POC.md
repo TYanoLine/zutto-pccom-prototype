@@ -62,3 +62,8 @@ The article worker then chooses natural subject/body wording. Root subjects are 
 `EnableDevelopmentConversationViewPoC()` is opt-in per repository instance. The server currently enables it only for the isolated fresh RESET-equivalent -> ALLBODY lab. Ordinary runtime materialization continues to use the existing Producer path.
 
 This remains an experiment, not a production architecture decision. The important architectural direction is **sparse canonical world state + delayed concretization + transient DB-reconstructed conversation context**, rather than an always-running full-life simulation or a larger semantic Producer.
+
+
+## Facetless A/B experiment
+
+The fresh Lab also supports `situation_mode=facetless` for a deliberately weaker A/B condition. In this mode root shells keep actor/time/board/topology/routing-domain/cause/discourse-mode, but **no predefined situation facet or occurrence is selected**. The Article Worker must invent one small concrete occurrence while rendering from the conversation view. This mode is intentionally not the proposed production architecture: concrete root occurrence details are not canonical before prose. It exists to measure what the hand-written facet layer contributes to diversity, answerability and cross-root isolation. Replies still bind to the actual canonical source post. Default fresh behavior remains `situation_mode=facets`.

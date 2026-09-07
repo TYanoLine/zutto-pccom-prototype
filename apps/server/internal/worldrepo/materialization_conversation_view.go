@@ -102,7 +102,7 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		if hasSource {
 			source = &sourcePost
 		}
-		situation := developmentSituationForShell(host, item.board, shell, out, source)
+		situation := r.developmentConversationSituationForShell(host, item.board, shell, out, source)
 
 		post := world.Post{
 			BoardID:         item.board.ID,
