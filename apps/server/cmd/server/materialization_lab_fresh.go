@@ -15,8 +15,8 @@ import (
 )
 
 // fresh ALLBODY lab reproduces RESET -> ALLBODY in an isolated MemoryStore. It
-// therefore includes the host-wide Producer call immediately followed by the
-// Article Worker burst, which the existing replay labs deliberately skip.
+// therefore exercises the experimental conversation-view path immediately
+// followed by the Article Worker burst, while ordinary runtime paths stay unchanged.
 type materializationFreshLabState struct {
 	mu     sync.Mutex
 	jobs   map[string]*materializationFreshJob
@@ -164,6 +164,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 		return
 	}
 	repo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)
+	repo.EnableDevelopmentConversationViewPoC()
 	host, err := repo.HostByPhone(job.Phone)
 	if err != nil {
 		finishFreshError(id, err)
