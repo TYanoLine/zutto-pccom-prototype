@@ -1,0 +1,41 @@
+name: run-batch-situation-patch
+on:
+  push:
+    branches:
+      - exp/batch-world-situation-20260908
+permissions:
+  contents: write
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: exp/batch-world-situation-20260908
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Apply batch situation patch
+        run: python .github/scripts/apply_batch_situation.py
+      - name: Format and test
+        run: |
+          gofmt -w apps/server/internal/llm/provider.go \
+            apps/server/internal/llm/openai_world_situation_proposer.go \
+            apps/server/internal/llm/openai_world_situation_proposer_schema_test.go \
+            apps/server/internal/worldrepo/materialization_batch_situation.go \
+            apps/server/internal/worldrepo/materialization_batch_situation_test.go \
+            apps/server/internal/worldrepo/materialization_conversation_view.go \
+            apps/server/internal/worldrepo/materialization_action_seed.go \
+            apps/server/cmd/server/materialization_lab_fresh.go \
+            apps/server/cmd/server/materialization_lab_fresh_mode_test.go
+          cd apps/server
+          go test ./...
+      - name: Commit patch and remove helper files
+        run: |
+          rm .github/workflows/run-batch-situation-patch.yml .github/scripts/apply_batch_situation.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Add batched world situation proposal PoC"
+          git push origin HEAD:exp/batch-world-situation-20260908
