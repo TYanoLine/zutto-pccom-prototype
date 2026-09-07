@@ -83,3 +83,7 @@ Read, in order:
 ## Do not prematurely microservice this
 
 Keep a modular monolith until scaling evidence says otherwise. Domain interfaces matter; deployment boundaries do not yet.
+
+## Iterative generation verification
+
+Read [docs/MATERIALIZATION_LAB.md](docs/MATERIALIZATION_LAB.md) when validating Producer / Article Worker changes. The development HTTP labs run the actual generation pipeline against an isolated MemoryStore clone. Use the fresh lab for RESET-equivalent → Producer → ALLBODY and inspect generated articles against Producer instructions. Record runtime outcomes separately from job completion; verify the deployed build before comparing changes. This does not replace terminal/browser E2E verification.
