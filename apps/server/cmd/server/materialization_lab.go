@@ -1,7 +1,6 @@
 package main
 
 import (
-	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -99,11 +98,7 @@ func (l *materializationLab) handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !l.authorized(r) {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "materialization lab is disabled or unauthorized"})
-			return
-		}
+		if !labRequestAllowed(w, r) { return }
 		action := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action")))
 		switch action {
 		case "start":
@@ -117,17 +112,6 @@ func (l *materializationLab) handler() http.HandlerFunc {
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "action must be start, status, or list"})
 		}
 	}
-}
-
-func (l *materializationLab) authorized(r *http.Request) bool {
-	if l.token == "" {
-		return false
-	}
-	got := r.Header.Get("X-Zutto-Lab-Token")
-	if got == "" {
-		got = r.URL.Query().Get("token")
-	}
-	return len(got) == len(l.token) && subtle.ConstantTimeCompare([]byte(got), []byte(l.token)) == 1
 }
 
 func (l *materializationLab) handleStart(w http.ResponseWriter, r *http.Request) {
@@ -172,14 +156,8 @@ func (l *materializationLab) handleStart(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if !publicLabAdmission.start(w, r, phone, runs) { return }
 	l.mu.Lock()
-	if l.active != "" {
-		active := l.jobs[l.active]
-		l.mu.Unlock()
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": "another lab job is active", "active": active})
-		return
-	}
 	id := fmt.Sprintf("lab-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&l.seq, 1)%10000)
 	job := &materializationLabJob{
 		ID: id, Suite: suite, Status: "queued", Phone: phone, Runs: runs, TimeoutMS: timeoutMS,
@@ -189,8 +167,9 @@ func (l *materializationLab) handleStart(w http.ResponseWriter, r *http.Request)
 	l.active = id
 	l.mu.Unlock()
 
-	go l.runWorkerReplay(id)
+	// Encode before the worker can mutate the queued job.
 	_ = json.NewEncoder(w).Encode(job)
+	go l.runWorkerReplay(id)
 }
 
 func (l *materializationLab) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -239,6 +218,7 @@ func (l *materializationLab) handleList(w http.ResponseWriter) {
 }
 
 func (l *materializationLab) runWorkerReplay(id string) {
+	defer publicLabAdmission.finish()
 	l.mu.Lock()
 	job := l.jobs[id]
 	job.Status = "running"

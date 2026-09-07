@@ -68,11 +68,7 @@ func (l *materializationLab) allBodyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !l.authorized(r) {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "materialization lab is disabled or unauthorized"})
-			return
-		}
+		if !labRequestAllowed(w, r) { return }
 		switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action"))) {
 		case "start":
 			l.handleAllBodyStart(w, r)
@@ -103,28 +99,17 @@ func (l *materializationLab) handleAllBodyStart(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	l.mu.Lock()
-	regularActive := l.active
-	l.mu.Unlock()
-	materializationRandomLab.mu.Lock()
-	randomActive := materializationRandomLab.active
-	materializationRandomLab.mu.Unlock()
+	if !publicLabAdmission.start(w, r, phone, runs) { return }
 	materializationAllBodyLab.mu.Lock()
-	if regularActive != "" || randomActive != "" || materializationAllBodyLab.active != "" {
-		active := materializationAllBodyLab.active
-		materializationAllBodyLab.mu.Unlock()
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": "another materialization lab job is active", "regular_active": regularActive, "random_active": randomActive, "allbody_active": active})
-		return
-	}
 	id := fmt.Sprintf("lab-allbody-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationAllBodyLab.seq, 1)%10000)
 	job := &materializationAllBodyJob{ID: id, Status: "queued", Phone: phone, Runs: runs, CreatedAt: time.Now().UTC()}
 	materializationAllBodyLab.jobs[id] = job
 	materializationAllBodyLab.active = id
 	materializationAllBodyLab.mu.Unlock()
 
-	go l.runAllBodyReplay(id)
+	// Encode before the worker can mutate the queued job.
 	_ = json.NewEncoder(w).Encode(job)
+	go l.runAllBodyReplay(id)
 }
 
 func handleAllBodyStatus(w http.ResponseWriter, r *http.Request) {
@@ -169,6 +154,7 @@ func handleAllBodyList(w http.ResponseWriter) {
 }
 
 func (l *materializationLab) runAllBodyReplay(id string) {
+	defer publicLabAdmission.finish()
 	materializationAllBodyLab.mu.Lock()
 	job := materializationAllBodyLab.jobs[id]
 	job.Status = "running"
@@ -204,8 +190,9 @@ func (l *materializationLab) runAllBodyReplay(id string) {
 			statusText, _ = runtime.HandleLine("STATUS")
 			if terminalBulkStatus(statusText) { break }
 			if time.Now().After(deadline) {
-				statusText += "\n[LAB] timeout waiting for ALLBODY terminal state"
-				break
+				publicLabAdmission.block()
+				finishAllBodyError(id, fmt.Errorf("ALLBODY timeout; lab blocked until server restart"))
+				return
 			}
 			time.Sleep(150 * time.Millisecond)
 		}
