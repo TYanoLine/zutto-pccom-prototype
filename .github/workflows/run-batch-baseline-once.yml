@@ -1,0 +1,38 @@
+name: run-batch-situation-baseline-once
+on:
+  push:
+    branches:
+      - ops/run-batch-baseline-20260908
+jobs:
+  run-fresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start batch baseline and capture result
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh"
+          curl --fail-with-body -sS -X POST "${BASE}?action=start&phone=0450000196&situation_mode=batch&board_count=3&shell_limit=5" > start.json
+          cat start.json
+          JOB_ID=$(python -c 'import json; print(json.load(open("start.json"))["id"])')
+          echo "job=${JOB_ID}"
+          for i in $(seq 1 180); do
+            curl --fail-with-body -sS "${BASE}?action=status&id=${JOB_ID}" > result.json
+            STATUS=$(python -c 'import json; print(json.load(open("result.json")).get("status", ""))')
+            echo "poll=${i} status=${STATUS}"
+            if [ "${STATUS}" = "completed" ] || [ "${STATUS}" = "failed" ]; then
+              break
+            fi
+            sleep 5
+          done
+          python - <<'PY'
+          import json, sys
+          x=json.load(open('result.json'))
+          print(json.dumps({k:x.get(k) for k in ['id','status','duration_ms','post_count','body_count','failures','situation_mode','board_count','shell_limit','situation_diagnostic','usage','error']}, ensure_ascii=False, indent=2))
+          if x.get('status') != 'completed': sys.exit(1)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: batch-baseline-result
+          path: result.json
+          retention-days: 7
