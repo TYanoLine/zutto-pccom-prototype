@@ -91,6 +91,7 @@ Rules for each event:
 - facts contains zero to three durable FICTIONAL PERSONAL facts that genuinely need to become concrete for this post. Do not manufacture a fact merely to add color or to justify why the post exists.
 - If existing_facts contains a key, never contradict its value.
 - Facts must NOT assert unprovided real-world hardware limits, exact product specifications, release dates, prices, historical events, or other external historical facts.
+- discourse_mode is selected by the world layer for root posts and is not editable semantic decoration. share_observation/share_experience/state_opinion/share_tip must remain non-question roots; do not add a request for replies or an “anyone else?” ending. ask_peers is the one mode where audience solicitation is the point.
 - Do not invent a question merely to keep the thread alive.
 - The human-controlled member is not special and need not be mentioned.
 - Never mention AI, simulation, prompts, databases, web searches, social media, smartphones, or anything after the world date.
@@ -173,6 +174,7 @@ SEMANTIC / CONVERSATION RULES:
 - If bbs_context is supplied, read THREAD SO FAR like prior messages in a chat. Earlier body text is canonical prose; semantic-envelope entries are canonical meaning for posts whose prose has not been materialized yet. Use this context to avoid accidental repetition and to make references/replies coherent.
 - RELATED EARLIER POSTS in bbs_context are retrieval hints for duplicate-topic awareness. They do not prove the actor personally read or remembers those posts, so do not refer to them as memories unless THREAD SO FAR supports that.
 - There is no obligation to ask a new question, reveal a new category of information, or keep the conversation alive. A mundane, uneven, occasionally repetitive human BBS exchange is acceptable when it fits the actor and context.
+- If discourse_mode is present, preserve it exactly: only ask_peers should solicit answers. share_observation/share_experience/state_opinion/share_tip should end as statements unless the canonical producer brief itself contains a necessary quoted/interior question.
 - Do not invent a new owned machine, modem, software setup, family situation, job history, hiatus, purchase, upgrade, membership change, maintenance event, or other durable fact merely to make the prose more specific or interesting. Durable personal details must come from claims=...; world changes must come from the committed intent/context.
 - Do not introduce a new question solely as a conversation-progression device. If the committed goal is not to ask, a natural statement can simply end.
 - Do not say vague things such as "everyone has interesting setups" unless the actual supplied context supports that statement.

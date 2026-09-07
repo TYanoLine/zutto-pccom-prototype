@@ -24,7 +24,7 @@ type Board struct {
 }
 
 // PostIntent stores canonical semantic state for an actual post. Action,
-// AnchorKey and CauseKind are selected by the world layer before LLM semantic
+// AnchorKey, CauseKind and DiscourseMode are selected by the world layer before LLM semantic
 // realization. Topic/Motivation/Stance/Goal are human-readable realization of
 // that fixed cause, not an invitation for the LLM to choose what happens.
 //
@@ -36,10 +36,11 @@ type Board struct {
 // PersonaFact is deliberately separate: a persistent fact is background for
 // consistency and never becomes a posting trigger merely because it exists.
 type PostIntent struct {
-	Action       string `json:"action,omitempty"`
-	AnchorKey    string `json:"anchor_key,omitempty"`
-	CauseKind    string `json:"cause_kind,omitempty"`
-	SourcePostID int64  `json:"source_post_id,omitempty"`
+	Action        string `json:"action,omitempty"`
+	AnchorKey     string `json:"anchor_key,omitempty"`
+	CauseKind     string `json:"cause_kind,omitempty"`
+	DiscourseMode string `json:"discourse_mode,omitempty"`
+	SourcePostID  int64  `json:"source_post_id,omitempty"`
 
 	Topic            string   `json:"topic,omitempty"`
 	Motivation       string   `json:"motivation,omitempty"`

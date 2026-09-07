@@ -92,6 +92,7 @@ func (m LLMMaterializer) PlanDevelopmentWorldWindow(ctx context.Context, host wo
 			AnchorKey:      shell.anchorKey,
 			CauseKind:      shell.causeKind,
 			CauseSummary:   shell.causeSummary,
+			DiscourseMode:  shell.discourseMode,
 			PersonaProfile: personaSummary(shell.persona),
 			ExistingFacts:  existingFacts,
 		})
@@ -294,6 +295,7 @@ func (r *Repository) materializeProducerWorldWindow(host world.Host) ([]world.Po
 				Action:                  shell.action,
 				AnchorKey:               shell.anchorKey,
 				CauseKind:               shell.causeKind,
+				DiscourseMode:           shell.discourseMode,
 				SourcePostID:            sourcePostID,
 				Topic:                   brief.topic,
 				Motivation:              brief.motivation,

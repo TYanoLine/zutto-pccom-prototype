@@ -174,6 +174,7 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 				Action:           shell.action,
 				AnchorKey:        shell.anchorKey,
 				CauseKind:        shell.causeKind,
+				DiscourseMode:    shell.discourseMode,
 				SourcePostID:     sourcePostID,
 				Topic:            semantic.topic,
 				Motivation:       semantic.motivation,

@@ -47,18 +47,19 @@ type BoardPostDraft struct {
 // anchor key, or cause kind. It only realizes human-readable semantics and the
 // exact subject text for an event that already has a reason to exist.
 type BBSIntentEvent struct {
-	Index             int      `json:"index"`
-	AuthorHandle      string   `json:"author_handle"`
-	CreatedAt         string   `json:"created_at"`
-	Action            string   `json:"action"`
-	ParentEventIndex  int      `json:"parent_event_index,omitempty"`
-	SourceEventIndex  int      `json:"source_event_index,omitempty"`
-	AnchorKey         string   `json:"anchor_key"`
-	CauseKind         string   `json:"cause_kind"`
-	CauseSummary      string   `json:"cause_summary"`
+	Index            int      `json:"index"`
+	AuthorHandle     string   `json:"author_handle"`
+	CreatedAt        string   `json:"created_at"`
+	Action           string   `json:"action"`
+	ParentEventIndex int      `json:"parent_event_index,omitempty"`
+	SourceEventIndex int      `json:"source_event_index,omitempty"`
+	AnchorKey        string   `json:"anchor_key"`
+	CauseKind        string   `json:"cause_kind"`
+	CauseSummary     string   `json:"cause_summary"`
+	DiscourseMode    string   `json:"discourse_mode,omitempty"`
 	CanonicalSubject string   `json:"canonical_subject,omitempty"`
-	PersonaProfile    string   `json:"persona_profile"`
-	ExistingFacts     []string `json:"existing_facts,omitempty"`
+	PersonaProfile   string   `json:"persona_profile"`
+	ExistingFacts    []string `json:"existing_facts,omitempty"`
 }
 
 type BBSTimelineIntentRequest struct {
@@ -109,6 +110,7 @@ type BBSWorldWindowEvent struct {
 	AnchorKey      string   `json:"anchor_key"`
 	CauseKind      string   `json:"cause_kind"`
 	CauseSummary   string   `json:"cause_summary"`
+	DiscourseMode  string   `json:"discourse_mode,omitempty"`
 	PersonaProfile string   `json:"persona_profile"`
 	ExistingFacts  []string `json:"existing_facts,omitempty"`
 }

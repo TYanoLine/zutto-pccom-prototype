@@ -37,6 +37,34 @@ type developmentAnchorCandidate struct {
 	weight float64
 }
 
+var developmentRootDiscourseModes = []string{
+	"share_observation",
+	"share_experience",
+	"state_opinion",
+	"share_tip",
+	"ask_peers",
+}
+
+// demoSelectRootDiscourseMode is a cheap world-layer decision about what kind of
+// conversational act a root post is. It deliberately happens before semantic
+// production so the LLM cannot turn every root into an engagement-seeking
+// question. Each board rotates through all five modes in a stable order, which
+// caps ask_peers at one slot per five consecutive roots while keeping the phase
+// different across boards.
+func demoSelectRootDiscourseMode(host world.Host, board world.Board, rootOrdinal int) string {
+	if len(developmentRootDiscourseModes) == 0 {
+		return ""
+	}
+	if rootOrdinal < 0 {
+		rootOrdinal = 0
+	}
+	offset := int(demoStableUnit(host.ID, board.ID, "root-discourse-mode-v1") * float64(len(developmentRootDiscourseModes)))
+	if offset >= len(developmentRootDiscourseModes) {
+		offset = len(developmentRootDiscourseModes) - 1
+	}
+	return developmentRootDiscourseModes[(offset+rootOrdinal)%len(developmentRootDiscourseModes)]
+}
+
 // selectDevelopmentTimelineShells is the causal boundary between cheap world
 // simulation and expensive semantic realization. The input candidates mean
 // "this persona plausibly visited this board around this time", not "a post must
@@ -90,14 +118,15 @@ func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits 
 			continue
 		}
 		shell := developmentTimelineShell{
-			index:        postOrdinal,
-			persona:      candidate.persona,
-			createdAt:    candidate.createdAt,
-			action:       "thread_start",
-			anchorKey:    cause.anchorKey,
-			causeKind:    cause.causeKind,
-			causeSummary: cause.causeSummary,
-			sourceIndex:  cause.sourceIndex,
+			index:         postOrdinal,
+			persona:       candidate.persona,
+			createdAt:     candidate.createdAt,
+			action:        "thread_start",
+			anchorKey:     cause.anchorKey,
+			causeKind:     cause.causeKind,
+			causeSummary:  cause.causeSummary,
+			discourseMode: demoSelectRootDiscourseMode(host, board, len(roots)),
+			sourceIndex:   cause.sourceIndex,
 		}
 		shells = append(shells, shell)
 		roots = append(roots, shell)
@@ -184,9 +213,9 @@ func demoWriteProbability(p world.Persona, board world.Board) float64 {
 func demoSelectRootCause(host world.Host, board world.Board, p world.Persona, at time.Time, roots []developmentTimelineShell, ordinal int) (developmentRootCause, bool) {
 	if prior, found := demoContinuationSource(host, board, p, at, roots, ordinal); found {
 		return developmentRootCause{
-			anchorKey:   prior.anchorKey,
-			causeKind:   "continuation_progress",
-			sourceIndex: prior.index,
+			anchorKey:    prior.anchorKey,
+			causeKind:    "continuation_progress",
+			sourceIndex:  prior.index,
 			causeSummary: fmt.Sprintf("A new development occurred since this actor's earlier root event %04d in routing domain %q. The new post must add a materially new observation/progress/change instead of restating the earlier preference, baseline context, or category label.", prior.index, prior.anchorKey),
 		}, true
 	}
@@ -196,8 +225,8 @@ func demoSelectRootCause(host world.Host, board world.Board, p world.Persona, at
 		return developmentRootCause{}, false
 	}
 	return developmentRootCause{
-		anchorKey: anchor,
-		causeKind: "recent_salience",
+		anchorKey:    anchor,
+		causeKind:    "recent_salience",
 		causeSummary: fmt.Sprintf("After activity, board-visit, write sampling, and the board-scope gate, the world layer selected broad interest domain %q as routing context. The domain itself is NOT the event or wording. Realize only a concrete present-tense difference, problem, decision, interaction, question, or other small occurrence inside that domain that would actually be worth mentioning to this actor's contemporaries AND belongs as a root on this exact board. Ordinary use of period-normal tools, media, places, services, or habits stays implicit. Do not invent a cross-topic bridge, hiatus, rediscovery, nostalgia, compatibility surprise, purchase, upgrade, membership change, or 'still works' framing merely to make the domain post-worthy. Existing persona facts and everyday baseline context are consistency background only.", anchor),
 	}, true
 }

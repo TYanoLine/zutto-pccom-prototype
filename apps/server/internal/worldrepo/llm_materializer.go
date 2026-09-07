@@ -113,6 +113,9 @@ func intentSummary(i world.PostIntent) string {
 	if i.CauseKind != "" {
 		parts = append(parts, "world_cause="+i.CauseKind)
 	}
+	if i.DiscourseMode != "" {
+		parts = append(parts, "discourse_mode="+i.DiscourseMode)
+	}
 	if i.SourcePostID != 0 {
 		parts = append(parts, fmt.Sprintf("source_post_id=%d", i.SourcePostID))
 	}

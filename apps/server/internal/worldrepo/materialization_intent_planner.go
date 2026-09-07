@@ -15,15 +15,16 @@ import (
 const developmentPlanningBatchSize = 6
 
 type developmentTimelineShell struct {
-	index        int
-	persona      world.Persona
-	createdAt    time.Time
-	action       string
-	parentIndex  int
-	anchorKey    string
-	causeKind    string
-	causeSummary string
-	sourceIndex  int
+	index         int
+	persona       world.Persona
+	createdAt     time.Time
+	action        string
+	parentIndex   int
+	anchorKey     string
+	causeKind     string
+	causeSummary  string
+	discourseMode string
+	sourceIndex   int
 }
 
 type developmentTimelinePlanEvent struct {
@@ -94,6 +95,7 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 				AnchorKey:        shell.anchorKey,
 				CauseKind:        shell.causeKind,
 				CauseSummary:     shell.causeSummary,
+				DiscourseMode:    shell.discourseMode,
 				PersonaProfile:   personaSummary(shell.persona),
 				ExistingFacts:    existingFacts,
 			})
@@ -200,6 +202,9 @@ func planningTimelineContext(recentBBS string, planned []developmentTimelinePlan
 		}
 		if shell.causeKind != "" {
 			fmt.Fprintf(&b, " cause=%s", shell.causeKind)
+		}
+		if shell.discourseMode != "" {
+			fmt.Fprintf(&b, " discourse_mode=%s", shell.discourseMode)
 		}
 		if event.subject != "" {
 			fmt.Fprintf(&b, " subject=%s", event.subject)
@@ -317,6 +322,9 @@ func planningBBSState(posts []world.Post, limit int) string {
 		}
 		if post.Intent.CauseKind != "" {
 			fmt.Fprintf(&b, " | cause=%s", post.Intent.CauseKind)
+		}
+		if post.Intent.DiscourseMode != "" {
+			fmt.Fprintf(&b, " | discourse_mode=%s", post.Intent.DiscourseMode)
 		}
 		if post.Intent.Topic != "" {
 			fmt.Fprintf(&b, " | topic=%s", post.Intent.Topic)
