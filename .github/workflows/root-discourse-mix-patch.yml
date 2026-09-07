@@ -1,0 +1,282 @@
+name: Root Discourse Mix Patcher
+
+on:
+  push:
+    branches:
+      - fix/root-discourse-mix-20260907
+    paths:
+      - .github/workflows/root-discourse-mix-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/root-discourse-mix-20260907
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - name: Apply discourse-mode structure
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              if old not in text:
+                  raise SystemExit(f"missing replacement target in {path}: {old[:120]!r}")
+              if text.count(old) != 1:
+                  raise SystemExit(f"replacement target count != 1 in {path}: {text.count(old)}")
+              p.write_text(text.replace(old, new, 1))
+
+          # Canonical world state carries the world-selected conversational shape.
+          replace_one(
+              "apps/server/internal/world/models.go",
+              '\tAction       string `json:"action,omitempty"`\n\tAnchorKey    string `json:"anchor_key,omitempty"`\n\tCauseKind    string `json:"cause_kind,omitempty"`\n\tSourcePostID int64  `json:"source_post_id,omitempty"`\n',
+              '\tAction        string `json:"action,omitempty"`\n\tAnchorKey     string `json:"anchor_key,omitempty"`\n\tCauseKind     string `json:"cause_kind,omitempty"`\n\tDiscourseMode string `json:"discourse_mode,omitempty"`\n\tSourcePostID  int64  `json:"source_post_id,omitempty"`\n',
+          )
+          replace_one(
+              "apps/server/internal/world/models.go",
+              '// AnchorKey and CauseKind are selected by the world layer before LLM semantic\n',
+              '// AnchorKey, CauseKind and DiscourseMode are selected by the world layer before LLM semantic\n',
+          )
+
+          # Producer/planner wire format exposes that immutable shape.
+          replace_one(
+              "apps/server/internal/llm/provider.go",
+              '\tCauseKind         string   `json:"cause_kind"`\n\tCauseSummary      string   `json:"cause_summary"`\n\tCanonicalSubject string   `json:"canonical_subject,omitempty"`\n',
+              '\tCauseKind         string   `json:"cause_kind"`\n\tCauseSummary      string   `json:"cause_summary"`\n\tDiscourseMode     string   `json:"discourse_mode,omitempty"`\n\tCanonicalSubject string   `json:"canonical_subject,omitempty"`\n',
+          )
+          replace_one(
+              "apps/server/internal/llm/provider.go",
+              '\tCauseKind      string   `json:"cause_kind"`\n\tCauseSummary   string   `json:"cause_summary"`\n\tPersonaProfile string   `json:"persona_profile"`\n',
+              '\tCauseKind      string   `json:"cause_kind"`\n\tCauseSummary   string   `json:"cause_summary"`\n\tDiscourseMode  string   `json:"discourse_mode,omitempty"`\n\tPersonaProfile string   `json:"persona_profile"`\n',
+          )
+
+          # Shells get a deterministic root discourse mode before any LLM call.
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_intent_planner.go",
+              '\tcauseKind    string\n\tcauseSummary string\n\tsourceIndex  int\n',
+              '\tcauseKind     string\n\tcauseSummary  string\n\tdiscourseMode string\n\tsourceIndex   int\n',
+          )
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_intent_planner.go",
+              '\t\t\t\tCauseKind:        shell.causeKind,\n\t\t\t\tCauseSummary:     shell.causeSummary,\n\t\t\t\tPersonaProfile:   personaSummary(shell.persona),\n',
+              '\t\t\t\tCauseKind:        shell.causeKind,\n\t\t\t\tCauseSummary:     shell.causeSummary,\n\t\t\t\tDiscourseMode:    shell.discourseMode,\n\t\t\t\tPersonaProfile:   personaSummary(shell.persona),\n',
+          )
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_intent_planner.go",
+              '\t\tif shell.causeKind != "" {\n\t\t\tfmt.Fprintf(&b, " cause=%s", shell.causeKind)\n\t\t}\n',
+              '\t\tif shell.causeKind != "" {\n\t\t\tfmt.Fprintf(&b, " cause=%s", shell.causeKind)\n\t\t}\n\t\tif shell.discourseMode != "" {\n\t\t\tfmt.Fprintf(&b, " discourse_mode=%s", shell.discourseMode)\n\t\t}\n',
+          )
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_intent_planner.go",
+              '\t\tif post.Intent.CauseKind != "" {\n\t\t\tfmt.Fprintf(&b, " | cause=%s", post.Intent.CauseKind)\n\t\t}\n',
+              '\t\tif post.Intent.CauseKind != "" {\n\t\t\tfmt.Fprintf(&b, " | cause=%s", post.Intent.CauseKind)\n\t\t}\n\t\tif post.Intent.DiscourseMode != "" {\n\t\t\tfmt.Fprintf(&b, " | discourse_mode=%s", post.Intent.DiscourseMode)\n\t\t}\n',
+          )
+
+          action_seed = Path("apps/server/internal/worldrepo/materialization_action_seed.go")
+          text = action_seed.read_text()
+          marker = 'type developmentAnchorCandidate struct {\n\tkey    string\n\tweight float64\n}\n'
+          if marker not in text:
+              raise SystemExit("missing developmentAnchorCandidate marker")
+          insertion = marker + '''\nvar developmentRootDiscourseModes = []string{\n\t"share_observation",\n\t"share_experience",\n\t"state_opinion",\n\t"share_tip",\n\t"ask_peers",\n}\n\n// demoSelectRootDiscourseMode is a cheap world-layer decision about what kind of\n// conversational act a root post is. It deliberately happens before semantic\n// production so the LLM cannot turn every root into an engagement-seeking\n// question. Each board rotates through all five modes in a stable order, which\n// caps ask_peers at one slot per five consecutive roots while keeping the phase\n// different across boards.\nfunc demoSelectRootDiscourseMode(host world.Host, board world.Board, rootOrdinal int) string {\n\tif len(developmentRootDiscourseModes) == 0 {\n\t\treturn ""\n\t}\n\tif rootOrdinal < 0 {\n\t\trootOrdinal = 0\n\t}\n\toffset := int(demoStableUnit(host.ID, board.ID, "root-discourse-mode-v1") * float64(len(developmentRootDiscourseModes)))\n\tif offset >= len(developmentRootDiscourseModes) {\n\t\toffset = len(developmentRootDiscourseModes) - 1\n\t}\n\treturn developmentRootDiscourseModes[(offset+rootOrdinal)%len(developmentRootDiscourseModes)]\n}\n'''
+          action_seed.write_text(text.replace(marker, insertion, 1))
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_action_seed.go",
+              '\t\t\taction:       "thread_start",\n\t\t\tanchorKey:    cause.anchorKey,\n\t\t\tcauseKind:    cause.causeKind,\n\t\t\tcauseSummary: cause.causeSummary,\n\t\t\tsourceIndex:  cause.sourceIndex,\n',
+              '\t\t\taction:        "thread_start",\n\t\t\tanchorKey:     cause.anchorKey,\n\t\t\tcauseKind:     cause.causeKind,\n\t\t\tcauseSummary:  cause.causeSummary,\n\t\t\tdiscourseMode: demoSelectRootDiscourseMode(host, board, len(roots)),\n\t\t\tsourceIndex:   cause.sourceIndex,\n',
+          )
+
+          # Carry mode through both producer and compatibility materialization paths.
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_world_window_producer.go",
+              '\t\t\tCauseKind:      shell.causeKind,\n\t\t\tCauseSummary:   shell.causeSummary,\n\t\t\tPersonaProfile: personaSummary(shell.persona),\n',
+              '\t\t\tCauseKind:      shell.causeKind,\n\t\t\tCauseSummary:   shell.causeSummary,\n\t\t\tDiscourseMode:  shell.discourseMode,\n\t\t\tPersonaProfile: personaSummary(shell.persona),\n',
+          )
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_world_window_producer.go",
+              '\t\t\t\tAction:                  shell.action,\n\t\t\t\tAnchorKey:               shell.anchorKey,\n\t\t\t\tCauseKind:               shell.causeKind,\n\t\t\t\tSourcePostID:            sourcePostID,\n',
+              '\t\t\t\tAction:                  shell.action,\n\t\t\t\tAnchorKey:               shell.anchorKey,\n\t\t\t\tCauseKind:               shell.causeKind,\n\t\t\t\tDiscourseMode:           shell.discourseMode,\n\t\t\t\tSourcePostID:            sourcePostID,\n',
+          )
+          replace_one(
+              "apps/server/internal/worldrepo/materialization_demo_persona.go",
+              '\t\t\t\tAction:           shell.action,\n\t\t\t\tAnchorKey:        shell.anchorKey,\n\t\t\t\tCauseKind:        shell.causeKind,\n',
+              '\t\t\t\tAction:           shell.action,\n\t\t\t\tAnchorKey:        shell.anchorKey,\n\t\t\t\tCauseKind:        shell.causeKind,\n\t\t\t\tDiscourseMode:    shell.discourseMode,\n',
+          )
+
+          # Article worker receives the canonical world-level mode as well.
+          replace_one(
+              "apps/server/internal/worldrepo/llm_materializer.go",
+              '\tif i.CauseKind != "" {\n\t\tparts = append(parts, "world_cause="+i.CauseKind)\n\t}\n',
+              '\tif i.CauseKind != "" {\n\t\tparts = append(parts, "world_cause="+i.CauseKind)\n\t}\n\tif i.DiscourseMode != "" {\n\t\tparts = append(parts, "discourse_mode="+i.DiscourseMode)\n\t}\n',
+          )
+          replace_one(
+              "apps/server/internal/llm/structured_board_worker.go",
+              'If a concrete external product/place name is absent from the brief and historical facts, do not invent one merely for specificity.\n\n` + req.PostIntent\n',
+              'If a concrete external product/place name is absent from the brief and historical facts, do not invent one merely for specificity.\nIf discourse_mode is share_observation, share_experience, state_opinion, or share_tip, do not append an engagement-seeking question, request for replies, or “anyone else?” ending. Only ask_peers makes audience solicitation the root article\'s conversational purpose.\n\n` + req.PostIntent\n',
+          )
+
+          # Producer must preserve, rather than invent, the root conversational act.
+          replace_one(
+              "apps/server/internal/llm/openai_world_window_producer.go",
+              '- Treat the supplied event shells as immutable production slots whose causes already exist.\n',
+              '- Treat the supplied event shells as immutable production slots whose causes already exist.\n- For standalone roots, discourse_mode is an immutable world-layer decision about the conversational act. You MUST preserve it rather than making every root ask readers a question.\n',
+          )
+          replace_one(
+              "apps/server/internal/llm/openai_world_window_producer.go",
+              '- Prefer sparse, mundane causality. A two-week BBS window is not a TV drama and does not need an arc for every person.\n',
+              '- Prefer sparse, mundane causality. A two-week BBS window is not a TV drama and does not need an arc for every person.\n- Root discourse modes mean: share_observation = report a concrete observation without soliciting replies; share_experience = tell a recent firsthand experience/result without turning it into a poll; state_opinion = state a reaction/opinion about a concrete current matter without asking the audience to validate it; share_tip = share one small useful firsthand tip/workaround without inventing unsupported external facts; ask_peers = genuinely ask peers for information/advice/experience. For the first four modes, contribution and goal MUST NOT become a question, request for replies, “anyone else?” prompt, or other engagement hook.\n',
+          )
+
+          # Compatibility planner obeys the same world-selected mode.
+          replace_one(
+              "apps/server/internal/llm/openai.go",
+              '- Do not invent a question merely to keep the thread alive.\n',
+              '- discourse_mode is selected by the world layer for root posts and is not editable semantic decoration. share_observation/share_experience/state_opinion/share_tip must remain non-question roots; do not add a request for replies or an “anyone else?” ending. ask_peers is the one mode where audience solicitation is the point.\n- Do not invent a question merely to keep the thread alive.\n',
+          )
+          replace_one(
+              "apps/server/internal/llm/openai.go",
+              '- There is no obligation to ask a new question, reveal a new category of information, or keep the conversation alive. A mundane, uneven, occasionally repetitive human BBS exchange is acceptable when it fits the actor and context.\n',
+              '- There is no obligation to ask a new question, reveal a new category of information, or keep the conversation alive. A mundane, uneven, occasionally repetitive human BBS exchange is acceptable when it fits the actor and context.\n- If discourse_mode is present, preserve it exactly: only ask_peers should solicit answers. share_observation/share_experience/state_opinion/share_tip should end as statements unless the canonical producer brief itself contains a necessary quoted/interior question.\n',
+          )
+
+          # Expose mode in fresh-lab captures so repeated evaluation can measure the mix.
+          replace_one(
+              "apps/server/cmd/server/materialization_lab_fresh.go",
+              '\tCauseKind               string    `json:"cause_kind,omitempty"`\n\tSourcePostID            int64     `json:"source_post_id,omitempty"`\n',
+              '\tCauseKind               string    `json:"cause_kind,omitempty"`\n\tDiscourseMode           string    `json:"discourse_mode,omitempty"`\n\tSourcePostID            int64     `json:"source_post_id,omitempty"`\n',
+          )
+          replace_one(
+              "apps/server/cmd/server/materialization_lab_fresh.go",
+              '\t\t\tCauseKind:               p.Intent.CauseKind,\n\t\t\tSourcePostID:            p.Intent.SourcePostID,\n',
+              '\t\t\tCauseKind:               p.Intent.CauseKind,\n\t\t\tDiscourseMode:           p.Intent.DiscourseMode,\n\t\t\tSourcePostID:            p.Intent.SourcePostID,\n',
+          )
+
+          # Focused regression tests: deterministic diversity and producer propagation.
+          Path("apps/server/internal/worldrepo/materialization_discourse_mode_test.go").write_text(r'''package worldrepo
+
+import (
+    "context"
+    "testing"
+
+    "zutto-pccom/apps/server/internal/llm"
+    "zutto-pccom/apps/server/internal/world"
+)
+
+func TestDemoSelectRootDiscourseModeCyclesAllModesAndCapsQuestions(t *testing.T) {
+    host := world.Host{ID: "host-a"}
+    board := world.Board{ID: "1"}
+
+    for block := 0; block < 3; block++ {
+        seen := map[string]bool{}
+        questions := 0
+        for i := block * len(developmentRootDiscourseModes); i < (block+1)*len(developmentRootDiscourseModes); i++ {
+            mode := demoSelectRootDiscourseMode(host, board, i)
+            seen[mode] = true
+            if mode == "ask_peers" {
+                questions++
+            }
+        }
+        if got, want := len(seen), len(developmentRootDiscourseModes); got != want {
+            t.Fatalf("block %d distinct modes=%d want %d: %#v", block, got, want, seen)
+        }
+        if questions != 1 {
+            t.Fatalf("block %d ask_peers=%d want 1", block, questions)
+        }
+    }
+}
+
+type discourseCaptureRenderer struct {
+    req llm.BBSWorldWindowProductionRequest
+}
+
+func (r *discourseCaptureRenderer) GenerateBoardPost(context.Context, llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+    return llm.BoardPostDraft{}, nil
+}
+
+func (r *discourseCaptureRenderer) GenerateBBSWorldWindowProduction(_ context.Context, req llm.BBSWorldWindowProductionRequest) (llm.BBSWorldWindowProductionDraft, error) {
+    r.req = req
+    briefs := make([]llm.BBSArticleBriefDraft, 0, len(req.Events))
+    for _, event := range req.Events {
+        briefs = append(briefs, llm.BBSArticleBriefDraft{
+            EventID: event.EventID,
+            Subject: "test",
+            Episode: "test episode",
+            Topic: "test topic",
+            Motivation: "test motivation",
+            Stance: "test stance",
+            Goal: "test goal",
+        })
+    }
+    return llm.BBSWorldWindowProductionDraft{Briefs: briefs}, nil
+}
+
+func TestPlanDevelopmentWorldWindowPropagatesDiscourseMode(t *testing.T) {
+    renderer := &discourseCaptureRenderer{}
+    materializer := LLMMaterializer{Renderer: renderer}
+    host := world.Host{ID: "h", Name: "H", Region: "R", Software: "S"}
+    shell := developmentWindowShell{
+        eventID: "board-1:event-0001",
+        board: world.Board{ID: "1", Name: "free"},
+        shell: developmentTimelineShell{
+            index: 1,
+            persona: world.Persona{ID: "p", Handle: "NEKO"},
+            action: "thread_start",
+            anchorKey: "local",
+            causeKind: "recent_salience",
+            causeSummary: "a concrete occurrence",
+            discourseMode: "share_observation",
+        },
+    }
+    if _, err := materializer.PlanDevelopmentWorldWindow(context.Background(), host, "1996-08-26", []developmentWindowShell{shell}, nil, ""); err != nil {
+        t.Fatal(err)
+    }
+    if got := renderer.req.Events[0].DiscourseMode; got != "share_observation" {
+        t.Fatalf("discourse mode=%q want share_observation", got)
+    }
+}
+''')
+
+          # Keep architecture docs in sync with the new world/producer boundary.
+          doc = Path("docs/WORLD_WINDOW_PRODUCER.md")
+          d = doc.read_text()
+          section = '''\n\n## Root discourse mode\n\nStandalone root events now carry a world-selected `discourse_mode` before semantic production. The development world layer rotates through `share_observation`, `share_experience`, `state_opinion`, `share_tip`, and `ask_peers`; only `ask_peers` is intrinsically an audience-soliciting/question mode. The mode is persisted in `PostIntent`, passed through the host-wide Producer, and enforced again by the article Worker. This keeps the LLM from turning every independent root into a generic “anyone else?” engagement question while leaving the concrete episode wording to semantic production.\n'''
+          if "## Root discourse mode" not in d:
+              doc.write_text(d.rstrip() + section + "\n")
+
+          PY
+      - name: Format
+        run: |
+          gofmt -w \
+            apps/server/internal/world/models.go \
+            apps/server/internal/llm/provider.go \
+            apps/server/internal/worldrepo/materialization_intent_planner.go \
+            apps/server/internal/worldrepo/materialization_action_seed.go \
+            apps/server/internal/worldrepo/materialization_world_window_producer.go \
+            apps/server/internal/worldrepo/materialization_demo_persona.go \
+            apps/server/internal/worldrepo/llm_materializer.go \
+            apps/server/internal/llm/structured_board_worker.go \
+            apps/server/internal/llm/openai_world_window_producer.go \
+            apps/server/internal/llm/openai.go \
+            apps/server/cmd/server/materialization_lab_fresh.go \
+            apps/server/internal/worldrepo/materialization_discourse_mode_test.go
+      - name: Test server
+        working-directory: apps/server
+        run: go test ./...
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/root-discourse-mix-patch.yml
+          git add apps/server docs/WORLD_WINDOW_PRODUCER.md
+          git commit -m "Diversify root post discourse modes"
+          git push origin HEAD:fix/root-discourse-mix-20260907
