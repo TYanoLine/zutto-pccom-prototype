@@ -1,0 +1,163 @@
+name: apply-facetless-ab
+on:
+  push:
+    branches: [exp/facetless-situation-ab-20260908]
+permissions:
+  contents: write
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: exp/facetless-situation-ab-20260908
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Apply patch
+        shell: python
+        run: |
+          from pathlib import Path
+
+          p = Path('apps/server/internal/worldrepo/materialization_conversation_view.go')
+          s = p.read_text()
+          old = 'situation := developmentSituationForShell(host, item.board, shell, out, source)'
+          new = 'situation := r.developmentConversationSituationForShell(host, item.board, shell, out, source)'
+          assert old in s
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('apps/server/cmd/server/materialization_lab_fresh.go')
+          s = p.read_text()
+          old = '\tPhone              string                        `json:"phone"`\n\tCreatedAt'
+          new = '\tPhone              string                        `json:"phone"`\n\tSituationMode      string                        `json:"situation_mode,omitempty"`\n\tCreatedAt'
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          marker = 'func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Request) {'
+          helper = '''func normalizeFreshSituationMode(raw string) (string, bool) {\n\tmode := strings.ToLower(strings.TrimSpace(raw))\n\tswitch mode {\n\tcase "", "facets":\n\t\treturn "facets", true\n\tcase "facetless":\n\t\treturn "facetless", true\n\tdefault:\n\t\treturn "", false\n\t}\n}\n\n'''
+          assert marker in s
+          s = s.replace(marker, helper + marker, 1)
+
+          old = '''\tphone := strings.TrimSpace(r.URL.Query().Get("phone"))\n\tif phone == "" {\n\t\tphone = developmentMaterializationPhone\n\t}\n\tif !publicLabAdmission.start(w, r, phone, 1) {'''
+          new = '''\tphone := strings.TrimSpace(r.URL.Query().Get("phone"))\n\tif phone == "" {\n\t\tphone = developmentMaterializationPhone\n\t}\n\tsituationMode, ok := normalizeFreshSituationMode(r.URL.Query().Get("situation_mode"))\n\tif !ok {\n\t\tw.WriteHeader(http.StatusBadRequest)\n\t\t_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets or facetless"})\n\t\treturn\n\t}\n\tif !publicLabAdmission.start(w, r, phone, 1) {'''
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = 'job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, CreatedAt: time.Now().UTC()}'
+          new = 'job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, CreatedAt: time.Now().UTC()}'
+          assert old in s
+          s = s.replace(old, new, 1)
+
+          old = '''\trepo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)\n\trepo.EnableDevelopmentConversationViewPoC()\n\thost, err := repo.HostByPhone(job.Phone)'''
+          new = '''\trepo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)\n\trepo.EnableDevelopmentConversationViewPoC()\n\tif job.SituationMode == "facetless" {\n\t\trepo.EnableDevelopmentFacetlessSituationPoC()\n\t}\n\thost, err := repo.HostByPhone(job.Phone)'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          Path('apps/server/internal/worldrepo/materialization_facetless_situation_test.go').write_text(r'''package worldrepo
+
+import (
+    "strings"
+    "testing"
+
+    "zutto-pccom/apps/server/internal/world"
+)
+
+func TestFacetlessSituationPoCDoesNotSelectPresetFacetOrOccurrence(t *testing.T) {
+    repo := &Repository{}
+    repo.EnableDevelopmentFacetlessSituationPoC()
+    shell := developmentTimelineShell{
+        action: "thread_start",
+        anchorKey: "local",
+        discourseMode: "share_observation",
+    }
+    got := repo.developmentConversationSituationForShell(world.Host{}, world.Board{ID: "3"}, shell, nil, nil)
+    if got.kind != "facetless_open" {
+        t.Fatalf("kind=%q want facetless_open", got.kind)
+    }
+    joined := got.summary + "\n" + strings.Join(got.facts, "\n")
+    for _, forbidden := range []string{"local_route_condition", "local_notice_change", "focus=", "occurrence="} {
+        if strings.Contains(joined, forbidden) {
+            t.Fatalf("facetless situation leaked preset facet/occurrence %q: %s", forbidden, joined)
+        }
+    }
+    for _, want := range []string{"routing_domain=local", "facetless_experiment=true", "Invent one small concrete occurrence"} {
+        if !strings.Contains(joined, want) {
+            t.Fatalf("facetless situation missing %q: %s", want, joined)
+        }
+    }
+}
+
+func TestFacetlessSituationPoCKeepsExplicitReplySource(t *testing.T) {
+    repo := &Repository{}
+    repo.EnableDevelopmentFacetlessSituationPoC()
+    source := world.Post{ID: 42, Intent: world.PostIntent{
+        SituationKind: "facetless_open",
+        SituationSummary: "source situation",
+        SituationFacts: []string{"facetless_experiment=true", "routing_domain=games"},
+    }}
+    shell := developmentTimelineShell{action: "reply", anchorKey: "games"}
+    got := repo.developmentConversationSituationForShell(world.Host{}, world.Board{ID: "1"}, shell, nil, &source)
+    if got.kind != "facetless_open" || !strings.Contains(got.summary, "source situation") {
+        t.Fatalf("reply lost explicit source situation: %#v", got)
+    }
+    if !strings.Contains(strings.Join(got.facts, "\n"), "reply_binding=") {
+        t.Fatalf("reply missing source binding: %#v", got.facts)
+    }
+}
+''')
+
+          Path('apps/server/cmd/server/materialization_lab_fresh_mode_test.go').write_text(r'''package main
+
+import "testing"
+
+func TestNormalizeFreshSituationMode(t *testing.T) {
+    tests := []struct {
+        in string
+        want string
+        ok bool
+    }{
+        {"", "facets", true},
+        {"facets", "facets", true},
+        {" FACETLESS ", "facetless", true},
+        {"other", "", false},
+    }
+    for _, tt := range tests {
+        got, ok := normalizeFreshSituationMode(tt.in)
+        if got != tt.want || ok != tt.ok {
+            t.Fatalf("normalizeFreshSituationMode(%q)=(%q,%v), want (%q,%v)", tt.in, got, ok, tt.want, tt.ok)
+        }
+    }
+}
+''')
+
+          p = Path('docs/CONVERSATION_VIEW_POC.md')
+          s = p.read_text()
+          s += '''\n\n## Facetless A/B experiment\n\nThe fresh Lab also supports `situation_mode=facetless` for a deliberately weaker A/B condition. In this mode root shells keep actor/time/board/topology/routing-domain/cause/discourse-mode, but **no predefined situation facet or occurrence is selected**. The Article Worker must invent one small concrete occurrence while rendering from the conversation view. This mode is intentionally not the proposed production architecture: concrete root occurrence details are not canonical before prose. It exists to measure what the hand-written facet layer contributes to diversity, answerability and cross-root isolation. Replies still bind to the actual canonical source post. Default fresh behavior remains `situation_mode=facets`.\n'''
+          p.write_text(s)
+
+          p = Path('docs/MATERIALIZATION_LAB.md')
+          s = p.read_text()
+          needle = '| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`。1ジョブ1回で、`runs`指定には対応しない |'
+          replacement = '| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`, `situation_mode=facets|facetless`。1ジョブ1回で、`runs`指定には対応しない |'
+          assert needle in s
+          s = s.replace(needle, replacement, 1)
+          marker = 'freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。'
+          assert marker in s
+          insert = 'freshの `situation_mode` は既定 `facets`。`facetless` はA/B実験専用で、手書きのsituation facet/occurrenceを事前選択せず、routing domain + discourse mode + 会話文脈だけからArticle Workerに小さな出来事を具体化させる。通常runtimeには影響しない。\\n\\n'
+          s = s.replace(marker, insert.replace('\\n','\n') + marker, 1)
+          p.write_text(s)
+      - name: Format and test
+        run: |
+          gofmt -w apps/server/internal/worldrepo/materialization_conversation_view.go apps/server/internal/worldrepo/materialization_facetless_situation.go apps/server/internal/worldrepo/materialization_facetless_situation_test.go apps/server/cmd/server/materialization_lab_fresh.go apps/server/cmd/server/materialization_lab_fresh_mode_test.go
+          cd apps/server
+          go test ./...
+      - name: Commit patch and remove helper workflow
+        run: |
+          rm .github/workflows/apply-facetless-ab.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Add facetless situation A/B mode"
+          git push origin HEAD:exp/facetless-situation-ab-20260908
