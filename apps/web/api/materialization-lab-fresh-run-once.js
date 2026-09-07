@@ -1,10 +1,16 @@
 const BACKEND_BASE = 'https://zutto-pccom-prototype.onrender.com';
+const ONE_SHOT_KEY = 'fresh-conv-poc-7f4a2c9e';
 
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   if (req.method !== 'GET') {
     res.status(405).json({ error: 'GET only' });
+    return;
+  }
+  const incoming = new URL(req.url || '/api/materialization-lab-fresh-run-once', 'https://fresh-run.local');
+  if (incoming.searchParams.get('key') !== ONE_SHOT_KEY) {
+    res.status(404).json({ error: 'not found' });
     return;
   }
   const upstream = new URL('/api/debug/materialization-lab-fresh', BACKEND_BASE);
