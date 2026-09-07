@@ -1,0 +1,32 @@
+name: run-facetless-ab-patch
+on:
+  push:
+    branches: [exp/facetless-situation-ab-20260908]
+permissions:
+  contents: write
+jobs:
+  patch-test-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: exp/facetless-situation-ab-20260908
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Apply patch
+        run: python3 scripts/apply_facetless_ab.py
+      - name: Format and test
+        run: |
+          gofmt -w apps/server/internal/worldrepo/materialization_conversation_view.go apps/server/internal/worldrepo/materialization_facetless_situation.go apps/server/internal/worldrepo/materialization_facetless_situation_test.go apps/server/cmd/server/materialization_lab_fresh.go apps/server/cmd/server/materialization_lab_fresh_mode_test.go
+          cd apps/server
+          go test ./...
+      - name: Commit patch and remove helper files
+        run: |
+          rm .github/workflows/run-facetless-ab-patch.yml scripts/apply_facetless_ab.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Add facetless situation A/B mode"
+          git push origin HEAD:exp/facetless-situation-ab-20260908
