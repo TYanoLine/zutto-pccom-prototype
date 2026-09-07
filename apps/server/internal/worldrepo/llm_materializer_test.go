@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"zutto-pccom/apps/server/internal/historicalkb"
@@ -57,7 +58,7 @@ func (f *failingFallback) GenerateBoardPosts(_ context.Context, _ BoardMateriali
 
 func TestLLMMaterializerPassesOnlyUsableHistoricalFacts(t *testing.T) {
 	renderer := &fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "NORI", Subject: "モデムの話", Body: "最近ちょっと気になります。"}}
-	m := LLMMaterializer{Renderer: renderer, Fallback: FallbackMaterializer{}}
+	m := LLMMaterializer{Renderer: renderer, Fallback: FallbackMaterializer{}, HistoricalReferencesEnabled: true}
 	decision := worldengine.EvidenceDecision{Level: historicalkb.EvidencePlausible, Knowledge: historicalkb.KnowledgeResult{CanUse: true, Facts: []historicalkb.HistoricalFact{
 		{Claim: "28.8kbps V.34 modem was available", Status: historicalkb.FactVerified},
 		{Claim: "rejected claim", Status: historicalkb.FactRejected},
@@ -71,6 +72,26 @@ func TestLLMMaterializerPassesOnlyUsableHistoricalFacts(t *testing.T) {
 	}
 	if len(renderer.req.HistoricalFacts) != 1 || renderer.req.HistoricalFacts[0] != "28.8kbps V.34 modem was available" {
 		t.Fatalf("unexpected facts: %#v", renderer.req.HistoricalFacts)
+	}
+}
+
+func TestLLMMaterializerHistoricalReferencesOffDropsFactsAndAllowsGenericVocabulary(t *testing.T) {
+	renderer := &fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "NORI", Subject: "設定の話", Body: "本文"}}
+	m := LLMMaterializer{Renderer: renderer, Fallback: FallbackMaterializer{}, HistoricalReferencesEnabled: false}
+	decision := worldengine.EvidenceDecision{Level: historicalkb.EvidenceVerified, Knowledge: historicalkb.KnowledgeResult{CanUse: true, Facts: []historicalkb.HistoricalFact{
+		{Claim: "REAL PRODUCT NAME", Status: historicalkb.FactVerified},
+	}}}
+	_, err := m.GenerateBoardPosts(context.Background(), BoardMaterializationRequest{Host: world.Host{Name: "TEST NET"}, BoardID: "1", BoardTopic: "通信", WorldDate: "1996-08-29"}, decision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(renderer.req.HistoricalFacts) != 0 {
+		t.Fatalf("historical facts leaked while OFF: %#v", renderer.req.HistoricalFacts)
+	}
+	for _, want := range []string{"HISTORICAL_REFERENCES=OFF", "新しい実在", "セーブ", "モデム", "一般語彙"} {
+		if !strings.Contains(renderer.req.EraRules, want) {
+			t.Fatalf("OFF era rules missing %q: %s", want, renderer.req.EraRules)
+		}
 	}
 }
 

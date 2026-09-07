@@ -17,8 +17,9 @@ import (
 // is never called. Renderer failure leaves the article unmaterialized so a later
 // observation can retry rather than committing canned prose.
 type LLMMaterializer struct {
-	Renderer llm.BoardPostRenderer
-	Fallback Materializer
+	Renderer                    llm.BoardPostRenderer
+	Fallback                    Materializer
+	HistoricalReferencesEnabled bool
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -27,14 +28,14 @@ func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMateri
 }
 
 func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, GenerationUsage, error) {
-	if decision.Level == historicalkb.EvidenceVerified && !decision.Knowledge.CanUse {
+	if m.HistoricalReferencesEnabled && decision.Level == historicalkb.EvidenceVerified && !decision.Knowledge.CanUse {
 		return nil, GenerationUsage{}, fmt.Errorf("verified historical knowledge unavailable")
 	}
 	if m.Renderer == nil {
 		return nil, GenerationUsage{}, fmt.Errorf("LLM board post renderer is not configured")
 	}
 
-	facts := usableClaims(decision)
+	facts := m.historicalFacts(decision)
 	author := ""
 	personaProfile := ""
 	if req.Persona != nil {
@@ -49,7 +50,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		BoardTopic:       req.BoardTopic,
 		WorldDate:        req.WorldDate,
 		HistoricalFacts:  facts,
-		EraRules:         "世界時刻より未来の知識を使わない。具体的な歴史事実は supplied historical facts の範囲に限定する。局固有の架空設定と史実を混同しない。\n" + llm.DiegeticWorldFrame,
+		EraRules:         m.eraRules(),
 		AuthorHandle:     author,
 		PersonaProfile:   personaProfile,
 		PostIntent:       intentSummary(req.Intent),
@@ -73,6 +74,20 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		Model:             draft.Usage.Model,
 	}
 	return []world.Post{{Author: draft.Author, Subject: draft.Subject, Body: draft.Body, CreatedAt: worldTime(req.WorldDate)}}, usage, nil
+}
+
+func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) []string {
+	if !m.HistoricalReferencesEnabled {
+		return nil
+	}
+	return usableClaims(decision)
+}
+
+func (m LLMMaterializer) eraRules() string {
+	if m.HistoricalReferencesEnabled {
+		return "HISTORICAL_REFERENCES=ON. 世界時刻より未来の知識を使わない。新しい実在の製品名・作品名・サービス名・企業名・人物名・具体的地名・歴史上の出来事やニュースは、supplied historical facts または明示された canonical historical evidence にあるものだけ使用し、モデル記憶から補完しない。局固有の架空設定と史実を混同しない。セーブ、モデム、回線、駅、店、ゲーム、通信ソフト等の一般語彙は自然に使ってよい。\n" + llm.DiegeticWorldFrame
+	}
+	return "HISTORICAL_REFERENCES=OFF. 世界時刻より未来の知識を使わない。生成する題名・本文・意味計画へ、新しい実在の製品名・作品名・サービス名・企業名・人物名・具体的地名・歴史上の出来事やニュースを導入しない。既に canonical world state として明示的に供給された固有名詞を消去する必要はないが、そこから別の実在情報を連想・補完しない。セーブ、モデム、回線、駅、店、ゲーム、通信ソフト等の一般語彙は自然に使ってよく、具体性まで抽象語に潰さない。\n" + llm.DiegeticWorldFrame
 }
 
 func personaSummary(p world.Persona) string {

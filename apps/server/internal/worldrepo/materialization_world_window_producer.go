@@ -105,7 +105,7 @@ func (m LLMMaterializer) PlanDevelopmentWorldWindow(ctx context.Context, host wo
 		WorldDate:      worldDate,
 		WindowStart:    windowStart.Format(time.RFC3339),
 		WindowEnd:      windowEnd.Format(time.RFC3339),
-		EraRules:       "世界時刻より未来の知識を使わない。外部世界の具体的な歴史事実・製品仕様は根拠なしに確定しない。架空住人の個人的事実と史実を区別する。\n" + llm.DiegeticWorldFrame,
+		EraRules:       m.eraRules(),
 		RecentBBSState: recentBBS,
 		Events:         events,
 	})
