@@ -1,0 +1,37 @@
+name: run-facetless-fresh-once
+on:
+  push:
+    branches: [ops/run-facetless-fresh-20260908]
+jobs:
+  run-fresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start facetless fresh Lab and capture result
+        run: |
+          set -euo pipefail
+          BASE='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
+          curl --fail-with-body -sS -X POST "${BASE}?action=start&situation_mode=facetless" > start.json
+          cat start.json
+          ID="$(jq -r '.id' start.json)"
+          test -n "$ID" -a "$ID" != "null"
+          for i in $(seq 1 360); do
+            curl --fail-with-body -sS "${BASE}?action=status&id=${ID}" > result.json
+            STATUS="$(jq -r '.status' result.json)"
+            echo "poll=$i status=$STATUS"
+            case "$STATUS" in
+              completed) cat result.json; exit 0 ;;
+              failed) cat result.json; exit 1 ;;
+            esac
+            sleep 2
+          done
+          echo 'timed out waiting for fresh Lab' >&2
+          cat result.json >&2 || true
+          exit 1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: facetless-fresh-result
+          path: |
+            start.json
+            result.json
+          retention-days: 7
