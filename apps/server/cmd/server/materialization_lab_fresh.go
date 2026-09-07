@@ -72,11 +72,7 @@ func (l *materializationLab) freshHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !l.authorized(r) {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "materialization lab is disabled or unauthorized"})
-			return
-		}
+		if !labRequestAllowed(w, r) { return }
 		switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action"))) {
 		case "start":
 			l.handleFreshStart(w, r)
@@ -98,30 +94,16 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	if phone == "" {
 		phone = developmentMaterializationPhone
 	}
-	l.mu.Lock()
-	regular := l.active
-	l.mu.Unlock()
-	materializationRandomLab.mu.Lock()
-	random := materializationRandomLab.active
-	materializationRandomLab.mu.Unlock()
-	materializationAllBodyLab.mu.Lock()
-	allbody := materializationAllBodyLab.active
-	materializationAllBodyLab.mu.Unlock()
+	if !publicLabAdmission.start(w, r, phone, 1) { return }
 	materializationFreshLab.mu.Lock()
-	if regular != "" || random != "" || allbody != "" || materializationFreshLab.active != "" {
-		active := materializationFreshLab.active
-		materializationFreshLab.mu.Unlock()
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": "another materialization lab job is active", "regular": regular, "random": random, "allbody": allbody, "fresh": active})
-		return
-	}
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
 	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, CreatedAt: time.Now().UTC()}
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
 	materializationFreshLab.mu.Unlock()
-	go l.runFreshAllBody(id)
+	// Encode before the worker can mutate the queued job.
 	_ = json.NewEncoder(w).Encode(job)
+	go l.runFreshAllBody(id)
 }
 
 func handleFreshStatus(w http.ResponseWriter, r *http.Request) {
@@ -155,6 +137,7 @@ func handleFreshStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (l *materializationLab) runFreshAllBody(id string) {
+	defer publicLabAdmission.finish()
 	materializationFreshLab.mu.Lock()
 	job := materializationFreshLab.jobs[id]
 	job.Status = "running"
@@ -192,8 +175,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 			break
 		}
 		if time.Now().After(deadline) {
-			statusText += "\n[LAB] timeout waiting for fresh ALLBODY"
-			break
+			publicLabAdmission.block()
+			finishFreshError(id, fmt.Errorf("fresh ALLBODY timeout; lab blocked until server restart"))
+			return
 		}
 		time.Sleep(250 * time.Millisecond)
 	}

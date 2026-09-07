@@ -94,11 +94,7 @@ func (l *materializationLab) randomHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !l.authorized(r) {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "materialization lab is disabled or unauthorized"})
-			return
-		}
+		if !labRequestAllowed(w, r) { return }
 		switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action"))) {
 		case "start":
 			l.handleRandomStart(w, r)
@@ -136,19 +132,8 @@ func (l *materializationLab) handleRandomStart(w http.ResponseWriter, r *http.Re
 	}
 	seedBase := int64(queryInt(r, "seed", 19660826))
 
-	// Avoid overlapping the original chronological lab and the random-order lab;
-	// they share the same provider client and would confound latency observations.
-	l.mu.Lock()
-	regularActive := l.active
-	l.mu.Unlock()
+	if !publicLabAdmission.start(w, r, phone, runs) { return }
 	materializationRandomLab.mu.Lock()
-	if regularActive != "" || materializationRandomLab.active != "" {
-		active := materializationRandomLab.active
-		materializationRandomLab.mu.Unlock()
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]any{"error": "another materialization lab job is active", "regular_active": regularActive, "random_active": active})
-		return
-	}
 	id := fmt.Sprintf("lab-random-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationRandomLab.seq, 1)%10000)
 	job := &materializationRandomJob{
 		ID: id, Status: "queued", Phone: phone, Runs: runs, TimeoutMS: timeoutMS,
@@ -158,8 +143,9 @@ func (l *materializationLab) handleRandomStart(w http.ResponseWriter, r *http.Re
 	materializationRandomLab.active = id
 	materializationRandomLab.mu.Unlock()
 
-	go l.runRandomReplay(id)
+	// Encode before the worker can mutate the queued job.
 	_ = json.NewEncoder(w).Encode(job)
+	go l.runRandomReplay(id)
 }
 
 func handleRandomStatus(w http.ResponseWriter, r *http.Request) {
@@ -208,6 +194,7 @@ func handleRandomList(w http.ResponseWriter) {
 }
 
 func (l *materializationLab) runRandomReplay(id string) {
+	defer publicLabAdmission.finish()
 	materializationRandomLab.mu.Lock()
 	job := materializationRandomLab.jobs[id]
 	job.Status = "running"

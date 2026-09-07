@@ -21,20 +21,24 @@ worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
 
 freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。本文品質とProducer指示の整合性を見る場合はfreshを使う。
 
-## 接続条件
+## 接続条件とテスト環境の公開範囲
 
-- サーバー環境変数 `MATERIALIZATION_LAB_TOKEN` が設定されていること。未設定または認証不一致なら403。
-- リクエストに `X-Zutto-Lab-Token` ヘッダーを付ける。`token` クエリも実装上は受け付けるが、共有URLやログに値を残さないためヘッダーを使う。
-- `GET /health` の `materialization_lab: true` はトークン設定の有無を示すだけで、認証・生成成功の確認にはならない。
-- 複製元ホストには `Intent.ProducerEventID` を持つ記事が最低1件必要。**freshも共通snapshot関数を使うためこの条件がある。** 空の複製元では `no matching producer posts in current canonical snapshot` で失敗する。
+- このテスト環境では4種類のlabをトークンなしで利用できる。既存の `MATERIALIZATION_LAB_TOKEN` は認証に使用しない。Render APIトークンも不要。
+- 開始は **POSTのみ**。status/listはGETで取得できる。URLのプレビューや巡回によるGETでは生成を開始しない。
+- 対象は `0450000196` のみ。別のphoneは400で拒否する。
+- 全4種類で同時に1ジョブ、開始間隔60秒、UTC日付で合計20実行まで。複数 `runs` はその回数分を開始時に消費し、失敗しても返却しない。競合は409、間隔・日次上限は429と `Retry-After`。
+- 制限は単一サーバープロセス内で共有する。再起動でリセットされ、複数インスタンスを横断しない。課金の厳密な上限ではない。テスト環境は単一インスタンスで運用する。
+- 誰でも実験を起動でき、生成本文・架空住人の指示を閲覧できる。第三者によるLLM利用と利用枠消費のリスクを承認したテスト環境専用。実ユーザー・秘密情報を扱う環境へ持ち込まない。
+- サーバー環境変数 `MATERIALIZATION_LAB_DISABLED=1` で全labを停止（503）。保存済み世界を操作するRESET APIの認証は変更していない。
+- `GET /health` の `materialization_lab` は有効状態、`materialization_lab_auth: "none-test-only"` は本方式の稼働確認に使う。
+- 複製元ホストには `Intent.ProducerEventID` を持つ記事が最低1件必要。freshも共通snapshot関数を使うため、この条件を満たさないと失敗する。
 
 ## freshの実行例
 
-以下は利用者側のshellに `ZUTTO_SERVER_URL`（末尾スラッシュなし）と `ZUTTO_LAB_TOKEN` を設定済みとする。実際の秘密値はドキュメント・PR・検証記録に含めない。
+以下は `ZUTTO_SERVER_URL`（GoサーバーのURL、末尾スラッシュなし）を設定済みとする。認証情報の設定は不要。
 
 ```bash
 curl --fail-with-body -sS -X POST \
-  -H "X-Zutto-Lab-Token: ${ZUTTO_LAB_TOKEN}" \
   "${ZUTTO_SERVER_URL}/api/debug/materialization-lab-fresh?action=start"
 ```
 
@@ -42,7 +46,6 @@ curl --fail-with-body -sS -X POST \
 
 ```bash
 curl --fail-with-body -sS \
-  -H "X-Zutto-Lab-Token: ${ZUTTO_LAB_TOKEN}" \
   "${ZUTTO_SERVER_URL}/api/debug/materialization-lab-fresh?action=status&id=${ZUTTO_LAB_JOB_ID}"
 ```
 
@@ -83,8 +86,8 @@ allbodyは各runの `complete`、`runtime_state`、`failures`、`missing_post_id
 ## 現在の制約
 
 - ジョブと結果はプロセスメモリ内にあり、再起動・再デプロイで失われる。必要な結果は終了後に保存する。
-- lab種別間の排他確認は対称ではなく、全IFを横断する完全な同時実行防止を保証しない。比較実験はクライアント側でも直列に行う。
-- freshは約10分、allbodyは各run約8分の待機上限を持つ。この上限は処理のキャンセル保証ではない。非終端runtime状態でlabが終了した場合は成功扱いせず、別ジョブを重ねる前に稼働状態を確認する。
+- 全HTTP labは共通の排他ゲートを使う。端末からの通常ALLBODYや複数サーバープロセスはこのゲートの対象外。
+- freshは約10分、allbodyは各run約8分の待機上限を持つ。超過するとジョブをfailedにし、処理が残存する可能性があるため全labの新規開始を再起動まで503で停止する。自動で後続runを開始しない。
 - このIFは生成パイプラインを検証する。Canvas表示、WebSocket、モデム、実際の端末入力のE2E検証は別途必要。
 
 ## 実装への入口
@@ -94,3 +97,7 @@ allbodyは各runの `complete`、`runtime_state`、`failures`、`missing_post_id
 - [random replay](../apps/server/cmd/server/materialization_lab_random.go)
 - [ALLBODY runtime replay](../apps/server/cmd/server/materialization_lab_allbody.go)
 - [fresh生成・記事とProducer指示の取得](../apps/server/cmd/server/materialization_lab_fresh.go)
+
+## Vercel経由で呼び出す場合
+
+フロントエンドの同名IFは `/api/materialization-lab-fresh`（`debug/` なし）。他3種類も同様。Vercel側の既存プロキシはPOSTとクエリを固定のGoサーバーへ転送するため、トークンなしでそのまま利用できる。開始はPOST、結果はGETとし、statusのidは同じ種類のIFに渡す。
