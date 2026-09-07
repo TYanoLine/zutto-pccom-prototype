@@ -13,7 +13,7 @@
 | `materialization-lab` | 既存Producer記事の本文を消し、時系列順にArticle Workerを再実行 | `suite=worker-replay`、`runs`（1–5、既定1）、`post_ids`（カンマ区切り、最大15件）、`timeout_ms` |
 | `materialization-lab-random` | 既存記事をランダム順に読み、依存記事の生成や順序の影響を検証 | `runs`（1–8、既定3）、`seed`（既定19660826）、`timeout_ms` |
 | `materialization-lab-allbody` | 既存Producer記事を使い、端末と同じmaterializationdemo RuntimeのALLBODY処理を検証 | `runs`（1–5、既定3） |
-| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`, `situation_mode=facets|facetless`。1ジョブ1回で、`runs`指定には対応しない |
+| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`, `situation_mode=facets|facetless|batch`, `board_count=3..6`, `shell_limit=1..10`。1ジョブ1回で、`runs`指定には対応しない |
 
 すべて `phone` を省略するとサーバーの `developmentMaterializationPhone` を使う。
 worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
@@ -106,3 +106,10 @@ allbodyは各runの `complete`、`runtime_state`、`failures`、`missing_post_id
 ## Vercel経由で呼び出す場合
 
 フロントエンドの同名IFは `/api/materialization-lab-fresh`（`debug/` なし）。他3種類も同様。Vercel側の既存プロキシはPOSTとクエリを固定のGoサーバーへ転送するため、トークンなしでそのまま利用できる。開始はPOST、結果はGETとし、statusのidは同じ種類のIFに渡す。
+
+
+### fresh batch Situation / scale experiment
+
+`situation_mode=batch` removes the hand-written situation facet/occurrence selection without moving concrete world truth into article prose. All independent roots in the bounded fresh window are proposed together, validated by the world layer, and accepted Situation fields are persisted before ALLBODY prose rendering. A validator rejection triggers at most one batched repair call for only the rejected roots.
+
+`board_count` and `shell_limit` are fresh-isolated load-test controls. Defaults remain 3 boards and 5 shells per board. `board_count>3` adds development-only `ゲーム`, `音楽`, `ソフトウェア` boards to the copied MemoryStore snapshot. Nothing from these scaled runs is written back to the saved development world or ordinary runtime.

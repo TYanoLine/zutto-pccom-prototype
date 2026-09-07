@@ -320,6 +320,21 @@ func demoRootBoardScopeRelevance(board world.Board, key string) float64 {
 			return 1
 		}
 		return 0
+	case "4": // fresh Lab scale fixture: ゲーム
+		if key == "games" {
+			return 1
+		}
+		return 0
+	case "5": // fresh Lab scale fixture: 音楽
+		if key == "music" {
+			return 1
+		}
+		return 0
+	case "6": // fresh Lab scale fixture: ソフトウェア
+		if key == "software" {
+			return 1
+		}
+		return 0
 	default: // フリートーク has intentionally broad root scope.
 		return demoInterestBoardRelevance(board, key)
 	}
@@ -360,6 +375,21 @@ func demoInterestBoardRelevance(board world.Board, key string) float64 {
 		default:
 			return 0
 		}
+	case "4": // fresh Lab scale fixture: ゲーム
+		if key == "games" {
+			return 1
+		}
+		return 0
+	case "5": // fresh Lab scale fixture: 音楽
+		if key == "music" {
+			return 1
+		}
+		return 0
+	case "6": // fresh Lab scale fixture: ソフトウェア
+		if key == "software" {
+			return 1
+		}
+		return 0
 	default: // フリートーク
 		switch key {
 		case "chat":

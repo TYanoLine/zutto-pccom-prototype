@@ -67,3 +67,12 @@ This remains an experiment, not a production architecture decision. The importan
 ## Facetless A/B experiment
 
 The fresh Lab also supports `situation_mode=facetless` for a deliberately weaker A/B condition. In this mode root shells keep actor/time/board/topology/routing-domain/cause/discourse-mode, but **no predefined situation facet or occurrence is selected**. The Article Worker must invent one small concrete occurrence while rendering from the conversation view. This mode is intentionally not the proposed production architecture: concrete root occurrence details are not canonical before prose. It exists to measure what the hand-written facet layer contributes to diversity, answerability and cross-root isolation. Replies still bind to the actual canonical source post. Default fresh behavior remains `situation_mode=facets`.
+
+
+## Batched world-situation proposal PoC
+
+The fresh Lab supports `situation_mode=batch`. World-selected standalone root shells across the bounded host window are sent to one compact Situation Proposer call. The proposer does not write subjects/bodies and does not choose actor/time/board/topology/routing/discourse. It returns free-form `object_class`, `change_class`, `occurrence`, `actor_observation`, `impact`, `uncertainty`, and `novelty_key` fields. These are not selected from a hand-written facet catalog.
+
+The world layer validates proposals before committing them as `PostIntent.Situation*`. Within one board, duplicate object classes and highly similar occurrences are rejected; duplicate novelty keys are rejected host-wide. Rejected roots are retried together at most once while the already accepted situations are supplied as an avoid set. Replies are not separately proposed; they continue to bind to the actual canonical source situation/body. Only after accepted situations are stored does Conversation View render article prose.
+
+For scale testing only, fresh can expand the isolated development snapshot from 3 to at most 6 boards and raise the Conversation View shell limit from 5 to at most 10 per board. These extra boards and posts are never written back to the saved demo world.
