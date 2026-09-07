@@ -94,6 +94,17 @@ The producer is not permission to hallucinate period facts. Named commercial gam
 
 When an external identity is not yet supported, the producer should make the episode concrete through actions/state/attempts/relationships while leaving the unsupported external name unspecified. A later structured Life Context / verified referent catalog can provide richer historically grounded objects without weakening this boundary.
 
+
+### Historical-reference switch
+
+`HISTORICAL_REFERENCES_ENABLED` controls whether generation may consume verified real-world period references. The safe/default and current setting is `0` (OFF).
+
+- **OFF**: historical evidence is not passed to article rendering, and semantic Producer/Planner/Worker instructions forbid introducing new real product/work/service/company/person/place names or historical events/news from model memory. Period-normal generic vocabulary such as save, modem, line, station, shop, game, or communication software remains allowed; the switch must not force prose into vague abstractions.
+- **ON**: verified/supplied historical evidence may be used, but the LLM still may not fill missing real-world facts from model memory.
+- The switch does not delete or rewrite a proper noun that is already canonical world state. It governs new historical-reference introduction during generation.
+
+The active value is exposed as `historical_references_enabled` on `/health`.
+
 ## Future evolution
 
 The current producer brief is deliberately compact. It can later be normalized into first-class canonical models such as:

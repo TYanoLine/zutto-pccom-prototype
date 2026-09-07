@@ -55,7 +55,7 @@ func main() {
 	// client keeps transient provider latency from tripping the provider's 30s
 	// default while preserving request cancellation through the caller context.
 	postRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
-	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}}
+	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled}
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
 	network := telephone.New(runtimeStore, clock)
@@ -144,7 +144,7 @@ func main() {
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
 	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.OpenAIKey))
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter,r *http.Request){w.Header().Set("Content-Type","text/html; charset=utf-8");_,_=w.Write([]byte(historicalkb.AdminPageHTML))})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"world_repository":true,"world_post_renderer":"openai-with-fallback","openai_model":cfg.OpenAIModel,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!="","materialization_lab":labEnabled(),"materialization_lab_auth":"none-test-only","materialization_lab_daily_runs":publicLabDailyRuns}) })
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.Header().Set("Content-Type", "application/json"); _ = json.NewEncoder(w).Encode(map[string]any{"ok":true,"world_date":cfg.WorldDate,"time":clock.Now(),"persistent_worlds":catalogStore!=nil,"historical_research":historyStore!=nil,"historical_knowledge":historyStore!=nil,"historical_references_enabled":cfg.HistoricalReferencesEnabled,"world_repository":true,"world_post_renderer":"openai-with-fallback","openai_model":cfg.OpenAIModel,"research_auth":"none-poc","debug_reset":cfg.DebugResetToken!="","materialization_lab":labEnabled(),"materialization_lab_auth":"none-test-only","materialization_lab_daily_runs":publicLabDailyRuns}) })
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5*time.Second}
 	log.Printf("zutto server listening on %s", cfg.Addr)

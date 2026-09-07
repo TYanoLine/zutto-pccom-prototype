@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"zutto-pccom/apps/server/internal/llm"
@@ -78,5 +79,37 @@ func TestPlanDevelopmentWorldWindowPropagatesDiscourseMode(t *testing.T) {
 	}
 	if got := renderer.req.Events[0].DiscourseMode; got != "share_observation" {
 		t.Fatalf("discourse mode=%q want share_observation", got)
+	}
+}
+
+func TestPlanDevelopmentWorldWindowUsesHistoricalReferencePolicy(t *testing.T) {
+	host := world.Host{ID: "h", Name: "H", Region: "R", Software: "S"}
+	shell := developmentWindowShell{
+		eventID: "board-1:event-0001",
+		board:   world.Board{ID: "1", Name: "free"},
+		shell: developmentTimelineShell{
+			index:        1,
+			persona:      world.Persona{ID: "p", Handle: "NEKO"},
+			action:       "thread_start",
+			anchorKey:    "local",
+			causeKind:    "recent_salience",
+			causeSummary: "a concrete occurrence",
+		},
+	}
+
+	offRenderer := &discourseCaptureRenderer{}
+	if _, err := (LLMMaterializer{Renderer: offRenderer}).PlanDevelopmentWorldWindow(context.Background(), host, "1996-08-26", []developmentWindowShell{shell}, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(offRenderer.req.EraRules, "HISTORICAL_REFERENCES=OFF") {
+		t.Fatalf("producer OFF policy missing: %s", offRenderer.req.EraRules)
+	}
+
+	onRenderer := &discourseCaptureRenderer{}
+	if _, err := (LLMMaterializer{Renderer: onRenderer, HistoricalReferencesEnabled: true}).PlanDevelopmentWorldWindow(context.Background(), host, "1996-08-26", []developmentWindowShell{shell}, nil, ""); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(onRenderer.req.EraRules, "HISTORICAL_REFERENCES=ON") {
+		t.Fatalf("producer ON policy missing: %s", onRenderer.req.EraRules)
 	}
 }
