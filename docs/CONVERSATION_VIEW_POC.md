@@ -15,17 +15,45 @@ The database remains canonical for:
 - explicit source post
 - world-selected routing domain/cause kind
 - root discourse mode
+- sparse world-owned micro-situation
 - already-rendered BBS prose
 
-The experimental header pass stores only those world-selected shells. It does **not** persist Producer `episode / referents / actor_knowledge / contribution / goal` briefs.
+The experimental header pass does **not** persist Producer `episode / referents / actor_knowledge / contribution / goal` briefs.
+
+## Sparse situation layer
+
+A broad routing domain such as `local`, `games`, `communications` or `modem` is too weak by itself: prose generation can repeatedly invent the same kind of occurrence or make an `ask_peers` post impossible to answer. The fresh-lab PoC therefore selects a small canonical situation only **after a write action has already been selected**.
+
+`PostIntent` stores:
+
+- `situation_kind` — a reusable everyday facet such as a local notice change, route condition, game naming choice, or post-confirmation delay
+- `situation_summary` — the canonical occurrence + discourse-mode boundary
+- `situation_facts` — open fact/boundary strings used by the renderer
+
+This is deliberately sparse. The world does **not** simulate a detailed daily life for every NPC. Visits can still resolve to ROM/no-op without any situation being created. A concrete situation is materialized only for an actual selected write slot.
+
+Situation selection uses local novelty rather than a large collection of per-person rules:
+
+- avoid the same situation facet on the same board for roughly the next 36 hours when alternatives exist
+- avoid reusing the same facet for the same actor for roughly ten days when alternatives exist
+- if every facet is exhausted, allow weighted reuse rather than failing or growing a brittle exception catalog
+- replies inherit the actual canonical source situation instead of inventing another topic
+- continuation roots keep the source situation but require a materially new development
+
+The facet catalog is compositional routing vocabulary, **not article templates**. It fixes what happened at a small semantic level and defines what must not be inferred; the LLM still decides natural Japanese wording and incidental expression. The design is intended to be replaceable later by persisted host/domain world data without changing the conversation-view contract.
+
+## Render-time conversation view
 
 Immediately before prose rendering, the repository rebuilds a transient conversation view from canonical data:
 
 - the exact thread so far
 - the explicit source post selected by the world layer
-- a few recent canonical posts by the same actor
+- the current sparse situation and its facts/boundaries
+- a few recent canonical posts by the same actor, marked as continuity/style context only
 - small related-post retrieval already used by the existing renderer
 - the current shell's world-layer cause boundary
+
+Independent roots explicitly tell the renderer not to merge event details from other roots or the actor's previous posts. `ask_peers` roots additionally require enough concrete referent/observable detail to be answerable without guessing an unnamed title, place, product, device or hidden choice.
 
 The article worker then chooses natural subject/body wording. Root subjects are committed from the worker result; reply subjects are canonicalized to `Re: <root subject>` after the root has been rendered. Existing chronological dependency rendering guarantees that a reply sees earlier thread prose first.
 
@@ -33,4 +61,4 @@ The article worker then chooses natural subject/body wording. Root subjects are 
 
 `EnableDevelopmentConversationViewPoC()` is opt-in per repository instance. The server currently enables it only for the isolated fresh RESET-equivalent -> ALLBODY lab. Ordinary runtime materialization continues to use the existing Producer path.
 
-This is intentionally an experiment, not a production architecture decision. If it materially improves naturalness, the next step is to replace the broad cause boundary with a typed, world-owned `WorldPostSituation` rather than re-expanding the semantic Producer.
+This remains an experiment, not a production architecture decision. The important architectural direction is **sparse canonical world state + delayed concretization + transient DB-reconstructed conversation context**, rather than an always-running full-life simulation or a larger semantic Producer.

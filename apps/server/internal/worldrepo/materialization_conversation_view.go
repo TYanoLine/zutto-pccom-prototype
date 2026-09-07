@@ -29,9 +29,9 @@ func developmentConversationViewPoCEnabled(r *Repository) bool {
 
 // materializeConversationWorldWindow persists only cheap world-selected shells.
 // It intentionally does not invent a producer episode/topic/goal graph. The
-// broad routing domain and cause summary are retained as world-layer guardrails;
-// natural subject/body wording is chosen later while looking at conversation
-// history reconstructed from the DB.
+// broad routing domain, sparse concrete situation and cause summary are retained
+// as world-layer guardrails; natural subject/body wording is chosen later while
+// looking at conversation history reconstructed from the DB.
 func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]world.Post, bool) {
 	if existing := r.Base.ListPosts(host.ID); len(existing) > 0 {
 		return existing, false
@@ -72,6 +72,8 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		sourcePostID := int64(0)
 		respondsToID := int64(0)
 		subject := developmentConversationPendingSubject
+		var sourcePost world.Post
+		hasSource := false
 
 		if shell.parentIndex != 0 {
 			parentEventID := developmentWindowEventID(item.board.ID, shell.parentIndex)
@@ -83,14 +85,24 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 			subject = "Re: " + developmentConversationPendingSubject
 			sourcePostID = parent.ID
 			respondsToID = parent.ID
+			sourcePost = parent
+			hasSource = true
 		}
 		if shell.sourceIndex != 0 {
 			sourceEventID := developmentWindowEventID(item.board.ID, shell.sourceIndex)
 			if source, ok := committedByEventID[sourceEventID]; ok {
 				sourcePostID = source.ID
 				respondsToID = source.ID
+				sourcePost = source
+				hasSource = true
 			}
 		}
+
+		var source *world.Post
+		if hasSource {
+			source = &sourcePost
+		}
+		situation := developmentSituationForShell(host, item.board, shell, out, source)
 
 		post := world.Post{
 			BoardID:         item.board.ID,
@@ -104,6 +116,9 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 				CauseKind:        shell.causeKind,
 				DiscourseMode:    shell.discourseMode,
 				SourcePostID:     sourcePostID,
+				SituationKind:    situation.kind,
+				SituationSummary: situation.summary,
+				SituationFacts:   append([]string(nil), situation.facts...),
 				Topic:            shell.anchorKey,
 				Motivation:       shell.causeSummary,
 				RespondsToPostID: respondsToID,
@@ -134,6 +149,26 @@ func (r *Repository) materializationConversationViewContext(host world.Host, boa
 	if strings.TrimSpace(selected.Intent.Motivation) != "" {
 		fmt.Fprintf(&b, "WORLD-LAYER CAUSE BOUNDARY: %s\n", strings.TrimSpace(selected.Intent.Motivation))
 	}
+	if strings.TrimSpace(selected.Intent.SituationKind) != "" || strings.TrimSpace(selected.Intent.SituationSummary) != "" {
+		fmt.Fprintf(&b, "WORLD SITUATION: kind=%s\n", strings.TrimSpace(selected.Intent.SituationKind))
+		if strings.TrimSpace(selected.Intent.SituationSummary) != "" {
+			b.WriteString(strings.TrimSpace(selected.Intent.SituationSummary))
+			b.WriteString("\n")
+		}
+		for _, fact := range selected.Intent.SituationFacts {
+			if strings.TrimSpace(fact) != "" {
+				b.WriteString("- ")
+				b.WriteString(strings.TrimSpace(fact))
+				b.WriteString("\n")
+			}
+		}
+	}
+	if selected.ParentID == 0 && selected.Intent.SourcePostID == 0 {
+		b.WriteString("ROOT ISOLATION: This root is its own world situation. Other roots and this actor's earlier posts are not causes or shared events. Do not borrow their concrete event details merely because they appear below.\n")
+	}
+	if selected.Intent.DiscourseMode == "ask_peers" {
+		b.WriteString("ANSWERABILITY: The question must contain enough concrete referent/observable detail that another member can answer from this article without guessing an unnamed title, place, product, device or hidden choice.\n")
+	}
 
 	all := r.Base.ListPosts(host.ID)
 	if selected.Intent.SourcePostID != 0 {
@@ -144,7 +179,7 @@ func (r *Repository) materializationConversationViewContext(host world.Host, boa
 	}
 
 	recent := developmentConversationRecentActorPosts(all, selected, 3)
-	b.WriteString("\nTHIS ACTOR'S RECENT CANONICAL POSTS — continuity/style context, not mandatory topics:\n")
+	b.WriteString("\nTHIS ACTOR'S RECENT CANONICAL POSTS — continuity/style context only. DO NOT merge their events into the current situation unless an explicit source/continuation edge above says to do so:\n")
 	if len(recent) == 0 {
 		b.WriteString("(none)\n")
 	}

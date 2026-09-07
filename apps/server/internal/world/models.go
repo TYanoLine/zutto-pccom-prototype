@@ -28,6 +28,12 @@ type Board struct {
 // realization. Topic/Motivation/Stance/Goal are human-readable realization of
 // that fixed cause, not an invitation for the LLM to choose what happens.
 //
+// Situation* fields are a sparse world-owned micro-situation selected only after
+// a write action exists. They fix enough of the occurrence to keep independent
+// roots distinct and answerable without simulating every person's life at full
+// resolution. SituationFacts are open boundary/fact strings rather than a global
+// fixed event schema, so future host/domain logic can extend them compositionally.
+//
 // Producer* fields are the canonical article brief created by the host-window
 // semantic producer after world action selection and before article prose is
 // rendered. They let the later per-article worker write freely at the wording
@@ -41,6 +47,10 @@ type PostIntent struct {
 	CauseKind     string `json:"cause_kind,omitempty"`
 	DiscourseMode string `json:"discourse_mode,omitempty"`
 	SourcePostID  int64  `json:"source_post_id,omitempty"`
+
+	SituationKind    string   `json:"situation_kind,omitempty"`
+	SituationSummary string   `json:"situation_summary,omitempty"`
+	SituationFacts   []string `json:"situation_facts,omitempty"`
 
 	Topic            string   `json:"topic,omitempty"`
 	Motivation       string   `json:"motivation,omitempty"`

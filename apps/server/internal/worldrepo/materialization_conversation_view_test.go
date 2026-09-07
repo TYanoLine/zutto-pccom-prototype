@@ -44,6 +44,9 @@ func TestConversationViewPoCStoresWorldShellsWithoutProducerBriefs(t *testing.T)
 		if post.Intent.Action == "" || post.Intent.AnchorKey == "" || post.Intent.CauseKind == "" || post.Intent.Motivation == "" {
 			t.Fatalf("world shell missing immutable cause/topology data: %#v", post.Intent)
 		}
+		if post.Intent.SituationKind == "" || post.Intent.SituationSummary == "" || len(post.Intent.SituationFacts) == 0 {
+			t.Fatalf("world shell missing sparse canonical situation: %#v", post.Intent)
+		}
 		if post.Body != "" {
 			t.Fatalf("header phase unexpectedly rendered body: msg=%d body=%q", post.ID, post.Body)
 		}
@@ -63,13 +66,13 @@ func TestConversationViewPoCLetsWorkerChooseRootSubjectFromConversationContext(t
 	posts, _ := repo.MaterializationPersonaArticleHeaders(host, boards[0])
 	var root world.Post
 	for _, post := range posts {
-		if post.ParentID == 0 {
+		if post.ParentID == 0 && post.Intent.SourcePostID == 0 {
 			root = post
 			break
 		}
 	}
 	if root.ID == 0 {
-		t.Fatal("no root post selected")
+		t.Fatal("no independent root post selected")
 	}
 	rendered, found, created, diagnostic := repo.MaterializationArticleWithDebug(host, boards[0], root.ID)
 	if !found || !created || rendered.Subject != "自然に決めた件名" {
@@ -81,7 +84,7 @@ func TestConversationViewPoCLetsWorkerChooseRootSubjectFromConversationContext(t
 	if renderer.req.BoardTopic != boards[0].Name {
 		t.Fatalf("worker cue should be board conversation, got %q want %q", renderer.req.BoardTopic, boards[0].Name)
 	}
-	for _, want := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "CANONICAL BOARD CONVERSATION"} {
+	for _, want := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "WORLD SITUATION", "ROOT ISOLATION", "CANONICAL BOARD CONVERSATION"} {
 		if !strings.Contains(renderer.req.PostIntent, want) {
 			t.Fatalf("conversation context missing %q: %s", want, renderer.req.PostIntent)
 		}
@@ -122,6 +125,13 @@ func TestConversationViewPoCReplyUsesRenderedParentAsChatHistory(t *testing.T) {
 	}
 	if reply.ID == 0 {
 		t.Fatal("no reply selected in conversation window")
+	}
+	source, ok := developmentConversationFindPost(all, reply.Intent.SourcePostID)
+	if !ok {
+		t.Fatalf("reply source %d not found", reply.Intent.SourcePostID)
+	}
+	if reply.Intent.SituationKind != source.Intent.SituationKind {
+		t.Fatalf("reply did not inherit source situation: reply=%q source=%q", reply.Intent.SituationKind, source.Intent.SituationKind)
 	}
 	rendered, found, created, diagnostic := repo.MaterializationArticleWithDebug(host, board, reply.ID)
 	if !found || !created {

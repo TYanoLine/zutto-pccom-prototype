@@ -40,6 +40,9 @@ type materializationFreshArticle struct {
 	DiscourseMode           string    `json:"discourse_mode,omitempty"`
 	SourcePostID            int64     `json:"source_post_id,omitempty"`
 	RespondsToPostID        int64     `json:"responds_to_post_id,omitempty"`
+	SituationKind           string    `json:"situation_kind,omitempty"`
+	SituationSummary        string    `json:"situation_summary,omitempty"`
+	SituationFacts          []string  `json:"situation_facts,omitempty"`
 	ProducerEventID         string    `json:"producer_event_id,omitempty"`
 	ProducerEpisode         string    `json:"producer_episode,omitempty"`
 	ProducerReferents       []string  `json:"producer_referents,omitempty"`
@@ -243,6 +246,9 @@ func collectMaterializationFreshArticles(posts []world.Post) []materializationFr
 			DiscourseMode:           p.Intent.DiscourseMode,
 			SourcePostID:            p.Intent.SourcePostID,
 			RespondsToPostID:        p.Intent.RespondsToPostID,
+			SituationKind:           p.Intent.SituationKind,
+			SituationSummary:        p.Intent.SituationSummary,
+			SituationFacts:          append([]string(nil), p.Intent.SituationFacts...),
 			ProducerEventID:         p.Intent.ProducerEventID,
 			ProducerEpisode:         p.Intent.ProducerEpisode,
 			ProducerReferents:       append([]string(nil), p.Intent.ProducerReferents...),
