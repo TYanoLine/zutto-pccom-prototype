@@ -107,3 +107,8 @@ OpenLoop
 ```
 
 without changing the producer/worker authority split. The DB remains the world-state source of truth; LLM conversation history never becomes canonical world state.
+
+## Root discourse mode
+
+Standalone root events now carry a world-selected `discourse_mode` before semantic production. The development world layer rotates through `share_observation`, `share_experience`, `state_opinion`, `share_tip`, and `ask_peers`; only `ask_peers` is intrinsically an audience-soliciting/question mode. The mode is persisted in `PostIntent`, passed through the host-wide Producer, and enforced again by the article Worker. This keeps the LLM from turning every independent root into a generic “anyone else?” engagement question while leaving the concrete episode wording to semantic production.
+

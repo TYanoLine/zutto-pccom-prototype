@@ -37,6 +37,7 @@ type materializationFreshArticle struct {
 	Action                  string    `json:"action,omitempty"`
 	AnchorKey               string    `json:"anchor_key,omitempty"`
 	CauseKind               string    `json:"cause_kind,omitempty"`
+	DiscourseMode           string    `json:"discourse_mode,omitempty"`
 	SourcePostID            int64     `json:"source_post_id,omitempty"`
 	RespondsToPostID        int64     `json:"responds_to_post_id,omitempty"`
 	ProducerEventID         string    `json:"producer_event_id,omitempty"`
@@ -72,7 +73,9 @@ func (l *materializationLab) freshHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !labRequestAllowed(w, r) { return }
+		if !labRequestAllowed(w, r) {
+			return
+		}
 		switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action"))) {
 		case "start":
 			l.handleFreshStart(w, r)
@@ -94,7 +97,9 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	if phone == "" {
 		phone = developmentMaterializationPhone
 	}
-	if !publicLabAdmission.start(w, r, phone, 1) { return }
+	if !publicLabAdmission.start(w, r, phone, 1) {
+		return
+	}
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
 	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, CreatedAt: time.Now().UTC()}
@@ -234,6 +239,7 @@ func collectMaterializationFreshArticles(posts []world.Post) []materializationFr
 			Action:                  p.Intent.Action,
 			AnchorKey:               p.Intent.AnchorKey,
 			CauseKind:               p.Intent.CauseKind,
+			DiscourseMode:           p.Intent.DiscourseMode,
 			SourcePostID:            p.Intent.SourcePostID,
 			RespondsToPostID:        p.Intent.RespondsToPostID,
 			ProducerEventID:         p.Intent.ProducerEventID,

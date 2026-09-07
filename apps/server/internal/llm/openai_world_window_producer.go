@@ -60,6 +60,7 @@ ABSOLUTE WORLD BOUNDARY:
 - You MUST NOT add, delete, merge, move or retarget an event.
 - You MUST NOT make the human-controlled member the center of the world.
 - Treat the supplied event shells as immutable production slots whose causes already exist.
+- For standalone roots, discourse_mode is an immutable world-layer decision about the conversational act. You MUST preserve it rather than making every root ask readers a question.
 - The database, not your prose, is the eventual source of truth. Make the briefs consistent enough to be committed as canonical semantic state.
 - A relationship between current-window events exists ONLY when parent_event_id or source_event_id explicitly names it. Same board, same actor, nearby time, similar topic, or editorial convenience does NOT create a relationship.
 - If action=thread_start and both parent_event_id/source_event_id are absent, it is a STANDALONE ROOT. Do not describe it as reading, replying to, continuing, or sharing the same occurrence/referent with another selected current-window event. Its audience_context MUST be empty and its subject MUST NOT begin with Re:.
@@ -73,6 +74,7 @@ PRODUCER RESPONSIBILITIES:
 - For replies, make contribution describe the NEW contribution to the selected source/thread, not a restatement of the root.
 - For returning participants, respect cause_summary literally: a newer contribution is the reason they can speak again.
 - Prefer sparse, mundane causality. A two-week BBS window is not a TV drama and does not need an arc for every person.
+- Root discourse modes mean: share_observation = report a concrete observation without soliciting replies; share_experience = tell a recent firsthand experience/result without turning it into a poll; state_opinion = state a reaction/opinion about a concrete current matter without asking the audience to validate it; share_tip = share one small useful firsthand tip/workaround without inventing unsupported external facts; ask_peers = genuinely ask peers for information/advice/experience. For the first four modes, contribution and goal MUST NOT become a question, request for replies, “anyone else?” prompt, or other engagement hook.
 - Cross-board coherence matters: the same person's life, possessions, current activities and known facts must not mutate just because the board changed.
 - KEEP THE BRIEFS COMPACT: each list should normally have 0-2 short items and never more than 4; each scalar field should normally be one short sentence. Do not spend tokens restating the supplied event shell.
 
