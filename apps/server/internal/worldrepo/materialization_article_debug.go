@@ -45,7 +45,7 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		return world.Post{}, false, false, ""
 	}
 	if selected.Body != "" {
-		renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
+		renderContext, contextStats := r.materializationRenderContext(host, board, selected)
 		_ = renderContext
 		usage, _ := r.MaterializationGenerationUsage(postID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
@@ -69,7 +69,7 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 }
 
 func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (world.Post, bool, bool, string) {
-	renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
+	renderContext, contextStats := r.materializationRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(selected.ID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
@@ -103,16 +103,22 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("evidence", err), contextStats.String())
 	}
 
+	boardTopic := selected.Subject
+	canonicalSubject := selected.Subject
+	if developmentConversationViewPoCEnabled(r) {
+		boardTopic = board.Name
+		canonicalSubject = ""
+	}
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = renderContext
 	req := BoardMaterializationRequest{
 		Host:             host,
 		BoardID:          board.ID,
-		BoardTopic:       selected.Subject,
+		BoardTopic:       boardTopic,
 		WorldDate:        r.WorldDate,
 		Persona:          persona,
 		Intent:           renderIntent,
-		CanonicalSubject: selected.Subject,
+		CanonicalSubject: canonicalSubject,
 	}
 	var posts []world.Post
 	var usage GenerationUsage
@@ -126,6 +132,9 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	}
 	if len(posts) == 0 {
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=no post returned", contextStats.String())
+	}
+	if developmentConversationViewPoCEnabled(r) {
+		selected.Subject = r.developmentConversationRenderedSubject(host.ID, selected, posts[0].Subject)
 	}
 	selected.Body = posts[0].Body
 	if selected.Body == "" {

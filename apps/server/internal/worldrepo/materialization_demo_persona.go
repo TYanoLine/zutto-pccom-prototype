@@ -29,6 +29,10 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 	if existing := filterBoard(hostPosts, board.ID); len(existing) > 0 {
 		return existing, false
 	}
+	if developmentConversationViewPoCEnabled(r) {
+		posts, created := r.materializeConversationWorldWindow(host)
+		return filterBoard(posts, board.ID), created
+	}
 	if hasProducerMaterialization(hostPosts) {
 		// A producer window may legitimately leave a board empty. Presence of any
 		// producer event proves the host window was already planned, including its
