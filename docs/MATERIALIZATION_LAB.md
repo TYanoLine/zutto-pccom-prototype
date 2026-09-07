@@ -13,13 +13,15 @@
 | `materialization-lab` | 既存Producer記事の本文を消し、時系列順にArticle Workerを再実行 | `suite=worker-replay`、`runs`（1–5、既定1）、`post_ids`（カンマ区切り、最大15件）、`timeout_ms` |
 | `materialization-lab-random` | 既存記事をランダム順に読み、依存記事の生成や順序の影響を検証 | `runs`（1–8、既定3）、`seed`（既定19660826）、`timeout_ms` |
 | `materialization-lab-allbody` | 既存Producer記事を使い、端末と同じmaterializationdemo RuntimeのALLBODY処理を検証 | `runs`（1–5、既定3） |
-| `materialization-lab-fresh` | RESET相当 → World Window Producer → ALLBODYの一連の生成を検証 | `phone`。1ジョブ1回で、`runs`指定には対応しない |
+| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`。1ジョブ1回で、`runs`指定には対応しない |
 
 すべて `phone` を省略するとサーバーの `developmentMaterializationPhone` を使う。
 worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
 パラメータはPOSTでもURLクエリで渡す。fresh以外には `action=list` もある。
 
-freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。本文品質とProducer指示の整合性を見る場合はfreshを使う。
+freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。**現在のfresh専用Repositoryでは `EnableDevelopmentConversationViewPoC()` を有効化し、host-wide semantic Producerを迂回する。** 世界層が決めた投稿者・日時・board・root/reply・source・routing domain・cause kind・discourse modeをshellとしてDBへ保存し、本文生成直前にthread本文、explicit source、同一人物の最近のcanonical投稿、related retrievalをDBから一時的な会話ビューとして再構成する。通常runtimeのmaterializationはこのPoCを自動では有効化せず、既存Producer経路を維持する。
+
+会話ビューPoCの設計意図と正本境界は [CONVERSATION_VIEW_POC.md](CONVERSATION_VIEW_POC.md) を参照。
 
 ## 接続条件とテスト環境の公開範囲
 
@@ -31,7 +33,7 @@ freshはホスト・人物・ボードを維持し、複製上の記事と遅延
 - 誰でも実験を起動でき、生成本文・架空住人の指示を閲覧できる。第三者によるLLM利用と利用枠消費のリスクを承認したテスト環境専用。実ユーザー・秘密情報を扱う環境へ持ち込まない。
 - サーバー環境変数 `MATERIALIZATION_LAB_DISABLED=1` で全labを停止（503）。保存済み世界を操作するRESET APIの認証は変更していない。
 - `GET /health` の `materialization_lab` は有効状態、`materialization_lab_auth: "none-test-only"` は本方式の稼働確認に使う。
-- 複製元ホストには `Intent.ProducerEventID` を持つ記事が最低1件必要。freshも共通snapshot関数を使うため、この条件を満たさないと失敗する。
+- 複製元ホストには `Intent.ProducerEventID` を持つ記事が最低1件必要。freshも現在は共通snapshot関数で複製元を取得してから記事を消すため、この前提は残る。これはfresh内でProducer briefを新規生成することを意味しない。
 
 ## freshの実行例
 
@@ -65,10 +67,10 @@ freshでは次を照合する。
 - `planning_diagnostic` と `status_text` に異常がないか。
 - `duration_ms` と `usage` による実行時間・利用量。
 - `articles` に含まれる件名・本文・投稿者・日時・board/parentと、`source_post_id` / `responds_to_post_id` による返信・因果関係。
-- 各記事の `producer_episode`、`producer_referents`、`producer_actor_knowledge`、`producer_audience_context`、`producer_contribution`、`producer_must_not` と本文の整合性。
+- **現在の会話ビューPoCでは** `producer_episode`、`producer_referents`、`producer_actor_knowledge`、`producer_audience_context`、`producer_contribution`、`producer_must_not` は空であることが正常。Producer briefの整合性ではなく、world-selected shellに反していないか、返信が実際のthread/source本文を自然に受けているか、独立rootが別rootを勝手に共有文脈として扱っていないか、同一人物の発言が継続しているかを確認する。これらのProducer fieldは旧方式との比較用にレスポンス形状へ残している。
 
 本文が埋まっていても、他記事の言い換え反復、住人の知識範囲逸脱、ボード違い、未来知識、根拠のない固有名詞や出来事の追加があれば品質上の失敗として記録する。
-判断基準は [LLM_POLICY.md](LLM_POLICY.md)、[HISTORICAL_ACCURACY.md](HISTORICAL_ACCURACY.md)、[WORLD_WINDOW_PRODUCER.md](WORLD_WINDOW_PRODUCER.md) を参照。
+判断基準は [LLM_POLICY.md](LLM_POLICY.md)、[HISTORICAL_ACCURACY.md](HISTORICAL_ACCURACY.md)、[WORLD_WINDOW_PRODUCER.md](WORLD_WINDOW_PRODUCER.md)、[CONVERSATION_VIEW_POC.md](CONVERSATION_VIEW_POC.md) を参照。
 
 worker/randomは `results` と `summary` から成功率、失敗分類、時間分布を読む。
 randomは `run_orders` と依存生成の情報も返す。同じseedはアクセス順の比較に使えるが、LLM出力の一致を保証しない。
@@ -79,7 +81,7 @@ allbodyは各runの `complete`、`runtime_state`、`failures`、`missing_post_id
 1. 最新main・関連仕様・対象実装を読む。接続先の稼働ビルドが検証対象のコミットを含むかを確認する。
 2. 目的に合うlabを選び、最小限の回数で基準結果を取得する。
 3. ジョブid、対象コミット/稼働ビルド、世界日付、モデル、phone、パラメータ、結果JSONと問題記事を記録する。取得できない情報は未確認と明記する。
-4. Producerの指示とWorkerの本文を照合し、どの段階で矛盾や重複が生じたかを切り分ける。
+4. 検証対象の生成経路に応じて切り分ける。Producer replayではProducer指示とWorker本文を照合し、現在のfresh会話ビューPoCではworld shell・explicit source・thread本文と生成記事の整合性を照合する。
 5. ブランチで修正し、重要な挙動のテストを行う。変更を実行環境へ反映したことを確認してから同条件で再検証する。
 6. 実測結果と未確認事項をPRへ残す。コード確認・ユニットテスト・稼働環境のlab検証は区別して報告する。
 
@@ -96,7 +98,8 @@ allbodyは各runの `complete`、`runtime_state`、`failures`、`missing_post_id
 - [認証・worker replay・snapshot](../apps/server/cmd/server/materialization_lab.go)
 - [random replay](../apps/server/cmd/server/materialization_lab_random.go)
 - [ALLBODY runtime replay](../apps/server/cmd/server/materialization_lab_allbody.go)
-- [fresh生成・記事とProducer指示の取得](../apps/server/cmd/server/materialization_lab_fresh.go)
+- [fresh生成・記事/因果メタデータ取得](../apps/server/cmd/server/materialization_lab_fresh.go)
+- [会話ビューPoC](../apps/server/internal/worldrepo/materialization_conversation_view.go)
 
 ## Vercel経由で呼び出す場合
 
