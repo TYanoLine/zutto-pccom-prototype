@@ -56,6 +56,7 @@ type materializationFreshJob struct {
 	ID                 string                        `json:"id"`
 	Status             string                        `json:"status"`
 	Phone              string                        `json:"phone"`
+	SituationMode      string                        `json:"situation_mode,omitempty"`
 	CreatedAt          time.Time                     `json:"created_at"`
 	StartedAt          time.Time                     `json:"started_at,omitempty"`
 	FinishedAt         time.Time                     `json:"finished_at,omitempty"`
@@ -91,6 +92,18 @@ func (l *materializationLab) freshHandler() http.HandlerFunc {
 	}
 }
 
+func normalizeFreshSituationMode(raw string) (string, bool) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "", "facets":
+		return "facets", true
+	case "facetless":
+		return "facetless", true
+	default:
+		return "", false
+	}
+}
+
 func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -100,12 +113,18 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	if phone == "" {
 		phone = developmentMaterializationPhone
 	}
+	situationMode, ok := normalizeFreshSituationMode(r.URL.Query().Get("situation_mode"))
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets or facetless"})
+		return
+	}
 	if !publicLabAdmission.start(w, r, phone, 1) {
 		return
 	}
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
-	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, CreatedAt: time.Now().UTC()}
+	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, CreatedAt: time.Now().UTC()}
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
 	materializationFreshLab.mu.Unlock()
@@ -168,6 +187,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	}
 	repo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)
 	repo.EnableDevelopmentConversationViewPoC()
+	if job.SituationMode == "facetless" {
+		repo.EnableDevelopmentFacetlessSituationPoC()
+	}
 	host, err := repo.HostByPhone(job.Phone)
 	if err != nil {
 		finishFreshError(id, err)

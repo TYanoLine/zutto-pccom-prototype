@@ -13,11 +13,13 @@
 | `materialization-lab` | 既存Producer記事の本文を消し、時系列順にArticle Workerを再実行 | `suite=worker-replay`、`runs`（1–5、既定1）、`post_ids`（カンマ区切り、最大15件）、`timeout_ms` |
 | `materialization-lab-random` | 既存記事をランダム順に読み、依存記事の生成や順序の影響を検証 | `runs`（1–8、既定3）、`seed`（既定19660826）、`timeout_ms` |
 | `materialization-lab-allbody` | 既存Producer記事を使い、端末と同じmaterializationdemo RuntimeのALLBODY処理を検証 | `runs`（1–5、既定3） |
-| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`。1ジョブ1回で、`runs`指定には対応しない |
+| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`, `situation_mode=facets|facetless`。1ジョブ1回で、`runs`指定には対応しない |
 
 すべて `phone` を省略するとサーバーの `developmentMaterializationPhone` を使う。
 worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
 パラメータはPOSTでもURLクエリで渡す。fresh以外には `action=list` もある。
+
+freshの `situation_mode` は既定 `facets`。`facetless` はA/B実験専用で、手書きのsituation facet/occurrenceを事前選択せず、routing domain + discourse mode + 会話文脈だけからArticle Workerに小さな出来事を具体化させる。通常runtimeには影響しない。
 
 freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。**現在のfresh専用Repositoryでは `EnableDevelopmentConversationViewPoC()` を有効化し、host-wide semantic Producerを迂回する。** 世界層が決めた投稿者・日時・board・root/reply・source・routing domain・cause kind・discourse modeをshellとしてDBへ保存し、本文生成直前にthread本文、explicit source、同一人物の最近のcanonical投稿、related retrievalをDBから一時的な会話ビューとして再構成する。通常runtimeのmaterializationはこのPoCを自動では有効化せず、既存Producer経路を維持する。
 
