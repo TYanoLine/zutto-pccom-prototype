@@ -1,0 +1,53 @@
+name: Minimize Historical Toggle Main Diff
+
+on:
+  push:
+    branches:
+      - fix/historical-references-toggle-20260907
+    paths:
+      - .github/workflows/minimize-historical-toggle-main-diff.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-main:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/historical-references-toggle-20260907
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+          cache-dependency-path: apps/server/go.sum
+      - name: Restore main shape and apply only intended changes
+        run: |
+          git show 6812045ef96bef9afff1a4fb562d73cddc4b528b:apps/server/cmd/server/main.go > apps/server/cmd/server/main.go
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/server/cmd/server/main.go')
+          text = p.read_text()
+          old = '\tpostMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}}\n'
+          new = '\tpostMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled}\n'
+          if text.count(old) != 1:
+              raise SystemExit('postMaterializer target missing')
+          text = text.replace(old, new, 1)
+          old = '"historical_knowledge":historyStore!=nil,"world_repository":true,'
+          new = '"historical_knowledge":historyStore!=nil,"historical_references_enabled":cfg.HistoricalReferencesEnabled,"world_repository":true,'
+          if text.count(old) != 1:
+              raise SystemExit('health target missing')
+          p.write_text(text.replace(old, new, 1))
+          PY
+      - name: Test server
+        working-directory: apps/server
+        run: go test ./...
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/minimize-historical-toggle-main-diff.yml
+          git add apps/server/cmd/server/main.go
+          git commit -m "Keep historical toggle main diff focused"
+          git push origin HEAD:fix/historical-references-toggle-20260907
