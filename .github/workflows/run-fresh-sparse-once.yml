@@ -1,0 +1,41 @@
+name: run-fresh-sparse-once
+
+on:
+  push:
+    branches:
+      - ops/run-fresh-sparse-20260907
+
+jobs:
+  run-fresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Start fresh Lab and capture result
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
+          start_json="$(curl --fail-with-body -sS -X POST "${endpoint}?action=start")"
+          printf '%s\n' "$start_json"
+          job_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$start_json")"
+          for attempt in $(seq 1 140); do
+            status_json="$(curl --fail-with-body -sS "${endpoint}?action=status&id=${job_id}")"
+            printf '%s\n' "$status_json" > fresh-result.json
+            state="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))' <<<"$status_json")"
+            echo "attempt=${attempt} status=${state}"
+            if [[ "$state" == "completed" || "$state" == "failed" ]]; then
+              cat fresh-result.json
+              exit 0
+            fi
+            sleep 5
+          done
+          echo 'fresh Lab did not finish before workflow polling deadline' >&2
+          cat fresh-result.json >&2 || true
+          exit 1
+      - name: Upload result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sparse-fresh-result
+          path: fresh-result.json
+          if-no-files-found: warn
