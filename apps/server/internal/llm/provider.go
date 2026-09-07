@@ -152,6 +152,47 @@ type BBSWorldWindowProductionDraft struct {
 	Usage  TokenUsage             `json:"-"`
 }
 
+// BBSWorldSituationProposalRequest asks for small canonical world-situation
+// proposals for a bounded set of already-selected standalone root slots. Unlike
+// BBSWorldWindowProduction, this pass does not plan article prose/editorial
+// briefs; it only proposes what concretely happened before prose is rendered.
+type BBSWorldSituationProposalRequest struct {
+	HostName        string
+	HostRegion      string
+	HostSoftware    string
+	WorldDate       string
+	WindowStart     string
+	WindowEnd       string
+	EraRules        string
+	RecentBBSState  string
+	Events          []BBSWorldWindowEvent
+	AvoidSituations []string
+}
+
+type BBSWorldSituationDraft struct {
+	EventID          string   `json:"event_id"`
+	ObjectClass      string   `json:"object_class"`
+	ChangeClass      string   `json:"change_class"`
+	Occurrence       string   `json:"occurrence"`
+	ActorObservation string   `json:"actor_observation"`
+	Impact           string   `json:"impact"`
+	Uncertainty      string   `json:"uncertainty"`
+	NoveltyKey       string   `json:"novelty_key"`
+	MustNot          []string `json:"must_not"`
+}
+
+type BBSWorldSituationProposalDraft struct {
+	Situations []BBSWorldSituationDraft `json:"situations"`
+	Usage      TokenUsage               `json:"-"`
+}
+
+// BBSWorldSituationProposer sees multiple independent roots at once so it can
+// propose diverse concrete world facts in one call. The world layer validates
+// and commits accepted proposals before any article worker writes prose.
+type BBSWorldSituationProposer interface {
+	GenerateBBSWorldSituationProposals(context.Context, BBSWorldSituationProposalRequest) (BBSWorldSituationProposalDraft, error)
+}
+
 type Provider interface {
 	GenerateReply(context.Context, ReplyRequest) (string, error)
 }

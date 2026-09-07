@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -53,24 +54,27 @@ type materializationFreshArticle struct {
 }
 
 type materializationFreshJob struct {
-	ID                 string                        `json:"id"`
-	Status             string                        `json:"status"`
-	Phone              string                        `json:"phone"`
-	SituationMode      string                        `json:"situation_mode,omitempty"`
-	CreatedAt          time.Time                     `json:"created_at"`
-	StartedAt          time.Time                     `json:"started_at,omitempty"`
-	FinishedAt         time.Time                     `json:"finished_at,omitempty"`
-	DurationMS         int64                         `json:"duration_ms,omitempty"`
-	RuntimeState       string                        `json:"runtime_state,omitempty"`
-	PostCount          int                           `json:"post_count,omitempty"`
-	BodyCount          int                           `json:"body_count,omitempty"`
-	EmptyPostIDs       []int64                       `json:"empty_post_ids,omitempty"`
-	Failures           int                           `json:"failures,omitempty"`
-	StatusText         string                        `json:"status_text,omitempty"`
-	PlanningDiagnostic map[string]string             `json:"planning_diagnostic,omitempty"`
-	Usage              string                        `json:"usage,omitempty"`
-	Articles           []materializationFreshArticle `json:"articles,omitempty"`
-	Error              string                        `json:"error,omitempty"`
+	ID                  string                        `json:"id"`
+	Status              string                        `json:"status"`
+	Phone               string                        `json:"phone"`
+	SituationMode       string                        `json:"situation_mode,omitempty"`
+	BoardCount          int                           `json:"board_count,omitempty"`
+	ShellLimit          int                           `json:"shell_limit,omitempty"`
+	SituationDiagnostic string                        `json:"situation_diagnostic,omitempty"`
+	CreatedAt           time.Time                     `json:"created_at"`
+	StartedAt           time.Time                     `json:"started_at,omitempty"`
+	FinishedAt          time.Time                     `json:"finished_at,omitempty"`
+	DurationMS          int64                         `json:"duration_ms,omitempty"`
+	RuntimeState        string                        `json:"runtime_state,omitempty"`
+	PostCount           int                           `json:"post_count,omitempty"`
+	BodyCount           int                           `json:"body_count,omitempty"`
+	EmptyPostIDs        []int64                       `json:"empty_post_ids,omitempty"`
+	Failures            int                           `json:"failures,omitempty"`
+	StatusText          string                        `json:"status_text,omitempty"`
+	PlanningDiagnostic  map[string]string             `json:"planning_diagnostic,omitempty"`
+	Usage               string                        `json:"usage,omitempty"`
+	Articles            []materializationFreshArticle `json:"articles,omitempty"`
+	Error               string                        `json:"error,omitempty"`
 }
 
 func (l *materializationLab) freshHandler() http.HandlerFunc {
@@ -99,9 +103,41 @@ func normalizeFreshSituationMode(raw string) (string, bool) {
 		return "facets", true
 	case "facetless":
 		return "facetless", true
+	case "batch":
+		return "batch", true
 	default:
 		return "", false
 	}
+}
+
+func freshIntParam(raw string, fallback, min, max int) (int, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, true
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < min || value > max {
+		return 0, false
+	}
+	return value, true
+}
+
+func freshScaleBoards(count int) []world.Board {
+	catalog := []world.Board{
+		{ID: "1", Name: "フリートーク"},
+		{ID: "2", Name: "パソコン通信・モデム"},
+		{ID: "3", Name: "地域の話題"},
+		{ID: "4", Name: "ゲーム"},
+		{ID: "5", Name: "音楽"},
+		{ID: "6", Name: "ソフトウェア"},
+	}
+	if count < 3 {
+		count = 3
+	}
+	if count > len(catalog) {
+		count = len(catalog)
+	}
+	return append([]world.Board(nil), catalog[:count]...)
 }
 
 func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +152,19 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	situationMode, ok := normalizeFreshSituationMode(r.URL.Query().Get("situation_mode"))
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets or facetless"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets, facetless or batch"})
+		return
+	}
+	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "board_count must be 3..6"})
+		return
+	}
+	shellLimit, ok := freshIntParam(r.URL.Query().Get("shell_limit"), 5, 1, 10)
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "shell_limit must be 1..10"})
 		return
 	}
 	if !publicLabAdmission.start(w, r, phone, 1) {
@@ -124,7 +172,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	}
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
-	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, CreatedAt: time.Now().UTC()}
+	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, BoardCount: boardCount, ShellLimit: shellLimit, CreatedAt: time.Now().UTC()}
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
 	materializationFreshLab.mu.Unlock()
@@ -180,6 +228,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	// monotonically increasing post id, but remove all posts and delayed facts.
 	snapshot.Posts = nil
 	snapshot.PersonaFacts = map[string][]world.PersonaFact{}
+	if snapshot.Host.SoftwareID == "materialization-demo" {
+		snapshot.Boards = freshScaleBoards(job.BoardCount)
+	}
 	base := world.NewMemoryStore()
 	if err := base.RestoreDevelopmentSnapshot(snapshot); err != nil {
 		finishFreshError(id, fmt.Errorf("restore fresh isolated snapshot: %w", err))
@@ -187,8 +238,12 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	}
 	repo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)
 	repo.EnableDevelopmentConversationViewPoC()
+	repo.SetDevelopmentConversationShellLimit(job.ShellLimit)
 	if job.SituationMode == "facetless" {
 		repo.EnableDevelopmentFacetlessSituationPoC()
+	}
+	if job.SituationMode == "batch" {
+		repo.EnableDevelopmentBatchSituationPoC()
 	}
 	host, err := repo.HostByPhone(job.Phone)
 	if err != nil {
@@ -199,7 +254,11 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	started := time.Now()
 	_, _ = runtime.HandleLine("ALLBODY")
 	var statusText string
-	deadline := time.Now().Add(10 * time.Minute)
+	deadlineMinutes := 10
+	if job.BoardCount > 3 || job.ShellLimit > 5 {
+		deadlineMinutes = 15
+	}
+	deadline := time.Now().Add(time.Duration(deadlineMinutes) * time.Minute)
 	for {
 		statusText, _ = runtime.HandleLine("STATUS")
 		if terminalBulkStatus(statusText) {
@@ -242,6 +301,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	job.StatusText = compactLabStatus(statusText)
 	job.PlanningDiagnostic = diag
 	job.Usage = repo.MaterializationUsageTotalText()
+	job.SituationDiagnostic = repo.DevelopmentBatchSituationDiagnostic(host.ID)
 	job.Articles = articles
 	job.Status = "completed"
 	job.FinishedAt = time.Now().UTC()

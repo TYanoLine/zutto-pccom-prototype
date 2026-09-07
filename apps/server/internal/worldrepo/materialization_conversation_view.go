@@ -12,6 +12,7 @@ import (
 const developmentConversationPendingSubject = "（本文生成時に決定）"
 
 var developmentConversationViewPoC sync.Map
+var developmentConversationShellLimits sync.Map
 
 // EnableDevelopmentConversationViewPoC enables a development-only materialization
 // experiment for this repository instance. The canonical database still owns
@@ -25,6 +26,46 @@ func (r *Repository) EnableDevelopmentConversationViewPoC() {
 func developmentConversationViewPoCEnabled(r *Repository) bool {
 	_, ok := developmentConversationViewPoC.Load(r)
 	return ok
+}
+
+func (r *Repository) SetDevelopmentConversationShellLimit(limit int) {
+	if limit < 1 {
+		limit = 1
+	}
+	if limit > 10 {
+		limit = 10
+	}
+	developmentConversationShellLimits.Store(r, limit)
+}
+
+func developmentConversationShellLimit(r *Repository) int {
+	if value, ok := developmentConversationShellLimits.Load(r); ok {
+		return value.(int)
+	}
+	return developmentWorldWindowPoCMaxShellsPerBoard
+}
+
+func limitDevelopmentShellsForConversation(r *Repository, shells []developmentTimelineShell, stats developmentSelectionStats) ([]developmentTimelineShell, developmentSelectionStats) {
+	limit := developmentConversationShellLimit(r)
+	if len(shells) <= limit {
+		return shells, stats
+	}
+	limited := append([]developmentTimelineShell(nil), shells[:limit]...)
+	stats.Posts = len(limited)
+	stats.Roots = 0
+	stats.Replies = 0
+	for _, shell := range limited {
+		if shell.action == "reply" {
+			stats.Replies++
+		} else {
+			stats.Roots++
+		}
+	}
+	stats.ROM = stats.Visits - stats.Posts
+	if stats.ROM < 0 {
+		stats.ROM = 0
+	}
+	return limited, stats
 }
 
 // materializeConversationWorldWindow persists only cheap world-selected shells.
@@ -42,11 +83,11 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		return nil, false
 	}
 
-	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentWorldWindowPoCMaxShellsPerBoard)
+	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentConversationShellLimit(r))
 	for _, board := range boards {
 		visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
 		shells, stats := selectDevelopmentTimelineShells(host, board, visits)
-		shells, stats = limitDevelopmentShellsForProducer(shells, stats)
+		shells, stats = limitDevelopmentShellsForConversation(r, shells, stats)
 		storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 		clearDevelopmentPlanningError(r, host.ID, board.ID)
 		for _, shell := range shells {
@@ -63,6 +104,18 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		}
 		return windowShells[i].shell.createdAt.Before(windowShells[j].shell.createdAt)
 	})
+
+	batchSituations := map[string]developmentSparseSituation{}
+	if developmentBatchSituationPoCEnabled(r) {
+		planned, err := r.developmentPlanBatchSituations(host, windowShells, personas)
+		if err != nil {
+			for _, board := range boards {
+				storeDevelopmentPlanningError(r, host.ID, board.ID, err)
+			}
+			return nil, false
+		}
+		batchSituations = planned
+	}
 
 	committedByEventID := map[string]world.Post{}
 	out := make([]world.Post, 0, len(windowShells))
@@ -103,6 +156,9 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 			source = &sourcePost
 		}
 		situation := r.developmentConversationSituationForShell(host, item.board, shell, out, source)
+		if proposed, ok := batchSituations[item.eventID]; ok {
+			situation = proposed
+		}
 
 		post := world.Post{
 			BoardID:         item.board.ID,
