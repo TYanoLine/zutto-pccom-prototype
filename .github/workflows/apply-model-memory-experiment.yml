@@ -1,0 +1,131 @@
+name: Apply model-memory historical experiment
+on:
+  push:
+    branches: [experiment/model-memory-historical-texture-20260908]
+    paths: [.github/workflows/apply-model-memory-experiment.yml]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/model-memory-historical-texture-20260908
+      - name: Patch experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('apps/server/internal/worldrepo/llm_materializer.go')
+          s = p.read_text()
+          old = '''\tHistoricalTexture           []string
+\tCuratedHistoricalReferences bool
+}'''
+          new = '''\tHistoricalTexture           []string
+\tCuratedHistoricalReferences bool
+\t// ModelHistoricalMemory is a fresh-Lab experiment: allow the model to use its
+\t// own pre-cutoff historical knowledge without injecting a referent dictionary.
+\t// It must remain false in ordinary runtime until the experiment is evaluated.
+\tModelHistoricalMemory       bool
+}'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          old = '''func (m LLMMaterializer) eraRules() string {
+\tif m.HistoricalReferencesEnabled || len(m.HistoricalTexture) > 0 {'''
+          new = '''func (m LLMMaterializer) eraRules() string {
+\tif m.ModelHistoricalMemory {
+\t\treturn "HISTORICAL_REFERENCES=MODEL_MEMORY_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary. Use your own historical knowledge when it naturally makes an already-selected situation more concrete. You MAY introduce real product, work, service, company, person, place, event, news, seasonal or cultural names only when you are confident they existed and were knowable in Japan on or before the supplied world date. Never use anything from the future. Do not force a proper noun into every post and do not turn remembered names into topic quotas. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or other factual details are uncertain, omit those details or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; such actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\n" + llm.DiegeticWorldFrame
+\t}
+\tif m.HistoricalReferencesEnabled || len(m.HistoricalTexture) > 0 {'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('apps/server/cmd/server/materialization_lab_fresh.go')
+          s = p.read_text()
+          old = '''\tcase "off":
+\t\treturn "off", true
+\tcase "1996-08-curated":'''
+          new = '''\tcase "off":
+\t\treturn "off", true
+\tcase "model-memory":
+\t\treturn "model-memory", true
+\tcase "1996-08-curated":'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          s = s.replace('historical_texture must be sourced, off or 1996-08-curated', 'historical_texture must be sourced, off, model-memory or 1996-08-curated', 1)
+          old = '''\tconfigure := func(m worldrepo.LLMMaterializer) worldrepo.LLMMaterializer {
+\t\tm.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"
+\t\tm.HistoricalReferencesEnabled = false
+\t\tm.HistoricalTexture = freshHistoricalTextureFacts(job.HistoricalTexture)
+\t\treturn m
+\t}'''
+          new = '''\tconfigure := func(m worldrepo.LLMMaterializer) worldrepo.LLMMaterializer {
+\t\tm.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"
+\t\tm.ModelHistoricalMemory = job.HistoricalTexture == "model-memory"
+\t\tm.HistoricalReferencesEnabled = false
+\t\tm.HistoricalTexture = freshHistoricalTextureFacts(job.HistoricalTexture)
+\t\treturn m
+\t}'''
+          assert old in s
+          s = s.replace(old, new, 1)
+          p.write_text(s)
+
+          p = Path('apps/server/cmd/server/materialization_lab_historical_texture_test.go')
+          s = p.read_text()
+          old = '''\t\t{"off", "off", true},
+\t\t{"1996-08-curated", "1996-08-curated", true},'''
+          new = '''\t\t{"off", "off", true},
+\t\t{"model-memory", "model-memory", true},
+\t\t{"1996-08-curated", "1996-08-curated", true},'''
+          assert old in s
+          p.write_text(s.replace(old, new, 1))
+
+          Path('apps/server/internal/worldrepo/model_memory_historical_test.go').write_text('''package worldrepo
+
+import (
+    "strings"
+    "testing"
+)
+
+func TestModelHistoricalMemoryUsesNoInjectedDictionary(t *testing.T) {
+    m := LLMMaterializer{ModelHistoricalMemory: true}
+    copy := m.withPeriodReferents("1996-08-29")
+    if len(copy.HistoricalTexture) != 0 {
+        t.Fatalf("model-memory injected historical texture: %#v", copy.HistoricalTexture)
+    }
+    rules := copy.planningEraRules()
+    if !strings.Contains(rules, "MODEL_MEMORY_EXPERIMENT") {
+        t.Fatalf("model-memory marker missing: %s", rules)
+    }
+    if strings.Contains(rules, "SUPPLIED HISTORICAL FACTS / TEXTURE") {
+        t.Fatalf("model-memory unexpectedly contains supplied dictionary: %s", rules)
+    }
+}
+
+func TestModelHistoricalMemoryDoesNotChangeOffMode(t *testing.T) {
+    rules := (LLMMaterializer{}).eraRules()
+    if !strings.Contains(rules, "HISTORICAL_REFERENCES=OFF") {
+        t.Fatalf("off mode changed: %s", rules)
+    }
+}
+''')
+
+          p = Path('docs/research/HISTORICAL_TEXTURE_POC.md')
+          s = p.read_text()
+          s += '''\n\n## Model-memory experiment\n\n`historical_texture=model-memory` is an isolated fresh-Lab comparison mode. It injects no proper-noun/referent dictionary. The Situation proposer and article worker may use their own historical knowledge only when confident that a real referent existed and was knowable in Japan by the world date. Uncertain timing/details must be omitted rather than guessed. Real-world existence never establishes persona ownership/experience, and BBS-internal history still requires canonical evidence. This mode is experimental and is not ordinary-runtime policy.\n'''
+          p.write_text(s)
+          PY
+          gofmt -w apps/server/internal/worldrepo/llm_materializer.go apps/server/cmd/server/materialization_lab_fresh.go apps/server/cmd/server/materialization_lab_historical_texture_test.go apps/server/internal/worldrepo/model_memory_historical_test.go
+          rm .github/workflows/apply-model-memory-experiment.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Add model-memory historical texture experiment"
+          git push
+      - name: Test server
+        working-directory: apps/server
+        run: go test ./...
