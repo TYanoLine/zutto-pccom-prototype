@@ -155,7 +155,7 @@ func developmentSearchGroundingEvidenceRequest(root developmentWindowShell, prop
 		kind = historicalkb.KnowledgeCulturalSignal
 	}
 	worldDate := root.shell.createdAt.Format("2006-01-02")
-	need := fmt.Sprintf("次の架空BBS内の出来事そのものは既にworld engineが選択済みです。話題や出来事を変えず、%s時点の日本で、この一般的な対象を自然に具体化できる実在の製品・作品・サービス・機種・番組・曲などがあるかWeb検索で確認してください。0〜3件の候補だけを挙げ、各候補についてその日までに日本で利用・稼働・発売・放送・鑑賞・言及可能だったことを確認してください。候補が複数あり一意に選べないこと自体は問題ありません。十分な根拠がない場合は『具体化不要』と明記してください。NPCが実際にそれを使ったことは史実検索の対象ではなく、この後world engineが決めます。出来事: object=%s; occurrence=%s; actor_observation=%s", worldDate, proposal.objectClass, proposal.occurrence, proposal.actorObservation)
+	need := fmt.Sprintf("次の架空BBS内の出来事そのものは既にworld engineが選択済みです。話題や出来事を変えず、%s時点の日本で、この一般的な対象を自然に具体化できる実在の製品・作品・サービス・機種・番組・曲などがあるかWeb検索で確認してください。0〜3件の候補だけを挙げ、各候補についてその日までに日本で利用・稼働・発売・放送・鑑賞・言及可能だったことを、できるだけ公式資料・当時資料・信頼できる保存資料で確認してください。候補が複数あり一意に選べないこと自体は問題ありません。十分な根拠がない場合は『具体化不要』と明記してください。重要: missingInfo には『候補名そのものが正しいか』『その候補がこの日までに日本で存在・利用可能だったか』『このgeneric objectへの適合性』を判断できなくする未解決点だけを書いてください。NPCが実際に使った・買った・見たか、個別店舗の在庫や価格、所有歴、長期嗜好、候補が一意でないこと、world側で決める主観的な使いやすさ・体験結果は検索スコープ外なので missingInfo に入れないでください。候補の名称・時点までの存在/利用可能性・generic objectへの適合が十分に裏付けられたなら missingInfo は空配列にしてください。NPCの今回の関与はこの後world engineがcanonicalizeします。出来事: object=%s; occurrence=%s; actor_observation=%s", worldDate, proposal.objectClass, proposal.occurrence, proposal.actorObservation)
 	return worldengine.EvidenceRequest{
 		Kind:            kind,
 		Subject:         proposal.objectClass + " / " + proposal.noveltyKey,
