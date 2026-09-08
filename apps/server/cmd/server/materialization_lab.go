@@ -26,6 +26,7 @@ type materializationLab struct {
 	materializer worldrepo.Materializer
 	worldDate    string
 	token        string
+	freshArchive materializationFreshArchiveStore
 
 	mu     sync.Mutex
 	jobs   map[string]*materializationLabJob

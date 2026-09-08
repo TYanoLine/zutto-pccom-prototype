@@ -3,6 +3,7 @@ import App from './App';
 import HistoricalResearchPage from './admin/HistoricalResearchPage';
 import KnowledgeBbsPage from './poc/KnowledgeBbsPage';
 import ImageArtifactPocPage from './poc/ImageArtifactPocPage';
+import MaterializationLabViewerPage from './poc/MaterializationLabViewerPage';
 
 // Keep the modem's monitor speaker a little below the telephone-line tones.
 // Handshake PCM is always longer than 5 s; dial/ringback PCM is shorter.
@@ -34,6 +35,8 @@ const Root = path === '/admin/research'
     ? KnowledgeBbsPage
     : path === '/poc/image-artifact'
       ? ImageArtifactPocPage
-      : Home;
+      : path === '/poc/materialization-lab-viewer'
+        ? MaterializationLabViewerPage
+        : Home;
 
 createRoot(document.getElementById('root')!).render(<Root />);

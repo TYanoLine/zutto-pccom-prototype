@@ -113,3 +113,17 @@ allbodyは各runの `complete`、`runtime_state`、`failures`、`missing_post_id
 `situation_mode=batch` removes the hand-written situation facet/occurrence selection without moving concrete world truth into article prose. All independent roots in the bounded fresh window are proposed together, validated by the world layer, and accepted Situation fields are persisted before ALLBODY prose rendering. A validator rejection triggers at most one batched repair call for only the rejected roots.
 
 `board_count` and `shell_limit` are fresh-isolated load-test controls. Defaults remain 3 boards and 5 shells per board. `board_count>3` adds development-only `ゲーム`, `音楽`, `ソフトウェア` boards to the copied MemoryStore snapshot. Nothing from these scaled runs is written back to the saved development world or ordinary runtime.
+
+## Read-only generated BBS viewer
+
+Completed `materialization-lab-fresh` jobs are archived separately from the canonical BBS world when `DATABASE_URL` is configured. The archive stores the completed job JSON (including generated article bodies) in `development_materialization_fresh_archives`; it is **development experiment evidence**, not world state, and is never restored into the normal runtime.
+
+Read-only API:
+
+- `GET /api/debug/materialization-lab-fresh-view` — newest archived completed fresh job
+- `GET /api/debug/materialization-lab-fresh-view?id=<job-id>` — one archived job
+- `GET /api/debug/materialization-lab-fresh-view?list=1&limit=20` — summaries only
+- non-GET methods return `405`; this handler never starts generation, RESETs state, observes boards, or invokes an LLM.
+
+Vercel exposes a strict GET-only proxy at `/api/materialization-lab-viewer` and an evaluator UI at `/poc/materialization-lab-viewer`. The UI defaults to normal BBS reading (board → thread → article). World/Situation diagnostics are hidden unless the evaluator explicitly enables them.
+
