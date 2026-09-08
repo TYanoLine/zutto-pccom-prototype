@@ -1,0 +1,47 @@
+name: apply-historical-texture-poc
+on:
+  push:
+    branches:
+      - feature/historical-texture-poc-20260908
+    paths:
+      - .github/scripts/apply_historical_texture_poc.py
+      - .github/workflows/apply-historical-texture-poc.yml
+permissions:
+  contents: write
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/historical-texture-poc-20260908
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Apply patch
+        run: python3 .github/scripts/apply_historical_texture_poc.py
+      - name: Format and test server
+        run: |
+          gofmt -w apps/server/internal/llm/provider.go apps/server/internal/llm/openai_world_situation_proposer.go apps/server/internal/worldrepo/llm_materializer.go apps/server/internal/worldrepo/materialization_batch_situation.go apps/server/cmd/server/materialization_lab_fresh.go apps/server/cmd/server/materialization_lab_fresh_archive.go apps/server/cmd/server/materialization_lab_historical_texture.go apps/server/cmd/server/materialization_lab_historical_texture_test.go apps/server/internal/worldrepo/historical_texture_test.go
+          cd apps/server
+          go test ./...
+      - name: Build and test web
+        run: |
+          cd apps/web
+          npm ci
+          npm test
+          npm run build
+      - name: Commit patch and remove helpers
+        run: |
+          rm .github/scripts/apply_historical_texture_poc.py .github/workflows/apply-historical-texture-poc.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Add fresh Lab historical texture A/B PoC'
+          git push origin HEAD:feature/historical-texture-poc-20260908
