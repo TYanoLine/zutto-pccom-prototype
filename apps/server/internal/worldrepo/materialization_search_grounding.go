@@ -23,12 +23,14 @@ type developmentSearchGroundingKey struct {
 }
 
 type developmentSearchGroundingStats struct {
-	Queries        int
-	EvidenceHits   int
-	Refined        int
-	Rejected       int
-	SearchFailures int
-	RefineFailures int
+	Queries          int
+	EvidenceHits     int
+	CandidateOptions int
+	Selections       int
+	Refined          int
+	Rejected         int
+	SearchFailures   int
+	RefineFailures   int
 }
 
 type developmentSearchGroundingRefiner interface {
@@ -50,7 +52,7 @@ func developmentSearchGroundingDiagnostic(r *Repository, hostID string) string {
 		return ""
 	}
 	stats := value.(developmentSearchGroundingStats)
-	return fmt.Sprintf("search_queries=%d search_hits=%d grounded_refinements=%d grounding_rejected=%d search_failures=%d refine_failures=%d", stats.Queries, stats.EvidenceHits, stats.Refined, stats.Rejected, stats.SearchFailures, stats.RefineFailures)
+	return fmt.Sprintf("search_queries=%d search_hits=%d candidate_options=%d grounded_selections=%d grounded_refinements=%d grounding_rejected=%d search_failures=%d refine_failures=%d", stats.Queries, stats.EvidenceHits, stats.CandidateOptions, stats.Selections, stats.Refined, stats.Rejected, stats.SearchFailures, stats.RefineFailures)
 }
 
 func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []developmentWindowShell, accepted map[string]developmentSituationProposal, factsByPersona map[string][]world.PersonaFact) (map[string]developmentSituationProposal, GenerationUsage) {
@@ -77,7 +79,7 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 
 	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
 	defer cancel()
-	grounding := map[string][]string{}
+	optionsByEvent := map[string][]developmentGroundingCandidate{}
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 3)
@@ -92,34 +94,51 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 			mu.Lock()
 			stats.Queries++
 			mu.Unlock()
-			decision, err := r.Engine.ResolveEvidence(ctx, developmentSearchGroundingEvidenceRequest(item, proposal))
+			decision, err := r.Engine.ResolveEvidence(ctx, developmentSearchGroundingEvidenceRequest(item, proposal, factsByPersona[item.shell.persona.ID]))
 			if err != nil {
 				mu.Lock()
 				stats.SearchFailures++
 				mu.Unlock()
 				return
 			}
-			evidence := developmentUsableGroundingClaims(decision.Knowledge)
-			if len(evidence) == 0 {
+			options := developmentGroundingCandidatesFromKnowledge(decision.Knowledge)
+			if len(options) == 0 {
 				return
 			}
 			mu.Lock()
 			stats.EvidenceHits++
-			grounding[item.eventID] = evidence
+			stats.CandidateOptions += len(options)
+			optionsByEvent[item.eventID] = options
 			mu.Unlock()
 		}()
 	}
 	wg.Wait()
-	if len(grounding) == 0 {
+	if len(optionsByEvent) == 0 {
 		storeStats()
 		return accepted, GenerationUsage{}
 	}
 
-	refineRoots := make([]developmentWindowShell, 0, len(grounding))
+	grounding := map[string][]string{}
+	selectedNames := map[string]int{}
+	recentPosts := r.Base.ListPosts(host.ID)
+	refineRoots := make([]developmentWindowShell, 0, len(optionsByEvent))
 	for _, root := range roots {
-		if len(grounding[root.eventID]) > 0 {
-			refineRoots = append(refineRoots, root)
+		options := optionsByEvent[root.eventID]
+		if len(options) == 0 {
+			continue
 		}
+		selected, ok := developmentSelectGroundingCandidate(host.ID, root, options, recentPosts, selectedNames)
+		if !ok {
+			continue
+		}
+		selectedNames[developmentNormalizeReferentName(selected.Name)]++
+		stats.Selections++
+		grounding[root.eventID] = []string{developmentSelectedGroundingEvidence(selected)}
+		refineRoots = append(refineRoots, root)
+	}
+	if len(refineRoots) == 0 {
+		storeStats()
+		return accepted, GenerationUsage{}
 	}
 	plan, err := refiner.RefineDevelopmentWorldSituationsWithSearchGrounding(ctx, host, r.WorldDate, refineRoots, factsByPersona, planningBBSState(r.Base.ListPosts(host.ID), 24), accepted, grounding)
 	if err != nil {
@@ -134,7 +153,8 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 	for _, root := range refineRoots {
 		original := accepted[root.eventID]
 		refined, found := plan.proposals[root.eventID]
-		if !found || !developmentSearchGroundingCompatible(original, refined) {
+		selectedName := developmentSelectedGroundingName(grounding[root.eventID])
+		if !found || !developmentSearchGroundingCompatible(original, refined) || !developmentRefinementUsesSelectedReferent(refined, selectedName) {
 			stats.Rejected++
 			continue
 		}
@@ -146,7 +166,7 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 	return out, plan.usage
 }
 
-func developmentSearchGroundingEvidenceRequest(root developmentWindowShell, proposal developmentSituationProposal) worldengine.EvidenceRequest {
+func developmentSearchGroundingEvidenceRequest(root developmentWindowShell, proposal developmentSituationProposal, personaFacts []world.PersonaFact) worldengine.EvidenceRequest {
 	kind := historicalkb.KnowledgeGeneral
 	switch strings.ToLower(strings.TrimSpace(root.shell.anchorKey)) {
 	case "games", "software", "communications", "modem":
@@ -155,10 +175,11 @@ func developmentSearchGroundingEvidenceRequest(root developmentWindowShell, prop
 		kind = historicalkb.KnowledgeCulturalSignal
 	}
 	worldDate := root.shell.createdAt.Format("2006-01-02")
-	need := fmt.Sprintf("次の架空BBS内の出来事そのものは既にworld engineが選択済みです。話題や出来事を変えず、%s時点の日本で、この一般的な対象を自然に具体化できる実在の製品・作品・サービス・機種・番組・曲などがあるかWeb検索で確認してください。0〜3件の候補だけを挙げ、各候補についてその日までに日本で利用・稼働・発売・放送・鑑賞・言及可能だったことを、できるだけ公式資料・当時資料・信頼できる保存資料で確認してください。候補が複数あり一意に選べないこと自体は問題ありません。ただし、単に「1996年に存在し、この出来事にも当てはめられる」というだけの任意の具体例は候補にしないでください。このSituationのobject・occurrence・actor_observationに、他の一般的な同時代候補よりその実在物を強く指す識別的な手掛かりがある場合だけ候補を返してください。互いに無関係な多数の製品・作品へ同程度に当てはまる出来事（例: ただ遊んだ、音量を変えた、何度か再挑戦した、早めに切り上げた）なら、固有名詞を付ける根拠にはならないので『具体化不要』としてください。目安として、候補固有または狭いクラスに結びつく独立した意味上の手掛かりが2つ以上あるかを確認してください。十分な根拠がない場合は『具体化不要』と明記してください。重要: missingInfo には『候補名そのものが正しいか』『その候補がこの日までに日本で存在・利用可能だったか』『このgeneric objectへの適合性』を判断できなくする未解決点だけを書いてください。NPCが実際に使った・買った・見たか、個別店舗の在庫や価格、所有歴、長期嗜好、候補が一意でないこと、world側で決める主観的な使いやすさ・体験結果は検索スコープ外なので missingInfo に入れないでください。候補の名称・時点までの存在/利用可能性・generic objectへの適合が十分に裏付けられたなら missingInfo は空配列にしてください。NPCの今回の関与はこの後world engineがcanonicalizeします。出来事: object=%s; occurrence=%s; actor_observation=%s", worldDate, proposal.objectClass, proposal.occurrence, proposal.actorObservation)
+	actorContext := developmentGroundingActorContext(root.shell.persona, personaFacts)
+	need := fmt.Sprintf("次の架空BBS内の出来事の種類・行動・観察はworld engineが既に選択済みです。あなたの役割は、この出来事を%s時点の日本の現実世界へ自然に接地できる実在の製品・作品・サービス・機種・番組・曲などの候補集合をWeb検索で作ることです。重要: これは過去の正解を推理する検索ではありません。候補のうちどれが今回このNPCの世界事実になるかは、この後world engineが決定します。したがってoriginal Situationから一意に名前を推理できる必要はありません。出来事の意味を変えず、その日までに日本で利用・発売・稼働・放送・鑑賞・言及可能で、普通にこの出来事の対象になり得る候補を2〜5件返してください。候補はできるだけ公式資料・当時資料・信頼できる保存資料で存在時期を確認してください。候補名は当時の利用者が会話で自然に使う短い正式名または一般的名称にしてください。人気作だけに偏らず、actor contextやboard contextに自然に合う順で並べてください。ただしactorが所有・購入・視聴・プレイした事実は推測しないでください。候補はその可能性を提供するだけです。各候補はProvisionalAnswer内で必ず独立した行に CANDIDATE: 名前 || その日までの存在/利用可能性と、このgeneric Situationに意味を変えず適合する短い根拠 の厳密な形式で書いてください。候補が本当に作れない場合だけ NO_CANDIDATE: 理由 としてください。単に候補が複数あることはNO_CANDIDATEの理由ではありません。必要な歴史条件が裏付けられた候補だけを出し、その場合missingInfoは空配列にしてください。NPCの今回の関与、所有歴、長期嗜好、個別店舗在庫、主観的結果は検索スコープ外なのでmissingInfoへ入れないでください。board=%s; actor_context=%s; object=%s; occurrence=%s; actor_observation=%s", worldDate, root.board.Name, actorContext, proposal.objectClass, proposal.occurrence, proposal.actorObservation)
 	return worldengine.EvidenceRequest{
 		Kind:            kind,
-		Subject:         proposal.objectClass + " / " + proposal.noveltyKey,
+		Subject:         proposal.objectClass + " / " + proposal.noveltyKey + " / candidate-pool-v1",
 		WorldDate:       worldDate,
 		Region:          "JP",
 		Audience:        []string{"Japanese PC communication users"},
