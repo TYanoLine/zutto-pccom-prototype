@@ -12,6 +12,7 @@ func TestNormalizeFreshHistoricalTexture(t *testing.T) {
 		{"sourced", "sourced", true},
 		{"off", "off", true},
 		{"model-memory", "model-memory", true},
+		{"model-memory-concrete", "model-memory-concrete", true},
 		{"1996-08-curated", "1996-08-curated", true},
 		{"1996-09", "", false},
 	}

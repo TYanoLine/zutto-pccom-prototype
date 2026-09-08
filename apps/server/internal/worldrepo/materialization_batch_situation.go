@@ -112,18 +112,19 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 		})
 	}
 	draft, err := proposer.GenerateBBSWorldSituationProposals(ctx, llm.BBSWorldSituationProposalRequest{
-		HostName:                   host.Name,
-		HostRegion:                 host.Region,
-		HostSoftware:               host.Software,
-		WorldDate:                  worldDate,
-		WindowStart:                windowStart.Format(time.RFC3339),
-		WindowEnd:                  windowEnd.Format(time.RFC3339),
-		EraRules:                   m.planningEraRules(),
-		HistoricalFacts:            append([]string(nil), m.HistoricalTexture...),
-		AllowModelHistoricalMemory: m.ModelHistoricalMemory,
-		RecentBBSState:             recentBBS,
-		Events:                     events,
-		AvoidSituations:            append([]string(nil), avoid...),
+		HostName:                      host.Name,
+		HostRegion:                    host.Region,
+		HostSoftware:                  host.Software,
+		WorldDate:                     worldDate,
+		WindowStart:                   windowStart.Format(time.RFC3339),
+		WindowEnd:                     windowEnd.Format(time.RFC3339),
+		EraRules:                      m.planningEraRules(),
+		HistoricalFacts:               append([]string(nil), m.HistoricalTexture...),
+		AllowModelHistoricalMemory:    m.ModelHistoricalMemory,
+		PreferConcreteHistoricalNames: m.PreferConcreteHistoricalNames,
+		RecentBBSState:                recentBBS,
+		Events:                        events,
+		AvoidSituations:               append([]string(nil), avoid...),
 	})
 	if err != nil {
 		return developmentWorldSituationPlan{}, err

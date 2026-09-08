@@ -21,3 +21,16 @@ func TestBBSWorldSituationHistoricalPolicyDefault(t *testing.T) {
 		t.Fatalf("default sourced boundary changed: %s", got)
 	}
 }
+
+func TestBBSWorldSituationHistoricalPolicyConcreteNamePreference(t *testing.T) {
+	got := bbsWorldSituationHistoricalPolicy(BBSWorldSituationProposalRequest{
+		AllowModelHistoricalMemory:    true,
+		PreferConcreteHistoricalNames: true,
+	})
+	if !strings.Contains(got, "PREFER that concrete historical name") {
+		t.Fatalf("concrete-name preference missing: %s", got)
+	}
+	if !strings.Contains(got, "not a quota") {
+		t.Fatalf("anti-quota boundary missing: %s", got)
+	}
+}
