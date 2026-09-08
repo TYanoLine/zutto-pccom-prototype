@@ -8,7 +8,8 @@ func TestNormalizeFreshHistoricalTexture(t *testing.T) {
 		want string
 		ok   bool
 	}{
-		{"", "off", true},
+		{"", "sourced", true},
+		{"sourced", "sourced", true},
 		{"off", "off", true},
 		{"1996-08-curated", "1996-08-curated", true},
 		{"1996-09", "", false},

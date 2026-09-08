@@ -75,6 +75,10 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 	if len(roots) == 0 {
 		return developmentWorldSituationPlan{proposals: map[string]developmentSituationProposal{}}, nil
 	}
+	dates := []string{worldDate}
+	for _, item := range roots { dates = append(dates, item.shell.createdAt.Format("2006-01-02")) }
+	m = m.withPeriodReferents(dates...)
+
 	events := make([]llm.BBSWorldWindowEvent, 0, len(roots))
 	windowStart := roots[0].shell.createdAt
 	windowEnd := roots[0].shell.createdAt
@@ -112,7 +116,7 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 		WorldDate:       worldDate,
 		WindowStart:     windowStart.Format(time.RFC3339),
 		WindowEnd:       windowEnd.Format(time.RFC3339),
-		EraRules:        m.eraRules(),
+		EraRules:        m.planningEraRules(),
 		HistoricalFacts: append([]string(nil), m.HistoricalTexture...),
 		RecentBBSState:  recentBBS,
 		Events:          events,

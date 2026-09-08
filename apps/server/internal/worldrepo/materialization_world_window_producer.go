@@ -57,6 +57,10 @@ func (m LLMMaterializer) PlanDevelopmentWorldWindow(ctx context.Context, host wo
 		return developmentWorldWindowPlan{}, nil
 	}
 
+	dates := []string{worldDate}
+	for _, item := range shells { dates = append(dates, item.shell.createdAt.Format("2006-01-02")) }
+	m = m.withPeriodReferents(dates...)
+
 	events := make([]llm.BBSWorldWindowEvent, 0, len(shells))
 	windowStart := shells[0].shell.createdAt
 	windowEnd := shells[0].shell.createdAt
@@ -105,7 +109,7 @@ func (m LLMMaterializer) PlanDevelopmentWorldWindow(ctx context.Context, host wo
 		WorldDate:      worldDate,
 		WindowStart:    windowStart.Format(time.RFC3339),
 		WindowEnd:      windowEnd.Format(time.RFC3339),
-		EraRules:       m.eraRules(),
+		EraRules:       m.planningEraRules(),
 		RecentBBSState: recentBBS,
 		Events:         events,
 	})

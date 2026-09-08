@@ -91,7 +91,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 		Kind:        historicalkb.KnowledgeCulturalSignal,
 		Subject:     board.Name,
-		WorldDate:   r.WorldDate,
+		WorldDate:   selected.CreatedAt.Format("2006-01-02"),
 		Region:      host.Region,
 		Audience:    []string{host.SoftwareID},
 		Need:        fmt.Sprintf("%s の %s ボード、%sによる件名『%s』の記事本文を、確定済みの投稿意図を変えず1996年の自然なパソコン通信文体で補完する", host.Name, board.Name, selected.Author, selected.Subject),
@@ -115,7 +115,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		Host:             host,
 		BoardID:          board.ID,
 		BoardTopic:       boardTopic,
-		WorldDate:        r.WorldDate,
+		WorldDate:        selected.CreatedAt.Format("2006-01-02"),
 		Persona:          persona,
 		Intent:           renderIntent,
 		CanonicalSubject: canonicalSubject,

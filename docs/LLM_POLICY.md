@@ -172,3 +172,7 @@ Do not produce a cheaper contradictory history just because a budget threshold w
 LLM calls that may create persistent facts must be associated with an expected simulation version/generation lease or equivalent idempotency boundary. If another request advances the same scope first, discard or revalidate the stale result rather than committing an alternate future.
 
 LLM conversation/session state is never the lock, version, or canonical history. PostgreSQL/world persistence remains authoritative.
+
+## Sourced period referents
+
+通常配線では出典付きの限定的な名称claimを状況・意味計画・本文へ供給する。日常性は匿名化を意味しない。世界事実の提案段階では選択済みの原因・board・人物の関心に沿って未確定の参照対象を具体名で確定してよい。本文workerが既存対象を別の名称に変えることは許可しない。名称の件数ノルマ、所有・購入・経験の自動付与、未供給の仕様や作品詳細の補完は禁止。詳細と出典は [PERIOD_REFERENTS](research/PERIOD_REFERENTS.md)。

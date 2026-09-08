@@ -70,9 +70,9 @@ BATCH DIVERSITY:
 
 WORLD-TRUTH BOUNDARY:
 - Propose only observable or modestly inferable facts. Do not invent that a SYSOP checked logs, a machine failed internally, a phone network caused something, or an earlier post existed unless supplied canonical state establishes it.
-- Technical roots should describe observable terminal/call/session behavior without guessing protocols, carrier causes, hardware faults or services.
+- Technical roots should describe observable behavior appropriate to the selected board/domain; software roots need not become terminal/call/session incidents. Do not guess protocols, carrier causes or internal hardware faults.
 - Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them.
-- SUPPLIED HISTORICAL TEXTURE is permission and contemporaneous background, not a topic menu. Use a supplied concrete name when it genuinely sharpens an already-plausible situation; do not mechanically insert names into every root. Some roots may naturally use one supplied referent and many may use none. Never extrapolate release dates, prices, specifications, plot/results, popularity rankings or other facts that the supplied line does not state.
+- SUPPLIED HISTORICAL TEXTURE is permission and contemporaneous background, not a topic menu. Use a supplied concrete name when it genuinely sharpens an already-plausible situation; do not mechanically insert names into every root. A name may identify the ordinary object of conversation; no exceptional comparison or malfunction is required. Decide relevance from the selected board, routing domain and actor interests. Do not use one favored name across unrelated roots; unnamed everyday subjects remain valid. Never extrapolate release dates, prices, specifications, plot/results, popularity rankings or other facts that the supplied line does not state.
 - Keep events mundane. Do not manufacture upgrades, purchases, nostalgia, rediscovery, membership changes, maintenance, outages or dramatic incidents merely to make a post interesting.
 - impact and uncertainty may be empty strings if none are needed.
 

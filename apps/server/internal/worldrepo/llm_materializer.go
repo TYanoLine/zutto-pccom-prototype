@@ -21,6 +21,7 @@ type LLMMaterializer struct {
 	Fallback                    Materializer
 	HistoricalReferencesEnabled bool
 	HistoricalTexture           []string
+	CuratedHistoricalReferences bool
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -36,6 +37,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		return nil, GenerationUsage{}, fmt.Errorf("LLM board post renderer is not configured")
 	}
 
+	m = m.withPeriodReferents(req.WorldDate)
 	facts := m.historicalFacts(decision)
 	author := ""
 	personaProfile := ""
