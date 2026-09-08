@@ -1,5 +1,7 @@
 package worldrepo
 
+import "strings"
+
 import (
 	"testing"
 	"time"
@@ -44,5 +46,17 @@ func TestDevelopmentSearchGroundingCompatiblePreservesSemanticIdentity(t *testin
 	refined.noveltyKey = "別の出来事"
 	if developmentSearchGroundingCompatible(original, refined) {
 		t.Fatal("changed novelty key must be rejected")
+	}
+}
+
+func TestDevelopmentSearchGroundingEvidenceRequestScopesMissingInfoToHistoricalCandidate(t *testing.T) {
+	date := time.Date(1996, 8, 22, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))
+	root := developmentWindowShell{eventID: "game", board: world.Board{ID: "4", Name: "ゲーム"}, shell: developmentTimelineShell{createdAt: date, anchorKey: "games"}}
+	proposal := developmentSituationProposal{objectClass: "ゲーム内の進行場面", occurrence: "手がかりを見落として同じ場所を調べた", actorObservation: "同じ場所を何度か調べた", noveltyKey: "clue"}
+	req := developmentSearchGroundingEvidenceRequest(root, proposal)
+	for _, want := range []string{"missingInfo", "NPCが実際に使った", "検索スコープ外", "空配列"} {
+		if !strings.Contains(req.Need, want) {
+			t.Fatalf("grounding Need missing %q: %s", want, req.Need)
+		}
 	}
 }
