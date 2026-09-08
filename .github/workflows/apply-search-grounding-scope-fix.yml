@@ -31,6 +31,8 @@ jobs:
 
           t=Path('apps/server/internal/worldrepo/materialization_search_grounding_test.go')
           ts=t.read_text()
+          if 'import "strings"' not in ts:
+              ts=ts.replace('package worldrepo\n', 'package worldrepo\n\nimport "strings"\n', 1)
           ts += '''\nfunc TestDevelopmentSearchGroundingEvidenceRequestScopesMissingInfoToHistoricalCandidate(t *testing.T) {\n\tdate := time.Date(1996, 8, 22, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))\n\troot := developmentWindowShell{eventID: "game", board: world.Board{ID: "4", Name: "ゲーム"}, shell: developmentTimelineShell{createdAt: date, anchorKey: "games"}}\n\tproposal := developmentSituationProposal{objectClass: "ゲーム内の進行場面", occurrence: "手がかりを見落として同じ場所を調べた", actorObservation: "同じ場所を何度か調べた", noveltyKey: "clue"}\n\treq := developmentSearchGroundingEvidenceRequest(root, proposal)\n\tfor _, want := range []string{"missingInfo", "NPCが実際に使った", "検索スコープ外", "空配列"} {\n\t\tif !strings.Contains(req.Need, want) { t.Fatalf("grounding Need missing %q: %s", want, req.Need) }\n\t}\n}\n'''
           t.write_text(ts)
           PY
