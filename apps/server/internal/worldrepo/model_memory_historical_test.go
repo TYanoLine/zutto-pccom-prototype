@@ -39,4 +39,10 @@ func TestModelHistoricalMemoryConcretePreferenceStillUsesNoDictionary(t *testing
 	if !strings.Contains(rules, "prefer that concrete historical name") {
 		t.Fatalf("concrete-name preference missing: %s", rules)
 	}
+	if !strings.Contains(rules, "prior actor-use evidence is not required") {
+		t.Fatalf("new canonical actor occurrence permission missing: %s", rules)
+	}
+	if !strings.Contains(rules, "preserve that canonical name") {
+		t.Fatalf("article name-preservation rule missing: %s", rules)
+	}
 }

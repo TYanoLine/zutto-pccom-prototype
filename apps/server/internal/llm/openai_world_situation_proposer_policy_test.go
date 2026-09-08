@@ -33,4 +33,13 @@ func TestBBSWorldSituationHistoricalPolicyConcreteNamePreference(t *testing.T) {
 	if !strings.Contains(got, "not a quota") {
 		t.Fatalf("anti-quota boundary missing: %s", got)
 	}
+	if !strings.Contains(got, "creates new canonical world state") {
+		t.Fatalf("canonicalization boundary missing: %s", got)
+	}
+	if !strings.Contains(got, "no earlier actor-use fact is required") {
+		t.Fatalf("new actor occurrence permission missing: %s", got)
+	}
+	if !strings.Contains(got, "Do not put a generic 'do not name") {
+		t.Fatalf("must_not anti-suppression rule missing: %s", got)
+	}
 }

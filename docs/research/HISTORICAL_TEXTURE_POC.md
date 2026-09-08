@@ -94,3 +94,10 @@ The experiment should be considered a failure if adding texture merely replaces 
 This is deliberately **not** a name quota or topic-selection mechanism. The model must not redirect a generic event toward a remembered product/work/service merely to insert period texture, must not repeat one favorite name across unrelated roots, and must remain generic whenever timing or identity is uncertain. Persona ownership/experience and BBS-internal history remain canonical-world facts, not model memory.
 
 The comparison target is `model-memory` under the same fresh-world topology. If concrete names increase without collapsing topic diversity or introducing future/unsupported facts, this suggests that a lightweight preference can recover period texture without a curated referent list becoming a hidden topic menu.
+
+
+### Concrete-name first-run finding (2026-09-08)
+
+The first `model-memory-concrete` 6-board/37-article run (`lab-fresh-1788872387-0001`) still produced essentially no real proper nouns. Inspection showed the Situation proposer repeatedly generated `must_not` constraints such as "特定タイトルや機種を補わない". The prompt had incorrectly implied that actor use/experience of a remembered real object required pre-existing canonical actor state, even though the Situation-proposal pass is precisely the step that creates the new canonical occurrence.
+
+The follow-up policy therefore distinguishes **new occurrence canonicalization** from **persistent biography inference**: a proposed root may canonically establish that its selected actor played/used/read/watched/heard/visited/discussed a confidently known period-correct named thing, while ownership, purchase history, long-term preference, compatibility and unrelated biography remain unsupported unless separately established. Generic `must_not` bans on naming are not appropriate merely because the mode supplies no dictionary.
