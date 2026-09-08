@@ -1,0 +1,89 @@
+name: Apply model-memory concrete-name experiment
+on:
+  push:
+    branches: [experiment/model-memory-concrete-names-20260908]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: experiment/model-memory-concrete-names-20260908
+          fetch-depth: 0
+      - name: Patch, test, and commit
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'pattern not found in {path}: {old[:120]!r}')
+              p.write_text(s.replace(old, new, 1))
+
+          replace('apps/server/internal/worldrepo/llm_materializer.go',
+          '''\t// ModelHistoricalMemory is a fresh-Lab experiment: allow model knowledge without a referent dictionary.\n\tModelHistoricalMemory bool\n''',
+          '''\t// ModelHistoricalMemory is a fresh-Lab experiment: allow model knowledge without a referent dictionary.\n\tModelHistoricalMemory bool\n\t// PreferConcreteHistoricalNames keeps model-memory dictionary-free while preferring a known real name over a generic label when it naturally fits.\n\tPreferConcreteHistoricalNames bool\n''')
+
+          replace('apps/server/internal/worldrepo/llm_materializer.go',
+          '''\tif m.ModelHistoricalMemory {\n\t\treturn "HISTORICAL_REFERENCES=MODEL_MEMORY_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary. Use your own historical knowledge when it naturally makes an already-selected situation more concrete. You MAY introduce real product, work, service, company, person, place, event, news, seasonal or cultural names only when you are confident they existed and were knowable in Japan on or before the supplied world date. Never use anything from the future. Do not force a proper noun into every post and do not turn remembered names into topic quotas. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or other factual details are uncertain, omit those details or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; such actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\\\n" + llm.DiegeticWorldFrame\n\t}\n''',
+          '''\tif m.ModelHistoricalMemory {\n\t\tif m.PreferConcreteHistoricalNames {\n\t\t\treturn "HISTORICAL_REFERENCES=MODEL_MEMORY_CONCRETE_NAME_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary or referent list. Use your own historical knowledge only for things you are confident existed and were knowable in Japan on or before the supplied world date. CONCRETE-NAME PREFERENCE: when the already-selected canonical situation naturally corresponds to a real product, work, service, company, person, place, event, news item, seasonal or cultural reference that you confidently know, prefer that concrete historical name over a generic label such as 'game', 'word processor', 'communication service' or 'music'. This is a concretization preference, NOT a quota or topic-selection rule: never redirect an event toward a remembered name, never insert a name as decoration, and do not repeat one favored name across unrelated posts. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or any other factual detail is uncertain, omit it or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\\\n" + llm.DiegeticWorldFrame\n\t\t}\n\t\treturn "HISTORICAL_REFERENCES=MODEL_MEMORY_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary. Use your own historical knowledge when it naturally makes an already-selected situation more concrete. You MAY introduce real product, work, service, company, person, place, event, news, seasonal or cultural names only when you are confident they existed and were knowable in Japan on or before the supplied world date. Never use anything from the future. Do not force a proper noun into every post and do not turn remembered names into topic quotas. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or other factual details are uncertain, omit those details or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; such actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\\\n" + llm.DiegeticWorldFrame\n\t}\n''')
+
+          replace('apps/server/internal/llm/provider.go',
+          '''\tAllowModelHistoricalMemory bool\n\tRecentBBSState             string\n''',
+          '''\tAllowModelHistoricalMemory  bool\n\tPreferConcreteHistoricalNames bool\n\tRecentBBSState              string\n''')
+
+          replace('apps/server/internal/worldrepo/materialization_batch_situation.go',
+          '''\t\tAllowModelHistoricalMemory: m.ModelHistoricalMemory,\n\t\tRecentBBSState:             recentBBS,\n''',
+          '''\t\tAllowModelHistoricalMemory:    m.ModelHistoricalMemory,\n\t\tPreferConcreteHistoricalNames: m.PreferConcreteHistoricalNames,\n\t\tRecentBBSState:                recentBBS,\n''')
+
+          replace('apps/server/internal/llm/openai_world_situation_proposer.go',
+          '''func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {\n\tif req.AllowModelHistoricalMemory {\n\t\treturn "- This model-memory experiment intentionally supplies no proper-noun dictionary. You may introduce real product/work/service/company/person/place/event/news/cultural names from your own historical knowledge only when confident they existed and were knowable in Japan by the world date. If uncertain, stay generic. Do not invent details merely because you recognize a name."\n\t}\n\treturn "- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them."\n}\n''',
+          '''func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {\n\tif req.AllowModelHistoricalMemory {\n\t\tif req.PreferConcreteHistoricalNames {\n\t\t\treturn "- This model-memory concrete-name experiment intentionally supplies no proper-noun dictionary or referent list. When an ALREADY-SELECTED situation naturally corresponds to a real product/work/service/company/person/place/event/news/cultural reference that you are confident existed and was knowable in Japan by the world date, PREFER that concrete historical name over a generic label. This is a concretization preference, not a quota: never change the selected topic in order to use a name, never add names as period decoration, and do not repeat one favorite name across unrelated roots. If uncertain about existence, timing, identity or details, stay generic. Do not infer persona ownership/experience merely from a real thing's existence."\n\t\t}\n\t\treturn "- This model-memory experiment intentionally supplies no proper-noun dictionary. You may introduce real product/work/service/company/person/place/event/news/cultural names from your own historical knowledge only when confident they existed and were knowable in Japan by the world date. If uncertain, stay generic. Do not invent details merely because you recognize a name."\n\t}\n\treturn "- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them."\n}\n''')
+
+          replace('apps/server/cmd/server/materialization_lab_fresh.go',
+          '''\tcase "model-memory":\n\t\treturn "model-memory", true\n\tcase "1996-08-curated":\n''',
+          '''\tcase "model-memory":\n\t\treturn "model-memory", true\n\tcase "model-memory-concrete":\n\t\treturn "model-memory-concrete", true\n\tcase "1996-08-curated":\n''')
+
+          replace('apps/server/cmd/server/materialization_lab_fresh.go',
+          '''{"error": "historical_texture must be sourced, off, model-memory or 1996-08-curated"}''',
+          '''{"error": "historical_texture must be sourced, off, model-memory, model-memory-concrete or 1996-08-curated"}''')
+
+          replace('apps/server/cmd/server/materialization_lab_fresh.go',
+          '''\t\tm.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"\n\t\tm.ModelHistoricalMemory = job.HistoricalTexture == "model-memory"\n\t\tm.HistoricalReferencesEnabled = false\n''',
+          '''\t\tm.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"\n\t\tm.ModelHistoricalMemory = job.HistoricalTexture == "model-memory" || job.HistoricalTexture == "model-memory-concrete"\n\t\tm.PreferConcreteHistoricalNames = job.HistoricalTexture == "model-memory-concrete"\n\t\tm.HistoricalReferencesEnabled = false\n''')
+
+          replace('apps/server/cmd/server/materialization_lab_historical_texture_test.go',
+          '''\t\t{"model-memory", "model-memory", true},\n\t\t{"1996-08-curated", "1996-08-curated", true},\n''',
+          '''\t\t{"model-memory", "model-memory", true},\n\t\t{"model-memory-concrete", "model-memory-concrete", true},\n\t\t{"1996-08-curated", "1996-08-curated", true},\n''')
+
+          p = Path('apps/server/internal/llm/openai_world_situation_proposer_policy_test.go')
+          s = p.read_text()
+          s += '''\nfunc TestBBSWorldSituationHistoricalPolicyConcreteNamePreference(t *testing.T) {\n\tgot := bbsWorldSituationHistoricalPolicy(BBSWorldSituationProposalRequest{\n\t\tAllowModelHistoricalMemory: true,\n\t\tPreferConcreteHistoricalNames: true,\n\t})\n\tif !strings.Contains(got, "PREFER that concrete historical name") {\n\t\tt.Fatalf("concrete-name preference missing: %s", got)\n\t}\n\tif !strings.Contains(got, "not a quota") {\n\t\tt.Fatalf("anti-quota boundary missing: %s", got)\n\t}\n}\n'''
+          p.write_text(s)
+
+          p = Path('apps/server/internal/worldrepo/model_memory_historical_test.go')
+          s = p.read_text()
+          s += '''\nfunc TestModelHistoricalMemoryConcretePreferenceStillUsesNoDictionary(t *testing.T) {\n\tm := LLMMaterializer{ModelHistoricalMemory: true, PreferConcreteHistoricalNames: true}\n\tcopy := m.withPeriodReferents("1996-08-29")\n\tif len(copy.HistoricalTexture) != 0 {\n\t\tt.Fatalf("concrete model-memory injected texture: %#v", copy.HistoricalTexture)\n\t}\n\trules := copy.planningEraRules()\n\tif !strings.Contains(rules, "MODEL_MEMORY_CONCRETE_NAME_EXPERIMENT") {\n\t\tt.Fatalf("concrete-name marker missing: %s", rules)\n\t}\n\tif !strings.Contains(rules, "prefer that concrete historical name") {\n\t\tt.Fatalf("concrete-name preference missing: %s", rules)\n\t}\n}\n'''
+          p.write_text(s)
+
+          p = Path('docs/research/HISTORICAL_TEXTURE_POC.md')
+          s = p.read_text()
+          s += '''\n\n## Model-memory concrete-name preference experiment\n\n`historical_texture=model-memory-concrete` is a fresh-Lab-only A/B mode built on `model-memory`. It still injects **no proper-noun dictionary, PeriodReferents, or curated historical texture**. The only difference is a prompt-level concretization preference: if an already-selected canonical situation naturally maps to a real name the model confidently knows existed and was knowable in Japan by the world date, prefer that concrete name over a generic label.\n\nThis is deliberately **not** a name quota or topic-selection mechanism. The model must not redirect a generic event toward a remembered product/work/service merely to insert period texture, must not repeat one favorite name across unrelated roots, and must remain generic whenever timing or identity is uncertain. Persona ownership/experience and BBS-internal history remain canonical-world facts, not model memory.\n\nThe comparison target is `model-memory` under the same fresh-world topology. If concrete names increase without collapsing topic diversity or introducing future/unsupported facts, this suggests that a lightweight preference can recover period texture without a curated referent list becoming a hidden topic menu.\n'''
+          p.write_text(s)
+          PY
+          gofmt -w apps/server/internal/worldrepo/llm_materializer.go apps/server/internal/llm/provider.go apps/server/internal/worldrepo/materialization_batch_situation.go apps/server/internal/llm/openai_world_situation_proposer.go apps/server/cmd/server/materialization_lab_fresh.go apps/server/cmd/server/materialization_lab_historical_texture_test.go apps/server/internal/llm/openai_world_situation_proposer_policy_test.go apps/server/internal/worldrepo/model_memory_historical_test.go
+          cd apps/server
+          go test ./...
+          cd ../..
+          rm .github/workflows/apply-model-memory-concrete-names.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m 'Add dictionary-free concrete-name preference experiment'
+          git push origin HEAD:experiment/model-memory-concrete-names-20260908
