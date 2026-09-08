@@ -81,3 +81,7 @@ Use `/poc/materialization-lab-viewer` and evaluate:
 6. Does topical diversity degrade because the model clusters around the supplied names?
 
 The experiment should be considered a failure if adding texture merely replaces generic repetition with repeated Windows 95 / NIFTY-Serve / PlayStation references.
+
+## Model-memory experiment
+
+`historical_texture=model-memory` is an isolated fresh-Lab comparison mode. It injects no proper-noun/referent dictionary. The Situation proposer and article worker may use their own historical knowledge only when confident that a real referent existed and was knowable in Japan by the world date. Uncertain timing/details must be omitted rather than guessed. Real-world existence never establishes persona ownership/experience, and BBS-internal history still requires canonical evidence. This mode is experimental and is not ordinary-runtime policy.
