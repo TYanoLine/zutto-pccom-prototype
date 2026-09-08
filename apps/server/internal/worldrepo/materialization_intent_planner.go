@@ -65,6 +65,10 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 		return developmentTimelinePlan{}, nil
 	}
 
+	dates := []string{worldDate}
+	for _, shell := range shells { dates = append(dates, shell.createdAt.Format("2006-01-02")) }
+	m = m.withPeriodReferents(dates...)
+
 	workingFacts := clonePersonaFactsByID(factsByPersona)
 	shellByIndex := make(map[int]developmentTimelineShell, len(shells))
 	for _, shell := range shells {
@@ -108,7 +112,7 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 			BoardID:        board.ID,
 			BoardName:      board.Name,
 			WorldDate:      worldDate,
-			EraRules:       m.eraRules(),
+			EraRules:       m.planningEraRules(),
 			RecentBBSState: planningTimelineContext(recentBBS, planned, shellByIndex, 12),
 			Events:         events,
 		})

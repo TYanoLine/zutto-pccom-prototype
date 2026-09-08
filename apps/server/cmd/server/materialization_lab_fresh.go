@@ -116,7 +116,9 @@ func normalizeFreshSituationMode(raw string) (string, bool) {
 func normalizeFreshHistoricalTexture(raw string) (string, bool) {
 	mode := strings.ToLower(strings.TrimSpace(raw))
 	switch mode {
-	case "", "off":
+	case "", "sourced":
+		return "sourced", true
+	case "off":
 		return "off", true
 	case "1996-08-curated":
 		return mode, true
@@ -173,7 +175,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	historicalTexture, ok := normalizeFreshHistoricalTexture(r.URL.Query().Get("historical_texture"))
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be off or 1996-08-curated"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off or 1996-08-curated"})
 		return
 	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
@@ -258,18 +260,20 @@ func (l *materializationLab) runFreshAllBody(id string) {
 		return
 	}
 	labMaterializer := l.materializer
-	if facts := freshHistoricalTextureFacts(job.HistoricalTexture); len(facts) > 0 {
-		switch m := l.materializer.(type) {
-		case worldrepo.LLMMaterializer:
-			m.HistoricalReferencesEnabled = true
-			m.HistoricalTexture = append([]string(nil), facts...)
-			labMaterializer = m
-		case *worldrepo.LLMMaterializer:
-			clone := *m
-			clone.HistoricalReferencesEnabled = true
-			clone.HistoricalTexture = append([]string(nil), facts...)
-			labMaterializer = &clone
-		default:
+	configure := func(m worldrepo.LLMMaterializer) worldrepo.LLMMaterializer {
+		m.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"
+		m.HistoricalReferencesEnabled = false
+		m.HistoricalTexture = freshHistoricalTextureFacts(job.HistoricalTexture)
+		return m
+	}
+	switch m := l.materializer.(type) {
+	case worldrepo.LLMMaterializer:
+		labMaterializer = configure(m)
+	case *worldrepo.LLMMaterializer:
+		clone := configure(*m)
+		labMaterializer = &clone
+	default:
+		if job.HistoricalTexture != "off" {
 			finishFreshError(id, fmt.Errorf("historical texture requires LLMMaterializer, got %T", l.materializer))
 			return
 		}
