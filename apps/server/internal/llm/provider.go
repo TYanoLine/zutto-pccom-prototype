@@ -157,17 +157,18 @@ type BBSWorldWindowProductionDraft struct {
 // BBSWorldWindowProduction, this pass does not plan article prose/editorial
 // briefs; it only proposes what concretely happened before prose is rendered.
 type BBSWorldSituationProposalRequest struct {
-	HostName        string
-	HostRegion      string
-	HostSoftware    string
-	WorldDate       string
-	WindowStart     string
-	WindowEnd       string
-	EraRules        string
-	HistoricalFacts []string
-	RecentBBSState  string
-	Events          []BBSWorldWindowEvent
-	AvoidSituations []string
+	HostName                   string
+	HostRegion                 string
+	HostSoftware               string
+	WorldDate                  string
+	WindowStart                string
+	WindowEnd                  string
+	EraRules                   string
+	HistoricalFacts            []string
+	AllowModelHistoricalMemory bool
+	RecentBBSState             string
+	Events                     []BBSWorldWindowEvent
+	AvoidSituations            []string
 }
 
 type BBSWorldSituationDraft struct {
