@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Triggered after the cleanup workflow exists on this branch.
 
 def replace_once(path, old, new):
     p=Path(path); s=p.read_text()
