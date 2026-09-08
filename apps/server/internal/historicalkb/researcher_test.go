@@ -2,6 +2,12 @@ package historicalkb
 
 import "testing"
 
+func TestResearchReasoningConfigUsesLowEffort(t *testing.T) {
+	if got := researchReasoningConfig()["effort"]; got != "low" {
+		t.Fatalf("reasoning effort=%v want low", got)
+	}
+}
+
 func TestResearchResultTextConfigUsesStrictJSONSchema(t *testing.T) {
 	text := researchResultTextConfig()
 	format, ok := text["format"].(map[string]any)
