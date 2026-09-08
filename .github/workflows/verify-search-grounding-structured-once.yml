@@ -1,0 +1,38 @@
+name: Verify structured search grounding once
+on:
+  push:
+    branches: [ops/verify-search-grounding-structured-20260909]
+    paths: [.github/workflows/verify-search-grounding-structured-once.yml]
+permissions:
+  contents: read
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start and poll fresh Lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
+          start="$(curl -fsS -X POST --get "$base" \
+            --data-urlencode 'action=start' \
+            --data-urlencode 'situation_mode=batch' \
+            --data-urlencode 'historical_texture=search-grounded' \
+            --data-urlencode 'board_count=6' \
+            --data-urlencode 'shell_limit=8')"
+          echo "$start"
+          job="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$start")"
+          echo "job=$job"
+          for i in $(seq 1 120); do
+            sleep 10
+            status="$(curl -fsS --get "$base" --data-urlencode 'action=status' --data-urlencode "id=$job")"
+            state="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))' <<<"$status")"
+            echo "poll=$i status=$state"
+            if [[ "$state" == 'completed' || "$state" == 'failed' ]]; then
+              echo "$status"
+              [[ "$state" == 'completed' ]]
+              exit
+            fi
+          done
+          echo 'Timed out waiting for fresh Lab' >&2
+          exit 1
