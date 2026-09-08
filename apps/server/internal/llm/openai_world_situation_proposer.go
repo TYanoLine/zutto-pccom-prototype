@@ -170,6 +170,9 @@ Never mention AI, prompts, databases, social media, smartphones or anything afte
 
 func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {
 	if req.AllowModelHistoricalMemory {
+		if req.PreferConcreteHistoricalNames {
+			return "- This model-memory concrete-name experiment intentionally supplies no proper-noun dictionary or referent list. When an ALREADY-SELECTED situation naturally corresponds to a real product/work/service/company/person/place/event/news/cultural reference that you are confident existed and was knowable in Japan by the world date, PREFER that concrete historical name over a generic label. This is a concretization preference, not a quota: never change the selected topic in order to use a name, never add names as period decoration, and do not repeat one favorite name across unrelated roots. If uncertain about existence, timing, identity or details, stay generic. Do not infer persona ownership/experience merely from a real thing's existence."
+		}
 		return "- This model-memory experiment intentionally supplies no proper-noun dictionary. You may introduce real product/work/service/company/person/place/event/news/cultural names from your own historical knowledge only when confident they existed and were knowable in Japan by the world date. If uncertain, stay generic. Do not invent details merely because you recognize a name."
 	}
 	return "- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them."

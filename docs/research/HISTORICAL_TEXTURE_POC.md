@@ -85,3 +85,12 @@ The experiment should be considered a failure if adding texture merely replaces 
 ## Model-memory experiment
 
 `historical_texture=model-memory` is an isolated fresh-Lab comparison mode. It injects no proper-noun/referent dictionary. The Situation proposer and article worker may use their own historical knowledge only when confident that a real referent existed and was knowable in Japan by the world date. Uncertain timing/details must be omitted rather than guessed. Real-world existence never establishes persona ownership/experience, and BBS-internal history still requires canonical evidence. This mode is experimental and is not ordinary-runtime policy.
+
+
+## Model-memory concrete-name preference experiment
+
+`historical_texture=model-memory-concrete` is a fresh-Lab-only A/B mode built on `model-memory`. It still injects **no proper-noun dictionary, PeriodReferents, or curated historical texture**. The only difference is a prompt-level concretization preference: if an already-selected canonical situation naturally maps to a real name the model confidently knows existed and was knowable in Japan by the world date, prefer that concrete name over a generic label.
+
+This is deliberately **not** a name quota or topic-selection mechanism. The model must not redirect a generic event toward a remembered product/work/service merely to insert period texture, must not repeat one favorite name across unrelated roots, and must remain generic whenever timing or identity is uncertain. Persona ownership/experience and BBS-internal history remain canonical-world facts, not model memory.
+
+The comparison target is `model-memory` under the same fresh-world topology. If concrete names increase without collapsing topic diversity or introducing future/unsupported facts, this suggests that a lightweight preference can recover period texture without a curated referent list becoming a hidden topic menu.

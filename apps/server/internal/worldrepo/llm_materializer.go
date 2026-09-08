@@ -24,6 +24,8 @@ type LLMMaterializer struct {
 	CuratedHistoricalReferences bool
 	// ModelHistoricalMemory is a fresh-Lab experiment: allow model knowledge without a referent dictionary.
 	ModelHistoricalMemory bool
+	// PreferConcreteHistoricalNames keeps model-memory dictionary-free while preferring a known real name over a generic label when it naturally fits.
+	PreferConcreteHistoricalNames bool
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -97,6 +99,9 @@ func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) 
 
 func (m LLMMaterializer) eraRules() string {
 	if m.ModelHistoricalMemory {
+		if m.PreferConcreteHistoricalNames {
+			return "HISTORICAL_REFERENCES=MODEL_MEMORY_CONCRETE_NAME_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary or referent list. Use your own historical knowledge only for things you are confident existed and were knowable in Japan on or before the supplied world date. CONCRETE-NAME PREFERENCE: when the already-selected canonical situation naturally corresponds to a real product, work, service, company, person, place, event, news item, seasonal or cultural reference that you confidently know, prefer that concrete historical name over a generic label such as 'game', 'word processor', 'communication service' or 'music'. This is a concretization preference, NOT a quota or topic-selection rule: never redirect an event toward a remembered name, never insert a name as decoration, and do not repeat one favored name across unrelated posts. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or any other factual detail is uncertain, omit it or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\n" + llm.DiegeticWorldFrame
+		}
 		return "HISTORICAL_REFERENCES=MODEL_MEMORY_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary. Use your own historical knowledge when it naturally makes an already-selected situation more concrete. You MAY introduce real product, work, service, company, person, place, event, news, seasonal or cultural names only when you are confident they existed and were knowable in Japan on or before the supplied world date. Never use anything from the future. Do not force a proper noun into every post and do not turn remembered names into topic quotas. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or other factual details are uncertain, omit those details or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; such actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\n" + llm.DiegeticWorldFrame
 	}
 	if m.HistoricalReferencesEnabled || len(m.HistoricalTexture) > 0 {

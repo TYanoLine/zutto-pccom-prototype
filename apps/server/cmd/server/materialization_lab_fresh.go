@@ -122,6 +122,8 @@ func normalizeFreshHistoricalTexture(raw string) (string, bool) {
 		return "off", true
 	case "model-memory":
 		return "model-memory", true
+	case "model-memory-concrete":
+		return "model-memory-concrete", true
 	case "1996-08-curated":
 		return mode, true
 	default:
@@ -177,7 +179,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	historicalTexture, ok := normalizeFreshHistoricalTexture(r.URL.Query().Get("historical_texture"))
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off, model-memory or 1996-08-curated"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off, model-memory, model-memory-concrete or 1996-08-curated"})
 		return
 	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
@@ -264,7 +266,8 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	labMaterializer := l.materializer
 	configure := func(m worldrepo.LLMMaterializer) worldrepo.LLMMaterializer {
 		m.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"
-		m.ModelHistoricalMemory = job.HistoricalTexture == "model-memory"
+		m.ModelHistoricalMemory = job.HistoricalTexture == "model-memory" || job.HistoricalTexture == "model-memory-concrete"
+		m.PreferConcreteHistoricalNames = job.HistoricalTexture == "model-memory-concrete"
 		m.HistoricalReferencesEnabled = false
 		m.HistoricalTexture = freshHistoricalTextureFacts(job.HistoricalTexture)
 		return m
