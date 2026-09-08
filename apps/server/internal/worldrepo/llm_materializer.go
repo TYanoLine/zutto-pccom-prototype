@@ -22,6 +22,8 @@ type LLMMaterializer struct {
 	HistoricalReferencesEnabled bool
 	HistoricalTexture           []string
 	CuratedHistoricalReferences bool
+	// ModelHistoricalMemory is a fresh-Lab experiment: allow model knowledge without a referent dictionary.
+	ModelHistoricalMemory bool
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -94,6 +96,9 @@ func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) 
 }
 
 func (m LLMMaterializer) eraRules() string {
+	if m.ModelHistoricalMemory {
+		return "HISTORICAL_REFERENCES=MODEL_MEMORY_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary. Use your own historical knowledge when it naturally makes an already-selected situation more concrete. You MAY introduce real product, work, service, company, person, place, event, news, seasonal or cultural names only when you are confident they existed and were knowable in Japan on or before the supplied world date. Never use anything from the future. Do not force a proper noun into every post and do not turn remembered names into topic quotas. If timing, identity, availability, ownership, compatibility, price, specifications, plot, event details or other factual details are uncertain, omit those details or stay generic rather than guessing. A real thing's existence does NOT establish that this persona owned, used, watched, bought or experienced it; such actor-specific facts still require canonical world state. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\n" + llm.DiegeticWorldFrame
+	}
 	if m.HistoricalReferencesEnabled || len(m.HistoricalTexture) > 0 {
 		return "HISTORICAL_REFERENCES=ON. 世界時刻より未来の知識を使わない。新しい実在の製品名・作品名・サービス名・企業名・人物名・具体的地名・歴史上の出来事やニュースは、supplied historical facts / historical texture または明示された canonical historical evidence にあるものだけ使用し、モデル記憶から補完しない。supplied texture は話題リストではなく、その時点の世界に存在してよい背景語彙・参照対象である。必要な場合は曖昧な総称へ逃げず具体名を自然に使ってよいが、無関係な投稿へ時代小道具として挿入しない。局固有の架空設定と史実を混同しない。セーブ、モデム、回線、駅、店、ゲーム、通信ソフト等の一般語彙は自然に使ってよい。\n" + llm.DiegeticWorldFrame
 	}
