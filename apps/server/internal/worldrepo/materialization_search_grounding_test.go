@@ -49,26 +49,33 @@ func TestDevelopmentSearchGroundingCompatiblePreservesSemanticIdentity(t *testin
 	}
 }
 
-func TestDevelopmentSearchGroundingEvidenceRequestScopesMissingInfoToHistoricalCandidate(t *testing.T) {
+func TestDevelopmentSearchGroundingEvidenceRequestBuildsCandidatePool(t *testing.T) {
 	date := time.Date(1996, 8, 22, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))
 	root := developmentWindowShell{eventID: "game", board: world.Board{ID: "4", Name: "ゲーム"}, shell: developmentTimelineShell{createdAt: date, anchorKey: "games"}}
 	proposal := developmentSituationProposal{objectClass: "ゲーム内の進行場面", occurrence: "手がかりを見落として同じ場所を調べた", actorObservation: "同じ場所を何度か調べた", noveltyKey: "clue"}
-	req := developmentSearchGroundingEvidenceRequest(root, proposal)
-	for _, want := range []string{"missingInfo", "NPCが実際に使った", "検索スコープ外", "空配列"} {
-		if !strings.Contains(req.Need, want) {
-			t.Fatalf("grounding Need missing %q: %s", want, req.Need)
+	req := developmentSearchGroundingEvidenceRequest(root, proposal, nil)
+	for _, want := range []string{"world engineが決定", "CANDIDATE:", "一意に名前を推理できる必要はありません", "2〜5件", "candidate-pool-v1"} {
+		if !strings.Contains(req.Need+req.Subject, want) {
+			t.Fatalf("grounding request missing %q: %s / %s", want, req.Need, req.Subject)
 		}
 	}
 }
 
-func TestDevelopmentSearchGroundingEvidenceRequestRejectsArbitraryPeriodExamples(t *testing.T) {
-	date := time.Date(1996, 8, 15, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))
-	root := developmentWindowShell{eventID: "music", board: world.Board{ID: "5", Name: "音楽"}, shell: developmentTimelineShell{createdAt: date, anchorKey: "music"}}
-	proposal := developmentSituationProposal{objectClass: "曲を聴く音量", occurrence: "同じ曲を少し小さい音量で聴いた", actorObservation: "細かい音が聞きやすいと感じた", noveltyKey: "volume"}
-	req := developmentSearchGroundingEvidenceRequest(root, proposal)
-	for _, want := range []string{"任意の具体例", "識別的な手掛かり", "2つ以上", "具体化不要"} {
-		if !strings.Contains(req.Need, want) {
-			t.Fatalf("grounding Need missing discriminative rule %q: %s", want, req.Need)
-		}
+func TestDevelopmentGroundingCandidateParser(t *testing.T) {
+	claim := "CANDIDATE: MYST || 1994年発売で探索停滞の出来事に適合\nCANDIDATE: 弟切草 || 1992年発売で選択肢のある遊びに適合"
+	got := developmentParseGroundingCandidates(claim)
+	if len(got) != 2 || got[0].Name != "MYST" || got[1].Name != "弟切草" {
+		t.Fatalf("parsed candidates=%+v", got)
+	}
+}
+
+func TestDevelopmentSelectGroundingCandidatePenalizesRecentReuse(t *testing.T) {
+	date := time.Date(1996, 8, 22, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))
+	root := developmentWindowShell{eventID: "e1", shell: developmentTimelineShell{createdAt: date, persona: world.Persona{ID: "p1"}}}
+	options := []developmentGroundingCandidate{{Name: "MYST", Evidence: "x", Rank: 0}, {Name: "弟切草", Evidence: "y", Rank: 1}}
+	recent := []world.Post{{Subject: "MYSTの話", Body: "MYSTを遊んだ"}}
+	selected, ok := developmentSelectGroundingCandidate("h", root, options, recent, map[string]int{})
+	if !ok || selected.Name != "弟切草" {
+		t.Fatalf("selected=%+v ok=%v", selected, ok)
 	}
 }
