@@ -60,6 +60,8 @@ type materializationFreshJob struct {
 	SituationMode       string                        `json:"situation_mode,omitempty"`
 	BoardCount          int                           `json:"board_count,omitempty"`
 	ShellLimit          int                           `json:"shell_limit,omitempty"`
+	Boards              []world.Board                 `json:"boards,omitempty"`
+	ArchiveError        string                        `json:"archive_error,omitempty"`
 	SituationDiagnostic string                        `json:"situation_diagnostic,omitempty"`
 	CreatedAt           time.Time                     `json:"created_at"`
 	StartedAt           time.Time                     `json:"started_at,omitempty"`
@@ -172,7 +174,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	}
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
-	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, BoardCount: boardCount, ShellLimit: shellLimit, CreatedAt: time.Now().UTC()}
+	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, BoardCount: boardCount, ShellLimit: shellLimit, Boards: freshScaleBoards(boardCount), CreatedAt: time.Now().UTC()}
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
 	materializationFreshLab.mu.Unlock()
@@ -308,7 +310,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	if materializationFreshLab.active == id {
 		materializationFreshLab.active = ""
 	}
+	archiveJob := cloneMaterializationFreshJob(job)
 	materializationFreshLab.mu.Unlock()
+	l.archiveFreshCompletedJob(archiveJob)
 }
 
 func collectMaterializationFreshArticles(posts []world.Post) []materializationFreshArticle {
