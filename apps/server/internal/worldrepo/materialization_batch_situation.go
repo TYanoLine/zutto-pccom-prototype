@@ -29,15 +29,16 @@ type developmentBatchSituationStats struct {
 }
 
 type developmentSituationProposal struct {
-	eventID          string
-	objectClass      string
-	changeClass      string
-	occurrence       string
-	actorObservation string
-	impact           string
-	uncertainty      string
-	noveltyKey       string
-	mustNot          []string
+	eventID           string
+	objectClass       string
+	changeClass       string
+	occurrence        string
+	actorObservation  string
+	impact            string
+	uncertainty       string
+	noveltyKey        string
+	mustNot           []string
+	groundingEvidence []string
 }
 
 type developmentWorldSituationPlan struct {
@@ -64,7 +65,11 @@ func (r *Repository) DevelopmentBatchSituationDiagnostic(hostID string) string {
 		return ""
 	}
 	stats := value.(developmentBatchSituationStats)
-	return fmt.Sprintf("roots=%d proposal_calls=%d rejected=%d repair_calls=%d", stats.Roots, stats.ProposalCalls, stats.Rejected, stats.RepairCalls)
+	base := fmt.Sprintf("roots=%d proposal_calls=%d rejected=%d repair_calls=%d", stats.Roots, stats.ProposalCalls, stats.Rejected, stats.RepairCalls)
+	if extra := developmentSearchGroundingDiagnostic(r, hostID); extra != "" {
+		return base + " " + extra
+	}
+	return base
 }
 
 func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, host world.Host, worldDate string, roots []developmentWindowShell, factsByPersona map[string][]world.PersonaFact, recentBBS string, avoid []string) (developmentWorldSituationPlan, error) {
@@ -211,6 +216,12 @@ func (r *Repository) developmentPlanBatchSituations(host world.Host, window []de
 		for id, proposal := range repaired {
 			accepted[id] = proposal
 		}
+	}
+
+	if developmentSearchGroundingPoCEnabled(r) {
+		var groundingUsage GenerationUsage
+		accepted, groundingUsage = r.developmentSearchGroundSituations(host, roots, accepted, factsByPersona)
+		usage = addDevelopmentGenerationUsage(usage, groundingUsage)
 	}
 
 	storeDevelopmentPlanningUsage(r, host.ID, "situation-window", usage)
@@ -367,6 +378,11 @@ func developmentSparseSituationFromProposal(shell developmentTimelineShell, p de
 		"uncertainty=" + p.uncertainty,
 		"novelty_key=" + p.noveltyKey,
 		"root_independence=This accepted situation belongs only to this root unless an explicit source edge later references it.",
+	}
+	for _, value := range p.groundingEvidence {
+		if strings.TrimSpace(value) != "" {
+			facts = append(facts, "historical_grounding="+strings.TrimSpace(value))
+		}
 	}
 	for _, value := range p.mustNot {
 		if strings.TrimSpace(value) != "" {
