@@ -48,6 +48,7 @@ func (p StructuredOpenAIProvider) GenerateBBSWorldSituationProposals(ctx context
 	if len(req.HistoricalFacts) > 0 {
 		historicalFacts = "- " + strings.Join(req.HistoricalFacts, "\n- ")
 	}
+	historicalPolicy := bbsWorldSituationHistoricalPolicy(req)
 	recent := strings.TrimSpace(req.RecentBBSState)
 	if recent == "" {
 		recent = "(no earlier canonical BBS state supplied)"
@@ -71,7 +72,7 @@ BATCH DIVERSITY:
 WORLD-TRUTH BOUNDARY:
 - Propose only observable or modestly inferable facts. Do not invent that a SYSOP checked logs, a machine failed internally, a phone network caused something, or an earlier post existed unless supplied canonical state establishes it.
 - Technical roots should describe observable behavior appropriate to the selected board/domain; software roots need not become terminal/call/session incidents. Do not guess protocols, carrier causes or internal hardware faults.
-- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them.
+%s
 - SUPPLIED HISTORICAL TEXTURE is permission and contemporaneous background, not a topic menu. Use a supplied concrete name when it genuinely sharpens an already-plausible situation; do not mechanically insert names into every root. A name may identify the ordinary object of conversation; no exceptional comparison or malfunction is required. Decide relevance from the selected board, routing domain and actor interests. Do not use one favored name across unrelated roots; unnamed everyday subjects remain valid. Never extrapolate release dates, prices, specifications, plot/results, popularity rankings or other facts that the supplied line does not state.
 - Keep events mundane. Do not manufacture upgrades, purchases, nostalgia, rediscovery, membership changes, maintenance, outages or dramatic incidents merely to make a post interesting.
 - impact and uncertainty may be empty strings if none are needed.
@@ -115,7 +116,7 @@ Return one JSON object keyed by every exact event_id and no other keys. Each sit
 - novelty_key: short semantic duplicate-detection key, unique among unrelated roots
 - must_not: 0-2 short situation-specific constraints preventing unsupported facts or confusion
 
-Never mention AI, prompts, databases, social media, smartphones or anything after the world date.`, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
+Never mention AI, prompts, databases, social media, smartphones or anything after the world date.`, historicalPolicy, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
 
 	maxTokens := 700 + len(req.Events)*240
 	if maxTokens > 10000 {
@@ -165,6 +166,13 @@ Never mention AI, prompts, databases, social media, smartphones or anything afte
 		}
 	}
 	return BBSWorldSituationProposalDraft{Situations: out, Usage: result.Usage}, nil
+}
+
+func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {
+	if req.AllowModelHistoricalMemory {
+		return "- This model-memory experiment intentionally supplies no proper-noun dictionary. You may introduce real product/work/service/company/person/place/event/news/cultural names from your own historical knowledge only when confident they existed and were knowable in Japan by the world date. If uncertain, stay generic. Do not invent details merely because you recognize a name."
+	}
+	return "- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them."
 }
 
 func bbsWorldSituationProposalSchema(events []BBSWorldWindowEvent) map[string]any {

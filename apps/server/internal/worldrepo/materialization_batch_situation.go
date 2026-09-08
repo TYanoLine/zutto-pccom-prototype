@@ -76,7 +76,9 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 		return developmentWorldSituationPlan{proposals: map[string]developmentSituationProposal{}}, nil
 	}
 	dates := []string{worldDate}
-	for _, item := range roots { dates = append(dates, item.shell.createdAt.Format("2006-01-02")) }
+	for _, item := range roots {
+		dates = append(dates, item.shell.createdAt.Format("2006-01-02"))
+	}
 	m = m.withPeriodReferents(dates...)
 
 	events := make([]llm.BBSWorldWindowEvent, 0, len(roots))
@@ -110,17 +112,18 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 		})
 	}
 	draft, err := proposer.GenerateBBSWorldSituationProposals(ctx, llm.BBSWorldSituationProposalRequest{
-		HostName:        host.Name,
-		HostRegion:      host.Region,
-		HostSoftware:    host.Software,
-		WorldDate:       worldDate,
-		WindowStart:     windowStart.Format(time.RFC3339),
-		WindowEnd:       windowEnd.Format(time.RFC3339),
-		EraRules:        m.planningEraRules(),
-		HistoricalFacts: append([]string(nil), m.HistoricalTexture...),
-		RecentBBSState:  recentBBS,
-		Events:          events,
-		AvoidSituations: append([]string(nil), avoid...),
+		HostName:                   host.Name,
+		HostRegion:                 host.Region,
+		HostSoftware:               host.Software,
+		WorldDate:                  worldDate,
+		WindowStart:                windowStart.Format(time.RFC3339),
+		WindowEnd:                  windowEnd.Format(time.RFC3339),
+		EraRules:                   m.planningEraRules(),
+		HistoricalFacts:            append([]string(nil), m.HistoricalTexture...),
+		AllowModelHistoricalMemory: m.ModelHistoricalMemory,
+		RecentBBSState:             recentBBS,
+		Events:                     events,
+		AvoidSituations:            append([]string(nil), avoid...),
 	})
 	if err != nil {
 		return developmentWorldSituationPlan{}, err
