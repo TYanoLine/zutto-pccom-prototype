@@ -1,0 +1,48 @@
+name: Apply search grounding evidence scope fix
+on:
+  push:
+    branches: [fix/search-grounding-missing-scope-20260908]
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/search-grounding-missing-scope-20260908
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Patch and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('apps/server/internal/worldrepo/materialization_search_grounding.go')
+          s=p.read_text()
+          old='''need := fmt.Sprintf("次の架空BBS内の出来事そのものは既にworld engineが選択済みです。話題や出来事を変えず、%s時点の日本で、この一般的な対象を自然に具体化できる実在の製品・作品・サービス・機種・番組・曲などがあるかWeb検索で確認してください。0〜3件の候補だけを挙げ、各候補についてその日までに日本で利用・稼働・発売・放送・鑑賞・言及可能だったことを確認してください。候補が複数あり一意に選べないこと自体は問題ありません。十分な根拠がない場合は『具体化不要』と明記してください。NPCが実際にそれを使ったことは史実検索の対象ではなく、この後world engineが決めます。出来事: object=%s; occurrence=%s; actor_observation=%s", worldDate, proposal.objectClass, proposal.occurrence, proposal.actorObservation)'''
+          new='''need := fmt.Sprintf("次の架空BBS内の出来事そのものは既にworld engineが選択済みです。話題や出来事を変えず、%s時点の日本で、この一般的な対象を自然に具体化できる実在の製品・作品・サービス・機種・番組・曲などがあるかWeb検索で確認してください。0〜3件の候補だけを挙げ、各候補についてその日までに日本で利用・稼働・発売・放送・鑑賞・言及可能だったことを、できるだけ公式資料・当時資料・信頼できる保存資料で確認してください。候補が複数あり一意に選べないこと自体は問題ありません。十分な根拠がない場合は『具体化不要』と明記してください。重要: missingInfo には『候補名そのものが正しいか』『その候補がこの日までに日本で存在・利用可能だったか』『このgeneric objectへの適合性』を判断できなくする未解決点だけを書いてください。NPCが実際に使った・買った・見たか、個別店舗の在庫や価格、所有歴、長期嗜好、候補が一意でないこと、world側で決める主観的な使いやすさ・体験結果は検索スコープ外なので missingInfo に入れないでください。候補の名称・時点までの存在/利用可能性・generic objectへの適合が十分に裏付けられたなら missingInfo は空配列にしてください。NPCの今回の関与はこの後world engineがcanonicalizeします。出来事: object=%s; occurrence=%s; actor_observation=%s", worldDate, proposal.objectClass, proposal.occurrence, proposal.actorObservation)'''
+          if old not in s:
+              raise SystemExit('target need prompt not found')
+          p.write_text(s.replace(old,new,1))
+
+          t=Path('apps/server/internal/worldrepo/materialization_search_grounding_test.go')
+          ts=t.read_text()
+          ts += '''\nfunc TestDevelopmentSearchGroundingEvidenceRequestScopesMissingInfoToHistoricalCandidate(t *testing.T) {\n\tdate := time.Date(1996, 8, 22, 12, 0, 0, 0, time.FixedZone("JST", 9*3600))\n\troot := developmentWindowShell{eventID: "game", board: world.Board{ID: "4", Name: "ゲーム"}, shell: developmentTimelineShell{createdAt: date, anchorKey: "games"}}\n\tproposal := developmentSituationProposal{objectClass: "ゲーム内の進行場面", occurrence: "手がかりを見落として同じ場所を調べた", actorObservation: "同じ場所を何度か調べた", noveltyKey: "clue"}\n\treq := developmentSearchGroundingEvidenceRequest(root, proposal)\n\tfor _, want := range []string{"missingInfo", "NPCが実際に使った", "検索スコープ外", "空配列"} {\n\t\tif !strings.Contains(req.Need, want) { t.Fatalf("grounding Need missing %q: %s", want, req.Need) }\n\t}\n}\n'''
+          t.write_text(ts)
+          PY
+          gofmt -w apps/server/internal/worldrepo/materialization_search_grounding.go apps/server/internal/worldrepo/materialization_search_grounding_test.go
+          cd apps/server && go test ./...
+      - name: Commit source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/apply-search-grounding-scope-fix.yml
+          git add -A
+          git commit -m 'Keep search-grounding missing info in historical scope'
+          git push origin HEAD:fix/search-grounding-missing-scope-20260908
