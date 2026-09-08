@@ -3,6 +3,7 @@ package worldrepo
 import "strings"
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -77,5 +78,18 @@ func TestDevelopmentSelectGroundingCandidatePenalizesRecentReuse(t *testing.T) {
 	selected, ok := developmentSelectGroundingCandidate("h", root, options, recent, map[string]int{})
 	if !ok || selected.Name != "弟切草" {
 		t.Fatalf("selected=%+v ok=%v", selected, ok)
+	}
+}
+
+func TestDevelopmentSearchGroundingErrorCompactsAndBoundsMessage(t *testing.T) {
+	got := developmentSearchGroundingError("event-1", fmt.Errorf("first   line %s", strings.Repeat("x", 300)))
+	if !strings.HasPrefix(got, "event-1:first line") {
+		t.Fatalf("unexpected compact error: %q", got)
+	}
+	if strings.Contains(got, "  ") {
+		t.Fatalf("error should compact whitespace: %q", got)
+	}
+	if len([]rune(got)) > 240 {
+		t.Fatalf("error not bounded: %d %q", len([]rune(got)), got)
 	}
 }

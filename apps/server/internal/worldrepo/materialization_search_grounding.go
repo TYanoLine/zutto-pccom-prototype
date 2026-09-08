@@ -31,6 +31,8 @@ type developmentSearchGroundingStats struct {
 	Rejected         int
 	SearchFailures   int
 	RefineFailures   int
+	SearchErrors     []string
+	RefineErrors     []string
 }
 
 type developmentSearchGroundingRefiner interface {
@@ -52,7 +54,18 @@ func developmentSearchGroundingDiagnostic(r *Repository, hostID string) string {
 		return ""
 	}
 	stats := value.(developmentSearchGroundingStats)
-	return fmt.Sprintf("search_queries=%d search_hits=%d candidate_options=%d grounded_selections=%d grounded_refinements=%d grounding_rejected=%d search_failures=%d refine_failures=%d", stats.Queries, stats.EvidenceHits, stats.CandidateOptions, stats.Selections, stats.Refined, stats.Rejected, stats.SearchFailures, stats.RefineFailures)
+	diagnostic := fmt.Sprintf("search_queries=%d search_hits=%d candidate_options=%d grounded_selections=%d grounded_refinements=%d grounding_rejected=%d search_failures=%d refine_failures=%d", stats.Queries, stats.EvidenceHits, stats.CandidateOptions, stats.Selections, stats.Refined, stats.Rejected, stats.SearchFailures, stats.RefineFailures)
+	if len(stats.SearchErrors) > 0 {
+		errors := append([]string(nil), stats.SearchErrors...)
+		sort.Strings(errors)
+		diagnostic += " search_errors=" + strings.Join(errors, " | ")
+	}
+	if len(stats.RefineErrors) > 0 {
+		errors := append([]string(nil), stats.RefineErrors...)
+		sort.Strings(errors)
+		diagnostic += " refine_errors=" + strings.Join(errors, " | ")
+	}
+	return diagnostic
 }
 
 func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []developmentWindowShell, accepted map[string]developmentSituationProposal, factsByPersona map[string][]world.PersonaFact) (map[string]developmentSituationProposal, GenerationUsage) {
@@ -98,6 +111,7 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 			if err != nil {
 				mu.Lock()
 				stats.SearchFailures++
+				stats.SearchErrors = append(stats.SearchErrors, developmentSearchGroundingError(item.eventID, err))
 				mu.Unlock()
 				return
 			}
@@ -143,6 +157,7 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 	plan, err := refiner.RefineDevelopmentWorldSituationsWithSearchGrounding(ctx, host, r.WorldDate, refineRoots, factsByPersona, planningBBSState(r.Base.ListPosts(host.ID), 24), accepted, grounding)
 	if err != nil {
 		stats.RefineFailures++
+		stats.RefineErrors = append(stats.RefineErrors, developmentSearchGroundingError("refine", err))
 		storeStats()
 		return accepted, GenerationUsage{}
 	}
@@ -164,6 +179,18 @@ func (r *Repository) developmentSearchGroundSituations(host world.Host, roots []
 	}
 	storeStats()
 	return out, plan.usage
+}
+
+func developmentSearchGroundingError(eventID string, err error) string {
+	if err == nil {
+		return strings.TrimSpace(eventID) + ":unknown error"
+	}
+	message := strings.Join(strings.Fields(err.Error()), " ")
+	runes := []rune(message)
+	if len(runes) > 220 {
+		message = string(runes[:220]) + "…"
+	}
+	return strings.TrimSpace(eventID) + ":" + message
 }
 
 func developmentSearchGroundingEvidenceRequest(root developmentWindowShell, proposal developmentSituationProposal, personaFacts []world.PersonaFact) worldengine.EvidenceRequest {
