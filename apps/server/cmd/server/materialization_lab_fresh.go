@@ -124,6 +124,8 @@ func normalizeFreshHistoricalTexture(raw string) (string, bool) {
 		return "model-memory", true
 	case "model-memory-concrete":
 		return "model-memory-concrete", true
+	case "search-grounded":
+		return "search-grounded", true
 	case "1996-08-curated":
 		return mode, true
 	default:
@@ -179,7 +181,12 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	historicalTexture, ok := normalizeFreshHistoricalTexture(r.URL.Query().Get("historical_texture"))
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off, model-memory, model-memory-concrete or 1996-08-curated"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off, model-memory, model-memory-concrete, search-grounded or 1996-08-curated"})
+		return
+	}
+	if historicalTexture == "search-grounded" && situationMode != "batch" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "search-grounded requires situation_mode=batch"})
 		return
 	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
@@ -268,6 +275,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 		m.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"
 		m.ModelHistoricalMemory = job.HistoricalTexture == "model-memory" || job.HistoricalTexture == "model-memory-concrete"
 		m.PreferConcreteHistoricalNames = job.HistoricalTexture == "model-memory-concrete"
+		m.SearchGroundedHistoricalReferences = job.HistoricalTexture == "search-grounded"
 		m.HistoricalReferencesEnabled = false
 		m.HistoricalTexture = freshHistoricalTextureFacts(job.HistoricalTexture)
 		return m
@@ -292,6 +300,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	}
 	if job.SituationMode == "batch" {
 		repo.EnableDevelopmentBatchSituationPoC()
+	}
+	if job.HistoricalTexture == "search-grounded" {
+		repo.EnableDevelopmentSearchGroundingPoC()
 	}
 	host, err := repo.HostByPhone(job.Phone)
 	if err != nil {

@@ -26,6 +26,8 @@ type LLMMaterializer struct {
 	ModelHistoricalMemory bool
 	// PreferConcreteHistoricalNames keeps model-memory dictionary-free while preferring a known real name over a generic label when it naturally fits.
 	PreferConcreteHistoricalNames bool
+	// SearchGroundedHistoricalReferences is a fresh-Lab experiment: real names may enter only through searched canonical Situation evidence.
+	SearchGroundedHistoricalReferences bool
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -98,6 +100,9 @@ func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) 
 }
 
 func (m LLMMaterializer) eraRules() string {
+	if m.SearchGroundedHistoricalReferences {
+		return "HISTORICAL_REFERENCES=SEARCH_GROUNDED_EXPERIMENT. Do not introduce new real product/work/service/company/person/place/event names from model memory. A real name already present in canonical Situation/PostIntent was selected only after bounded historical search and is an allowed canonical referent: preserve it in subject/body instead of generalizing it away. Do not add release dates, prices, specifications, plot, popularity, ownership history or other details unless they are explicitly canonical. Unnamed situations should remain unnamed. Never use anything after the supplied world date.\n" + llm.DiegeticWorldFrame
+	}
 	if m.ModelHistoricalMemory {
 		if m.PreferConcreteHistoricalNames {
 			return "HISTORICAL_REFERENCES=MODEL_MEMORY_CONCRETE_NAME_EXPERIMENT. This fresh-Lab run intentionally supplies NO proper-noun dictionary or referent list. Use your own historical knowledge only for things you are confident existed and were knowable in Japan on or before the supplied world date. CONCRETE-NAME PREFERENCE: when the already-selected canonical situation naturally corresponds to a real product, work, service, company, person, place, event, news item, seasonal or cultural reference that you confidently know, prefer that concrete historical name over a generic label such as 'game', 'word processor', 'communication service' or 'music'. The Situation proposal is allowed to establish a modest NEW canonical occurrence in which the selected actor played, used, read, watched, heard, visited, or discussed that named thing; prior actor-use evidence is not required for the new occurrence itself. Do not extrapolate from that occurrence to persistent ownership, purchase history, long-term preference, compatibility, or unrelated biography. This is a concretization preference, NOT a quota or topic-selection rule: never redirect an event toward a remembered name, never insert a name as decoration, and do not repeat one favored name across unrelated posts. If timing, identity, availability, price, specifications, plot, event details or any other factual detail is uncertain, omit it or stay generic rather than guessing. Once canonical Situation facts contain a real name, preserve that canonical name in article prose instead of generalizing it away. Do not invent BBS-internal history, posts, logs or SYSOP actions. Keep fictional host facts separate from real history.\\n" + llm.DiegeticWorldFrame
