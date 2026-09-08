@@ -13,7 +13,7 @@
 | `materialization-lab` | 既存Producer記事の本文を消し、時系列順にArticle Workerを再実行 | `suite=worker-replay`、`runs`（1–5、既定1）、`post_ids`（カンマ区切り、最大15件）、`timeout_ms` |
 | `materialization-lab-random` | 既存記事をランダム順に読み、依存記事の生成や順序の影響を検証 | `runs`（1–8、既定3）、`seed`（既定19660826）、`timeout_ms` |
 | `materialization-lab-allbody` | 既存Producer記事を使い、端末と同じmaterializationdemo RuntimeのALLBODY処理を検証 | `runs`（1–5、既定3） |
-| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`, `situation_mode=facets|facetless|batch`, `board_count=3..6`, `shell_limit=1..10`。1ジョブ1回で、`runs`指定には対応しない |
+| `materialization-lab-fresh` | **現在は会話ビューPoC**。RESET相当 → world-selected shell保存 → DBから会話文脈を再構成 → ALLBODYを一連で検証 | `phone`, `situation_mode=facets|facetless|batch`, `historical_texture=off|1996-08-curated`, `board_count=3..6`, `shell_limit=1..10`。1ジョブ1回で、`runs`指定には対応しない |
 
 すべて `phone` を省略するとサーバーの `developmentMaterializationPhone` を使う。
 worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
@@ -127,3 +127,8 @@ Read-only API:
 
 Vercel exposes a strict GET-only proxy at `/api/materialization-lab-viewer` and an evaluator UI at `/poc/materialization-lab-viewer`. The UI defaults to normal BBS reading (board → thread → article). World/Situation diagnostics are hidden unless the evaluator explicitly enables them.
 
+
+
+### Historical Texture A/B
+
+`historical_texture=1996-08-curated` is a fresh-Lab-only experiment. It does not change ordinary runtime or the service-wide `HISTORICAL_REFERENCES_ENABLED` setting. The isolated Lab clones the LLM materializer, supplies a small curated set of contemporary real referents, and allows the batch Situation proposer/article worker to use those names only when they naturally sharpen an already-selected event. The texture is permission/background, not a topic quota. `off` preserves the previous generic-name behavior. Completed jobs archive the texture label so the read-only viewer can compare runs. See `docs/research/HISTORICAL_TEXTURE_POC.md`.

@@ -164,6 +164,7 @@ type BBSWorldSituationProposalRequest struct {
 	WindowStart     string
 	WindowEnd       string
 	EraRules        string
+	HistoricalFacts []string
 	RecentBBSState  string
 	Events          []BBSWorldWindowEvent
 	AvoidSituations []string
