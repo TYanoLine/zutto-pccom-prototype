@@ -8,11 +8,11 @@ type Article = {
   situation_kind?: string; situation_summary?: string; situation_facts?: string[];
 };
 type Job = {
-  id: string; status: string; situation_mode?: string; board_count?: number; shell_limit?: number;
+  id: string; status: string; situation_mode?: string; historical_texture?: string; board_count?: number; shell_limit?: number;
   boards?: Board[]; created_at: string; finished_at?: string; duration_ms?: number; post_count?: number;
   body_count?: number; failures?: number; usage?: string; situation_diagnostic?: string; articles?: Article[];
 };
-type JobSummary = Pick<Job, 'id'|'status'|'situation_mode'|'board_count'|'shell_limit'|'created_at'|'finished_at'|'post_count'|'body_count'|'failures'>;
+type JobSummary = Pick<Job, 'id'|'status'|'situation_mode'|'historical_texture'|'board_count'|'shell_limit'|'created_at'|'finished_at'|'post_count'|'body_count'|'failures'>;
 
 const fallbackBoards: Record<string,string> = {
   '1':'フリートーク','2':'パソコン通信・モデム','3':'地域の話題','4':'ゲーム','5':'音楽','6':'ソフトウェア'
@@ -94,7 +94,7 @@ export default function MaterializationLabViewerPage() {
       <label>実験run
         <select value={job?.id || ''} onChange={e=>loadJob(e.target.value)}>
           {job && !summaries.some(s=>s.id===job.id) && <option value={job.id}>{job.id}</option>}
-          {summaries.map(s=><option key={s.id} value={s.id}>{fmt(s.finished_at || s.created_at)} · {s.situation_mode || '-'} · {s.post_count || 0}件 · {s.id}</option>)}
+          {summaries.map(s=><option key={s.id} value={s.id}>{fmt(s.finished_at || s.created_at)} · {s.situation_mode || '-'} · texture:{s.historical_texture || 'off'} · {s.post_count || 0}件 · {s.id}</option>)}
         </select>
       </label>
       <button onClick={()=>loadJob(job?.id)} disabled={loading}>再読込</button>
@@ -105,7 +105,7 @@ export default function MaterializationLabViewerPage() {
     {loading && <div className="loading">読み込み中...</div>}
     {job && <>
       <section className="metrics">
-        <span>MODE <b>{job.situation_mode || '-'}</b></span><span>BOARDS <b>{job.board_count || boards.length}</b></span>
+        <span>MODE <b>{job.situation_mode || '-'}</b></span><span>TEXTURE <b>{job.historical_texture || 'off'}</b></span><span>BOARDS <b>{job.board_count || boards.length}</b></span>
         <span>POSTS <b>{job.post_count || articles.length}</b></span><span>BODIES <b>{job.body_count || 0}</b></span>
         <span>FAIL <b>{job.failures || 0}</b></span><span>TIME <b>{job.duration_ms ? (job.duration_ms/1000).toFixed(1)+'s' : '-'}</b></span>
       </section>

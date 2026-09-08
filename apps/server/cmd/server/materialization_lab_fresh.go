@@ -58,6 +58,7 @@ type materializationFreshJob struct {
 	Status              string                        `json:"status"`
 	Phone               string                        `json:"phone"`
 	SituationMode       string                        `json:"situation_mode,omitempty"`
+	HistoricalTexture   string                        `json:"historical_texture,omitempty"`
 	BoardCount          int                           `json:"board_count,omitempty"`
 	ShellLimit          int                           `json:"shell_limit,omitempty"`
 	Boards              []world.Board                 `json:"boards,omitempty"`
@@ -112,6 +113,18 @@ func normalizeFreshSituationMode(raw string) (string, bool) {
 	}
 }
 
+func normalizeFreshHistoricalTexture(raw string) (string, bool) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "", "off":
+		return "off", true
+	case "1996-08-curated":
+		return mode, true
+	default:
+		return "", false
+	}
+}
+
 func freshIntParam(raw string, fallback, min, max int) (int, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -157,6 +170,12 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets, facetless or batch"})
 		return
 	}
+	historicalTexture, ok := normalizeFreshHistoricalTexture(r.URL.Query().Get("historical_texture"))
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be off or 1996-08-curated"})
+		return
+	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
@@ -174,7 +193,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	}
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
-	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, BoardCount: boardCount, ShellLimit: shellLimit, Boards: freshScaleBoards(boardCount), CreatedAt: time.Now().UTC()}
+	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, HistoricalTexture: historicalTexture, BoardCount: boardCount, ShellLimit: shellLimit, Boards: freshScaleBoards(boardCount), CreatedAt: time.Now().UTC()}
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
 	materializationFreshLab.mu.Unlock()
@@ -238,7 +257,24 @@ func (l *materializationLab) runFreshAllBody(id string) {
 		finishFreshError(id, fmt.Errorf("restore fresh isolated snapshot: %w", err))
 		return
 	}
-	repo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)
+	labMaterializer := l.materializer
+	if facts := freshHistoricalTextureFacts(job.HistoricalTexture); len(facts) > 0 {
+		switch m := l.materializer.(type) {
+		case worldrepo.LLMMaterializer:
+			m.HistoricalReferencesEnabled = true
+			m.HistoricalTexture = append([]string(nil), facts...)
+			labMaterializer = m
+		case *worldrepo.LLMMaterializer:
+			clone := *m
+			clone.HistoricalReferencesEnabled = true
+			clone.HistoricalTexture = append([]string(nil), facts...)
+			labMaterializer = &clone
+		default:
+			finishFreshError(id, fmt.Errorf("historical texture requires LLMMaterializer, got %T", l.materializer))
+			return
+		}
+	}
+	repo := worldrepo.New(base, l.engine, labMaterializer, l.worldDate)
 	repo.EnableDevelopmentConversationViewPoC()
 	repo.SetDevelopmentConversationShellLimit(job.ShellLimit)
 	if job.SituationMode == "facetless" {

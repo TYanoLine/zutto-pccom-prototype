@@ -18,16 +18,17 @@ import (
 var errMaterializationFreshArchiveNotFound = errors.New("materialization fresh archive not found")
 
 type materializationFreshArchiveSummary struct {
-	ID            string    `json:"id"`
-	Status        string    `json:"status"`
-	SituationMode string    `json:"situation_mode,omitempty"`
-	BoardCount    int       `json:"board_count,omitempty"`
-	ShellLimit    int       `json:"shell_limit,omitempty"`
-	PostCount     int       `json:"post_count,omitempty"`
-	BodyCount     int       `json:"body_count,omitempty"`
-	Failures      int       `json:"failures,omitempty"`
-	CreatedAt     time.Time `json:"created_at"`
-	FinishedAt    time.Time `json:"finished_at,omitempty"`
+	ID                string    `json:"id"`
+	Status            string    `json:"status"`
+	SituationMode     string    `json:"situation_mode,omitempty"`
+	HistoricalTexture string    `json:"historical_texture,omitempty"`
+	BoardCount        int       `json:"board_count,omitempty"`
+	ShellLimit        int       `json:"shell_limit,omitempty"`
+	PostCount         int       `json:"post_count,omitempty"`
+	BodyCount         int       `json:"body_count,omitempty"`
+	Failures          int       `json:"failures,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	FinishedAt        time.Time `json:"finished_at,omitempty"`
 }
 
 type materializationFreshArchiveStore interface {
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS development_materialization_fresh_archives (
   id text PRIMARY KEY,
   status text NOT NULL,
   situation_mode text NOT NULL DEFAULT '',
+  historical_texture text NOT NULL DEFAULT '',
   board_count integer NOT NULL DEFAULT 0,
   shell_limit integer NOT NULL DEFAULT 0,
   post_count integer NOT NULL DEFAULT 0,
@@ -63,6 +65,7 @@ CREATE TABLE IF NOT EXISTS development_materialization_fresh_archives (
   finished_at timestamptz NOT NULL,
   payload jsonb NOT NULL
 );
+ALTER TABLE development_materialization_fresh_archives ADD COLUMN IF NOT EXISTS historical_texture text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS development_materialization_fresh_archives_created_idx
   ON development_materialization_fresh_archives (created_at DESC);
 `); err != nil {
@@ -88,11 +91,12 @@ func (a *postgresMaterializationFreshArchive) Save(ctx context.Context, job *mat
 	}
 	_, err = a.pool.Exec(ctx, `
 INSERT INTO development_materialization_fresh_archives
-  (id,status,situation_mode,board_count,shell_limit,post_count,body_count,failures,created_at,finished_at,payload)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb)
+  (id,status,situation_mode,historical_texture,board_count,shell_limit,post_count,body_count,failures,created_at,finished_at,payload)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
 ON CONFLICT (id) DO UPDATE SET
   status=EXCLUDED.status,
   situation_mode=EXCLUDED.situation_mode,
+  historical_texture=EXCLUDED.historical_texture,
   board_count=EXCLUDED.board_count,
   shell_limit=EXCLUDED.shell_limit,
   post_count=EXCLUDED.post_count,
@@ -101,7 +105,7 @@ ON CONFLICT (id) DO UPDATE SET
   created_at=EXCLUDED.created_at,
   finished_at=EXCLUDED.finished_at,
   payload=EXCLUDED.payload
-`, job.ID, job.Status, job.SituationMode, job.BoardCount, job.ShellLimit, job.PostCount, job.BodyCount, job.Failures, job.CreatedAt, job.FinishedAt, payload)
+`, job.ID, job.Status, job.SituationMode, job.HistoricalTexture, job.BoardCount, job.ShellLimit, job.PostCount, job.BodyCount, job.Failures, job.CreatedAt, job.FinishedAt, payload)
 	return err
 }
 
@@ -145,7 +149,7 @@ func (a *postgresMaterializationFreshArchive) List(ctx context.Context, limit in
 		limit = 50
 	}
 	rows, err := a.pool.Query(ctx, `
-SELECT id,status,situation_mode,board_count,shell_limit,post_count,body_count,failures,created_at,finished_at
+SELECT id,status,situation_mode,historical_texture,board_count,shell_limit,post_count,body_count,failures,created_at,finished_at
 FROM development_materialization_fresh_archives
 ORDER BY created_at DESC LIMIT $1`, limit)
 	if err != nil {
@@ -155,7 +159,7 @@ ORDER BY created_at DESC LIMIT $1`, limit)
 	out := make([]materializationFreshArchiveSummary, 0, limit)
 	for rows.Next() {
 		var item materializationFreshArchiveSummary
-		if err := rows.Scan(&item.ID, &item.Status, &item.SituationMode, &item.BoardCount, &item.ShellLimit, &item.PostCount, &item.BodyCount, &item.Failures, &item.CreatedAt, &item.FinishedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.Status, &item.SituationMode, &item.HistoricalTexture, &item.BoardCount, &item.ShellLimit, &item.PostCount, &item.BodyCount, &item.Failures, &item.CreatedAt, &item.FinishedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -199,7 +203,7 @@ func freshJobSummary(job *materializationFreshJob) materializationFreshArchiveSu
 		return materializationFreshArchiveSummary{}
 	}
 	return materializationFreshArchiveSummary{
-		ID: job.ID, Status: job.Status, SituationMode: job.SituationMode,
+		ID: job.ID, Status: job.Status, SituationMode: job.SituationMode, HistoricalTexture: job.HistoricalTexture,
 		BoardCount: job.BoardCount, ShellLimit: job.ShellLimit,
 		PostCount: job.PostCount, BodyCount: job.BodyCount, Failures: job.Failures,
 		CreatedAt: job.CreatedAt, FinishedAt: job.FinishedAt,

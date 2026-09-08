@@ -20,6 +20,7 @@ type LLMMaterializer struct {
 	Renderer                    llm.BoardPostRenderer
 	Fallback                    Materializer
 	HistoricalReferencesEnabled bool
+	HistoricalTexture           []string
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -77,15 +78,22 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 }
 
 func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) []string {
-	if !m.HistoricalReferencesEnabled {
-		return nil
+	out := make([]string, 0, len(m.HistoricalTexture)+4)
+	if m.HistoricalReferencesEnabled {
+		out = append(out, usableClaims(decision)...)
 	}
-	return usableClaims(decision)
+	for _, fact := range m.HistoricalTexture {
+		fact = strings.TrimSpace(fact)
+		if fact != "" {
+			out = append(out, fact)
+		}
+	}
+	return out
 }
 
 func (m LLMMaterializer) eraRules() string {
-	if m.HistoricalReferencesEnabled {
-		return "HISTORICAL_REFERENCES=ON. 世界時刻より未来の知識を使わない。新しい実在の製品名・作品名・サービス名・企業名・人物名・具体的地名・歴史上の出来事やニュースは、supplied historical facts または明示された canonical historical evidence にあるものだけ使用し、モデル記憶から補完しない。局固有の架空設定と史実を混同しない。セーブ、モデム、回線、駅、店、ゲーム、通信ソフト等の一般語彙は自然に使ってよい。\n" + llm.DiegeticWorldFrame
+	if m.HistoricalReferencesEnabled || len(m.HistoricalTexture) > 0 {
+		return "HISTORICAL_REFERENCES=ON. 世界時刻より未来の知識を使わない。新しい実在の製品名・作品名・サービス名・企業名・人物名・具体的地名・歴史上の出来事やニュースは、supplied historical facts / historical texture または明示された canonical historical evidence にあるものだけ使用し、モデル記憶から補完しない。supplied texture は話題リストではなく、その時点の世界に存在してよい背景語彙・参照対象である。必要な場合は曖昧な総称へ逃げず具体名を自然に使ってよいが、無関係な投稿へ時代小道具として挿入しない。局固有の架空設定と史実を混同しない。セーブ、モデム、回線、駅、店、ゲーム、通信ソフト等の一般語彙は自然に使ってよい。\n" + llm.DiegeticWorldFrame
 	}
 	return "HISTORICAL_REFERENCES=OFF. 世界時刻より未来の知識を使わない。生成する題名・本文・意味計画へ、新しい実在の製品名・作品名・サービス名・企業名・人物名・具体的地名・歴史上の出来事やニュースを導入しない。既に canonical world state として明示的に供給された固有名詞を消去する必要はないが、そこから別の実在情報を連想・補完しない。セーブ、モデム、回線、駅、店、ゲーム、通信ソフト等の一般語彙は自然に使ってよく、具体性まで抽象語に潰さない。\n" + llm.DiegeticWorldFrame
 }

@@ -113,6 +113,7 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 		WindowStart:     windowStart.Format(time.RFC3339),
 		WindowEnd:       windowEnd.Format(time.RFC3339),
 		EraRules:        m.eraRules(),
+		HistoricalFacts: append([]string(nil), m.HistoricalTexture...),
 		RecentBBSState:  recentBBS,
 		Events:          events,
 		AvoidSituations: append([]string(nil), avoid...),
