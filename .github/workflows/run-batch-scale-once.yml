@@ -11,6 +11,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Post-viewer deployment archive seed: 2026-09-08
           BASE="https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh"
           curl --fail-with-body -sS -X POST "${BASE}?action=start&phone=0450000196&situation_mode=batch&board_count=6&shell_limit=8" > start.json
           cat start.json
@@ -28,11 +29,11 @@ jobs:
           python - <<'PY'
           import json, sys
           x=json.load(open('result.json'))
-          print(json.dumps({k:x.get(k) for k in ['id','status','duration_ms','post_count','body_count','failures','situation_mode','board_count','shell_limit','situation_diagnostic','usage','error']}, ensure_ascii=False, indent=2))
+          print(json.dumps({k:x.get(k) for k in ['id','status','duration_ms','post_count','body_count','failures','situation_mode','board_count','shell_limit','situation_diagnostic','usage','archive_error','error']}, ensure_ascii=False, indent=2))
           if x.get('status') != 'completed': sys.exit(1)
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: batch-scale-result
+          name: batch-scale-viewer-seed-result
           path: result.json
           retention-days: 7
