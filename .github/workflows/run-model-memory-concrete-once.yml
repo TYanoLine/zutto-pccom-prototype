@@ -13,7 +13,7 @@ jobs:
         run: |
           set -euo pipefail
           base='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
-          start="$(curl -fsS --get "$base" \
+          start="$(curl -fsS -X POST --get "$base" \
             --data-urlencode 'action=start' \
             --data-urlencode 'situation_mode=batch' \
             --data-urlencode 'historical_texture=model-memory-concrete' \
