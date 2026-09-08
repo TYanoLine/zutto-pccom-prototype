@@ -62,6 +62,7 @@ Populate the requested structured result. confidence must be 0..1.`, worldDate, 
 		"tools":             []map[string]any{{"type": "web_search", "search_context_size": b.SearchContext}},
 		"max_tool_calls":    b.MaxToolCalls,
 		"max_output_tokens": b.MaxOutputTokens,
+		"reasoning":         researchReasoningConfig(),
 		"text":              researchResultTextConfig(),
 	}
 	body, _ := json.Marshal(payload)
@@ -119,7 +120,6 @@ Populate the requested structured result. confidence must be 0..1.`, worldDate, 
 					seen[a.URL] = true
 					sources = append(sources, SourceEvidence{URL: a.URL, Title: a.Title})
 				}
-			}
 		}
 	}
 	if text == "" {
@@ -137,6 +137,10 @@ Populate the requested structured result. confidence must be 0..1.`, worldDate, 
 	}
 	result.Sources = sources
 	return result, nil
+}
+
+func researchReasoningConfig() map[string]any {
+	return map[string]any{"effort": "low"}
 }
 
 func researchResultTextConfig() map[string]any {
