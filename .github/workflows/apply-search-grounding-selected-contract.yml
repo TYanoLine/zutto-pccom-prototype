@@ -1,0 +1,33 @@
+name: Apply selected referent contract patch
+on:
+  push:
+    branches: [fix/search-grounding-selected-referent-contract-20260909]
+    paths:
+      - .github/scripts/apply_search_grounding_selected_contract.py
+      - .github/workflows/apply-search-grounding-selected-contract.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/search-grounding-selected-referent-contract-20260909
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Apply patch
+        run: python3 .github/scripts/apply_search_grounding_selected_contract.py
+      - name: Format and test
+        run: |
+          gofmt -w apps/server/internal/worldrepo/materialization_search_grounding.go apps/server/internal/worldrepo/materialization_search_grounding_test.go apps/server/internal/historicalkb/researcher.go apps/server/internal/historicalkb/researcher_test.go
+          cd apps/server
+          go test ./...
+      - name: Commit source
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/server/internal/worldrepo/materialization_search_grounding.go apps/server/internal/worldrepo/materialization_search_grounding_test.go apps/server/internal/historicalkb/researcher.go apps/server/internal/historicalkb/researcher_test.go
+          git commit -m 'Fix selected historical referent handoff'
+          git push
