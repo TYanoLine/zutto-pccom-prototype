@@ -1,0 +1,54 @@
+name: Apply model-memory situation policy fix
+on:
+  push:
+    branches:
+      - fix/model-memory-situation-policy-20260908
+    paths:
+      - .github/workflows/apply-model-memory-situation-policy.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/model-memory-situation-policy-20260908
+      - name: Patch and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps/server/internal/llm/provider.go'); s=p.read_text(); old='\tHistoricalFacts []string\n\tRecentBBSState  string'; new='\tHistoricalFacts            []string\n\tAllowModelHistoricalMemory bool\n\tRecentBBSState             string'; assert old in s; p.write_text(s.replace(old,new,1))
+          p=Path('apps/server/internal/worldrepo/materialization_batch_situation.go'); s=p.read_text(); old='\t\tHistoricalFacts: append([]string(nil), m.HistoricalTexture...),\n\t\tRecentBBSState:  recentBBS,'; new='\t\tHistoricalFacts:            append([]string(nil), m.HistoricalTexture...),\n\t\tAllowModelHistoricalMemory: m.ModelHistoricalMemory,\n\t\tRecentBBSState:             recentBBS,'; assert old in s; p.write_text(s.replace(old,new,1))
+          p=Path('apps/server/internal/llm/openai_world_situation_proposer.go'); s=p.read_text(); old='\trecent := strings.TrimSpace(req.RecentBBSState)'; new='\thistoricalPolicy := bbsWorldSituationHistoricalPolicy(req)\n\trecent := strings.TrimSpace(req.RecentBBSState)'; assert old in s; s=s.replace(old,new,1); old='- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them.\n- SUPPLIED HISTORICAL TEXTURE is permission and contemporaneous background, not a topic menu.'; new='%s\n- SUPPLIED HISTORICAL TEXTURE is permission and contemporaneous background, not a topic menu.'; assert old in s; s=s.replace(old,new,1); old='`, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, historicalFacts, recent, string(eventsJSON), string(avoidJSON))'; new='`, historicalPolicy, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, historicalFacts, recent, string(eventsJSON), string(avoidJSON))'; assert old in s; s=s.replace(old,new,1); marker='func bbsWorldSituationProposalSchema(events []BBSWorldWindowEvent) map[string]any {'; helper='func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {\n\tif req.AllowModelHistoricalMemory {\n\t\treturn "- This model-memory experiment intentionally supplies no proper-noun dictionary. You may introduce real product/work/service/company/person/place/event/news/cultural names from your own historical knowledge only when confident they existed and were knowable in Japan by the world date. If uncertain, stay generic. Do not invent details merely because you recognize a name."\n\t}\n\treturn "- Do not introduce new real product/work/service/company/person/place/event names unless SUPPLIED HISTORICAL TEXTURE below explicitly permits them or supplied canonical evidence contains them."\n}\n\n'; assert marker in s; p.write_text(s.replace(marker,helper+marker,1))
+          PY
+          cat > apps/server/internal/llm/openai_world_situation_proposer_policy_test.go <<'EOF'
+          package llm
+
+          import (
+            "strings"
+            "testing"
+          )
+
+          func TestBBSWorldSituationHistoricalPolicyModelMemory(t *testing.T) {
+            got := bbsWorldSituationHistoricalPolicy(BBSWorldSituationProposalRequest{AllowModelHistoricalMemory: true})
+            if !strings.Contains(got, "own historical knowledge") { t.Fatalf("model-memory permission missing: %s", got) }
+            if strings.Contains(got, "unless SUPPLIED HISTORICAL TEXTURE") { t.Fatalf("dictionary-only rule leaked into model-memory: %s", got) }
+          }
+
+          func TestBBSWorldSituationHistoricalPolicyDefault(t *testing.T) {
+            got := bbsWorldSituationHistoricalPolicy(BBSWorldSituationProposalRequest{})
+            if !strings.Contains(got, "unless SUPPLIED HISTORICAL TEXTURE") { t.Fatalf("default sourced boundary changed: %s", got) }
+          }
+          EOF
+          gofmt -w apps/server/internal/llm/provider.go apps/server/internal/worldrepo/materialization_batch_situation.go apps/server/internal/llm/openai_world_situation_proposer.go apps/server/internal/llm/openai_world_situation_proposer_policy_test.go
+          rm .github/workflows/apply-model-memory-situation-policy.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Let model-memory policy reach Situation proposer'
+          git push
+          cd apps/server
+          go test ./...
