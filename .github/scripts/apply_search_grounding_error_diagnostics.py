@@ -85,7 +85,7 @@ if old not in s:
 s = s.replace(old, new)
 
 insert_before = '\nfunc developmentSearchGroundingEvidenceRequest('
-helper = r'''
+helper = '''
 func developmentSearchGroundingError(eventID string, err error) string {
 \tif err == nil {
 \t\treturn strings.TrimSpace(eventID) + ":unknown error"
@@ -105,21 +105,21 @@ p.write_text(s)
 
 p = Path('apps/server/internal/worldrepo/materialization_search_grounding_test.go')
 s = p.read_text()
-s += r'''
+test = '''
 
 func TestDevelopmentSearchGroundingErrorCompactsAndBoundsMessage(t *testing.T) {
-\tgot := developmentSearchGroundingError("event-1", fmt.Errorf("first line\\n%s", strings.Repeat("x", 300)))
+\tgot := developmentSearchGroundingError("event-1", fmt.Errorf("first   line %s", strings.Repeat("x", 300)))
 \tif !strings.HasPrefix(got, "event-1:first line") {
 \t\tt.Fatalf("unexpected compact error: %q", got)
 \t}
-\tif strings.Contains(got, "\\n") {
-\t\tt.Fatalf("error should be single-line: %q", got)
+\tif strings.Contains(got, "  ") {
+\t\tt.Fatalf("error should compact whitespace: %q", got)
 \t}
 \tif len([]rune(got)) > 240 {
 \t\tt.Fatalf("error not bounded: %d %q", len([]rune(got)), got)
 \t}
 }
 '''
-# Existing test imports use a standalone strings import and a grouped block; add fmt to the grouped block.
+s += test
 s = s.replace('import (\n\t"testing"', 'import (\n\t"fmt"\n\t"testing"', 1)
 p.write_text(s)
