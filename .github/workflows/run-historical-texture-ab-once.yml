@@ -1,0 +1,60 @@
+name: run-historical-texture-ab-once
+on:
+  push:
+    branches:
+      - ops/run-historical-texture-ab-20260908
+jobs:
+  run-ab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate OFF and ON fresh Labs
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh"
+          run_one() {
+            local texture="$1"
+            local prefix="$2"
+            curl --fail-with-body -sS -X POST "${BASE}?action=start&phone=0450000196&situation_mode=batch&historical_texture=${texture}&board_count=6&shell_limit=8" > "${prefix}-start.json"
+            local job
+            job=$(python -c "import json; print(json.load(open('${prefix}-start.json'))['id'])")
+            echo "${prefix} job=${job} texture=${texture}"
+            for i in $(seq 1 300); do
+              curl --fail-with-body -sS "${BASE}?action=status&id=${job}" > "${prefix}.json"
+              status=$(python -c "import json; print(json.load(open('${prefix}.json')).get('status',''))")
+              echo "${prefix} poll=${i} status=${status}"
+              if [ "${status}" = "completed" ] || [ "${status}" = "failed" ]; then break; fi
+              sleep 5
+            done
+            python - <<PY
+          import json,sys
+          x=json.load(open('${prefix}.json'))
+          print(json.dumps({k:x.get(k) for k in ['id','status','historical_texture','duration_ms','post_count','body_count','failures','situation_diagnostic','usage','error']},ensure_ascii=False,indent=2))
+          if x.get('status')!='completed': sys.exit(1)
+          PY
+          }
+          run_one off off
+          run_one 1996-08-curated on
+      - name: Compare period-name usage
+        run: |
+          python - <<'PY'
+          import json,re
+          terms=['Windows 95','PC-98','DOS/V','Macintosh','NIFTY-Serve','PC-VAN','ISDN','PlayStation','プレイステーション','Sega Saturn','セガサターン','Pocket Monsters','ポケットモンスター','ポケモン','エヴァンゲリオン','Evangelion','MIDI','FM音源','秋葉原','Akihabara']
+          for fn in ['off.json','on.json']:
+              x=json.load(open(fn))
+              hits=[]
+              for a in x.get('articles',[]):
+                  text=(a.get('subject','')+'\n'+a.get('body',''))
+                  found=[t for t in terms if t.lower() in text.lower()]
+                  if found:
+                      hits.append({'id':a.get('id'),'board':a.get('board_id'),'author':a.get('author'),'subject':a.get('subject'),'terms':found,'body':a.get('body')})
+              print('\n###',fn,'job',x.get('id'),'texture',x.get('historical_texture'),'hits',len(hits))
+              print(json.dumps(hits,ensure_ascii=False,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: historical-texture-ab-result
+          path: |
+            off.json
+            on.json
+          retention-days: 7
