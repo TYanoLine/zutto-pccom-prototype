@@ -117,7 +117,6 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	}
 	defer func() { storeDevelopmentPlanningUsage(r, host.ID, "title-first", usage) }()
 	for boardIndex, board := range boards {
-		// Minimal first pass deliberately receives no personas, slots or style rules.
 		pool, err := planner.GenerateBBSTitleCandidates(ctx, r.WorldDate, board.Name)
 		if err != nil {
 			return nil, err
@@ -127,9 +126,6 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		for i, title := range pool.Titles {
 			state.rows = append(state.rows, DevelopmentTitleCandidate{BoardID: board.ID, Candidate: i + 1, Original: title, Status: "unreviewed", Reason: "検査未完了"})
 		}
-
-		// Use the earliest eligible root on the board. If a real referent existed by
-		// this date it is safe for every later slot in the same generated window.
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
 		asOf := earliest.Format("2006-01-02")
 		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentRouteTitleEra(ctx, board, asOf, pool, state, offset, eraValidator)
@@ -137,7 +133,6 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		if eraErr != nil || len(eligibleTitles) == 0 {
 			continue
 		}
-
 		prior := []world.Post{}
 		for _, post := range state.history {
 			if post.CreatedAt.Before(earliest) {
@@ -152,22 +147,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	return out, nil
 }
 
-func (r *Repository) developmentAssignTitleFirstBoard(
-	ctx context.Context,
-	host world.Host,
-	board world.Board,
-	asOf string,
-	eligibleTitles []string,
-	originalCandidates []int,
-	boardEvents []llm.BBSWorldWindowEvent,
-	recentBBSState string,
-	state *developmentTitleFirstState,
-	offset int,
-	boardsRemaining int,
-	planner llm.BBSTitleCandidatePlanner,
-	addUsage func(llm.TokenUsage),
-	out map[string]developmentSparseSituation,
-) error {
+func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host world.Host, board world.Board, asOf string, eligibleTitles []string, originalCandidates []int, boardEvents []llm.BBSWorldWindowEvent, recentBBSState string, state *developmentTitleFirstState, offset int, boardsRemaining int, planner llm.BBSTitleCandidatePlanner, addUsage func(llm.TokenUsage), out map[string]developmentSparseSituation) error {
 	remainingTitles := append([]string(nil), eligibleTitles...)
 	remainingCandidates := append([]int(nil), originalCandidates...)
 	remainingEvents := append([]llm.BBSWorldWindowEvent(nil), boardEvents...)
@@ -175,17 +155,12 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 	for _, e := range boardEvents {
 		eventByID[e.EventID] = e
 	}
-
 	acceptedCandidates := map[int]bool{}
 	acceptedEvents := map[string]bool{}
 	blockedCandidates := map[int]bool{}
 	lastReasons := map[int]string{}
 	researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
 	boardResearchUsed := 0
-
-	// A failed historical check or malformed model decision may expose a valid
-	// second choice. Re-match the same 20-title pool instead of regenerating it.
-	// The number of roots bounds useful fallback passes and prevents loops.
 	maxPasses := len(boardEvents) + 1
 	for pass := 0; pass < maxPasses && len(remainingTitles) > 0 && len(remainingEvents) > 0; pass++ {
 		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: remainingTitles, Events: remainingEvents, RecentBBSState: recentBBSState}
@@ -202,7 +177,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 			}
 			return nil
 		}
-
 		selected := map[int]llm.BBSTitleDecision{}
 		selectedOrder := make([]int, 0, len(review.Decisions))
 		malformedThisPass := map[int]bool{}
@@ -224,7 +198,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 			selected[originalCandidate] = d
 			selectedOrder = append(selectedOrder, originalCandidate)
 		}
-
 		researchJobs := make([]developmentTitleEraResearchJob, 0)
 		for _, originalCandidate := range selectedOrder {
 			d := selected[originalCandidate]
@@ -256,15 +229,13 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 			row.EraReason = outcome.reason
 			row.EraEvidence = outcome.evidence
 		}
-
 		for _, originalCandidate := range selectedOrder {
 			d := selected[originalCandidate]
 			row := &state.rows[offset+originalCandidate-1]
 			if row.Status == "era_rejected" {
 				continue
 			}
-			e, ok := eventByID[d.EventID]
-			if !ok {
+			if _, ok := eventByID[d.EventID]; !ok {
 				return fmt.Errorf("title assignment outside world slots")
 			}
 			switch row.EraStatus {
@@ -281,7 +252,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 				retry = true
 				continue
 			case "ok", "verified":
-				// eligible
 			default:
 				row.Status = "era_rejected"
 				row.Reason = fmt.Sprintf("不明な時代検証状態 %q / 人物仮割当: %s", row.EraStatus, d.Reason)
@@ -289,7 +259,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 				retry = true
 				continue
 			}
-
 			if acceptedEvents[d.EventID] {
 				return fmt.Errorf("duplicate title assignment")
 			}
@@ -302,17 +271,14 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 			}
 			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. Write only its matter within this actor's existing facts. Do not invent new possessions, purchases, personal history or unsupported game/technical details."}}
 		}
-
 		for originalCandidate := range malformedThisPass {
 			row := &state.rows[offset+originalCandidate-1]
 			row.Status = "rejected"
 			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, lastReasons[originalCandidate])
 		}
-
 		if !retry {
 			break
 		}
-
 		nextTitles := make([]string, 0, len(remainingTitles))
 		nextCandidates := make([]int, 0, len(remainingCandidates))
 		for i, originalCandidate := range remainingCandidates {
@@ -335,7 +301,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 		remainingCandidates = nextCandidates
 		remainingEvents = nextEvents
 	}
-
 	for _, originalCandidate := range originalCandidates {
 		row := &state.rows[offset+originalCandidate-1]
 		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" {
