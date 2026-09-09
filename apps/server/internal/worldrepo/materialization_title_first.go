@@ -12,21 +12,25 @@ import (
 )
 
 type DevelopmentTitleCandidate struct {
-	BoardID   string `json:"board_id"`
-	Candidate int    `json:"candidate"`
-	Original  string `json:"original"`
-	Subject   string `json:"subject"`
-	Author    string `json:"author"`
-	EventID   string `json:"event_id"`
-	Status    string `json:"status"`
-	Reason    string `json:"reason"`
+	BoardID     string `json:"board_id"`
+	Candidate   int    `json:"candidate"`
+	Original    string `json:"original"`
+	Subject     string `json:"subject"`
+	Author      string `json:"author"`
+	EventID     string `json:"event_id"`
+	Status      string `json:"status"`
+	Reason      string `json:"reason"`
+	EraStatus   string `json:"era_status,omitempty"`
+	EraReason   string `json:"era_reason,omitempty"`
+	EraEvidence string `json:"era_evidence,omitempty"`
 }
 type developmentTitleFirstState struct {
-	history   []world.Post
-	attempted bool
-	result    map[string]developmentSparseSituation
-	err       error
-	rows      []DevelopmentTitleCandidate
+	history         []world.Post
+	attempted       bool
+	result          map[string]developmentSparseSituation
+	err             error
+	rows            []DevelopmentTitleCandidate
+	eraResearchUsed int
 }
 
 var developmentTitleFirst sync.Map
@@ -53,8 +57,8 @@ func titleFirstSubject(facts []string) string {
 	return ""
 }
 
-// Only the isolated conversation Lab calls this. Candidate assignment is proposed
-// against immutable eligible slots and checked before anything is committed.
+// Only the isolated conversation Lab calls this. Candidate wording is generated
+// first, then era validation runs independently before persona/slot assignment.
 func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (result map[string]developmentSparseSituation, err error) {
 	stateValue, _ := developmentTitleFirst.Load(r)
 	state := stateValue.(*developmentTitleFirstState)
@@ -75,6 +79,10 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	planner, ok := m.Renderer.(llm.BBSTitleCandidatePlanner)
 	if !ok {
 		return nil, fmt.Errorf("renderer does not support title candidates")
+	}
+	eraValidator, ok := m.Renderer.(llm.BBSTitleEraValidator)
+	if !ok {
+		return nil, fmt.Errorf("renderer does not support title era validation")
 	}
 	facts := r.existingPersonaFactsByID(personas)
 	boards := []world.Board{}
@@ -114,22 +122,34 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		for i, title := range pool.Titles {
 			state.rows = append(state.rows, DevelopmentTitleCandidate{BoardID: board.ID, Candidate: i + 1, Original: title, Status: "unreviewed", Reason: "検査未完了"})
 		}
+
+		// Use the earliest eligible root on the board. If a real referent existed by
+		// this date it is safe for every later slot in the same generated window.
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
+		asOf := earliest.Format("2006-01-02")
+		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentValidateTitleEra(ctx, host, board, asOf, pool, state, offset, eraValidator)
+		addUsage(eraUsage)
+		if eraErr != nil || len(eligibleTitles) == 0 {
+			continue
+		}
+
 		prior := []world.Post{}
 		for _, post := range state.history {
 			if post.CreatedAt.Before(earliest) {
 				prior = append(prior, post)
 			}
 		}
-		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: pool.Titles, Events: events[board.ID], RecentBBSState: planningBBSState(prior, 48)}
+		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: eligibleTitles, Events: events[board.ID], RecentBBSState: planningBBSState(prior, 48)}
 		review, err := planner.ReviewBBSTitleCandidates(ctx, req)
 		addUsage(review.Usage)
 		if err == nil {
 			err = llm.ValidateBBSTitleReview(req, review)
 		}
 		if err != nil {
-			for i := offset; i < len(state.rows); i++ {
-				state.rows[i].Reason = "検査失敗: " + err.Error()
+			for _, originalCandidate := range originalCandidates {
+				row := &state.rows[offset+originalCandidate-1]
+				row.Status = "unreviewed"
+				row.Reason = fmt.Sprintf("時代[%s]: %s / 人物割当検査失敗: %s", row.EraStatus, row.EraReason, err.Error())
 			}
 			continue
 		}
@@ -138,11 +158,12 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			eventByID[e.EventID] = e
 		}
 		for _, d := range review.Decisions {
-			if d.Candidate < 1 || d.Candidate > len(pool.Titles) {
+			if d.Candidate < 1 || d.Candidate > len(eligibleTitles) {
 				return nil, fmt.Errorf("invalid candidate index")
 			}
-			row := &state.rows[offset+d.Candidate-1]
-			row.Reason = d.Reason
+			originalCandidate := originalCandidates[d.Candidate-1]
+			row := &state.rows[offset+originalCandidate-1]
+			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 			row.Status = "rejected"
 			if d.EventID == "" {
 				continue
@@ -161,7 +182,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			if d.Subject != row.Original {
 				row.Status = "corrected"
 			}
-			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "historical_check=model_memory_provisional_not_source_verified", "subject_contract=Keep the accepted title verbatim. Write only its matter within this actor's existing facts. Do not invent new possessions, purchases, personal history or unsupported game/technical details."}}
+			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. Write only its matter within this actor's existing facts. Do not invent new possessions, purchases, personal history or unsupported game/technical details."}}
 		}
 	}
 	return out, nil
