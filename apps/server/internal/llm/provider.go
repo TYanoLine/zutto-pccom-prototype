@@ -99,20 +99,23 @@ type BBSTimelineIntentDraft struct {
 // producer may add semantic specificity and editorial instructions, but it may
 // not change whether the event exists, its board, actor, time or thread topology.
 type BBSWorldWindowEvent struct {
-	EventID        string   `json:"event_id"`
-	BoardID        string   `json:"board_id"`
-	BoardName      string   `json:"board_name"`
-	AuthorHandle   string   `json:"author_handle"`
-	CreatedAt      string   `json:"created_at"`
-	Action         string   `json:"action"`
-	ParentEventID  string   `json:"parent_event_id,omitempty"`
-	SourceEventID  string   `json:"source_event_id,omitempty"`
-	AnchorKey      string   `json:"anchor_key"`
-	CauseKind      string   `json:"cause_kind"`
-	CauseSummary   string   `json:"cause_summary"`
-	DiscourseMode  string   `json:"discourse_mode,omitempty"`
-	PersonaProfile string   `json:"persona_profile"`
-	ExistingFacts  []string `json:"existing_facts,omitempty"`
+	EventID          string   `json:"event_id"`
+	BoardID          string   `json:"board_id"`
+	BoardName        string   `json:"board_name"`
+	AuthorHandle     string   `json:"author_handle"`
+	CreatedAt        string   `json:"created_at"`
+	Action           string   `json:"action"`
+	ParentEventID    string   `json:"parent_event_id,omitempty"`
+	SourceEventID    string   `json:"source_event_id,omitempty"`
+	AnchorKey        string   `json:"anchor_key"`
+	CauseKind        string   `json:"cause_kind"`
+	CauseSummary     string   `json:"cause_summary"`
+	DiscourseMode    string   `json:"discourse_mode,omitempty"`
+	PersonaProfile   string   `json:"persona_profile"`
+	ExistingFacts    []string `json:"existing_facts,omitempty"`
+	SituationKind    string   `json:"situation_kind,omitempty"`
+	SituationSummary string   `json:"situation_summary,omitempty"`
+	SituationFacts   []string `json:"situation_facts,omitempty"`
 }
 
 type BBSWorldWindowProductionRequest struct {
