@@ -63,13 +63,13 @@ ABSOLUTE WORLD BOUNDARY:
 - For standalone roots, discourse_mode is an immutable world-layer decision about the conversational act. You MUST preserve it rather than making every root ask readers a question.
 - The database, not your prose, is the eventual source of truth. Make the briefs consistent enough to be committed as canonical semantic state.
 - A relationship between current-window events exists ONLY when parent_event_id or source_event_id explicitly names it. Same board, same actor, nearby time, similar topic, or editorial convenience does NOT create a relationship.
-- If action=thread_start and both parent_event_id/source_event_id are absent, it is a STANDALONE ROOT. Do not describe it as reading, replying to, continuing, or sharing the same occurrence/referent with another selected current-window event. Its audience_context MUST be empty and its subject MUST NOT begin with Re:.
+- If action=thread_start and both parent_event_id/source_event_id are absent, it is a STANDALONE ROOT. Do not describe it as reading, replying to, continuing, or sharing the same occurrence with another selected current-window event. Public work/product identity may coincide; personal experiences and awareness of another post may not. Its audience_context MUST be empty and its subject MUST NOT begin with Re:.
 - For a reply/continuation, only the explicitly named parent_event_id/source_event_id may supply current-window causal/thread context. Never borrow a different event merely because it would make a nicer story.
 
 PRODUCER RESPONSIBILITIES:
 - Coordinate the WHOLE WINDOW across all boards and personas before any article worker writes prose.
 - Make each event's small episode concrete enough that a worker does not have to invent why the post exists.
-- Reuse the same referent wording only when the immutable topology explicitly relates the events, or earlier canonical BBS state already establishes that identity. Never merge two standalone current-window roots into one occurrence.
+- Public identities listed in PUBLIC SUBJECT IDENTITIES may recur in unrelated roots with different matters. Private incidents/referents may be shared only through explicit topology. Never merge two standalone current-window roots into one occurrence.
 - Track what the actor actually knows at that moment and what earlier BBS context makes safe to leave implicit.
 - For replies, make contribution describe the NEW contribution to the selected source/thread, not a restatement of the root.
 - For returning participants, respect cause_summary literally: a newer contribution is the reason they can speak again.
@@ -79,6 +79,7 @@ PRODUCER RESPONSIBILITIES:
 - KEEP THE BRIEFS COMPACT: each list should normally have 0-2 short items and never more than 4; each scalar field should normally be one short sentence. Do not spend tokens restating the supplied event shell.
 
 SPECIFICITY BOUNDARY:
+- For an as-yet-unfixed root, establish its historically supported target and this actor's conversational purpose BEFORE wording the subject. An impression, preference or ordinary curiosity is sufficient for an already-selected action; no malfunction or exceptional change is required. Never change an already canonical target.
 - Specificity must come from supplied canonical state, earlier BBS state, or safe fictional local detail that does not masquerade as an external historical fact.
 - Do NOT invent a named commercial game, product, modem, software package, railway station, real shop, price, release date, exact technical specification or historical event unless that exact real-world referent is already supplied.
 - If an exact external name is unavailable, keep the external identity unnamed but make the episode concrete in other ways (what happened, where within the already-known context, what was tried, what changed, what information is sought).
@@ -106,7 +107,7 @@ Return briefs as ONE JSON object keyed by the exact supplied event_id strings. E
 Brief fields:
 - subject: exact subject this actor would type. Replies may still be canonicalized by the application to Re: root subject.
 - episode: one concise description of the concrete contemporaneous occurrence/state difference that makes this exact post worth writing now.
-- referents: zero or more concrete referents that the worker must keep stable. Reuse wording only inside an explicitly related event component. Do not invent unsupported named real-world entities.
+- referents: concrete referents that the worker must keep stable. Public identities supplied below may recur independently; private incidents must remain inside their explicit event component. Do not invent unsupported named real-world entities.
 - actor_knowledge: facts this actor is entitled to know when writing this article. Do not include omniscient producer knowledge.
 - audience_context: facts legitimately established in the explicitly selected thread/source that make natural ellipsis such as 「あの面」 or 「さっきの件」 understandable. Standalone roots must return an empty array.
 - contribution: the information/reaction/question this article must actually add. Replies should react to their source, and repeat participants need a genuinely newer contribution.
@@ -120,7 +121,7 @@ Additional rules:
 - A reply actor must not appropriate another person's first-person experience. Put ownership in actor_knowledge/must_not clearly when needed.
 - Board placement is semantic. The brief must make sense on the exact supplied board without inventing a bridge.
 - Subject lines may be terse/contextual like period BBS subjects, but contextual ellipsis is only allowed when audience_context actually establishes the referent.
-- Never mention AI, simulation, prompts, databases, web searches, social media, smartphones or anything after the world date.`, withDiegeticWorldFrame(req.EraRules), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, recent, string(eventsJSON))
+- Never mention AI, simulation, prompts, databases, web searches, social media, smartphones or anything after the world date.`, withDiegeticWorldFrame(req.EraRules)+"\n"+historicalBBSSubjectCalibration+"\nPUBLIC SUBJECT IDENTITIES (not shared personal incidents):\n"+strings.Join(req.PublicReferents, "\n"), req.WorldDate, req.WindowStart, req.WindowEnd, req.HostName, req.HostRegion, req.HostSoftware, recent, string(eventsJSON))
 
 	maxTokens := 1800 + len(req.Events)*360
 	if maxTokens > 12000 {
@@ -294,7 +295,7 @@ func validateBBSWorldWindowProduction(req BBSWorldWindowProductionRequest, draft
 			}
 		}
 	}
-	if err := validateBBSWorldWindowReferentIsolation(req.Events, draft.Briefs); err != nil {
+	if err := validateBBSWorldWindowReferentIsolation(req.Events, draft.Briefs, req.PublicReferents); err != nil {
 		return err
 	}
 	return nil
@@ -310,7 +311,11 @@ func hasReplySubjectPrefix(subject string) bool {
 	return strings.HasPrefix(s, "re:") || strings.HasPrefix(s, "re：") || strings.HasPrefix(s, "ｒｅ:") || strings.HasPrefix(s, "ｒｅ：")
 }
 
-func validateBBSWorldWindowReferentIsolation(events []BBSWorldWindowEvent, briefs []BBSArticleBriefDraft) error {
+func validateBBSWorldWindowReferentIsolation(events []BBSWorldWindowEvent, briefs []BBSArticleBriefDraft, publicReferents []string) error {
+	public := map[string]bool{}
+	for _, name := range publicReferents {
+		public[normalizeProducerReferent(name)] = true
+	}
 	componentByID, err := worldWindowRelationComponents(events)
 	if err != nil {
 		return err
@@ -323,6 +328,9 @@ func validateBBSWorldWindowReferentIsolation(events []BBSWorldWindowEvent, brief
 		for _, referent := range cleanStringList(brief.Referents) {
 			key := normalizeProducerReferent(referent)
 			if key == "" {
+				continue
+			}
+			if public[key] {
 				continue
 			}
 			if priorComponent, ok := componentByReferent[key]; ok && priorComponent != component {

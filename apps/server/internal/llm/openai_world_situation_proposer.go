@@ -59,17 +59,20 @@ This is NOT article writing. Do not write subject lines or post bodies. For each
 
 IMMUTABLE INPUT:
 - event existence, actor, time, board, routing domain, cause kind and discourse mode are already fixed.
-- every supplied event is an independent standalone root. Do not connect two roots into one incident, conversation, place, object or hidden shared event.
+- every supplied event is an independent standalone root. Do not connect two roots into one incident, conversation or hidden shared event. Two independent actors may discuss the same publicly available work/product without sharing an experience or reading each other's posts.
 - routing domains are broad constraints, not topic menus. Invent a situation freely inside the domain; do not choose from a predefined event/facet catalog.
 
 BATCH DIVERSITY:
 - You see the whole root batch specifically so you can avoid repetition.
-- Within the same board, use meaningfully different concrete objects/activities and different changes/occurrences.
+- Within the same board, vary the matters people discuss, not just names. The same work/product may recur with genuinely different questions or impressions; do not reuse an occurrence.
 - Across the host window, do not repeat the same distinctive occurrence with paraphrased wording.
 - object_class and change_class are FREE descriptive labels, not enums. Make object_class concrete enough to distinguish, for example, one practical local object/activity from another; do not return only the broad routing domain.
 - novelty_key is a short normalized semantic key for duplicate detection. Unrelated roots must have different novelty_key values.
 
 WORLD-TRUTH BOUNDARY:
+- TARGET BEFORE MATTER: identify the contemporary subject within the selected board/domain FIRST, then propose this actor's modest involvement and conversational purpose about it. Use only historically permitted names. Do not first invent an anonymous puzzle or malfunction and attach an arbitrary name afterwards.
+- A supplied TOPIC TARGET SELECTED BY WORLD is immutable for this root. Establish the new occurrence around that exact name and supplied evidence. Include it in object_class and occurrence. The evidence establishes public availability, not ownership or personal history. Do not invent a platform/edition, plot, mechanic, release status or product detail not supported by the evidence.
+- An already-selected posting action may be motivated by an impression, preference, ordinary curiosity or wish to discuss the target. No malfunction, state change or dramatic novelty is required. This permission does not create extra actions or override the fixed discourse_mode.
 - Propose only observable or modestly inferable facts. Do not invent that a SYSOP checked logs, a machine failed internally, a phone network caused something, or an earlier post existed unless supplied canonical state establishes it.
 - Technical roots should describe observable behavior appropriate to the selected board/domain; software roots need not become terminal/call/session incidents. Do not guess protocols, carrier causes or internal hardware faults.
 %s

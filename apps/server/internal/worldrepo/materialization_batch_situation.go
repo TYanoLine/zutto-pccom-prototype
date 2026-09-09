@@ -39,6 +39,8 @@ type developmentSituationProposal struct {
 	noveltyKey        string
 	mustNot           []string
 	groundingEvidence []string
+	topicTarget       string
+	topicTargetStatus string
 }
 
 type developmentWorldSituationPlan struct {
@@ -100,6 +102,9 @@ func (m LLMMaterializer) PlanDevelopmentWorldSituations(ctx context.Context, hos
 		existingFacts := make([]string, 0, len(factsByPersona[shell.persona.ID]))
 		for _, fact := range factsByPersona[shell.persona.ID] {
 			existingFacts = append(existingFacts, "BACKGROUND ONLY: "+fact.Key+"="+fact.Value)
+		}
+		if item.topicTarget != nil {
+			existingFacts = append(existingFacts, "TOPIC TARGET SELECTED BY WORLD: "+item.topicTarget.Name+" || VERIFIED EVIDENCE: "+item.topicTarget.Evidence)
 		}
 		events = append(events, llm.BBSWorldWindowEvent{
 			EventID:        item.eventID,
@@ -176,6 +181,13 @@ func (r *Repository) developmentPlanBatchSituations(host world.Host, window []de
 	}
 
 	factsByPersona := r.existingPersonaFactsByID(personas)
+	if developmentTopicFirstEnabled(r) {
+		var err error
+		roots, err = r.developmentSelectTopicTargets(host, roots)
+		if err != nil {
+			return nil, err
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), developmentBatchSituationTimeout(len(roots)))
 	defer cancel()
 	first, err := planner.PlanDevelopmentWorldSituations(ctx, host, r.WorldDate, roots, factsByPersona, planningBBSState(r.Base.ListPosts(host.ID), 24), nil)
@@ -218,7 +230,7 @@ func (r *Repository) developmentPlanBatchSituations(host world.Host, window []de
 		}
 	}
 
-	if developmentSearchGroundingPoCEnabled(r) {
+	if developmentSearchGroundingPoCEnabled(r) && !developmentTopicFirstEnabled(r) {
 		var groundingUsage GenerationUsage
 		accepted, groundingUsage = r.developmentSearchGroundSituations(host, roots, accepted, factsByPersona)
 		usage = addDevelopmentGenerationUsage(usage, groundingUsage)
@@ -231,6 +243,11 @@ func (r *Repository) developmentPlanBatchSituations(host world.Host, window []de
 		proposal, found := accepted[item.eventID]
 		if !found {
 			return nil, fmt.Errorf("batch situation planning omitted accepted root %q", item.eventID)
+		}
+		proposal.topicTargetStatus = item.topicTargetStatus
+		if item.topicTarget != nil {
+			proposal.topicTarget = item.topicTarget.Name
+			proposal.groundingEvidence = append(proposal.groundingEvidence, developmentSelectedGroundingEvidence(*item.topicTarget))
 		}
 		out[item.eventID] = developmentSparseSituationFromProposal(item.shell, proposal)
 	}
@@ -301,11 +318,8 @@ func developmentValidateOneSituationProposal(root developmentWindowShell, p deve
 	if owner := noveltyOwner[novelty]; owner != "" && owner != root.eventID {
 		return "novelty_key duplicates unrelated root " + owner
 	}
-	object := developmentNormalizeSituationKey(p.objectClass)
-	if boardObjectOwner[root.board.ID] != nil {
-		if owner := boardObjectOwner[root.board.ID][object]; owner != "" && owner != root.eventID {
-			return "object_class duplicates another root on the same board " + owner
-		}
+	if root.topicTarget != nil && !developmentRefinementUsesSelectedReferent(p, root.topicTarget.Name) {
+		return "selected topic target missing: " + root.topicTarget.Name
 	}
 	for _, prior := range boardOccurrences[root.board.ID] {
 		if developmentSituationTextSimilarity(prior, p.occurrence) >= .68 {
@@ -383,6 +397,12 @@ func developmentSparseSituationFromProposal(shell developmentTimelineShell, p de
 		if strings.TrimSpace(value) != "" {
 			facts = append(facts, "historical_grounding="+strings.TrimSpace(value))
 		}
+	}
+	if p.topicTargetStatus != "" {
+		facts = append(facts, "topic_target_status="+p.topicTargetStatus)
+	}
+	if p.topicTarget != "" {
+		facts = append(facts, "topic_target="+p.topicTarget, "subject_contract=For this standalone root retain the exact topic_target short name in the subject, together with the actor's matter. Do not replace it with a generic label. Body must concern the same target.")
 	}
 	for _, value := range p.mustNot {
 		if strings.TrimSpace(value) != "" {

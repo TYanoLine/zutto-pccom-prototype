@@ -6,8 +6,10 @@ type Article = {
   subject: string; body: string; action?: string; anchor_key?: string; cause_kind?: string;
   discourse_mode?: string; source_post_id?: number; responds_to_post_id?: number;
   situation_kind?: string; situation_summary?: string; situation_facts?: string[];
+  topic_target?: string; topic_target_status?: string; subject_target_present?: boolean;
 };
 type Job = {
+  build_commit?: string;
   id: string; status: string; situation_mode?: string; historical_texture?: string; board_count?: number; shell_limit?: number;
   boards?: Board[]; created_at: string; finished_at?: string; duration_ms?: number; post_count?: number;
   body_count?: number; failures?: number; usage?: string; situation_diagnostic?: string; articles?: Article[];
@@ -134,6 +136,7 @@ export default function MaterializationLabViewerPage() {
             {i>0 && <div className="subject">{post.subject}</div>}
             <div className="body">{post.body}</div>
             {debug && <details open className="worldDebug"><summary>WORLD / SITUATION</summary>
+              {post.topic_target_status && <p>対象選定: {post.topic_target_status} · 対象: {post.topic_target || '一般話題／未選定'} · 件名への保持: {post.topic_target ? (post.subject_target_present ? '確認' : '欠落') : '対象外'}</p>}
               <dl><dt>action</dt><dd>{post.action || '-'}</dd><dt>anchor</dt><dd>{post.anchor_key || '-'}</dd><dt>cause</dt><dd>{post.cause_kind || '-'}</dd><dt>discourse</dt><dd>{post.discourse_mode || '-'}</dd><dt>source</dt><dd>{post.source_post_id || '-'}</dd><dt>situation</dt><dd>{post.situation_kind || '-'}</dd></dl>
               {post.situation_summary && <p>{post.situation_summary}</p>}
               {!!post.situation_facts?.length && <ul>{post.situation_facts.map((f,n)=><li key={n}>{f}</li>)}</ul>}
@@ -141,7 +144,7 @@ export default function MaterializationLabViewerPage() {
           </article>)}
         </section>
       </main>
-      <footer>JOB {job.id} · finished {fmt(job.finished_at)} · archived experimental output; not canonical BBS world</footer>
+      <footer>JOB {job.id} · BUILD {job.build_commit || '未記録'} · finished {fmt(job.finished_at)} · archived experimental output; not canonical BBS world</footer>
     </>}
   </div>;
 }

@@ -147,3 +147,41 @@ func TestConversationViewPoCReplyUsesRenderedParentAsChatHistory(t *testing.T) {
 		t.Fatalf("reply worker should choose prose with subject canonicalized after render: %q", renderer.req.CanonicalSubject)
 	}
 }
+
+func TestConversationViewDoesNotCommitAnonymizedTopicTarget(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "NEKO", Subject: "このゲームの話", Body: "架空ゲームAの感想です。"}}
+	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentConversationViewPoC()
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boards, _ := repo.MaterializationBoards(host)
+	posts, _ := repo.MaterializationPersonaArticleHeaders(host, boards[0])
+	var root world.Post
+	for _, p := range posts {
+		if p.ParentID == 0 && p.Intent.SourcePostID == 0 {
+			root = p
+			break
+		}
+	}
+	if root.ID == 0 {
+		t.Fatal("no root")
+	}
+	root.Intent.SituationFacts = append(root.Intent.SituationFacts, "topic_target=架空ゲームA")
+	base.UpdatePost(host.ID, root)
+	_, found, created, diag := repo.MaterializationArticleWithDebug(host, boards[0], root.ID)
+	if !found || created || !strings.Contains(diag, "stage=subject") {
+		t.Fatalf("found=%v created=%v diag=%s", found, created, diag)
+	}
+	stored, _ := developmentConversationFindPost(base.ListPosts(host.ID), root.ID)
+	if stored.Body != "" || stored.Subject != root.Subject {
+		t.Fatal("invalid subject was committed")
+	}
+	renderer.draft.Subject = "架空ゲームAの感想"
+	got, _, created, diag := repo.MaterializationArticleWithDebug(host, boards[0], root.ID)
+	if !created || got.Subject != renderer.draft.Subject {
+		t.Fatalf("retry failed: %s", diag)
+	}
+}

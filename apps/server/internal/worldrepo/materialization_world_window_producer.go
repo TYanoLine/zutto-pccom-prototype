@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -14,9 +15,11 @@ import (
 const developmentWorldWindowPoCMaxShellsPerBoard = 5
 
 type developmentWindowShell struct {
-	eventID string
-	board   world.Board
-	shell   developmentTimelineShell
+	eventID           string
+	board             world.Board
+	shell             developmentTimelineShell
+	topicTarget       *developmentGroundingCandidate
+	topicTargetStatus string
 }
 
 type developmentWorldWindowPlanEvent struct {
@@ -58,7 +61,9 @@ func (m LLMMaterializer) PlanDevelopmentWorldWindow(ctx context.Context, host wo
 	}
 
 	dates := []string{worldDate}
-	for _, item := range shells { dates = append(dates, item.shell.createdAt.Format("2006-01-02")) }
+	for _, item := range shells {
+		dates = append(dates, item.shell.createdAt.Format("2006-01-02"))
+	}
 	m = m.withPeriodReferents(dates...)
 
 	events := make([]llm.BBSWorldWindowEvent, 0, len(shells))
@@ -102,16 +107,23 @@ func (m LLMMaterializer) PlanDevelopmentWorldWindow(ctx context.Context, host wo
 		})
 	}
 
+	var publicReferents []string
+	if m.CuratedHistoricalReferences {
+		for _, item := range historicalkb.PeriodReferents(windowStart.Format("2006-01-02")) {
+			publicReferents = append(publicReferents, item.Name)
+		}
+	}
 	draft, err := producer.GenerateBBSWorldWindowProduction(ctx, llm.BBSWorldWindowProductionRequest{
-		HostName:       host.Name,
-		HostRegion:     host.Region,
-		HostSoftware:   host.Software,
-		WorldDate:      worldDate,
-		WindowStart:    windowStart.Format(time.RFC3339),
-		WindowEnd:      windowEnd.Format(time.RFC3339),
-		EraRules:       m.planningEraRules(),
-		RecentBBSState: recentBBS,
-		Events:         events,
+		PublicReferents: publicReferents,
+		HostName:        host.Name,
+		HostRegion:      host.Region,
+		HostSoftware:    host.Software,
+		WorldDate:       worldDate,
+		WindowStart:     windowStart.Format(time.RFC3339),
+		WindowEnd:       windowEnd.Format(time.RFC3339),
+		EraRules:        m.planningEraRules(),
+		RecentBBSState:  recentBBS,
+		Events:          events,
 	})
 	if err != nil {
 		return developmentWorldWindowPlan{}, err

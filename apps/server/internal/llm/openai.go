@@ -142,7 +142,7 @@ func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequ
 	if strings.TrimSpace(req.PostIntent) != "" {
 		intent = req.PostIntent
 	}
-	subjectRule := "Choose a natural Japanese subject of at most 36 characters."
+	subjectRule := historicalBBSSubjectCalibration
 	if strings.TrimSpace(req.CanonicalSubject) != "" {
 		subjectRule = fmt.Sprintf("The subject is already canonical world state. Return it exactly as: %s", req.CanonicalSubject)
 	}
