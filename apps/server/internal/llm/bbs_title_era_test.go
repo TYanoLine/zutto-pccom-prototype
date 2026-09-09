@@ -1,6 +1,9 @@
 package llm
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestValidateBBSTitleEraReview(t *testing.T) {
 	req := BBSTitleEraRequest{WorldDate: "1996-08-13", BoardName: "ゲーム", Titles: []string{"最近何してる？", "ポケモン赤・緑"}}
@@ -20,6 +23,23 @@ func TestValidateBBSTitleEraReview(t *testing.T) {
 	for _, draft := range cases {
 		if ValidateBBSTitleEraReview(req, draft) == nil {
 			t.Fatalf("accepted invalid era review: %+v", draft)
+		}
+	}
+}
+
+func TestTitleEraRoutingPromptResearchesMaterialDateClaimsNotEveryProperNoun(t *testing.T) {
+	prompt := titleEraRoutingPrompt(`{"world_date":"1996-08-13"}`)
+	for _, want := range []string{
+		"固有名詞があるだけではresearchにしません",
+		"秋葉原で見つけた掘り出し物",
+		"フロッピーディスクの整理法",
+		"横浜線が今朝遅延",
+		"FFVII発売日決定！",
+		"PIAFS対応PHS",
+		"8月26日現在の価格情報",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("routing guidance lost %q", want)
 		}
 	}
 }

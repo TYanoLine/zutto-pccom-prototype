@@ -111,7 +111,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		usage = addDevelopmentGenerationUsage(usage, GenerationUsage{InputTokens: u.InputTokens, CachedInputTokens: u.CachedInputTokens, OutputTokens: u.OutputTokens, ReasoningTokens: u.ReasoningTokens, TotalTokens: u.TotalTokens, Model: u.Model})
 	}
 	defer func() { storeDevelopmentPlanningUsage(r, host.ID, "title-first", usage) }()
-	for _, board := range boards {
+	for boardIndex, board := range boards {
 		// Minimal first pass deliberately receives no personas, slots or style rules.
 		pool, err := planner.GenerateBBSTitleCandidates(ctx, r.WorldDate, board.Name)
 		if err != nil {
@@ -127,7 +127,9 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		// this date it is safe for every later slot in the same generated window.
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
 		asOf := earliest.Format("2006-01-02")
-		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentValidateTitleEra(ctx, host, board, asOf, pool, state, offset, eraValidator)
+		boardsRemaining := len(boards) - boardIndex
+		researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
+		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentValidateTitleEra(ctx, host, board, asOf, pool, state, offset, researchAllowance, eraValidator)
 		addUsage(eraUsage)
 		if eraErr != nil || len(eligibleTitles) == 0 {
 			continue

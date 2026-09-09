@@ -26,6 +26,17 @@ type developmentTitleEraResearchJob struct {
 	title     string
 }
 
+func developmentTitleEraResearchAllowance(used, boardsRemaining int) int {
+	remaining := developmentTitleEraResearchBudget - used
+	if remaining <= 0 || boardsRemaining <= 0 {
+		return 0
+	}
+	// Reserve a fair share for every board that has not been processed yet.
+	// Ceil division lets unused earlier shares flow to later boards without
+	// exceeding the run-wide budget.
+	return (remaining + boardsRemaining - 1) / boardsRemaining
+}
+
 func (r *Repository) developmentValidateTitleEra(
 	ctx context.Context,
 	host world.Host,
@@ -34,6 +45,7 @@ func (r *Repository) developmentValidateTitleEra(
 	pool llm.BBSTitleCandidates,
 	state *developmentTitleFirstState,
 	offset int,
+	researchAllowance int,
 	validator llm.BBSTitleEraValidator,
 ) (eligibleTitles []string, originalCandidates []int, usage llm.TokenUsage, err error) {
 	req := llm.BBSTitleEraRequest{WorldDate: asOf, BoardName: board.Name, Titles: pool.Titles}
@@ -58,6 +70,7 @@ func (r *Repository) developmentValidateTitleEra(
 	}
 
 	researchJobs := make([]developmentTitleEraResearchJob, 0)
+	boardResearchUsed := 0
 	for candidate, title := range pool.Titles {
 		idx := candidate + 1
 		row := &state.rows[offset+candidate]
@@ -72,14 +85,15 @@ func (r *Repository) developmentValidateTitleEra(
 			row.Status = "era_rejected"
 			row.Reason = "時代検証で除外: " + d.Reason
 		case llm.BBSTitleEraResearch:
-			if state.eraResearchUsed >= developmentTitleEraResearchBudget {
+			if state.eraResearchUsed >= developmentTitleEraResearchBudget || boardResearchUsed >= researchAllowance {
 				row.EraStatus = "unverified"
-				row.EraReason = fmt.Sprintf("%s / Web史料確認はrun上限%d件に達したため未検証", d.Reason, developmentTitleEraResearchBudget)
+				row.EraReason = fmt.Sprintf("%s / Web史料確認はrun最大%d件を板間で公平配分するため、この板の今回枠%d件を超えて未検証", d.Reason, developmentTitleEraResearchBudget, researchAllowance)
 				row.Status = "era_rejected"
 				row.Reason = "時代検証未完了のため除外: " + row.EraReason
 				continue
 			}
 			state.eraResearchUsed++
+			boardResearchUsed++
 			row.EraStatus = "research"
 			row.EraReason = d.Reason
 			researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: idx, title: title})
