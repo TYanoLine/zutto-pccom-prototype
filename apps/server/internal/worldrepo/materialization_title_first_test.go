@@ -14,17 +14,19 @@ import (
 
 type titleFirstTestRenderer struct {
 	fakeBoardRenderer
-	calls          int
-	reviewCalls    int
-	reject         bool
-	malformedFirst bool
-	eraStatuses    map[int]string
-	reviewedTitles []string
-	reviewedEvents []llm.BBSWorldWindowEvent
+	calls              int
+	reviewCalls        int
+	reject             bool
+	malformedFirst     bool
+	eraStatuses        map[int]string
+	reviewedTitles     []string
+	reviewedEvents     []llm.BBSWorldWindowEvent
+	generationRequests []llm.BBSTitleGenerationRequest
 }
 
-func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
+func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(_ context.Context, r llm.BBSTitleGenerationRequest) (llm.BBSTitleCandidates, error) {
 	f.calls++
+	f.generationRequests = append(f.generationRequests, r)
 	titles := []string{}
 	for i := 0; i < 20; i++ {
 		titles = append(titles, fmt.Sprintf("話題%d", i))
@@ -82,6 +84,14 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 	}
 	if rows[0].EraStatus != "ok" {
 		t.Fatalf("era status not recorded: %+v", rows[0])
+	}
+	if len(renderer.generationRequests) == 0 || len(renderer.generationRequests[0].Situations) == 0 {
+		t.Fatalf("title generator did not receive canonical situations: %+v", renderer.generationRequests)
+	}
+	for _, situation := range renderer.generationRequests[0].Situations {
+		if situation.Kind == "" || situation.Summary == "" || len(situation.Facts) == 0 {
+			t.Fatalf("incomplete canonical situation sent to title generator: %+v", situation)
+		}
 	}
 	all := base.ListPosts(host.ID)
 	foundRoot := false

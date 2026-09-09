@@ -117,7 +117,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		situationHistory = append(situationHistory, world.Post{
 			BoardID:         item.board.ID,
 			AuthorPersonaID: s.persona.ID,
-			CreatedAt:        s.createdAt,
+			CreatedAt:       s.createdAt,
 			Intent: world.PostIntent{
 				SituationKind:    situation.kind,
 				SituationSummary: situation.summary,
@@ -151,7 +151,20 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	}
 	defer func() { storeDevelopmentPlanningUsage(r, host.ID, "title-first", usage) }()
 	for boardIndex, board := range boards {
-		pool, err := planner.GenerateBBSTitleCandidates(ctx, r.WorldDate, board.Name)
+		generationSituations := make([]llm.BBSTitleGenerationSituation, 0, len(events[board.ID]))
+		for i, event := range events[board.ID] {
+			generationSituations = append(generationSituations, llm.BBSTitleGenerationSituation{
+				Index:   i + 1,
+				Kind:    event.SituationKind,
+				Summary: event.SituationSummary,
+				Facts:   append([]string(nil), event.SituationFacts...),
+			})
+		}
+		pool, err := planner.GenerateBBSTitleCandidates(ctx, llm.BBSTitleGenerationRequest{
+			WorldDate:  r.WorldDate,
+			BoardName:  board.Name,
+			Situations: generationSituations,
+		})
 		if err != nil {
 			return nil, err
 		}
