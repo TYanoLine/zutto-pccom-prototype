@@ -1,3 +1,20 @@
+# タイトル候補先行の実験（title-first）
+
+```text
+POST /api/debug/materialization-lab-fresh?action=start&situation_mode=title-first&board_count=4&shell_limit=8
+GET /api/debug/materialization-lab-fresh?action=status&id=<id>
+```
+
+Vercelでは `/api/materialization-lab-fresh`。完了後は `/poc/materialization-lab-viewer?job=<id>`。
+選択した板の「タイトル候補の比較」で原文20候補・採用後・発言者・採否理由を比較する。
+
+- 最初の生成には「<世界日付>のパソコン通信botを再現します。以下条件の掲示板における記事タイトル候補を20個作ってください。掲示板名『<板名>』具体的な固有名詞を含めても良いです。」のみを使用する。人物・投稿理由・件名の文体指示を混ぜない。1995年固定ではなく実際の世界日付を使う。
+- 独立rootの投稿枠がある板ごとに20候補。後段でモデルが、既存の人物・日時・発言目的に合う割り当てを提案し、世界側がID・重複・必須項目等を検査して採用する。投稿枠自体の人物や日時は変えない。未採用rootとそれに依存する返信は作らず、件数を埋めない。
+- 無矛盾の候補は原文保持。具体的矛盾・長さの補正のみ理由付きで認める。採用済みタイトルは本文workerで再生成しない。返信は従来の親記事に基づく件名処理。
+- `historical_texture=model-memory` のみ対応、省略時もこの値。年代・個人設定の意味的チェックはモデルによる暫定検査で、史料検証済みの保証ではない。構造検査はコードで実施。通常世界には適用しない。
+- このモードでは既存PersonaFactsを保持し、過去記事の限定的な要約を矛盾防止に渡す。候補に合わせて人物の所有や経験を追加しない。通常世界への書き戻しなし。
+- `title_candidates` に原文を含めてアーカイブする。review失敗はunreviewedとして残す。生成の再試行で候補を勝手に作り直さない。既存の開始制限・排他を共用。
+
 # Materialization Lab — 生成の反復検証IF
 
 ## 対象を先に確定する件名検証（topic-first）
@@ -158,3 +175,4 @@ Vercel exposes a strict GET-only proxy at `/api/materialization-lab-viewer` and 
 ### 出典付き名称の既定モード
 
 freshのhistorical_texture省略時は `sourced`。通常配線と共通の出典・日付付き名称claimを使用する。`off` は複製materializerの出典付き供給・追加texture・広い歴史参照を明示的に無効化する。旧 `1996-08-curated` はfixture専用として残す。situation_modeの既定は引き続きfacetsなので、状況の具体化を比較する際はbatchを明示する。Web proxyも4つの実験パラメータを転送する。詳細は [固有名詞不足の分析](research/PERIOD_REFERENTS.md)。
+

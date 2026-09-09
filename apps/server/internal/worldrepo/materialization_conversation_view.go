@@ -106,7 +106,16 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 	})
 
 	batchSituations := map[string]developmentSparseSituation{}
-	if developmentBatchSituationPoCEnabled(r) {
+	if developmentTitleFirstEnabled(r) {
+		planned, err := r.developmentPlanTitleFirst(host, windowShells, personas)
+		if err != nil {
+			for _, board := range boards {
+				storeDevelopmentPlanningError(r, host.ID, board.ID, err)
+			}
+			return nil, false
+		}
+		batchSituations = planned
+	} else if developmentBatchSituationPoCEnabled(r) {
 		planned, err := r.developmentPlanBatchSituations(host, windowShells, personas)
 		if err != nil {
 			for _, board := range boards {
@@ -121,6 +130,16 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 	out := make([]world.Post, 0, len(windowShells))
 	for _, item := range windowShells {
 		shell := item.shell
+		if developmentTitleFirstEnabled(r) && shell.parentIndex == 0 && shell.sourceIndex == 0 {
+			if _, accepted := batchSituations[item.eventID]; !accepted {
+				continue
+			}
+		}
+		if developmentTitleFirstEnabled(r) && shell.sourceIndex != 0 {
+			if _, exists := committedByEventID[developmentWindowEventID(item.board.ID, shell.sourceIndex)]; !exists {
+				continue
+			}
+		}
 		parentID := int64(0)
 		sourcePostID := int64(0)
 		respondsToID := int64(0)
@@ -160,6 +179,19 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 			situation = proposed
 		}
 
+		if shell.parentIndex == 0 && shell.sourceIndex == 0 {
+			if fixed := titleFirstSubject(situation.facts); fixed != "" {
+				subject = fixed
+			}
+		} else if developmentTitleFirstEnabled(r) {
+			filtered := []string{}
+			for _, fact := range situation.facts {
+				if !strings.HasPrefix(fact, "title_first_") && !strings.HasPrefix(fact, "subject_contract=") {
+					filtered = append(filtered, fact)
+				}
+			}
+			situation.facts = filtered
+		}
 		post := world.Post{
 			BoardID:         item.board.ID,
 			ParentID:        parentID,
