@@ -58,7 +58,8 @@ func titleFirstSubject(facts []string) string {
 }
 
 // Only the isolated conversation Lab calls this. Candidate wording is generated
-// first, then era validation runs independently before persona/slot assignment.
+// first. Era routing is cheap; expensive historical research runs only after the
+// persona/slot matcher has tentatively selected a candidate for an actual post.
 func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (result map[string]developmentSparseSituation, err error) {
 	stateValue, _ := developmentTitleFirst.Load(r)
 	state := stateValue.(*developmentTitleFirstState)
@@ -127,9 +128,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		// this date it is safe for every later slot in the same generated window.
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
 		asOf := earliest.Format("2006-01-02")
-		boardsRemaining := len(boards) - boardIndex
-		researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
-		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentValidateTitleEra(ctx, host, board, asOf, pool, state, offset, researchAllowance, eraValidator)
+		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentRouteTitleEra(ctx, board, asOf, pool, state, offset, eraValidator)
 		addUsage(eraUsage)
 		if eraErr != nil || len(eligibleTitles) == 0 {
 			continue
@@ -155,6 +154,39 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			}
 			continue
 		}
+
+		// Only titles that both require historical evidence and were tentatively
+		// selected for a real event slot spend Web research budget.
+		boardsRemaining := len(boards) - boardIndex
+		researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
+		researchJobs := make([]developmentTitleEraResearchJob, 0)
+		selectedResearch := map[int]bool{}
+		for _, d := range review.Decisions {
+			if d.Candidate < 1 || d.Candidate > len(eligibleTitles) || d.EventID == "" {
+				continue
+			}
+			originalCandidate := originalCandidates[d.Candidate-1]
+			row := &state.rows[offset+originalCandidate-1]
+			if row.EraStatus != "research" {
+				continue
+			}
+			if len(researchJobs) >= researchAllowance || state.eraResearchUsed+len(researchJobs) >= developmentTitleEraResearchBudget {
+				row.EraStatus = "unverified"
+				row.EraReason = fmt.Sprintf("%s / 採用候補のWeb史料確認はrun最大%d件を板間で公平配分するため、この板の今回枠%d件を超えて未検証", row.EraReason, developmentTitleEraResearchBudget, researchAllowance)
+				continue
+			}
+			selectedResearch[originalCandidate] = true
+			researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: originalCandidate, title: d.Subject})
+		}
+		state.eraResearchUsed += len(researchJobs)
+		outcomes := r.developmentResearchTitleEraBatch(ctx, host, board, asOf, researchJobs)
+		for originalCandidate, outcome := range outcomes {
+			row := &state.rows[offset+originalCandidate-1]
+			row.EraStatus = outcome.status
+			row.EraReason = outcome.reason
+			row.EraEvidence = outcome.evidence
+		}
+
 		eventByID := map[string]llm.BBSWorldWindowEvent{}
 		for _, e := range events[board.ID] {
 			eventByID[e.EventID] = e
@@ -165,21 +197,48 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			}
 			originalCandidate := originalCandidates[d.Candidate-1]
 			row := &state.rows[offset+originalCandidate-1]
-			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 			row.Status = "rejected"
 			if d.EventID == "" {
+				if row.EraStatus == "research" {
+					routingReason := row.EraReason
+					row.EraStatus = "not_needed"
+					row.EraReason = "人物割当に使われなかったためWeb史料確認なし / 振り分け理由: " + routingReason
+				}
+				row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 				continue
 			}
 			e, ok := eventByID[d.EventID]
 			if !ok {
 				return nil, fmt.Errorf("title assignment outside world slots")
 			}
-			if _, exists := out[d.EventID]; exists {
-				return nil, fmt.Errorf("duplicate title assignment")
-			}
 			row.EventID = d.EventID
 			row.Author = e.AuthorHandle
 			row.Subject = d.Subject
+
+			if selectedResearch[originalCandidate] {
+				// The batch outcome has replaced the temporary "research" state above.
+			}
+			switch row.EraStatus {
+			case "ng":
+				row.Status = "era_rejected"
+				row.Reason = fmt.Sprintf("Web史料検証で除外: %s / 人物仮割当: %s", row.EraReason, d.Reason)
+				continue
+			case "unverified", "research":
+				row.Status = "era_rejected"
+				row.Reason = fmt.Sprintf("時代検証未完了のため除外: %s / 人物仮割当: %s", row.EraReason, d.Reason)
+				continue
+			case "ok", "verified":
+				// eligible
+			default:
+				row.Status = "era_rejected"
+				row.Reason = fmt.Sprintf("不明な時代検証状態 %q / 人物仮割当: %s", row.EraStatus, d.Reason)
+				continue
+			}
+
+			if _, exists := out[d.EventID]; exists {
+				return nil, fmt.Errorf("duplicate title assignment")
+			}
+			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 			row.Status = "accepted"
 			if d.Subject != row.Original {
 				row.Status = "corrected"

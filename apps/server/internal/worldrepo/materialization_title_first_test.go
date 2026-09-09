@@ -136,7 +136,37 @@ func (f *titleEraEvidenceResolver) ResolveEvidence(context.Context, worldengine.
 	}, nil
 }
 
-func TestTitleFirstResearchNGIsExcludedBeforePersonaAssignment(t *testing.T) {
+func TestTitleFirstDoesNotResearchUnselectedEraCandidates(t *testing.T) {
+	base := world.NewMemoryStore()
+	// Candidate 1 is selected by the fake matcher; candidate 2 requires era
+	// research but is never selected and therefore must not spend a search.
+	renderer := &titleFirstTestRenderer{eraStatuses: map[int]string{2: llm.BBSTitleEraResearch}}
+	resolver := &titleEraEvidenceResolver{claim: "ERA_OK: 基準日までに成立"}
+	repo := New(base, resolver, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentConversationViewPoC()
+	repo.EnableDevelopmentTitleFirstPoC(nil)
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.materializeConversationWorldWindow(host)
+	if resolver.calls != 0 {
+		t.Fatalf("unselected era candidates spent research calls: %d", resolver.calls)
+	}
+	rows := repo.DevelopmentTitleCandidates()
+	foundNotNeeded := false
+	for _, row := range rows {
+		if row.Candidate == 2 && row.EraStatus == "not_needed" {
+			foundNotNeeded = true
+			break
+		}
+	}
+	if !foundNotNeeded {
+		t.Fatalf("unselected research candidate was not archived as not_needed: %+v", rows)
+	}
+}
+
+func TestTitleFirstResearchNGAfterTentativeAssignmentNeverBecomesPost(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &titleFirstTestRenderer{eraStatuses: map[int]string{1: llm.BBSTitleEraResearch}}
 	resolver := &titleEraEvidenceResolver{claim: "ERA_NG: サービス開始は基準日より後"}
@@ -149,16 +179,21 @@ func TestTitleFirstResearchNGIsExcludedBeforePersonaAssignment(t *testing.T) {
 	}
 	repo.materializeConversationWorldWindow(host)
 	if resolver.calls == 0 {
-		t.Fatal("era research was not invoked")
+		t.Fatal("selected era research was not invoked")
 	}
 	rows := repo.DevelopmentTitleCandidates()
 	if len(rows) == 0 || rows[0].EraStatus != "ng" || rows[0].Status != "era_rejected" || rows[0].EraEvidence == "" {
 		t.Fatalf("research rejection not archived: %+v", rows)
 	}
+	matched := false
 	for _, reviewed := range renderer.reviewedTitles {
 		if reviewed == "話題0" {
-			t.Fatal("era-rejected title reached persona matcher")
+			matched = true
+			break
 		}
+	}
+	if !matched {
+		t.Fatal("research candidate did not reach tentative persona matching")
 	}
 	for _, post := range base.ListPosts(host.ID) {
 		if strings.Contains(post.Subject, "話題0") {
