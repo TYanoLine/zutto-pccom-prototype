@@ -54,6 +54,32 @@ func TestTitleReviewMissingReasonRejectsOnlyThatCandidate(t *testing.T) {
 	}
 }
 
+func TestTitleReviewRejectsUnsupportedWorldFactsBeforeAssignment(t *testing.T) {
+	draft := BBSTitleReview{Decisions: []BBSTitleDecision{
+		{Candidate: 1, EventID: "a", Subject: "ATコマンドの設定方法を教えてください", Summary: "設定方法を尋ねる", Reason: "質問なので既存事実だけで成立", FactStatus: BBSTitleFactNoNewFact},
+		{Candidate: 2, EventID: "b", Subject: "夏休み中にクリアしたゲーム報告", Summary: "クリア経験を共有", Reason: "share_experienceに合う", FactStatus: BBSTitleFactRequiresNewFact},
+		{Candidate: 3, Reason: "商店街の変化を前提にする", FactStatus: BBSTitleFactRequiresNewFact},
+	}}
+	rejectUnsupportedTitleWorldFacts(&draft)
+	if draft.Decisions[0].EventID != "a" || draft.Decisions[0].Subject == "" {
+		t.Fatalf("safe candidate changed: %+v", draft.Decisions[0])
+	}
+	for _, i := range []int{1, 2} {
+		d := draft.Decisions[i]
+		if d.EventID != "" || d.Subject != "" || d.Summary != "" || !strings.HasPrefix(d.Reason, "検査結果不備：世界エンジンが決めていない") {
+			t.Fatalf("unsupported fact candidate not blocked: %+v", d)
+		}
+	}
+}
+
+func TestTitleReviewValidatorRejectsAcceptedUnsupportedWorldFact(t *testing.T) {
+	req := BBSTitleReviewRequest{Titles: []string{"○○高校の文化祭に行ってきました"}, Events: []BBSWorldWindowEvent{{EventID: "a"}}}
+	draft := BBSTitleReview{Decisions: []BBSTitleDecision{{Candidate: 1, EventID: "a", Subject: req.Titles[0], Reason: "体験共有", Summary: "文化祭へ行った経験", FactStatus: BBSTitleFactRequiresNewFact}}}
+	if err := ValidateBBSTitleReview(req, draft); err == nil {
+		t.Fatal("accepted title that requires an unsupported world fact")
+	}
+}
+
 func TestTitleReviewDuplicateSlotRejectsOnlyLaterCandidateDeterministically(t *testing.T) {
 	req := BBSTitleReviewRequest{Titles: []string{"第一候補", "第二候補", "第三候補"}, Events: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}}}
 	// Deliberately return decisions out of order. Candidate number, not JSON
