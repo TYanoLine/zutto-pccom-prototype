@@ -204,6 +204,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 		}
 
 		selected := map[int]llm.BBSTitleDecision{}
+		selectedOrder := make([]int, 0, len(review.Decisions))
 		malformedThisPass := map[int]bool{}
 		retry := false
 		for _, d := range review.Decisions {
@@ -221,10 +222,12 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 				continue
 			}
 			selected[originalCandidate] = d
+			selectedOrder = append(selectedOrder, originalCandidate)
 		}
 
 		researchJobs := make([]developmentTitleEraResearchJob, 0)
-		for originalCandidate, d := range selected {
+		for _, originalCandidate := range selectedOrder {
+			d := selected[originalCandidate]
 			row := &state.rows[offset+originalCandidate-1]
 			e := eventByID[d.EventID]
 			row.EventID = d.EventID
@@ -254,7 +257,8 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 			row.EraEvidence = outcome.evidence
 		}
 
-		for originalCandidate, d := range selected {
+		for _, originalCandidate := range selectedOrder {
+			d := selected[originalCandidate]
 			row := &state.rows[offset+originalCandidate-1]
 			if row.Status == "era_rejected" {
 				continue
@@ -334,7 +338,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(
 
 	for _, originalCandidate := range originalCandidates {
 		row := &state.rows[offset+originalCandidate-1]
-		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" || row.Status == "unreviewed" {
+		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" {
 			continue
 		}
 		if row.EraStatus == "research" {
