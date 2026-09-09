@@ -126,6 +126,16 @@ A future persistent world store may promote compact open-loop state to an explic
 
 ## Subject-line calibration
 
+### Concrete target and matter (2026-09)
+
+Standalone root subjects identify what the member is talking about even when terse. Shared board membership is not evidence that everyone knows an unnamed game. Preserve a supplied short work/product name in its root subject; ordinary hobby-wide questions need no proper noun. Replies may rely on the established thread.
+
+An already-selected action can express a modest impression, preference or curiosity. It does not require a malfunction or exceptional change. The action/write gate remains world-owned; interests alone still do not cause posting.
+
+Duplicate detection distinguishes a public work/product identity from a private occurrence. Situation validation permits the same object with different matters but still rejects duplicate novelty keys and near-identical occurrences. Producer referent isolation permits only world-supplied public identities to recur across independent roots; private incidents remain isolated. The sourced ordinary producer supplies date-filtered public names, never a model-declared exemption.
+
+The fresh `topic-first` experiment selects researched targets before Situation proposal and preserves them into the subject/body. It is an opt-in comparison, not a silent migration of saved posts. See `MATERIALIZATION_LAB.md` for the exact invocation and diagnostics.
+
 Root subjects are generated as the text that the selected actor would actually type into the historical BBS subject field, rather than as a modern headline or article-summary task.
 
 The production structured planner includes a compact calibration derived from preserved Japanese PC-communication subject-line corpora. The evidence shows that subject fields can be terse, fragmentary, person-directed, context-dependent, declarative, announcement-like, playful, or interrogative. Questions are therefore not the default form, and subjects do not need to summarize the body or make sense to an outsider without board context.

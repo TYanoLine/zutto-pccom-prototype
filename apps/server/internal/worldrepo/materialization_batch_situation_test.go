@@ -8,7 +8,7 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-func TestDevelopmentBatchSituationValidatorRejectsSameBoardObject(t *testing.T) {
+func TestDevelopmentBatchSituationValidatorAllowsSameObjectDifferentMatter(t *testing.T) {
 	roots := []developmentWindowShell{
 		{eventID: "board-3:event-0001", board: world.Board{ID: "3"}, shell: developmentTimelineShell{createdAt: time.Now()}},
 		{eventID: "board-3:event-0002", board: world.Board{ID: "3"}, shell: developmentTimelineShell{createdAt: time.Now().Add(time.Hour)}},
@@ -18,11 +18,8 @@ func TestDevelopmentBatchSituationValidatorRejectsSameBoardObject(t *testing.T) 
 		roots[1].eventID: {eventID: roots[1].eventID, objectClass: "資源回収", changeClass: "場所変更", occurrence: "資源回収の場所が変わった", actorObservation: "掲示を見た", noveltyKey: "resource-place"},
 	}
 	accepted, rejected := developmentValidateSituationProposalBatch(roots, proposals, nil)
-	if len(accepted) != 1 || len(rejected) != 1 {
+	if len(accepted) != 2 || len(rejected) != 0 {
 		t.Fatalf("accepted=%d rejected=%v", len(accepted), rejected)
-	}
-	if !strings.Contains(rejected[roots[1].eventID], "object_class") {
-		t.Fatalf("wrong rejection: %v", rejected)
 	}
 }
 

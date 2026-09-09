@@ -1,5 +1,27 @@
 # Materialization Lab — 生成の反復検証IF
 
+## 対象を先に確定する件名検証（topic-first）
+
+次のPOSTで、記事の対象を先に史料で確認・選択し、その後にSituationと件名・本文を生成する。通常世界は変更せず、既存の開始制限・排他・アーカイブを使用する。
+
+```text
+POST /api/debug/materialization-lab-fresh?action=start&situation_mode=topic-first&historical_texture=search-grounded&board_count=6&shell_limit=8
+GET /api/debug/materialization-lab-fresh?action=status&id=<開始応答のid>
+```
+
+Vercel経由では `/api/materialization-lab-fresh`。完了後は `/poc/materialization-lab-viewer?job=<id>` で閲覧する。「内部Situationを表示」で選定対象・件名保持・用件・検索根拠を確認できる。
+
+- `topic-first` は `historical_texture=search-grounded` のみ対応。他の組合せは開始枠を消費する前に400。
+- 投稿の存在・人物・日時・board・root/reply・discourse modeは従来どおり世界側で決定する。
+- games/music/softwareの独立rootについて、板・領域ごとに最大6プール、同時3検索。各プールの最も早い記事日付を検索上限とする。候補の順位、既存の重複抑制と安定ハッシュで世界側が名前を選び、それをSituation入力へ渡す。
+- 検索済み名称は今回の架空の関与・感想・相談の対象であって、所有や購入の証明ではない。史料が未供給のゲーム仕様・攻略・価格・発売予定は補完しない。
+- 一般雑談は無理に命名しない。検索失敗・候補なし・予算超過は `topic_target_status` に明示され、匿名のままの結果を具体化成功とは扱わない。
+- 各記事の `topic_target`、`topic_target_status`、`subject_target_present` を追加。用件と根拠は `situation_summary` / `situation_facts` に保存。旧アーカイブの欠損フィールドは未計測。
+- 選定対象がSituationから落ちた場合は既存の一回の修復対象。本文workerが対象を件名から消した場合は生成失敗として未確定のまま残す。名前を後付けして成功に見せない。
+- `completed` だけで合格とはしない。件数、空本文、失敗数と対象保持を確認した上で、自然さ・同一作品の別用件・年代と版の整合を目視する。
+
+このモードは出典検索の外部実行時間を含むため、規模の大きい実験は既存の15分上限が適用される。モデルAPI使用量の表示には検索基盤側の全コストが含まれるとは限らない。
+
 開発者・AIエージェントがHTTP経由で実際の生成処理を起動し、結果を比較するための開発専用IF。端末操作を人に繰り返してもらわず、生成 → 結果照合 → 修正 → 再生成を行う。
 
 各labは既存の開発ホストを独立したMemoryStoreへ複製し、その中で生成する。実験の記事・人物事実を保存済みデモ世界へ書き戻さない。OpenAIの認証情報はサーバー側に保持され、実際のproviderを使うため実行にはLLM利用が発生し得る。世界の正本や通常の世界進行スケジューラとして使わない。

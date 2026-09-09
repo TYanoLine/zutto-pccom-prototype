@@ -147,6 +147,24 @@ func TestValidateBBSWorldWindowProductionAllowsReferentReuseInsideExplicitThread
 	}
 }
 
+func TestPublicProductIdentityCanRecurWithoutSharingPrivateIncident(t *testing.T) {
+	req := BBSWorldWindowProductionRequest{PublicReferents: []string{"架空ゲームA"}, Events: []BBSWorldWindowEvent{
+		{EventID: "a", Action: "thread_start"}, {EventID: "b", Action: "thread_start"},
+	}}
+	draft := BBSWorldWindowProductionDraft{Briefs: []BBSArticleBriefDraft{
+		validProductionBrief("a", "架空ゲームAの感想", []string{"架空ゲームA"}, nil),
+		validProductionBrief("b", "架空ゲームAの相談", []string{"架空ゲームA"}, nil),
+	}}
+	if err := validateBBSWorldWindowProduction(req, draft); err != nil {
+		t.Fatal(err)
+	}
+	draft.Briefs[0].Referents = append(draft.Briefs[0].Referents, "同じ日の同じ故障")
+	draft.Briefs[1].Referents = append(draft.Briefs[1].Referents, "同じ日の同じ故障")
+	if err := validateBBSWorldWindowProduction(req, draft); err == nil {
+		t.Fatal("public product must not authorize private incident reuse")
+	}
+}
+
 func TestValidateBBSWorldWindowEventIDsRejectsUnknownTopologyReference(t *testing.T) {
 	events := []BBSWorldWindowEvent{{EventID: "reply", Action: "reply", ParentEventID: "missing"}}
 	if err := validateBBSWorldWindowEventIDs(events); err == nil {

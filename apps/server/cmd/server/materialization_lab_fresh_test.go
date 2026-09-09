@@ -1,11 +1,34 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
+
+func TestTopicFirstRejectsIncompatibleTextureBeforeAdmission(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/?action=start&situation_mode=topic-first&historical_texture=off", nil)
+	w := httptest.NewRecorder()
+	(&materializationLab{}).handleFreshStart(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d", w.Code)
+	}
+}
+
+func TestFreshArticlesExposeTopicTargetAndMissingSubject(t *testing.T) {
+	posts := []world.Post{{Subject: "このゲーム", Intent: world.PostIntent{SituationFacts: []string{"topic_target=架空ゲームA", "topic_target_status=selected"}}}}
+	a := collectMaterializationFreshArticles(posts)[0]
+	if a.TopicTarget != "架空ゲームA" || a.TopicTargetStatus != "selected" || a.SubjectTargetPresent {
+		t.Fatalf("article=%+v", a)
+	}
+	posts[0].Subject = "架空ゲームAの話"
+	if !collectMaterializationFreshArticles(posts)[0].SubjectTargetPresent {
+		t.Fatal("named subject should match")
+	}
+}
 
 func TestCollectMaterializationFreshArticlesPreservesProducerBrief(t *testing.T) {
 	at := time.Date(1996, 8, 24, 23, 12, 0, 0, time.Local)

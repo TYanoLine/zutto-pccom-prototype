@@ -69,6 +69,10 @@ The model should sound like a person living inside the date, not like a person w
 
 ### Period-native conversational economy
 
+For standalone roots, economy must not conceal the subject of conversation. A supplied work/product name belongs in the subject when it identifies the matter. Shared context permits ellipsis only once the relevant referent is established. General hobby questions remain valid without proper nouns.
+
+For an already-selected action, ordinary impressions, taste and curiosity can supply the conversational purpose without an exceptional change or fault. This does not let the model create posting actions from background facts.
+
 The inside view also changes what contemporary residents omit, name and explain. Prompting must preserve that economy rather than translating every event into a self-contained modern explanatory post.
 
 - Shared context may remain implicit. Subjects and bodies may be elliptical, fragmentary or locally understandable without explaining every referent to an outside reader.

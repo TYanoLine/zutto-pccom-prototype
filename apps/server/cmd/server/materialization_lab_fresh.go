@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"zutto-pccom/apps/server/internal/buildinfo"
 	"zutto-pccom/apps/server/internal/hostprogram/materializationdemo"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldrepo"
@@ -44,6 +45,9 @@ type materializationFreshArticle struct {
 	SituationKind           string    `json:"situation_kind,omitempty"`
 	SituationSummary        string    `json:"situation_summary,omitempty"`
 	SituationFacts          []string  `json:"situation_facts,omitempty"`
+	TopicTarget             string    `json:"topic_target,omitempty"`
+	TopicTargetStatus       string    `json:"topic_target_status,omitempty"`
+	SubjectTargetPresent    bool      `json:"subject_target_present"`
 	ProducerEventID         string    `json:"producer_event_id,omitempty"`
 	ProducerEpisode         string    `json:"producer_episode,omitempty"`
 	ProducerReferents       []string  `json:"producer_referents,omitempty"`
@@ -54,6 +58,7 @@ type materializationFreshArticle struct {
 }
 
 type materializationFreshJob struct {
+	BuildCommit         string                        `json:"build_commit,omitempty"`
 	ID                  string                        `json:"id"`
 	Status              string                        `json:"status"`
 	Phone               string                        `json:"phone"`
@@ -108,6 +113,8 @@ func normalizeFreshSituationMode(raw string) (string, bool) {
 		return "facetless", true
 	case "batch":
 		return "batch", true
+	case "topic-first":
+		return "topic-first", true
 	default:
 		return "", false
 	}
@@ -175,7 +182,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	situationMode, ok := normalizeFreshSituationMode(r.URL.Query().Get("situation_mode"))
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets, facetless or batch"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets, facetless, batch or topic-first"})
 		return
 	}
 	historicalTexture, ok := normalizeFreshHistoricalTexture(r.URL.Query().Get("historical_texture"))
@@ -184,9 +191,14 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off, model-memory, model-memory-concrete, search-grounded or 1996-08-curated"})
 		return
 	}
-	if historicalTexture == "search-grounded" && situationMode != "batch" {
+	if historicalTexture == "search-grounded" && situationMode != "batch" && situationMode != "topic-first" {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "search-grounded requires situation_mode=batch"})
+		return
+	}
+	if situationMode == "topic-first" && historicalTexture != "search-grounded" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "topic-first requires historical_texture=search-grounded"})
 		return
 	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
@@ -207,6 +219,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
 	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, HistoricalTexture: historicalTexture, BoardCount: boardCount, ShellLimit: shellLimit, Boards: freshScaleBoards(boardCount), CreatedAt: time.Now().UTC()}
+	job.BuildCommit = buildinfo.Current().Commit
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
 	materializationFreshLab.mu.Unlock()
@@ -301,6 +314,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	if job.SituationMode == "batch" {
 		repo.EnableDevelopmentBatchSituationPoC()
 	}
+	if job.SituationMode == "topic-first" {
+		repo.EnableDevelopmentTopicFirstPoC()
+	}
 	if job.HistoricalTexture == "search-grounded" {
 		repo.EnableDevelopmentSearchGroundingPoC()
 	}
@@ -375,7 +391,19 @@ func (l *materializationLab) runFreshAllBody(id string) {
 func collectMaterializationFreshArticles(posts []world.Post) []materializationFreshArticle {
 	out := make([]materializationFreshArticle, 0, len(posts))
 	for _, p := range posts {
+		target, targetStatus := "", ""
+		for _, fact := range p.Intent.SituationFacts {
+			if strings.HasPrefix(fact, "topic_target=") {
+				target = strings.TrimPrefix(fact, "topic_target=")
+			}
+			if strings.HasPrefix(fact, "topic_target_status=") {
+				targetStatus = strings.TrimPrefix(fact, "topic_target_status=")
+			}
+		}
 		out = append(out, materializationFreshArticle{
+			TopicTarget:             target,
+			TopicTargetStatus:       targetStatus,
+			SubjectTargetPresent:    worldrepo.TopicTargetInSubject(p.Subject, target),
 			ID:                      p.ID,
 			BoardID:                 p.BoardID,
 			ParentID:                p.ParentID,

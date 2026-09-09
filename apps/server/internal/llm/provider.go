@@ -116,15 +116,18 @@ type BBSWorldWindowEvent struct {
 }
 
 type BBSWorldWindowProductionRequest struct {
-	HostName       string
-	HostRegion     string
-	HostSoftware   string
-	WorldDate      string
-	WindowStart    string
-	WindowEnd      string
-	EraRules       string
-	RecentBBSState string
-	Events         []BBSWorldWindowEvent
+	// PublicReferents are world-supplied, historically supported identities, not
+	// private incidents. They may recur across independent roots.
+	PublicReferents []string
+	HostName        string
+	HostRegion      string
+	HostSoftware    string
+	WorldDate       string
+	WindowStart     string
+	WindowEnd       string
+	EraRules        string
+	RecentBBSState  string
+	Events          []BBSWorldWindowEvent
 }
 
 // BBSArticleBriefDraft is the producer's canonical semantic/editorial brief for
