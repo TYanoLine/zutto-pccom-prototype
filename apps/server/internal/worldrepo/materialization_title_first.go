@@ -57,6 +57,10 @@ func titleFirstSubject(facts []string) string {
 	return ""
 }
 
+func titleFirstReviewDecisionMalformed(reason string) bool {
+	return strings.HasPrefix(strings.TrimSpace(reason), "検査結果不備：")
+}
+
 // Only the isolated conversation Lab calls this. Candidate wording is generated
 // first. Era routing is cheap; expensive historical research runs only after the
 // persona/slot matcher has tentatively selected a candidate for an actual post.
@@ -113,7 +117,6 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	}
 	defer func() { storeDevelopmentPlanningUsage(r, host.ID, "title-first", usage) }()
 	for boardIndex, board := range boards {
-		// Minimal first pass deliberately receives no personas, slots or style rules.
 		pool, err := planner.GenerateBBSTitleCandidates(ctx, r.WorldDate, board.Name)
 		if err != nil {
 			return nil, err
@@ -123,9 +126,6 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		for i, title := range pool.Titles {
 			state.rows = append(state.rows, DevelopmentTitleCandidate{BoardID: board.ID, Candidate: i + 1, Original: title, Status: "unreviewed", Reason: "検査未完了"})
 		}
-
-		// Use the earliest eligible root on the board. If a real referent existed by
-		// this date it is safe for every later slot in the same generated window.
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
 		asOf := earliest.Format("2006-01-02")
 		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentRouteTitleEra(ctx, board, asOf, pool, state, offset, eraValidator)
@@ -133,52 +133,95 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		if eraErr != nil || len(eligibleTitles) == 0 {
 			continue
 		}
-
 		prior := []world.Post{}
 		for _, post := range state.history {
 			if post.CreatedAt.Before(earliest) {
 				prior = append(prior, post)
 			}
 		}
-		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: eligibleTitles, Events: events[board.ID], RecentBBSState: planningBBSState(prior, 48)}
+		boardsRemaining := len(boards) - boardIndex
+		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], planningBBSState(prior, 48), state, offset, boardsRemaining, planner, addUsage, out); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host world.Host, board world.Board, asOf string, eligibleTitles []string, originalCandidates []int, boardEvents []llm.BBSWorldWindowEvent, recentBBSState string, state *developmentTitleFirstState, offset int, boardsRemaining int, planner llm.BBSTitleCandidatePlanner, addUsage func(llm.TokenUsage), out map[string]developmentSparseSituation) error {
+	remainingTitles := append([]string(nil), eligibleTitles...)
+	remainingCandidates := append([]int(nil), originalCandidates...)
+	remainingEvents := append([]llm.BBSWorldWindowEvent(nil), boardEvents...)
+	eventByID := map[string]llm.BBSWorldWindowEvent{}
+	for _, e := range boardEvents {
+		eventByID[e.EventID] = e
+	}
+	acceptedCandidates := map[int]bool{}
+	acceptedEvents := map[string]bool{}
+	blockedCandidates := map[int]bool{}
+	lastReasons := map[int]string{}
+	researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
+	boardResearchUsed := 0
+	maxPasses := len(boardEvents) + 1
+	for pass := 0; pass < maxPasses && len(remainingTitles) > 0 && len(remainingEvents) > 0; pass++ {
+		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: remainingTitles, Events: remainingEvents, RecentBBSState: recentBBSState}
 		review, err := planner.ReviewBBSTitleCandidates(ctx, req)
 		addUsage(review.Usage)
 		if err == nil {
 			err = llm.ValidateBBSTitleReview(req, review)
 		}
 		if err != nil {
-			for _, originalCandidate := range originalCandidates {
+			for _, originalCandidate := range remainingCandidates {
 				row := &state.rows[offset+originalCandidate-1]
 				row.Status = "unreviewed"
 				row.Reason = fmt.Sprintf("時代[%s]: %s / 人物割当検査失敗: %s", row.EraStatus, row.EraReason, err.Error())
 			}
-			continue
+			return nil
 		}
-
-		// Only titles that both require historical evidence and were tentatively
-		// selected for a real event slot spend Web research budget.
-		boardsRemaining := len(boards) - boardIndex
-		researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
-		researchJobs := make([]developmentTitleEraResearchJob, 0)
-		selectedResearch := map[int]bool{}
+		selected := map[int]llm.BBSTitleDecision{}
+		selectedOrder := make([]int, 0, len(review.Decisions))
+		malformedThisPass := map[int]bool{}
+		retry := false
 		for _, d := range review.Decisions {
-			if d.Candidate < 1 || d.Candidate > len(eligibleTitles) || d.EventID == "" {
+			if d.Candidate < 1 || d.Candidate > len(remainingCandidates) {
+				return fmt.Errorf("invalid candidate index")
+			}
+			originalCandidate := remainingCandidates[d.Candidate-1]
+			lastReasons[originalCandidate] = d.Reason
+			if d.EventID == "" {
+				if titleFirstReviewDecisionMalformed(d.Reason) {
+					blockedCandidates[originalCandidate] = true
+					malformedThisPass[originalCandidate] = true
+					retry = true
+				}
 				continue
 			}
-			originalCandidate := originalCandidates[d.Candidate-1]
+			selected[originalCandidate] = d
+			selectedOrder = append(selectedOrder, originalCandidate)
+		}
+		researchJobs := make([]developmentTitleEraResearchJob, 0)
+		for _, originalCandidate := range selectedOrder {
+			d := selected[originalCandidate]
 			row := &state.rows[offset+originalCandidate-1]
+			e := eventByID[d.EventID]
+			row.EventID = d.EventID
+			row.Author = e.AuthorHandle
+			row.Subject = d.Subject
 			if row.EraStatus != "research" {
 				continue
 			}
-			if len(researchJobs) >= researchAllowance || state.eraResearchUsed+len(researchJobs) >= developmentTitleEraResearchBudget {
+			if boardResearchUsed+len(researchJobs) >= researchAllowance || state.eraResearchUsed+len(researchJobs) >= developmentTitleEraResearchBudget {
 				row.EraStatus = "unverified"
 				row.EraReason = fmt.Sprintf("%s / 採用候補のWeb史料確認はrun最大%d件を板間で公平配分するため、この板の今回枠%d件を超えて未検証", row.EraReason, developmentTitleEraResearchBudget, researchAllowance)
+				row.Status = "era_rejected"
+				row.Reason = fmt.Sprintf("時代検証未完了のため除外: %s / 人物仮割当: %s", row.EraReason, d.Reason)
+				blockedCandidates[originalCandidate] = true
+				retry = true
 				continue
 			}
-			selectedResearch[originalCandidate] = true
 			researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: originalCandidate, title: d.Subject})
 		}
 		state.eraResearchUsed += len(researchJobs)
+		boardResearchUsed += len(researchJobs)
 		outcomes := r.developmentResearchTitleEraBatch(ctx, host, board, asOf, researchJobs)
 		for originalCandidate, outcome := range outcomes {
 			row := &state.rows[offset+originalCandidate-1]
@@ -186,58 +229,41 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			row.EraReason = outcome.reason
 			row.EraEvidence = outcome.evidence
 		}
-
-		eventByID := map[string]llm.BBSWorldWindowEvent{}
-		for _, e := range events[board.ID] {
-			eventByID[e.EventID] = e
-		}
-		for _, d := range review.Decisions {
-			if d.Candidate < 1 || d.Candidate > len(eligibleTitles) {
-				return nil, fmt.Errorf("invalid candidate index")
-			}
-			originalCandidate := originalCandidates[d.Candidate-1]
+		for _, originalCandidate := range selectedOrder {
+			d := selected[originalCandidate]
 			row := &state.rows[offset+originalCandidate-1]
-			row.Status = "rejected"
-			if d.EventID == "" {
-				if row.EraStatus == "research" {
-					routingReason := row.EraReason
-					row.EraStatus = "not_needed"
-					row.EraReason = "人物割当に使われなかったためWeb史料確認なし / 振り分け理由: " + routingReason
-				}
-				row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
+			if row.Status == "era_rejected" {
 				continue
 			}
-			e, ok := eventByID[d.EventID]
-			if !ok {
-				return nil, fmt.Errorf("title assignment outside world slots")
-			}
-			row.EventID = d.EventID
-			row.Author = e.AuthorHandle
-			row.Subject = d.Subject
-
-			if selectedResearch[originalCandidate] {
-				// The batch outcome has replaced the temporary "research" state above.
+			if _, ok := eventByID[d.EventID]; !ok {
+				return fmt.Errorf("title assignment outside world slots")
 			}
 			switch row.EraStatus {
 			case "ng":
 				row.Status = "era_rejected"
 				row.Reason = fmt.Sprintf("Web史料検証で除外: %s / 人物仮割当: %s", row.EraReason, d.Reason)
+				blockedCandidates[originalCandidate] = true
+				retry = true
 				continue
 			case "unverified", "research":
 				row.Status = "era_rejected"
 				row.Reason = fmt.Sprintf("時代検証未完了のため除外: %s / 人物仮割当: %s", row.EraReason, d.Reason)
+				blockedCandidates[originalCandidate] = true
+				retry = true
 				continue
 			case "ok", "verified":
-				// eligible
 			default:
 				row.Status = "era_rejected"
 				row.Reason = fmt.Sprintf("不明な時代検証状態 %q / 人物仮割当: %s", row.EraStatus, d.Reason)
+				blockedCandidates[originalCandidate] = true
+				retry = true
 				continue
 			}
-
-			if _, exists := out[d.EventID]; exists {
-				return nil, fmt.Errorf("duplicate title assignment")
+			if acceptedEvents[d.EventID] {
+				return fmt.Errorf("duplicate title assignment")
 			}
+			acceptedCandidates[originalCandidate] = true
+			acceptedEvents[d.EventID] = true
 			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 			row.Status = "accepted"
 			if d.Subject != row.Original {
@@ -245,6 +271,52 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			}
 			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. Write only its matter within this actor's existing facts. Do not invent new possessions, purchases, personal history or unsupported game/technical details."}}
 		}
+		for originalCandidate := range malformedThisPass {
+			row := &state.rows[offset+originalCandidate-1]
+			row.Status = "rejected"
+			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, lastReasons[originalCandidate])
+		}
+		if !retry {
+			break
+		}
+		nextTitles := make([]string, 0, len(remainingTitles))
+		nextCandidates := make([]int, 0, len(remainingCandidates))
+		for i, originalCandidate := range remainingCandidates {
+			if acceptedCandidates[originalCandidate] || blockedCandidates[originalCandidate] {
+				continue
+			}
+			nextTitles = append(nextTitles, remainingTitles[i])
+			nextCandidates = append(nextCandidates, originalCandidate)
+		}
+		nextEvents := make([]llm.BBSWorldWindowEvent, 0, len(remainingEvents))
+		for _, e := range remainingEvents {
+			if !acceptedEvents[e.EventID] {
+				nextEvents = append(nextEvents, e)
+			}
+		}
+		if len(nextTitles) == len(remainingTitles) && len(nextEvents) == len(remainingEvents) {
+			break
+		}
+		remainingTitles = nextTitles
+		remainingCandidates = nextCandidates
+		remainingEvents = nextEvents
 	}
-	return out, nil
+	for _, originalCandidate := range originalCandidates {
+		row := &state.rows[offset+originalCandidate-1]
+		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" {
+			continue
+		}
+		if row.EraStatus == "research" {
+			routingReason := row.EraReason
+			row.EraStatus = "not_needed"
+			row.EraReason = "人物割当に使われなかったためWeb史料確認なし / 振り分け理由: " + routingReason
+		}
+		reason := strings.TrimSpace(lastReasons[originalCandidate])
+		if reason == "" {
+			reason = "人物割当に採用されなかった"
+		}
+		row.Status = "rejected"
+		row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, reason)
+	}
+	return nil
 }

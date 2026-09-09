@@ -15,7 +15,9 @@ import (
 type titleFirstTestRenderer struct {
 	fakeBoardRenderer
 	calls          int
+	reviewCalls    int
 	reject         bool
+	malformedFirst bool
 	eraStatuses    map[int]string
 	reviewedTitles []string
 }
@@ -40,15 +42,20 @@ func (f *titleFirstTestRenderer) ValidateBBSTitleEra(_ context.Context, r llm.BB
 	return llm.BBSTitleEraReview{Decisions: decisions}, nil
 }
 func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r llm.BBSTitleReviewRequest) (llm.BBSTitleReview, error) {
+	f.reviewCalls++
 	f.reviewedTitles = append(f.reviewedTitles, r.Titles...)
 	decisions := []llm.BBSTitleDecision{}
 	for i := range r.Titles {
 		d := llm.BBSTitleDecision{Candidate: i + 1, Reason: "適合枠なし"}
 		if i == 0 && len(r.Events) > 0 && !f.reject {
-			d.EventID = r.Events[0].EventID
-			d.Subject = r.Titles[i]
-			d.Summary = "感想を共有"
-			d.Reason = "整合"
+			if f.malformedFirst && f.reviewCalls == 1 {
+				d.Reason = "検査結果不備：モデルが理由を返さなかったため不採用"
+			} else {
+				d.EventID = r.Events[0].EventID
+				d.Subject = r.Titles[i]
+				d.Summary = "感想を共有"
+				d.Reason = "整合"
+			}
 		}
 		decisions = append(decisions, d)
 	}
@@ -166,7 +173,7 @@ func TestTitleFirstDoesNotResearchUnselectedEraCandidates(t *testing.T) {
 	}
 }
 
-func TestTitleFirstResearchNGAfterTentativeAssignmentNeverBecomesPost(t *testing.T) {
+func TestTitleFirstResearchNGRematchesSamePoolAndNeverBecomesPost(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &titleFirstTestRenderer{eraStatuses: map[int]string{1: llm.BBSTitleEraResearch}}
 	resolver := &titleEraEvidenceResolver{claim: "ERA_NG: サービス開始は基準日より後"}
@@ -185,20 +192,49 @@ func TestTitleFirstResearchNGAfterTentativeAssignmentNeverBecomesPost(t *testing
 	if len(rows) == 0 || rows[0].EraStatus != "ng" || rows[0].Status != "era_rejected" || rows[0].EraEvidence == "" {
 		t.Fatalf("research rejection not archived: %+v", rows)
 	}
-	matched := false
-	for _, reviewed := range renderer.reviewedTitles {
-		if reviewed == "話題0" {
-			matched = true
-			break
-		}
+	if renderer.reviewCalls < 2 {
+		t.Fatalf("era rejection did not trigger rematch: %d", renderer.reviewCalls)
 	}
-	if !matched {
-		t.Fatal("research candidate did not reach tentative persona matching")
-	}
+	foundFallback := false
 	for _, post := range base.ListPosts(host.ID) {
 		if strings.Contains(post.Subject, "話題0") {
 			t.Fatal("era-rejected title became a post")
 		}
+		if post.Subject == "話題1" {
+			foundFallback = true
+		}
+	}
+	if !foundFallback {
+		t.Fatal("safe fallback title was not materialized")
+	}
+}
+
+func TestTitleFirstMalformedDecisionRematchesWithoutRegeneratingPool(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &titleFirstTestRenderer{malformedFirst: true}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentConversationViewPoC()
+	repo.EnableDevelopmentTitleFirstPoC(nil)
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.materializeConversationWorldWindow(host)
+	if renderer.reviewCalls < 2 {
+		t.Fatalf("malformed decision did not trigger rematch: %d", renderer.reviewCalls)
+	}
+	if renderer.calls == 0 {
+		t.Fatal("candidate pool was not generated")
+	}
+	foundFallback := false
+	for _, post := range base.ListPosts(host.ID) {
+		if post.Subject == "話題1" {
+			foundFallback = true
+			break
+		}
+	}
+	if !foundFallback {
+		t.Fatal("malformed first choice was not replaced by next candidate")
 	}
 }
 
