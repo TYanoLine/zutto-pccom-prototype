@@ -1,0 +1,43 @@
+name: run-grounded-title-pool-after-93-once
+
+on:
+  push:
+    branches:
+      - ops/run-grounded-title-pool-after-93-20260910
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Start title-first grounded-pool lab
+        id: start
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
+          RESP="$(curl --fail-with-body -sS -X POST "${BASE}?action=start&situation_mode=title-first&board_count=4&shell_limit=8")"
+          echo "$RESP"
+          ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"$RESP")"
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "LAB_JOB_ID=$ID"
+      - name: Poll until terminal state
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
+          ID='${{ steps.start.outputs.id }}'
+          for i in $(seq 1 100); do
+            RESP="$(curl --fail-with-body -sS "${BASE}?action=status&id=${ID}")"
+            STATUS="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))' <<<"$RESP")"
+            echo "poll=$i status=$STATUS"
+            if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
+              echo 'FINAL_JSON_BEGIN'
+              echo "$RESP"
+              echo 'FINAL_JSON_END'
+              exit 0
+            fi
+            sleep 10
+          done
+          echo 'Timed out polling lab' >&2
+          exit 1
