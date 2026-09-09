@@ -5,16 +5,34 @@ import (
 	"testing"
 )
 
-func TestTitleCandidatePromptStaysMinimal(t *testing.T) {
-	p := titleCandidatePrompt("1995-10-01", "ゲーム雑談")
+func TestTitleCandidatePromptStaysMinimalWithoutSituations(t *testing.T) {
+	p := titleCandidatePrompt(BBSTitleGenerationRequest{WorldDate: "1995-10-01", BoardName: "ゲーム雑談"})
 	for _, want := range []string{"1995-10-01", "ゲーム雑談", "20個", "固有名詞を含めても良い"} {
 		if !strings.Contains(p, want) {
 			t.Fatal(p)
 		}
 	}
-	for _, bad := range []string{"persona", "discourse", "いますか", "出来事", "36"} {
+	for _, bad := range []string{"canonical situation", "人物プロフィール", "minimum"} {
 		if strings.Contains(p, bad) {
 			t.Fatal(p)
+		}
+	}
+}
+
+func TestTitleCandidatePromptGroundsPartOfPoolWithoutSpeakerData(t *testing.T) {
+	p := titleCandidatePrompt(BBSTitleGenerationRequest{
+		WorldDate: "1996-08-13",
+		BoardName: "ゲーム",
+		Situations: []BBSTitleGenerationSituation{{
+			Index:   1,
+			Kind:    "games_progress_setback",
+			Summary: "Canonical occurrence: a retry went farther.",
+			Facts:   []string{"occurrence=a retry went farther"},
+		}},
+	})
+	for _, want := range []string{"1996-08-13", "ゲーム", "各状況について最低2件", "残りの候補", "games_progress_setback", "occurrence=a retry went farther", "人物とは独立"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("missing %q in prompt: %s", want, p)
 		}
 	}
 }
