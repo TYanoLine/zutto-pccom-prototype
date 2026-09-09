@@ -89,6 +89,8 @@ summaryには採用する発言の用件と、本文が守るべき既存事実�
 	if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
 		return draft, err
 	}
+	draft.Usage = result.Usage
+	rejectUnexplainedTitleDecisions(&draft)
 	if err := ValidateBBSTitleReview(req, draft); err != nil {
 		return draft, err
 	}
@@ -135,4 +137,19 @@ func ValidateBBSTitleReview(req BBSTitleReviewRequest, draft BBSTitleReview) err
 		subjects[key] = true
 	}
 	return nil
+}
+
+// Never fabricate a review reason or accept an unexplained correction. A missing
+// explanation invalidates that candidate, not the entire independent pool.
+func rejectUnexplainedTitleDecisions(draft *BBSTitleReview) {
+	for i := range draft.Decisions {
+		d := &draft.Decisions[i]
+		if strings.TrimSpace(d.Reason) != "" {
+			continue
+		}
+		d.EventID = ""
+		d.Subject = ""
+		d.Summary = ""
+		d.Reason = "検査結果不備：モデルが理由を返さなかったため不採用"
+	}
 }

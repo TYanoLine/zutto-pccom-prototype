@@ -396,6 +396,18 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	job.Usage = repo.MaterializationUsageTotalText()
 	job.SituationDiagnostic = repo.DevelopmentBatchSituationDiagnostic(host.ID)
 	job.TitleCandidates = repo.DevelopmentTitleCandidates()
+	if job.SituationMode == "title-first" {
+		failedBoards := map[string]bool{}
+		for _, c := range job.TitleCandidates {
+			if c.Status == "unreviewed" {
+				failedBoards[c.BoardID] = true
+			}
+		}
+		job.Failures += len(failedBoards)
+		if len(failedBoards) > 0 {
+			job.Error = "一部の板で候補検査が失敗しました。候補一覧の理由を確認してください。"
+		}
+	}
 	job.Articles = articles
 	job.Status = "completed"
 	job.FinishedAt = time.Now().UTC()
