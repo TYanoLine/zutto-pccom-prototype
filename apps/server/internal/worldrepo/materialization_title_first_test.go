@@ -3,16 +3,21 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
+	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/worldengine"
 )
 
 type titleFirstTestRenderer struct {
 	fakeBoardRenderer
-	calls  int
-	reject bool
+	calls          int
+	reject         bool
+	eraStatuses    map[int]string
+	reviewedTitles []string
 }
 
 func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
@@ -23,7 +28,19 @@ func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, str
 	}
 	return llm.BBSTitleCandidates{Titles: titles}, nil
 }
+func (f *titleFirstTestRenderer) ValidateBBSTitleEra(_ context.Context, r llm.BBSTitleEraRequest) (llm.BBSTitleEraReview, error) {
+	decisions := make([]llm.BBSTitleEraDecision, 0, len(r.Titles))
+	for i := range r.Titles {
+		status := llm.BBSTitleEraOK
+		if f.eraStatuses != nil && f.eraStatuses[i+1] != "" {
+			status = f.eraStatuses[i+1]
+		}
+		decisions = append(decisions, llm.BBSTitleEraDecision{Candidate: i + 1, Status: status, Reason: "era-test"})
+	}
+	return llm.BBSTitleEraReview{Decisions: decisions}, nil
+}
 func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r llm.BBSTitleReviewRequest) (llm.BBSTitleReview, error) {
+	f.reviewedTitles = append(f.reviewedTitles, r.Titles...)
 	decisions := []llm.BBSTitleDecision{}
 	for i := range r.Titles {
 		d := llm.BBSTitleDecision{Candidate: i + 1, Reason: "適合枠なし"}
@@ -37,6 +54,7 @@ func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r l
 	}
 	return llm.BBSTitleReview{Decisions: decisions}, nil
 }
+
 func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &titleFirstTestRenderer{fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "書き換えられた件名", Body: "感想です。"}}}
@@ -52,6 +70,9 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 	rows := repo.DevelopmentTitleCandidates()
 	if len(rows) == 0 || len(rows)%20 != 0 {
 		t.Fatalf("missing candidate pool: %v", rows)
+	}
+	if rows[0].EraStatus != "ok" {
+		t.Fatalf("era status not recorded: %+v", rows[0])
 	}
 	all := base.ListPosts(host.ID)
 	foundRoot := false
@@ -80,6 +101,7 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 		t.Fatal("regenerated candidate pool")
 	}
 }
+
 func TestTitleFirstAllRejectedDoesNotRegenerateOrCreateOrphans(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &titleFirstTestRenderer{reject: true}
@@ -95,5 +117,64 @@ func TestTitleFirstAllRejectedDoesNotRegenerateOrCreateOrphans(t *testing.T) {
 	repo.materializeConversationWorldWindow(host)
 	if calls == 0 || renderer.calls != calls || len(base.ListPosts(host.ID)) != 0 {
 		t.Fatalf("calls %d -> %d posts %d", calls, renderer.calls, len(base.ListPosts(host.ID)))
+	}
+}
+
+type titleEraEvidenceResolver struct {
+	claim string
+	calls int
+}
+
+func (f *titleEraEvidenceResolver) ResolveEvidence(context.Context, worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	f.calls++
+	return worldengine.EvidenceDecision{
+		Level: historicalkb.EvidenceVerified,
+		Knowledge: historicalkb.KnowledgeResult{
+			CanUse: true,
+			Facts:  []historicalkb.HistoricalFact{{Status: historicalkb.FactVerified, Claim: f.claim}},
+		},
+	}, nil
+}
+
+func TestTitleFirstResearchNGIsExcludedBeforePersonaAssignment(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &titleFirstTestRenderer{eraStatuses: map[int]string{1: llm.BBSTitleEraResearch}}
+	resolver := &titleEraEvidenceResolver{claim: "ERA_NG: サービス開始は基準日より後"}
+	repo := New(base, resolver, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentConversationViewPoC()
+	repo.EnableDevelopmentTitleFirstPoC(nil)
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.materializeConversationWorldWindow(host)
+	if resolver.calls == 0 {
+		t.Fatal("era research was not invoked")
+	}
+	rows := repo.DevelopmentTitleCandidates()
+	if len(rows) == 0 || rows[0].EraStatus != "ng" || rows[0].Status != "era_rejected" || rows[0].EraEvidence == "" {
+		t.Fatalf("research rejection not archived: %+v", rows)
+	}
+	for _, reviewed := range renderer.reviewedTitles {
+		if reviewed == "話題0" {
+			t.Fatal("era-rejected title reached persona matcher")
+		}
+	}
+	for _, post := range base.ListPosts(host.ID) {
+		if strings.Contains(post.Subject, "話題0") {
+			t.Fatal("era-rejected title became a post")
+		}
+	}
+}
+
+func TestTitleEraOutcomeRequiresVerifiedMarker(t *testing.T) {
+	decision := worldengine.EvidenceDecision{Knowledge: historicalkb.KnowledgeResult{CanUse: true, Facts: []historicalkb.HistoricalFact{{Status: historicalkb.FactVerified, Claim: "ERA_OK: 1996年までに利用可能"}}}}
+	got := developmentTitleEraOutcomeFromEvidence(decision)
+	if got.status != "verified" || got.evidence == "" {
+		t.Fatalf("unexpected outcome: %+v", got)
+	}
+	decision.Knowledge.Facts[0].Claim = "確認できたがマーカーなし"
+	if got := developmentTitleEraOutcomeFromEvidence(decision); got.status != "unverified" {
+		t.Fatalf("accepted unmarked evidence: %+v", got)
 	}
 }
