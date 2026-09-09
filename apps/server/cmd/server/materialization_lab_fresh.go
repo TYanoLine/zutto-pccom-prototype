@@ -58,31 +58,32 @@ type materializationFreshArticle struct {
 }
 
 type materializationFreshJob struct {
-	BuildCommit         string                        `json:"build_commit,omitempty"`
-	ID                  string                        `json:"id"`
-	Status              string                        `json:"status"`
-	Phone               string                        `json:"phone"`
-	SituationMode       string                        `json:"situation_mode,omitempty"`
-	HistoricalTexture   string                        `json:"historical_texture,omitempty"`
-	BoardCount          int                           `json:"board_count,omitempty"`
-	ShellLimit          int                           `json:"shell_limit,omitempty"`
-	Boards              []world.Board                 `json:"boards,omitempty"`
-	ArchiveError        string                        `json:"archive_error,omitempty"`
-	SituationDiagnostic string                        `json:"situation_diagnostic,omitempty"`
-	CreatedAt           time.Time                     `json:"created_at"`
-	StartedAt           time.Time                     `json:"started_at,omitempty"`
-	FinishedAt          time.Time                     `json:"finished_at,omitempty"`
-	DurationMS          int64                         `json:"duration_ms,omitempty"`
-	RuntimeState        string                        `json:"runtime_state,omitempty"`
-	PostCount           int                           `json:"post_count,omitempty"`
-	BodyCount           int                           `json:"body_count,omitempty"`
-	EmptyPostIDs        []int64                       `json:"empty_post_ids,omitempty"`
-	Failures            int                           `json:"failures,omitempty"`
-	StatusText          string                        `json:"status_text,omitempty"`
-	PlanningDiagnostic  map[string]string             `json:"planning_diagnostic,omitempty"`
-	Usage               string                        `json:"usage,omitempty"`
-	Articles            []materializationFreshArticle `json:"articles,omitempty"`
-	Error               string                        `json:"error,omitempty"`
+	TitleCandidates     []worldrepo.DevelopmentTitleCandidate `json:"title_candidates,omitempty"`
+	BuildCommit         string                                `json:"build_commit,omitempty"`
+	ID                  string                                `json:"id"`
+	Status              string                                `json:"status"`
+	Phone               string                                `json:"phone"`
+	SituationMode       string                                `json:"situation_mode,omitempty"`
+	HistoricalTexture   string                                `json:"historical_texture,omitempty"`
+	BoardCount          int                                   `json:"board_count,omitempty"`
+	ShellLimit          int                                   `json:"shell_limit,omitempty"`
+	Boards              []world.Board                         `json:"boards,omitempty"`
+	ArchiveError        string                                `json:"archive_error,omitempty"`
+	SituationDiagnostic string                                `json:"situation_diagnostic,omitempty"`
+	CreatedAt           time.Time                             `json:"created_at"`
+	StartedAt           time.Time                             `json:"started_at,omitempty"`
+	FinishedAt          time.Time                             `json:"finished_at,omitempty"`
+	DurationMS          int64                                 `json:"duration_ms,omitempty"`
+	RuntimeState        string                                `json:"runtime_state,omitempty"`
+	PostCount           int                                   `json:"post_count,omitempty"`
+	BodyCount           int                                   `json:"body_count,omitempty"`
+	EmptyPostIDs        []int64                               `json:"empty_post_ids,omitempty"`
+	Failures            int                                   `json:"failures,omitempty"`
+	StatusText          string                                `json:"status_text,omitempty"`
+	PlanningDiagnostic  map[string]string                     `json:"planning_diagnostic,omitempty"`
+	Usage               string                                `json:"usage,omitempty"`
+	Articles            []materializationFreshArticle         `json:"articles,omitempty"`
+	Error               string                                `json:"error,omitempty"`
 }
 
 func (l *materializationLab) freshHandler() http.HandlerFunc {
@@ -113,6 +114,8 @@ func normalizeFreshSituationMode(raw string) (string, bool) {
 		return "facetless", true
 	case "batch":
 		return "batch", true
+	case "title-first":
+		return "title-first", true
 	case "topic-first":
 		return "topic-first", true
 	default:
@@ -182,10 +185,14 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	situationMode, ok := normalizeFreshSituationMode(r.URL.Query().Get("situation_mode"))
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets, facetless, batch or topic-first"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "situation_mode must be facets, facetless, batch, topic-first or title-first"})
 		return
 	}
-	historicalTexture, ok := normalizeFreshHistoricalTexture(r.URL.Query().Get("historical_texture"))
+	textureParam := r.URL.Query().Get("historical_texture")
+	if situationMode == "title-first" && strings.TrimSpace(textureParam) == "" {
+		textureParam = "model-memory"
+	}
+	historicalTexture, ok := normalizeFreshHistoricalTexture(textureParam)
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "historical_texture must be sourced, off, model-memory, model-memory-concrete, search-grounded or 1996-08-curated"})
@@ -199,6 +206,11 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	if situationMode == "topic-first" && historicalTexture != "search-grounded" {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "topic-first requires historical_texture=search-grounded"})
+		return
+	}
+	if situationMode == "title-first" && historicalTexture != "model-memory" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "title-first requires historical_texture=model-memory"})
 		return
 	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
@@ -273,8 +285,11 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	}
 	// Match RESET semantics for the semantic world: keep host/personas/boards and
 	// monotonically increasing post id, but remove all posts and delayed facts.
+	priorPosts := append([]world.Post(nil), snapshot.Posts...)
 	snapshot.Posts = nil
-	snapshot.PersonaFacts = map[string][]world.PersonaFact{}
+	if job.SituationMode != "title-first" {
+		snapshot.PersonaFacts = map[string][]world.PersonaFact{}
+	}
 	if snapshot.Host.SoftwareID == "materialization-demo" {
 		snapshot.Boards = freshScaleBoards(job.BoardCount)
 	}
@@ -308,6 +323,9 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	repo := worldrepo.New(base, l.engine, labMaterializer, l.worldDate)
 	repo.EnableDevelopmentConversationViewPoC()
 	repo.SetDevelopmentConversationShellLimit(job.ShellLimit)
+	if job.SituationMode == "title-first" {
+		repo.EnableDevelopmentTitleFirstPoC(priorPosts)
+	}
 	if job.SituationMode == "facetless" {
 		repo.EnableDevelopmentFacetlessSituationPoC()
 	}
@@ -377,6 +395,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	job.PlanningDiagnostic = diag
 	job.Usage = repo.MaterializationUsageTotalText()
 	job.SituationDiagnostic = repo.DevelopmentBatchSituationDiagnostic(host.ID)
+	job.TitleCandidates = repo.DevelopmentTitleCandidates()
 	job.Articles = articles
 	job.Status = "completed"
 	job.FinishedAt = time.Now().UTC()

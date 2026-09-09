@@ -12,6 +12,7 @@ func TestNormalizeFreshSituationMode(t *testing.T) {
 		{" FACETLESS ", "facetless", true},
 		{" batch ", "batch", true},
 		{" TOPIC-FIRST ", "topic-first", true},
+		{" TITLE-FIRST ", "title-first", true},
 		{"other", "", false},
 	}
 	for _, tt := range tests {

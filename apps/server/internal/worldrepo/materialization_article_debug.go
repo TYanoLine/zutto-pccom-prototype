@@ -109,6 +109,9 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		boardTopic = board.Name
 		canonicalSubject = ""
 	}
+	if fixed := titleFirstSubject(selected.Intent.SituationFacts); fixed != "" {
+		canonicalSubject = fixed
+	}
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = renderContext
 	req := BoardMaterializationRequest{
@@ -140,7 +143,11 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 			}
 			return selected, true, false, joinDevelopmentDiagnostics("error stage=subject detail=selected topic target missing", contextStats.String())
 		}
-		selected.Subject = r.developmentConversationRenderedSubject(host.ID, selected, posts[0].Subject)
+		if fixed := titleFirstSubject(selected.Intent.SituationFacts); fixed != "" {
+			selected.Subject = fixed
+		} else {
+			selected.Subject = r.developmentConversationRenderedSubject(host.ID, selected, posts[0].Subject)
+		}
 	}
 	selected.Body = posts[0].Body
 	if selected.Body == "" {

@@ -8,7 +8,9 @@ type Article = {
   situation_kind?: string; situation_summary?: string; situation_facts?: string[];
   topic_target?: string; topic_target_status?: string; subject_target_present?: boolean;
 };
+type TitleCandidate = { board_id:string; candidate:number; original:string; subject:string; author:string; status:string; reason:string };
 type Job = {
+  title_candidates?: TitleCandidate[];
   build_commit?: string;
   id: string; status: string; situation_mode?: string; historical_texture?: string; board_count?: number; shell_limit?: number;
   boards?: Board[]; created_at: string; finished_at?: string; duration_ms?: number; post_count?: number;
@@ -118,6 +120,13 @@ export default function MaterializationLabViewerPage() {
         </button>)}
       </nav>
 
+      {!!job.title_candidates?.length && <details open className="worldDebug">
+        <summary>タイトル候補の比較（モデル知識による暫定検査・史料未検証）</summary>
+        <div style={{overflowX:'auto'}}><table><thead><tr><th>候補</th><th>生成直後</th><th>採用後</th><th>発言者</th><th>判定</th><th>理由</th></tr></thead>
+          <tbody>{job.title_candidates.filter(c=>c.board_id===boardID).map(c=><tr key={c.candidate}>
+            <td>{c.candidate}</td><td>{c.original}</td><td>{c.subject || '—'}</td><td>{c.author || '—'}</td><td>{c.status}</td><td>{c.reason}</td>
+          </tr>)}</tbody></table></div>
+      </details>}
       <main>
         <aside className="threads">
           <div className="paneTitle">スレッド一覧</div>
@@ -152,3 +161,4 @@ export default function MaterializationLabViewerPage() {
 const css = `
 :root{background:#07100c;color:#d8f6df;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono CJK JP",monospace}*{box-sizing:border-box}body{margin:0;background:#07100c}.labviewer{min-height:100vh;padding:22px;max-width:1500px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #335844;padding-bottom:12px}.eyebrow{font-size:11px;letter-spacing:.18em;color:#70a981}h1{font-size:25px;margin:5px 0 0;font-weight:600}.readonly{border:1px solid #72c38b;color:#9ff6b8;padding:7px 10px;font-size:12px}.note{color:#92ad9b;font-size:12px;padding:10px 0}.runbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#0c1711;border:1px solid #263b2d;padding:10px}.runbar label{font-size:11px;color:#8fad98}.runbar select{display:block;min-width:430px;max-width:70vw;margin-top:4px;background:#07100c;color:#d8f6df;border:1px solid #3d634b;padding:8px}.runbar button,.boards button,.threads button{font:inherit}.runbar>button{background:#13241a;color:#c7edcf;border:1px solid #42644c;padding:8px 12px}.debug{margin-left:auto;display:flex!important;gap:7px;align-items:center;padding-bottom:7px}.metrics{display:flex;gap:18px;flex-wrap:wrap;padding:10px 2px;font-size:11px;color:#779183}.metrics b{color:#dbf6e1;font-size:13px}.boards{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid #35513d;padding:3px 0 9px}.boards button{background:#0b150f;color:#9abb9f;border:1px solid #294333;padding:8px 12px;cursor:pointer}.boards button.active{background:#183121;color:#e1ffe8;border-color:#5b946d}.boards small{color:#5c8168;margin-right:6px}.boards em{font-style:normal;color:#6f9d7c;margin-left:8px}main{display:grid;grid-template-columns:minmax(270px,34%) 1fr;gap:12px;margin-top:12px;min-height:60vh}.threads,.conversation{border:1px solid #2c4635;background:#09130d}.paneTitle{padding:8px 10px;border-bottom:1px solid #2c4635;color:#8ebc9a;font-size:12px;letter-spacing:.08em}.threads button{width:100%;display:block;text-align:left;background:transparent;color:#c4dfca;border:0;border-bottom:1px solid #18291e;padding:11px;cursor:pointer}.threads button.selected{background:#14271a;border-left:3px solid #6bc184}.threads strong{display:block;font-size:13px;font-weight:500}.threads span{display:block;margin-top:5px;font-size:10px;color:#708b78}.conversation article{padding:16px 18px;border-bottom:1px dashed #294233}.postHead{display:flex;justify-content:space-between;gap:10px;color:#9ee3ae;font-size:13px}.postHead span{font-size:10px;color:#718d79}.subject{font-size:11px;color:#7ea488;margin-top:6px}.body{white-space:pre-wrap;line-height:1.75;margin-top:12px;color:#e1f6e5;font-family:inherit;font-size:14px}.worldDebug{margin-top:14px;background:#050b07;border:1px solid #273b2e;padding:8px;color:#8fab96;font-size:10px}.worldDebug summary{cursor:pointer;color:#72ab80}.worldDebug dl{display:grid;grid-template-columns:80px 1fr;gap:3px 8px}.worldDebug dt{color:#577762}.worldDebug dd{margin:0}.worldDebug p,.worldDebug ul{line-height:1.5}.error{margin:14px 0;padding:12px;border:1px solid #8d4949;background:#2b1212;color:#ffc6c6}.loading,.empty{padding:18px;color:#789080}footer{font-size:10px;color:#536a59;padding:14px 2px}@media(max-width:800px){.labviewer{padding:12px}.runbar select{min-width:0;width:80vw}.debug{margin-left:0}main{grid-template-columns:1fr}.threads{max-height:34vh;overflow:auto}.conversation{min-height:40vh}}
 `;
+
