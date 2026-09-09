@@ -11,6 +11,7 @@ type Article = {
 type TitleCandidate = { board_id:string; candidate:number; original:string; subject:string; author:string; status:string; reason:string };
 type Job = {
   title_candidates?: TitleCandidate[];
+  error?: string;
   build_commit?: string;
   id: string; status: string; situation_mode?: string; historical_texture?: string; board_count?: number; shell_limit?: number;
   boards?: Board[]; created_at: string; finished_at?: string; duration_ms?: number; post_count?: number;
@@ -107,6 +108,7 @@ export default function MaterializationLabViewerPage() {
 
     {error && <div className="error">読み込み失敗: {error}</div>}
     {loading && <div className="loading">読み込み中...</div>}
+    {job?.error && <div className="error">{job.error}</div>}
     {job && <>
       <section className="metrics">
         <span>MODE <b>{job.situation_mode || '-'}</b></span><span>TEXTURE <b>{job.historical_texture || 'off'}</b></span><span>BOARDS <b>{job.board_count || boards.length}</b></span>

@@ -39,3 +39,17 @@ func TestTitleReviewRejectsInvalidAssignments(t *testing.T) {
 		}
 	}
 }
+
+func TestTitleReviewMissingReasonRejectsOnlyThatCandidate(t *testing.T) {
+	draft := BBSTitleReview{Decisions: []BBSTitleDecision{
+		{Candidate: 1, EventID: "a", Subject: "補正された件名", Summary: "用件"},
+		{Candidate: 2, EventID: "b", Subject: "原文", Summary: "用件", Reason: "既存設定と整合"},
+	}}
+	rejectUnexplainedTitleDecisions(&draft)
+	if draft.Decisions[0].EventID != "" || draft.Decisions[0].Subject != "" || draft.Decisions[0].Reason == "" {
+		t.Fatal(draft)
+	}
+	if draft.Decisions[1].EventID != "b" || draft.Decisions[1].Subject != "原文" {
+		t.Fatal("unrelated candidate changed")
+	}
+}

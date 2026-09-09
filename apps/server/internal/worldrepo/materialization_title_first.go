@@ -123,12 +123,15 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		}
 		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: pool.Titles, Events: events[board.ID], RecentBBSState: planningBBSState(prior, 48)}
 		review, err := planner.ReviewBBSTitleCandidates(ctx, req)
-		if err != nil {
-			return nil, err
-		}
 		addUsage(review.Usage)
-		if err := llm.ValidateBBSTitleReview(req, review); err != nil {
-			return nil, err
+		if err == nil {
+			err = llm.ValidateBBSTitleReview(req, review)
+		}
+		if err != nil {
+			for i := offset; i < len(state.rows); i++ {
+				state.rows[i].Reason = "検査失敗: " + err.Error()
+			}
+			continue
 		}
 		eventByID := map[string]llm.BBSWorldWindowEvent{}
 		for _, e := range events[board.ID] {
