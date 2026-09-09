@@ -12,7 +12,10 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
-const developmentTitleEraResearchBudget = 12
+// This is a Lab safety/cost ceiling. Research now runs only for tentatively
+// assigned titles, so 16 covers the maximum independent roots in the standard
+// four-board Lab without spending searches on unused members of the 20-title pools.
+const developmentTitleEraResearchBudget = 16
 const developmentTitleEraResearchConcurrency = 3
 
 type developmentTitleEraOutcome struct {
@@ -37,15 +40,17 @@ func developmentTitleEraResearchAllowance(used, boardsRemaining int) int {
 	return (remaining + boardsRemaining - 1) / boardsRemaining
 }
 
-func (r *Repository) developmentValidateTitleEra(
+// developmentRouteTitleEra is intentionally cheap. It only classifies whether
+// a title is safe without historical lookup, requires research if selected, or
+// is logically impossible from the world date alone. RESEARCH candidates remain
+// eligible for persona/slot matching; Web research is deferred until after that.
+func (r *Repository) developmentRouteTitleEra(
 	ctx context.Context,
-	host world.Host,
 	board world.Board,
 	asOf string,
 	pool llm.BBSTitleCandidates,
 	state *developmentTitleFirstState,
 	offset int,
-	researchAllowance int,
 	validator llm.BBSTitleEraValidator,
 ) (eligibleTitles []string, originalCandidates []int, usage llm.TokenUsage, err error) {
 	req := llm.BBSTitleEraRequest{WorldDate: asOf, BoardName: board.Name, Titles: pool.Titles}
@@ -69,8 +74,6 @@ func (r *Repository) developmentValidateTitleEra(
 		decisions[d.Candidate] = d
 	}
 
-	researchJobs := make([]developmentTitleEraResearchJob, 0)
-	boardResearchUsed := 0
 	for candidate, title := range pool.Titles {
 		idx := candidate + 1
 		row := &state.rows[offset+candidate]
@@ -84,45 +87,13 @@ func (r *Repository) developmentValidateTitleEra(
 			row.EraReason = d.Reason
 			row.Status = "era_rejected"
 			row.Reason = "時代検証で除外: " + d.Reason
+			continue
 		case llm.BBSTitleEraResearch:
-			if state.eraResearchUsed >= developmentTitleEraResearchBudget || boardResearchUsed >= researchAllowance {
-				row.EraStatus = "unverified"
-				row.EraReason = fmt.Sprintf("%s / Web史料確認はrun最大%d件を板間で公平配分するため、この板の今回枠%d件を超えて未検証", d.Reason, developmentTitleEraResearchBudget, researchAllowance)
-				row.Status = "era_rejected"
-				row.Reason = "時代検証未完了のため除外: " + row.EraReason
-				continue
-			}
-			state.eraResearchUsed++
-			boardResearchUsed++
 			row.EraStatus = "research"
 			row.EraReason = d.Reason
-			researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: idx, title: title})
-		}
-	}
-
-	outcomes := r.developmentResearchTitleEraBatch(ctx, host, board, asOf, researchJobs)
-	for candidate, outcome := range outcomes {
-		row := &state.rows[offset+candidate-1]
-		row.EraStatus = outcome.status
-		row.EraReason = outcome.reason
-		row.EraEvidence = outcome.evidence
-		if outcome.status != "verified" {
-			row.Status = "era_rejected"
-			if outcome.status == "ng" {
-				row.Reason = "Web史料検証で除外: " + outcome.reason
-			} else {
-				row.Reason = "時代検証未完了のため除外: " + outcome.reason
-			}
-		}
-	}
-
-	for candidate, title := range pool.Titles {
-		row := &state.rows[offset+candidate]
-		if row.EraStatus != "ok" && row.EraStatus != "verified" {
-			continue
 		}
 		eligibleTitles = append(eligibleTitles, title)
-		originalCandidates = append(originalCandidates, candidate+1)
+		originalCandidates = append(originalCandidates, idx)
 	}
 	return eligibleTitles, originalCandidates, usage, nil
 }
