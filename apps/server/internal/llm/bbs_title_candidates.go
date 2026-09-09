@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -91,6 +92,7 @@ summaryには採用する発言の用件と、本文が守るべき既存事実�
 	}
 	draft.Usage = result.Usage
 	rejectUnexplainedTitleDecisions(&draft)
+	rejectDuplicateTitleAssignments(&draft)
 	if err := ValidateBBSTitleReview(req, draft); err != nil {
 		return draft, err
 	}
@@ -151,5 +153,34 @@ func rejectUnexplainedTitleDecisions(draft *BBSTitleReview) {
 		d.Subject = ""
 		d.Summary = ""
 		d.Reason = "検査結果不備：モデルが理由を返さなかったため不採用"
+	}
+}
+
+// A duplicate event proposal is a candidate-level model defect, not a reason to
+// discard the whole board. Candidate number is the stable order of the original
+// 20-title pool, so the lowest candidate keeps the slot and later duplicates are
+// rejected deterministically. Validation remains strict as a final invariant.
+func rejectDuplicateTitleAssignments(draft *BBSTitleReview) {
+	order := make([]int, len(draft.Decisions))
+	for i := range draft.Decisions {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(i, j int) bool {
+		return draft.Decisions[order[i]].Candidate < draft.Decisions[order[j]].Candidate
+	})
+	assigned := map[string]bool{}
+	for _, i := range order {
+		d := &draft.Decisions[i]
+		if d.EventID == "" {
+			continue
+		}
+		if !assigned[d.EventID] {
+			assigned[d.EventID] = true
+			continue
+		}
+		d.EventID = ""
+		d.Subject = ""
+		d.Summary = ""
+		d.Reason = "検査結果不備：同じ投稿枠への重複割当のため不採用"
 	}
 }

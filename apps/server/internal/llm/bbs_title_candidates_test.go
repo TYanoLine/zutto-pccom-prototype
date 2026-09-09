@@ -53,3 +53,31 @@ func TestTitleReviewMissingReasonRejectsOnlyThatCandidate(t *testing.T) {
 		t.Fatal("unrelated candidate changed")
 	}
 }
+
+func TestTitleReviewDuplicateSlotRejectsOnlyLaterCandidateDeterministically(t *testing.T) {
+	req := BBSTitleReviewRequest{Titles: []string{"第一候補", "第二候補", "第三候補"}, Events: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}}}
+	// Deliberately return decisions out of order. Candidate number, not JSON
+	// response order, decides which proposal keeps the duplicated slot.
+	draft := BBSTitleReview{Decisions: []BBSTitleDecision{
+		{Candidate: 2, EventID: "a", Subject: "第二候補", Reason: "整合", Summary: "用件2"},
+		{Candidate: 1, EventID: "a", Subject: "第一候補", Reason: "整合", Summary: "用件1"},
+		{Candidate: 3, EventID: "b", Subject: "第三候補", Reason: "整合", Summary: "用件3"},
+	}}
+	rejectDuplicateTitleAssignments(&draft)
+	byCandidate := map[int]BBSTitleDecision{}
+	for _, d := range draft.Decisions {
+		byCandidate[d.Candidate] = d
+	}
+	if byCandidate[1].EventID != "a" {
+		t.Fatalf("lowest candidate did not keep slot: %+v", draft)
+	}
+	if byCandidate[2].EventID != "" || byCandidate[2].Subject != "" || byCandidate[2].Summary != "" || !strings.HasPrefix(byCandidate[2].Reason, "検査結果不備：") {
+		t.Fatalf("later duplicate was not rejected cleanly: %+v", draft)
+	}
+	if byCandidate[3].EventID != "b" {
+		t.Fatalf("unrelated assignment changed: %+v", draft)
+	}
+	if err := ValidateBBSTitleReview(req, draft); err != nil {
+		t.Fatalf("sanitized review should validate: %v / %+v", err, draft)
+	}
+}
