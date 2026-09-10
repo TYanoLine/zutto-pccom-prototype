@@ -3,6 +3,7 @@ package worldrepo
 import "sync"
 
 var developmentInteractiveTitleFirst sync.Map
+var developmentInteractiveTitleFirstPlanningLocks sync.Map
 
 // EnableDevelopmentInteractiveTitleFirstPoC makes the ordinary dial-up path for
 // the development materialization host use the same conversation-view +
@@ -22,4 +23,9 @@ func (r *Repository) EnableDevelopmentInteractiveTitleFirstPoC() {
 func developmentInteractiveTitleFirstEnabled(r *Repository) bool {
 	_, ok := developmentInteractiveTitleFirst.Load(r)
 	return ok
+}
+
+func developmentInteractiveTitleFirstPlanningMutex(r *Repository) *sync.Mutex {
+	value, _ := developmentInteractiveTitleFirstPlanningLocks.LoadOrStore(r, &sync.Mutex{})
+	return value.(*sync.Mutex)
 }
