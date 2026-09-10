@@ -12,17 +12,18 @@ import (
 )
 
 type DevelopmentTitleCandidate struct {
-	BoardID     string `json:"board_id"`
-	Candidate   int    `json:"candidate"`
-	Original    string `json:"original"`
-	Subject     string `json:"subject"`
-	Author      string `json:"author"`
-	EventID     string `json:"event_id"`
-	Status      string `json:"status"`
-	Reason      string `json:"reason"`
-	EraStatus   string `json:"era_status,omitempty"`
-	EraReason   string `json:"era_reason,omitempty"`
-	EraEvidence string `json:"era_evidence,omitempty"`
+	BoardID     string   `json:"board_id"`
+	Candidate   int      `json:"candidate"`
+	Original    string   `json:"original"`
+	Subject     string   `json:"subject"`
+	Author      string   `json:"author"`
+	EventID     string   `json:"event_id"`
+	Status      string   `json:"status"`
+	Reason      string   `json:"reason"`
+	EraStatus   string   `json:"era_status,omitempty"`
+	EraReason   string   `json:"era_reason,omitempty"`
+	EraEvidence string   `json:"era_evidence,omitempty"`
+	Details     []string `json:"details,omitempty"`
 }
 type developmentTitleFirstState struct {
 	history         []world.Post
@@ -206,6 +207,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			row.EventID = d.EventID
 			row.Author = e.AuthorHandle
 			row.Subject = d.Subject
+			row.Details = append([]string(nil), d.Details...)
 			if row.EraStatus != "research" {
 				continue
 			}
@@ -269,7 +271,18 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			if d.Subject != row.Original {
 				row.Status = "corrected"
 			}
-			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "world_adoption=title_candidate", "world_adopted_summary=" + d.Summary, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. The accepted title and world_adopted_summary are canonical world facts for this post. You may state facts directly entailed by them plus existing persona/BBS facts; do not add further possessions, purchases, visits, progress, completions, technical causes, public events or personal history not entailed by the adopted event."}}
+			situationFacts := []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "world_adoption=title_candidate", "world_adopted_summary=" + d.Summary, "historical_check=title_era_" + row.EraStatus}
+			for _, detail := range d.Details {
+				detail = strings.TrimSpace(detail)
+				if detail != "" {
+					situationFacts = append(situationFacts, "article_detail="+detail)
+				}
+			}
+			situationFacts = append(situationFacts,
+				"article_detail_contract=The article_detail facts are canonical article-local specifics chosen before prose. Materially express at least two distinct supplied details when available; do not collapse them into vague wording such as 'one thing', 'that part' or 'something was different'. Do not add new durable biography or external historical/product/game facts beyond the adopted title, supplied detail facts and existing canonical context.",
+				"subject_contract=Keep the accepted title verbatim. The accepted title, world_adopted_summary and article_detail facts are canonical world facts for this post. Do not add further possessions, purchases, visits, progress, completions, technical causes, public events or personal history beyond that adopted event and its explicit article details.",
+			)
+			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: situationFacts}
 		}
 		for originalCandidate := range malformedThisPass {
 			row := &state.rows[offset+originalCandidate-1]
