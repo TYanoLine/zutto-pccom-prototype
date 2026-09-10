@@ -1,0 +1,37 @@
+name: patch-atdt-runtime-once
+on:
+  push:
+    branches: [feat/main-lab-link-and-atdt-title-first]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Run ATDT runtime wiring patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/main-lab-link-and-atdt-title-first
+      - name: Wire ordinary ATDT runtime to title-first
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/server/cmd/server/main.go')
+          s = p.read_text()
+          old = '\truntimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)\n\tmaterializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)'
+          new = '\truntimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)\n\truntimeStore.EnableDevelopmentInteractiveTitleFirstPoC()\n\tmaterializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)'
+          if old not in s:
+              raise SystemExit('main.go target not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          gofmt -w apps/server/cmd/server/main.go
+      - name: Test server
+        working-directory: apps/server
+        run: go test ./...
+      - name: Commit runtime wiring
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/server/cmd/server/main.go
+          git commit -m 'Use title-first pipeline for ordinary development dial'
+          git push origin HEAD:feat/main-lab-link-and-atdt-title-first
