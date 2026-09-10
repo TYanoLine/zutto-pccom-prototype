@@ -63,7 +63,7 @@ worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
 
 freshの `situation_mode` は既定 `facets`。`facetless` はA/B実験専用で、手書きのsituation facet/occurrenceを事前選択せず、routing domain + discourse mode + 会話文脈だけからArticle Workerに小さな出来事を具体化させる。通常runtimeには影響しない。
 
-freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。**現在のfresh専用Repositoryでは `EnableDevelopmentConversationViewPoC()` を有効化し、host-wide semantic Producerを迂回する。** 世界層が決めた投稿者・日時・board・root/reply・source・routing domain・cause kind・discourse modeをshellとしてDBへ保存し、本文生成直前にthread本文、explicit source、同一人物の最近のcanonical投稿、related retrievalをDBから一時的な会話ビューとして再構成する。通常runtimeのmaterializationはこのPoCを自動では有効化せず、既存Producer経路を維持する。
+freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。**現在のfresh専用Repositoryでは `EnableDevelopmentConversationViewPoC()` を有効化し、host-wide semantic Producerを迂回する。** 世界層が決めた投稿者・日時・board・root/reply・source・routing domain・cause kind・discourse modeをshellとしてDBへ保存し、本文生成直前にthread本文、explicit source、同一人物の最近のcanonical投稿、related retrievalをDBから一時的な会話ビューとして再構成する。通常runtimeでも開発ホスト `0450000196` は Conversation View + title-first を有効化する。Web端末から `ATDT0450000196` で接続し、`B` で未生成Envelopeを計画、記事番号を開いてArticle Detail込み本文を遅延生成できる。`ALLBODY` では全本文を一括生成でき、`RESET` 後はtitle-first候補・割当も新しいplanning passへ再初期化する。ほかのホストプログラムにはこの開発専用経路を適用しない。
 
 会話ビューPoCの設計意図と正本境界は [CONVERSATION_VIEW_POC.md](CONVERSATION_VIEW_POC.md) を参照。
 
