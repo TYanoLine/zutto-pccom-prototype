@@ -54,6 +54,7 @@ func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r l
 				d.EventID = r.Events[0].EventID
 				d.Subject = r.Titles[i]
 				d.Summary = "感想を共有"
+				d.Details = []string{"攻略本の142ページの一覧表3行目を確認した", "ゲーム画面と見比べて表記の違いに気づいた"}
 				d.Reason = "整合"
 			}
 		}
@@ -99,6 +100,7 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 		}
 		hasWorldAdoption := false
 		hasAdoptedSummary := false
+		detailCount := 0
 		for _, fact := range post.Intent.SituationFacts {
 			if fact == "world_adoption=title_candidate" {
 				hasWorldAdoption = true
@@ -106,13 +108,19 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 			if fact == "world_adopted_summary=感想を共有" {
 				hasAdoptedSummary = true
 			}
+			if strings.HasPrefix(fact, "article_detail=") {
+				detailCount++
+			}
 		}
-		if !hasWorldAdoption || !hasAdoptedSummary {
-			t.Fatalf("missing world adoption facts: %+v", post.Intent.SituationFacts)
+		if !hasWorldAdoption || !hasAdoptedSummary || detailCount < 2 {
+			t.Fatalf("missing world adoption/detail facts: %+v", post.Intent.SituationFacts)
 		}
 		rendered, found, created, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
 		if !found || !created || rendered.Subject != post.Subject || renderer.req.CanonicalSubject != post.Subject {
 			t.Fatalf("subject changed: %+v %s", rendered, diag)
+		}
+		if !strings.Contains(renderer.req.PostIntent, "article_detail=") {
+			t.Fatalf("article details were not supplied to body worker: %s", renderer.req.PostIntent)
 		}
 	}
 	if !foundRoot {

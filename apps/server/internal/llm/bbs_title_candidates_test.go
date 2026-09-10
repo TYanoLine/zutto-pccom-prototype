@@ -20,7 +20,7 @@ func TestTitleCandidatePromptStaysMinimal(t *testing.T) {
 }
 func TestTitleReviewRejectsInvalidAssignments(t *testing.T) {
 	req := BBSTitleReviewRequest{Titles: []string{"感想など", "最近何を遊んでます？"}, Events: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}}}
-	valid := BBSTitleReview{Decisions: []BBSTitleDecision{{Candidate: 1, EventID: "a", Subject: "感想など", Reason: "整合", Summary: "感想を共有"}, {Candidate: 2, Reason: "適合枠なし"}}}
+	valid := BBSTitleReview{Decisions: []BBSTitleDecision{{Candidate: 1, EventID: "a", Subject: "感想など", Reason: "整合", Summary: "感想を共有", Details: []string{"具体1", "具体2"}}, {Candidate: 2, Reason: "適合枠なし"}}}
 	if err := ValidateBBSTitleReview(req, valid); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestTitleReviewRejectsSubjectRewriteAsCandidateLevelFailure(t *testing.T) {
 	}
 	draft := BBSTitleReview{Decisions: []BBSTitleDecision{
 		{Candidate: 1, EventID: "a", Subject: req.Titles[1], Reason: "別候補へ補正", Summary: "NINTENDO64を触った"},
-		{Candidate: 2, EventID: "b", Subject: req.Titles[1], Reason: "原文維持", Summary: "NINTENDO64を触った"},
+		{Candidate: 2, EventID: "b", Subject: req.Titles[1], Reason: "原文維持", Summary: "NINTENDO64を触った", Details: []string{"操作した入力に画面が反応した", "直前に触った機種と操作感の違いを感じた"}},
 	}}
 	rejectRewrittenTitleDecisions(req, &draft)
 	if draft.Decisions[0].EventID != "" || draft.Decisions[0].Subject != "" || draft.Decisions[0].Summary != "" || !strings.HasPrefix(draft.Decisions[0].Reason, "検査結果不備：") {
@@ -80,9 +80,9 @@ func TestTitleReviewDuplicateSlotRejectsOnlyLaterCandidateDeterministically(t *t
 	// Deliberately return decisions out of order. Candidate number, not JSON
 	// response order, decides which proposal keeps the duplicated slot.
 	draft := BBSTitleReview{Decisions: []BBSTitleDecision{
-		{Candidate: 2, EventID: "a", Subject: "第二候補", Reason: "整合", Summary: "用件2"},
-		{Candidate: 1, EventID: "a", Subject: "第一候補", Reason: "整合", Summary: "用件1"},
-		{Candidate: 3, EventID: "b", Subject: "第三候補", Reason: "整合", Summary: "用件3"},
+		{Candidate: 2, EventID: "a", Subject: "第二候補", Reason: "整合", Summary: "用件2", Details: []string{"具体2a", "具体2b"}},
+		{Candidate: 1, EventID: "a", Subject: "第一候補", Reason: "整合", Summary: "用件1", Details: []string{"具体1a", "具体1b"}},
+		{Candidate: 3, EventID: "b", Subject: "第三候補", Reason: "整合", Summary: "用件3", Details: []string{"具体3a", "具体3b"}},
 	}}
 	rejectDuplicateTitleAssignments(&draft)
 	byCandidate := map[int]BBSTitleDecision{}
