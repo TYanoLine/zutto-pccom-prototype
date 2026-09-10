@@ -30,6 +30,9 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 		return existing, false
 	}
 	if developmentConversationViewPoCEnabled(r) {
+		if developmentInteractiveTitleFirstEnabled(r) {
+			return r.materializeInteractiveConversationBoardWindow(host, board)
+		}
 		posts, created := r.materializeConversationWorldWindow(host)
 		return filterBoard(posts, board.ID), created
 	}

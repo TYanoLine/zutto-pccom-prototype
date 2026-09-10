@@ -69,6 +69,14 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 }
 
 func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (world.Post, bool, bool, string) {
+	detailDiagnostic := ""
+	if developmentInteractiveTitleFirstEnabled(r) {
+		var detailErr error
+		selected, detailDiagnostic, detailErr = r.materializeInteractiveTitleArticleDetails(host, board, selected)
+		if detailErr != nil {
+			return selected, true, false, detailDiagnostic
+		}
+	}
 	renderContext, contextStats := r.materializationRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(selected.ID)
@@ -156,7 +164,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	if usage.TotalTokens > 0 || usage.Model != "" {
 		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
 	}
-	diagnostic := joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
+	diagnostic := joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
 			return updated, true, true, diagnostic
