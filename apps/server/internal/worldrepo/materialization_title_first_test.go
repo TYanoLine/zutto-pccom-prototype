@@ -54,13 +54,23 @@ func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r l
 				d.EventID = r.Events[0].EventID
 				d.Subject = r.Titles[i]
 				d.Summary = "感想を共有"
-				d.Details = []string{"攻略本の142ページの一覧表3行目を確認した", "ゲーム画面と見比べて表記の違いに気づいた"}
 				d.Reason = "整合"
 			}
 		}
 		decisions = append(decisions, d)
 	}
 	return llm.BBSTitleReview{Decisions: decisions}, nil
+}
+
+func (f *titleFirstTestRenderer) MaterializeBBSTitleArticleDetails(_ context.Context, r llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
+	articles := make([]llm.BBSTitleArticleDetailSet, 0, len(r.Articles))
+	for _, seed := range r.Articles {
+		articles = append(articles, llm.BBSTitleArticleDetailSet{EventID: seed.EventID, Details: []llm.BBSArticleDetail{
+			{Kind: "locator", Fact: "手元の資料の142ページ、一覧表の3行目だった"},
+			{Kind: "comparison", Fact: "資料の表記と画面で確認した表記が食い違っていた"},
+		}})
+	}
+	return llm.BBSTitleArticleDetailDraft{Articles: articles}, nil
 }
 
 func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
