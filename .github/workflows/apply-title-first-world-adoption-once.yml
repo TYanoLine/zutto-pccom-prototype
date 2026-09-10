@@ -1,0 +1,100 @@
+name: apply-title-first-world-adoption-once
+
+on:
+  push:
+    branches:
+      - fix/title-first-world-adoption
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply title-first world adoption patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/title-first-world-adoption
+      - name: Apply world-adoption semantics
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('apps/server/internal/llm/bbs_title_candidates.go')
+          s = p.read_text()
+          old = '''投稿枠の人物、日時、board、routing domain、cause、discourse_modeは変更禁止。人物の既存の所有物・関心・意見・過去の発言をタイトルに合わせて書き換えない。興味があるだけで所有・購入・プレイ経験を証明したことにはならない。
+          入力されるタイトルは独立したEra Validatorを通過済みです。この段階で発売前後・版・機種・サービス開始時期などの史実をモデル記憶から再判定しないでください。ここでは人物・日時・発言目的・既存BBS状態との整合だけを判定します。
+          原文に問題がなければsubjectは一字も変えない。文体の統一、疑問文の削減、多様性の演出、見出しとしての改善はしない。人物・投稿枠との具体的な矛盾や36文字超過がある場合だけ最小限補正し、reasonに変更理由を明記する。別の話題への作り直しは禁止。対応できなければ不採用。
+          summaryには採用する発言の用件と、本文が守るべき既存事実を短く記す。普通の感想や好み、質問でよく、投稿のための事件・故障・購入・休止明けなどを捏造しない。新しい永続的な人物事実は追加しない。不採用のsubjectとsummaryは空文字、reasonは具体的な理由。候補が重複したら片方を不採用。'''
+          new = '''投稿枠の人物、日時、board、routing domain、cause、discourse_modeは変更禁止。人物の既存の所有物・関心・意見・過去の発言と明確に矛盾する候補は不採用にしてください。ただし候補タイトルは世界エンジンへの提案です。この検査でeventへ割り当てられ、後段のEra検証とコード側検査を通って採用された場合、タイトルが明示する最小限の出来事・経験・関与はその投稿のcanonical world eventとして新たに確定します。既存PersonaFactsにまだ無いという理由だけで、購入・利用・プレイ開始・小さな失敗・相談などを一律に拒否しないでください。
+          入力されるタイトルは独立したEra Validatorの振り分けを通過済みです。発売前後・版・機種・サービス開始時期などの史実をモデル記憶から再判定しないでください。research対象は、実際に採用候補になった場合だけ後段でWeb史料確認されます。ここでは人物・日時・発言目的・既存BBS状態との整合だけを判定します。
+          原文に問題がなければsubjectは一字も変えない。文体の統一、疑問文の削減、多様性の演出、見出しとしての改善はしない。人物・投稿枠との具体的な矛盾や36文字超過がある場合だけ最小限補正し、reasonに変更理由を明記する。別の話題への作り直しは禁止。対応できなければ不採用。
+          summaryには、採用時にworld側が正本化する「タイトルから直接読み取れる最小限の出来事・用件」だけを短く記してください。タイトルにない機種、場所、相手、原因、購入経路、進捗、クリア状況などを補わないでください。例: 「クロノ・トリガーを今さら始めました」なら「この人物が最近クロノ・トリガーを始め、そのことを話題にする」まで。「バーチャファイター2は凄い！」なら肯定的な意見までで、所有や購入は推定しない。不採用のsubjectとsummaryは空文字、reasonは具体的な理由。候補が重複したら片方を不採用。'''
+          if old not in s:
+              raise SystemExit('review prompt target not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('apps/server/internal/worldrepo/materialization_title_first.go')
+          s = p.read_text()
+          old = 'out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. Write only its matter within this actor\'s existing facts. Do not invent new possessions, purchases, personal history or unsupported game/technical details."}}'
+          new = 'out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "world_adoption=title_candidate", "world_adopted_summary=" + d.Summary, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. The accepted title and world_adopted_summary are canonical world facts for this post. You may state facts directly entailed by them plus existing persona/BBS facts; do not add further possessions, purchases, visits, progress, completions, technical causes, public events or personal history not entailed by the adopted event."}}'
+          if old not in s:
+              raise SystemExit('world adoption target not found')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('apps/server/internal/worldrepo/materialization_title_first_test.go')
+          s = p.read_text()
+          marker = '''\t\tif post.Subject != "話題0" {
+          \t\t\tt.Fatal(post.Subject)
+          \t\t}
+          '''
+          insert = marker + '''\t\tif post.Intent.SituationKind != "title_first" || post.Intent.SituationSummary != "感想を共有" {
+          \t\t\tt.Fatalf("accepted title was not promoted to canonical title-first event: %+v", post.Intent)
+          \t\t}
+          \thasWorldAdoption := false
+          \thasAdoptedSummary := false
+          \tfor _, fact := range post.Intent.SituationFacts {
+          \t\tif fact == "world_adoption=title_candidate" {
+          \t\t\thasWorldAdoption = true
+          \t\t}
+          \t\tif fact == "world_adopted_summary=感想を共有" {
+          \t\t\thasAdoptedSummary = true
+          \t\t}
+          \t}
+          \tif !hasWorldAdoption || !hasAdoptedSummary {
+          \t\tt.Fatalf("missing world adoption facts: %+v", post.Intent.SituationFacts)
+          \t}
+          '''
+          if marker not in s:
+              raise SystemExit('test insertion target not found')
+          p.write_text(s.replace(marker, insert, 1))
+
+          p = Path('docs/MATERIALIZATION_LAB.md')
+          s = p.read_text()
+          old = '''- 独立rootの投稿枠がある板ごとに20候補。後段でモデルが、既存の人物・日時・発言目的に合う割り当てを提案し、世界側がID・重複・必須項目等を検査して採用する。投稿枠自体の人物や日時は変えない。未採用rootとそれに依存する返信は作らず、件数を埋めない。
+          - 無矛盾の候補は原文保持。具体的矛盾・長さの補正のみ理由付きで認める。採用済みタイトルは本文workerで再生成しない。返信は従来の親記事に基づく件名処理。
+          - `historical_texture=model-memory` のみ対応、省略時もこの値。年代・個人設定の意味的チェックはモデルによる暫定検査で、史料検証済みの保証ではない。構造検査はコードで実施。通常世界には適用しない。
+          - このモードでは既存PersonaFactsを保持し、過去記事の限定的な要約を矛盾防止に渡す。候補に合わせて人物の所有や経験を追加しない。通常世界への書き戻しなし。'''
+          new = '''- 独立rootの投稿枠がある板ごとに、人物・投稿理由・canonical situationを見せずに20候補を自由生成する。タイトル候補はまだ世界事実ではなく、具体的な固有名詞や個人経験を含む「世界エンジンへの提案」として扱う。
+          - Era Validatorで時代上の成立可否を先に振り分ける。`research` は候補のまま保持し、人物枠へ仮採用された候補だけWeb史料確認する。`ng` / `unverified` は世界へ採用しない。
+          - 後段でモデルが既存の人物・日時・発言目的との整合を提案し、世界側がID・重複・必須項目・Era結果を検査して採用する。既存PersonaFactsと明確に矛盾する候補は採用しないが、既存Factsにないという理由だけで個人経験を一律拒否しない。
+          - 採用が確定した時点で、タイトルとreview summaryがその投稿の `title_first` canonical world eventになる。summaryはタイトルから直接読み取れる最小限の出来事だけを正本化し、タイトルにない機種・場所・原因・購入経路・進捗等は追加しない。本文workerはこの採用済みeventと既存Persona/BBS factsの範囲だけを文章化する。
+          - 無矛盾の候補は原文保持。具体的矛盾・長さの補正のみ理由付きで認める。採用済みタイトルは本文workerで再生成しない。返信は従来の親記事に基づく件名処理。通常世界への書き戻しなし。'''
+          if old not in s:
+              raise SystemExit('docs target not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+          gofmt -w apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/worldrepo/materialization_title_first.go apps/server/internal/worldrepo/materialization_title_first_test.go
+      - name: Test server
+        run: cd apps/server && go test ./...
+      - name: Commit changes
+        shell: bash
+        run: |
+          git rm .github/workflows/apply-title-first-world-adoption-once.yml
+          git config user.name 'TYanoLine'
+          git config user.email '106317971+TYanoLine@users.noreply.github.com'
+          git add apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/worldrepo/materialization_title_first.go apps/server/internal/worldrepo/materialization_title_first_test.go docs/MATERIALIZATION_LAB.md
+          git commit -m 'Adopt accepted free titles as world events'
+          git push origin HEAD:fix/title-first-world-adoption
