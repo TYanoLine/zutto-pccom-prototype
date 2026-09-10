@@ -15,6 +15,16 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
 		return existing, false
 	}
+
+	planningMu := developmentInteractiveTitleFirstPlanningMutex(r)
+	planningMu.Lock()
+	defer planningMu.Unlock()
+	// Another session may have completed this board while this caller waited for
+	// the shared title planner lock.
+	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+		return existing, false
+	}
+
 	personas, _ := r.MaterializationPersonas(host)
 	if len(personas) == 0 {
 		return nil, false
