@@ -14,19 +14,16 @@ import (
 
 type titleFirstTestRenderer struct {
 	fakeBoardRenderer
-	calls              int
-	reviewCalls        int
-	reject             bool
-	malformedFirst     bool
-	eraStatuses        map[int]string
-	reviewedTitles     []string
-	reviewedEvents     []llm.BBSWorldWindowEvent
-	generationRequests []llm.BBSTitleGenerationRequest
+	calls          int
+	reviewCalls    int
+	reject         bool
+	malformedFirst bool
+	eraStatuses    map[int]string
+	reviewedTitles []string
 }
 
-func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(_ context.Context, r llm.BBSTitleGenerationRequest) (llm.BBSTitleCandidates, error) {
+func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
 	f.calls++
-	f.generationRequests = append(f.generationRequests, r)
 	titles := []string{}
 	for i := 0; i < 20; i++ {
 		titles = append(titles, fmt.Sprintf("話題%d", i))
@@ -47,7 +44,6 @@ func (f *titleFirstTestRenderer) ValidateBBSTitleEra(_ context.Context, r llm.BB
 func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r llm.BBSTitleReviewRequest) (llm.BBSTitleReview, error) {
 	f.reviewCalls++
 	f.reviewedTitles = append(f.reviewedTitles, r.Titles...)
-	f.reviewedEvents = append(f.reviewedEvents, r.Events...)
 	decisions := []llm.BBSTitleDecision{}
 	for i := range r.Titles {
 		d := llm.BBSTitleDecision{Candidate: i + 1, Reason: "適合枠なし"}
@@ -57,8 +53,8 @@ func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r l
 			} else {
 				d.EventID = r.Events[0].EventID
 				d.Subject = r.Titles[i]
-				d.Summary = "canonical situationを件名で表現"
-				d.Reason = "canonical situationと整合"
+				d.Summary = "感想を共有"
+				d.Reason = "整合"
 			}
 		}
 		decisions = append(decisions, d)
@@ -85,14 +81,6 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 	if rows[0].EraStatus != "ok" {
 		t.Fatalf("era status not recorded: %+v", rows[0])
 	}
-	if len(renderer.generationRequests) == 0 || len(renderer.generationRequests[0].Situations) == 0 {
-		t.Fatalf("title generator did not receive canonical situations: %+v", renderer.generationRequests)
-	}
-	for _, situation := range renderer.generationRequests[0].Situations {
-		if situation.Kind == "" || situation.Summary == "" || len(situation.Facts) == 0 {
-			t.Fatalf("incomplete canonical situation sent to title generator: %+v", situation)
-		}
-	}
 	all := base.ListPosts(host.ID)
 	foundRoot := false
 	for _, post := range all {
@@ -106,48 +94,6 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 		if post.Subject != "話題0" {
 			t.Fatal(post.Subject)
 		}
-		if post.Intent.SituationKind == "" || post.Intent.SituationKind == "title_first" {
-			t.Fatalf("title assignment replaced canonical situation kind: %+v", post.Intent)
-		}
-		if !strings.Contains(post.Intent.SituationSummary, "Canonical occurrence:") {
-			t.Fatalf("canonical situation summary was not preserved: %+v", post.Intent)
-		}
-		hasOccurrence := false
-		for _, fact := range post.Intent.SituationFacts {
-			if strings.HasPrefix(fact, "occurrence=") {
-				hasOccurrence = true
-				break
-			}
-		}
-		if !hasOccurrence || titleFirstSubject(post.Intent.SituationFacts) != post.Subject {
-			t.Fatalf("canonical/title facts not merged: %+v", post.Intent.SituationFacts)
-		}
-
-		var acceptedRow *DevelopmentTitleCandidate
-		for i := range rows {
-			if rows[i].BoardID == post.BoardID && rows[i].Subject == post.Subject && rows[i].EventID != "" {
-				acceptedRow = &rows[i]
-				break
-			}
-		}
-		if acceptedRow == nil {
-			t.Fatalf("missing accepted candidate row for post: %+v", post)
-		}
-		matchedReviewEvent := false
-		for _, event := range renderer.reviewedEvents {
-			if event.EventID != acceptedRow.EventID {
-				continue
-			}
-			matchedReviewEvent = true
-			if event.SituationKind != post.Intent.SituationKind || event.SituationSummary != post.Intent.SituationSummary || len(event.SituationFacts) == 0 {
-				t.Fatalf("matcher did not receive persisted canonical situation: event=%+v intent=%+v", event, post.Intent)
-			}
-			break
-		}
-		if !matchedReviewEvent {
-			t.Fatalf("accepted event %q was not seen by title matcher", acceptedRow.EventID)
-		}
-
 		rendered, found, created, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
 		if !found || !created || rendered.Subject != post.Subject || renderer.req.CanonicalSubject != post.Subject {
 			t.Fatalf("subject changed: %+v %s", rendered, diag)
