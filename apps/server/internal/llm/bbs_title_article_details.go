@@ -9,24 +9,24 @@ import (
 )
 
 var bbsArticleDetailKinds = map[string]bool{
-	"locator":         true,
-	"timing":          true,
-	"sequence":        true,
-	"comparison":      true,
-	"observation":     true,
-	"question_scope":  true,
-	"decision":        true,
+	"locator":          true,
+	"timing":           true,
+	"sequence":         true,
+	"comparison":       true,
+	"observation":      true,
+	"question_scope":   true,
+	"decision":         true,
 	"reaction_context": true,
 }
 
 type BBSTitleArticleDetailSeed struct {
-	EventID        string   `json:"event_id"`
-	Subject        string   `json:"subject"`
-	Summary        string   `json:"summary"`
-	AuthorHandle   string   `json:"author_handle"`
-	CreatedAt      string   `json:"created_at"`
-	DiscourseMode  string   `json:"discourse_mode"`
-	ExistingFacts  []string `json:"existing_facts,omitempty"`
+	EventID       string   `json:"event_id"`
+	Subject       string   `json:"subject"`
+	Summary       string   `json:"summary"`
+	AuthorHandle  string   `json:"author_handle"`
+	CreatedAt     string   `json:"created_at"`
+	DiscourseMode string   `json:"discourse_mode"`
+	ExistingFacts []string `json:"existing_facts,omitempty"`
 }
 
 type BBSTitleArticleDetailRequest struct {
@@ -48,7 +48,7 @@ type BBSTitleArticleDetailSet struct {
 
 type BBSTitleArticleDetailDraft struct {
 	Articles []BBSTitleArticleDetailSet `json:"articles"`
-	Usage    TokenUsage                  `json:"-"`
+	Usage    TokenUsage                 `json:"-"`
 }
 
 type BBSTitleArticleDetailPlanner interface {

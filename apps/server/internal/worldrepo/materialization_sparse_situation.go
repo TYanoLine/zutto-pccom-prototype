@@ -56,10 +56,39 @@ func developmentSituationFromSource(source world.Post, continuation bool) develo
 	if continuation {
 		summary = "A materially new development occurred inside the earlier canonical situation. " + summary
 		facts = append(facts, "continuation=Add a genuinely new development; do not restate the earlier root.")
-	} else {
-		facts = append(facts, "reply_binding=Respond to the explicit canonical source; do not replace it with another topic or event.")
+		return developmentSparseSituation{kind: kind, summary: summary, facts: facts}
 	}
+	if kind == "title_first" {
+		facts = developmentTitleFirstReplySourceFacts(source.Intent.SituationFacts)
+		summary = fmt.Sprintf("Reply to canonical source post %04d. Source event summary: %s", source.ID, summary)
+		facts = append(facts,
+			"reply_binding=Respond to the explicit canonical source; do not replace it with another topic or event.",
+			"reply_source_contract=Every fact prefixed source_ belongs to the source post/source author, not to the reply author. You may acknowledge, question or comment on it, but never turn it into first-person experience, ownership, purchase, progress or observation unless the reply author's own canonical facts or already-written prose independently establish that fact.",
+		)
+		return developmentSparseSituation{kind: kind, summary: summary, facts: facts}
+	}
+	facts = append(facts, "reply_binding=Respond to the explicit canonical source; do not replace it with another topic or event.")
 	return developmentSparseSituation{kind: kind, summary: summary, facts: facts}
+}
+
+func developmentTitleFirstReplySourceFacts(sourceFacts []string) []string {
+	facts := make([]string, 0, len(sourceFacts))
+	for _, fact := range sourceFacts {
+		fact = strings.TrimSpace(fact)
+		if fact == "" || strings.HasPrefix(fact, "article_detail_contract=") || strings.HasPrefix(fact, "subject_contract=") || strings.HasPrefix(fact, "reply_binding=") || strings.HasPrefix(fact, "reply_source_contract=") {
+			continue
+		}
+		if strings.HasPrefix(fact, "source_") {
+			facts = append(facts, fact)
+			continue
+		}
+		if strings.Contains(fact, "=") {
+			facts = append(facts, "source_"+fact)
+			continue
+		}
+		facts = append(facts, "source_fact="+fact)
+	}
+	return facts
 }
 
 func developmentSelectRootSituation(host world.Host, board world.Board, shell developmentTimelineShell, prior []world.Post) developmentSparseSituation {
@@ -220,7 +249,7 @@ func developmentSituationFacets(anchor string) []developmentSituationFacet {
 			{kind: "modem_reconnect_variation", focus: "variation between successive connection attempts", boundary: "Describe the observed sequence only; no hardware defect or line fault may be asserted without evidence.", occurrences: []string{"Two successive attempts differed in how long establishment took, despite the actor not intentionally changing settings.", "A later reconnect behaved differently from the immediately previous attempt, but both eventually established a session."}},
 			{kind: "modem_connection_sound", focus: "audible changes during connection establishment", boundary: "Use generic audible observations only; do not name a protocol, speed, failure mode, or model from sound alone.", occurrences: []string{"The audible connection sequence seemed shorter on one attempt than another, while both completed.", "A brief pause occurred between audible phases of connection establishment on a recent call."}},
 			{kind: "modem_disconnect_observation", focus: "what the actor observes immediately before or after a disconnect", boundary: "Do not claim the cause of a disconnect; keep the observation at the terminal/line level.", occurrences: []string{"A recent session ended cleanly but a subsequent attempt behaved differently during establishment.", "The actor noticed a small difference in the line/terminal response immediately after ending a session."}},
-	}
+		}
 	case "games":
 		return []developmentSituationFacet{
 			{kind: "games_naming_choice", focus: "choosing an in-game name or label", boundary: "No real game title is needed; make the choice understandable without hidden context.", occurrences: []string{"The actor paused at a naming step because they wanted something memorable without using their real name.", "The actor chose a temporary name quickly and then started second-guessing it once play continued."}},

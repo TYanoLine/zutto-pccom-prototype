@@ -13,6 +13,8 @@ Vercelでは `/api/materialization-lab-fresh`。完了後は `/poc/materializati
 - Era Validatorで時代上の成立可否を先に振り分ける。`research` は候補のまま保持し、人物枠へ仮採用された候補だけWeb史料確認する。`ng` / `unverified` は世界へ採用しない。
 - 後段でモデルが既存の人物・日時・発言目的との整合を提案し、世界側がID・重複・必須項目・Era結果を検査して採用する。既存PersonaFactsと明確に矛盾する候補は採用しないが、既存Factsにないという理由だけで個人経験を一律拒否しない。
 - 採用が確定した時点で、タイトルとreview summaryがその投稿の `title_first` canonical world eventになる。summaryはタイトルから直接読み取れる最小限の出来事だけを正本化し、タイトルにない機種・場所・原因・購入経路・進捗等は追加しない。本文workerはこの採用済みeventと既存Persona/BBS factsの範囲だけを文章化する。
+- title/persona/Era採用後にだけ専用Article Detail Materializerを実行し、採用記事ごとに2〜4件の `article_detail=<kind>:<fact>` を正本化する。detailはタイトル/summaryの言い換えや『読者に尋ねる』等の編集指示を禁止し、locator/timing/sequence/comparison/observation/question_scope/decision/reaction_contextのうち2種類以上で、本文を具体化する記事ローカル情報を固定する。20候補すべてにdetailを作らない。
+- replyではrootのdetailを `source_article_detail` 等の `source_` namespaceへ移し、source authorの事実として扱う。返信者自身の購入・利用・開始・訪問・発見等へ一人称で継承してはならない。
 - 無矛盾の候補は原文保持。具体的矛盾・長さの補正のみ理由付きで認める。採用済みタイトルは本文workerで再生成しない。返信は従来の親記事に基づく件名処理。通常世界への書き戻しなし。
 - `title_candidates` に原文を含めてアーカイブする。理由空欄の判定はその候補だけ不採用。板のreview失敗はunreviewedとして残し、他の板を続行する。生成の再試行で候補を勝手に作り直さない。既存の開始制限・排他を共用。
 

@@ -90,6 +90,10 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	if !ok {
 		return nil, fmt.Errorf("renderer does not support title era validation")
 	}
+	detailPlanner, ok := m.Renderer.(llm.BBSTitleArticleDetailPlanner)
+	if !ok {
+		return nil, fmt.Errorf("renderer does not support title article details")
+	}
 	facts := r.existingPersonaFactsByID(personas)
 	boards := []world.Board{}
 	events := map[string][]llm.BBSWorldWindowEvent{}
@@ -109,7 +113,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		}
 		events[item.board.ID] = append(events[item.board.ID], llm.BBSWorldWindowEvent{EventID: item.eventID, BoardID: item.board.ID, BoardName: item.board.Name, AuthorHandle: s.persona.Handle, CreatedAt: s.createdAt.Format(time.RFC3339), Action: s.action, AnchorKey: s.anchorKey, CauseKind: s.causeKind, CauseSummary: s.causeSummary, DiscourseMode: s.discourseMode, PersonaProfile: personaSummary(s.persona), ExistingFacts: fs})
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Minute)
 	defer cancel()
 	out := map[string]developmentSparseSituation{}
 	usage := GenerationUsage{}
@@ -141,14 +145,14 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			}
 		}
 		boardsRemaining := len(boards) - boardIndex
-		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], planningBBSState(prior, 48), state, offset, boardsRemaining, planner, addUsage, out); err != nil {
+		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], planningBBSState(prior, 48), state, offset, boardsRemaining, planner, detailPlanner, addUsage, out); err != nil {
 			return nil, err
 		}
 	}
 	return out, nil
 }
 
-func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host world.Host, board world.Board, asOf string, eligibleTitles []string, originalCandidates []int, boardEvents []llm.BBSWorldWindowEvent, recentBBSState string, state *developmentTitleFirstState, offset int, boardsRemaining int, planner llm.BBSTitleCandidatePlanner, addUsage func(llm.TokenUsage), out map[string]developmentSparseSituation) error {
+func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host world.Host, board world.Board, asOf string, eligibleTitles []string, originalCandidates []int, boardEvents []llm.BBSWorldWindowEvent, recentBBSState string, state *developmentTitleFirstState, offset int, boardsRemaining int, planner llm.BBSTitleCandidatePlanner, detailPlanner llm.BBSTitleArticleDetailPlanner, addUsage func(llm.TokenUsage), out map[string]developmentSparseSituation) error {
 	remainingTitles := append([]string(nil), eligibleTitles...)
 	remainingCandidates := append([]int(nil), originalCandidates...)
 	remainingEvents := append([]llm.BBSWorldWindowEvent(nil), boardEvents...)
@@ -158,6 +162,8 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 	}
 	acceptedCandidates := map[int]bool{}
 	acceptedEvents := map[string]bool{}
+	acceptedCandidateByEvent := map[string]int{}
+	acceptedDetailSeeds := map[string]llm.BBSTitleArticleDetailSeed{}
 	blockedCandidates := map[int]bool{}
 	lastReasons := map[int]string{}
 	researchAllowance := developmentTitleEraResearchAllowance(state.eraResearchUsed, boardsRemaining)
@@ -207,7 +213,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			row.EventID = d.EventID
 			row.Author = e.AuthorHandle
 			row.Subject = d.Subject
-			row.Details = append([]string(nil), d.Details...)
 			if row.EraStatus != "research" {
 				continue
 			}
@@ -266,22 +271,27 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			}
 			acceptedCandidates[originalCandidate] = true
 			acceptedEvents[d.EventID] = true
+			acceptedCandidateByEvent[d.EventID] = originalCandidate
+			e := eventByID[d.EventID]
+			acceptedDetailSeeds[d.EventID] = llm.BBSTitleArticleDetailSeed{
+				EventID: d.EventID, Subject: d.Subject, Summary: d.Summary,
+				AuthorHandle: e.AuthorHandle, CreatedAt: e.CreatedAt, DiscourseMode: e.DiscourseMode,
+				ExistingFacts: append([]string(nil), e.ExistingFacts...),
+			}
 			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 			row.Status = "accepted"
 			if d.Subject != row.Original {
 				row.Status = "corrected"
 			}
-			situationFacts := []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "world_adoption=title_candidate", "world_adopted_summary=" + d.Summary, "historical_check=title_era_" + row.EraStatus}
-			for _, detail := range d.Details {
-				detail = strings.TrimSpace(detail)
-				if detail != "" {
-					situationFacts = append(situationFacts, "article_detail="+detail)
-				}
+			situationFacts := []string{
+				"title_first_subject=" + d.Subject,
+				"title_first_original=" + row.Original,
+				"title_first_review=" + d.Reason,
+				"world_adoption=title_candidate",
+				"world_adopted_summary=" + d.Summary,
+				"historical_check=title_era_" + row.EraStatus,
+				"subject_contract=Keep the accepted title verbatim. The accepted title and world_adopted_summary are canonical world facts for this post. Article-local specifics will be added only by the post-adoption Article Detail Materializer.",
 			}
-			situationFacts = append(situationFacts,
-				"article_detail_contract=The article_detail facts are canonical article-local specifics chosen before prose. Materially express at least two distinct supplied details when available; do not collapse them into vague wording such as 'one thing', 'that part' or 'something was different'. Do not add new durable biography or external historical/product/game facts beyond the adopted title, supplied detail facts and existing canonical context.",
-				"subject_contract=Keep the accepted title verbatim. The accepted title, world_adopted_summary and article_detail facts are canonical world facts for this post. Do not add further possessions, purchases, visits, progress, completions, technical causes, public events or personal history beyond that adopted event and its explicit article details.",
-			)
 			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: situationFacts}
 		}
 		for originalCandidate := range malformedThisPass {
@@ -314,9 +324,49 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 		remainingCandidates = nextCandidates
 		remainingEvents = nextEvents
 	}
+	if len(acceptedDetailSeeds) > 0 {
+		seeds := make([]llm.BBSTitleArticleDetailSeed, 0, len(acceptedDetailSeeds))
+		for _, event := range boardEvents {
+			if seed, ok := acceptedDetailSeeds[event.EventID]; ok {
+				seeds = append(seeds, seed)
+			}
+		}
+		detailDraft, detailErr := detailPlanner.MaterializeBBSTitleArticleDetails(ctx, llm.BBSTitleArticleDetailRequest{
+			BoardName: board.Name, WorldDate: asOf, RecentBBSState: recentBBSState, Articles: seeds,
+		})
+		addUsage(detailDraft.Usage)
+		if detailErr != nil {
+			for eventID, originalCandidate := range acceptedCandidateByEvent {
+				row := &state.rows[offset+originalCandidate-1]
+				row.Status = "detail_rejected"
+				row.Reason += " / 記事detail具体化失敗: " + detailErr.Error()
+				row.Details = nil
+				delete(out, eventID)
+			}
+		} else {
+			for _, article := range detailDraft.Articles {
+				originalCandidate, ok := acceptedCandidateByEvent[article.EventID]
+				if !ok {
+					continue
+				}
+				row := &state.rows[offset+originalCandidate-1]
+				situation := out[article.EventID]
+				row.Details = nil
+				for _, detail := range article.Details {
+					encoded := strings.TrimSpace(detail.Kind) + ":" + strings.TrimSpace(detail.Fact)
+					row.Details = append(row.Details, encoded)
+					situation.facts = append(situation.facts, "article_detail="+encoded)
+				}
+				situation.facts = append(situation.facts,
+					"article_detail_contract=The article_detail facts are canonical article-local specifics selected after title/persona/Era adoption. Materially express at least two distinct supplied details. A detail must add information beyond the title/summary; never collapse it back into vague wording. Do not add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context.",
+				)
+				out[article.EventID] = situation
+			}
+		}
+	}
 	for _, originalCandidate := range originalCandidates {
 		row := &state.rows[offset+originalCandidate-1]
-		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" {
+		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" || row.Status == "detail_rejected" {
 			continue
 		}
 		if row.EraStatus == "research" {
