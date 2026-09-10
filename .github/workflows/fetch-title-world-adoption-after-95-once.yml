@@ -8,14 +8,14 @@ on:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     steps:
       - name: Fetch existing lab result
         shell: bash
         run: |
           set -euo pipefail
           URL='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh?action=status&id=lab-fresh-1789041195-0001'
-          for i in $(seq 1 20); do
+          for i in $(seq 1 60); do
             if RESP="$(curl --retry 3 --retry-all-errors --retry-delay 2 --fail-with-body -sS "$URL")"; then
               STATUS="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))' <<<"$RESP")"
               echo "poll=$i status=$STATUS"
