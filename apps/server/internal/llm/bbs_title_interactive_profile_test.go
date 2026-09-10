@@ -12,9 +12,9 @@ import (
 func interactiveProfileProvider(t *testing.T, outputText string, captured *map[string]any) StructuredOpenAIProvider {
 	t.Helper()
 	outer, err := json.Marshal(map[string]any{
-		"model": "gpt-5.6-luna-test",
+		"model":  "gpt-5.6-luna-test",
 		"output": []any{map[string]any{"content": []any{map[string]any{"type": "output_text", "text": outputText}}}},
-		"usage": map[string]any{"input_tokens": 10, "output_tokens": 10, "total_tokens": 20},
+		"usage":  map[string]any{"input_tokens": 10, "output_tokens": 10, "total_tokens": 20},
 	})
 	if err != nil {
 		t.Fatal(err)

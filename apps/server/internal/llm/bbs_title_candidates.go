@@ -37,13 +37,29 @@ type BBSTitleCandidatePlanner interface {
 	ReviewBBSTitleCandidates(context.Context, BBSTitleReviewRequest) (BBSTitleReview, error)
 }
 
+// BBSTitleInteractiveCandidatePlanner is the latency-sensitive profile used only
+// by the ordinary development dial-up UI. The isolated Lab intentionally keeps
+// the normal provider profile so quality evaluation does not silently weaken.
+type BBSTitleInteractiveCandidatePlanner interface {
+	GenerateInteractiveBBSTitleCandidates(context.Context, string, string) (BBSTitleCandidates, error)
+	ReviewInteractiveBBSTitleCandidates(context.Context, BBSTitleReviewRequest) (BBSTitleReview, error)
+}
+
 func titleCandidatePrompt(date, board string) string {
 	return fmt.Sprintf("%sのパソコン通信botを再現します。\n以下条件の掲示板における記事タイトル候補を20個作ってください。\n掲示板名「%s」具体的な固有名詞を含めても良いです。", date, board)
 }
 
 func (p StructuredOpenAIProvider) GenerateBBSTitleCandidates(ctx context.Context, date, board string) (BBSTitleCandidates, error) {
+	return p.generateBBSTitleCandidates(ctx, date, board, "")
+}
+
+func (p StructuredOpenAIProvider) GenerateInteractiveBBSTitleCandidates(ctx context.Context, date, board string) (BBSTitleCandidates, error) {
+	return p.generateBBSTitleCandidates(ctx, date, board, "none")
+}
+
+func (p StructuredOpenAIProvider) generateBBSTitleCandidates(ctx context.Context, date, board, reasoningEffort string) (BBSTitleCandidates, error) {
 	schema := map[string]any{"type": "object", "properties": map[string]any{"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 20, "maxItems": 20}}, "required": []string{"titles"}, "additionalProperties": false}
-	result, err := p.responseTextWithJSONSchema(ctx, titleCandidatePrompt(date, board), "low", 2400, "bbs_title_candidates", schema)
+	result, err := p.responseTextWithJSONSchemaReasoning(ctx, titleCandidatePrompt(date, board), "low", 2400, "bbs_title_candidates", schema, reasoningEffort)
 	if err != nil {
 		return BBSTitleCandidates{}, err
 	}
@@ -64,6 +80,14 @@ func (p StructuredOpenAIProvider) GenerateBBSTitleCandidates(ctx context.Context
 }
 
 func (p StructuredOpenAIProvider) ReviewBBSTitleCandidates(ctx context.Context, req BBSTitleReviewRequest) (BBSTitleReview, error) {
+	return p.reviewBBSTitleCandidates(ctx, req, "")
+}
+
+func (p StructuredOpenAIProvider) ReviewInteractiveBBSTitleCandidates(ctx context.Context, req BBSTitleReviewRequest) (BBSTitleReview, error) {
+	return p.reviewBBSTitleCandidates(ctx, req, "low")
+}
+
+func (p StructuredOpenAIProvider) reviewBBSTitleCandidates(ctx context.Context, req BBSTitleReviewRequest, reasoningEffort string) (BBSTitleReview, error) {
 	input, err := json.Marshal(req)
 	if err != nil {
 		return BBSTitleReview{}, err
@@ -86,7 +110,7 @@ detailsはこの人物・投稿枠検査では具体化しません。互換用�
 	fields["details"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 0, "maxItems": 0}
 	item := map[string]any{"type": "object", "properties": fields, "required": []string{"candidate", "event_id", "subject", "reason", "summary", "details"}, "additionalProperties": false}
 	schema := map[string]any{"type": "object", "properties": map[string]any{"decisions": map[string]any{"type": "array", "items": item, "minItems": len(req.Titles), "maxItems": len(req.Titles)}}, "required": []string{"decisions"}, "additionalProperties": false}
-	result, err := p.responseTextWithJSONSchema(ctx, prompt, "low", 7000, "bbs_title_review", schema)
+	result, err := p.responseTextWithJSONSchemaReasoning(ctx, prompt, "low", 7000, "bbs_title_review", schema, reasoningEffort)
 	if err != nil {
 		return BBSTitleReview{}, err
 	}

@@ -34,6 +34,12 @@ type BBSTitleEraValidator interface {
 	ValidateBBSTitleEra(context.Context, BBSTitleEraRequest) (BBSTitleEraReview, error)
 }
 
+// BBSTitleInteractiveEraValidator keeps Era validation independent while using
+// a latency-oriented inference profile in the interactive development terminal.
+type BBSTitleInteractiveEraValidator interface {
+	ValidateInteractiveBBSTitleEra(context.Context, BBSTitleEraRequest) (BBSTitleEraReview, error)
+}
+
 func titleEraRoutingPrompt(input string) string {
 	return `記事タイトル候補の「時代検証の振り分け」だけを行ってください。人物への割当、文章の自然さ、掲示板内の出来事の真偽、投稿者の所有・購入・プレイ経験は判定しません。
 
@@ -59,6 +65,14 @@ func titleEraRoutingPrompt(input string) string {
 }
 
 func (p StructuredOpenAIProvider) ValidateBBSTitleEra(ctx context.Context, req BBSTitleEraRequest) (BBSTitleEraReview, error) {
+	return p.validateBBSTitleEra(ctx, req, "")
+}
+
+func (p StructuredOpenAIProvider) ValidateInteractiveBBSTitleEra(ctx context.Context, req BBSTitleEraRequest) (BBSTitleEraReview, error) {
+	return p.validateBBSTitleEra(ctx, req, "none")
+}
+
+func (p StructuredOpenAIProvider) validateBBSTitleEra(ctx context.Context, req BBSTitleEraRequest, reasoningEffort string) (BBSTitleEraReview, error) {
 	input, err := json.Marshal(req)
 	if err != nil {
 		return BBSTitleEraReview{}, err
@@ -82,7 +96,7 @@ func (p StructuredOpenAIProvider) ValidateBBSTitleEra(ctx context.Context, req B
 		"required":             []string{"decisions"},
 		"additionalProperties": false,
 	}
-	result, err := p.responseTextWithJSONSchema(ctx, prompt, "low", 3600, "bbs_title_era_review", schema)
+	result, err := p.responseTextWithJSONSchemaReasoning(ctx, prompt, "low", 3600, "bbs_title_era_review", schema, reasoningEffort)
 	if err != nil {
 		return BBSTitleEraReview{}, err
 	}

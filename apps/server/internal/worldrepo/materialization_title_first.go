@@ -90,6 +90,10 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	if !ok {
 		return nil, fmt.Errorf("renderer does not support title era validation")
 	}
+	if developmentInteractiveTitleFirstEnabled(r) {
+		planner = developmentInteractiveTitlePlanner(m.Renderer, planner)
+		eraValidator = developmentInteractiveTitleEraValidator(m.Renderer, eraValidator)
+	}
 	detailPlanner, ok := m.Renderer.(llm.BBSTitleArticleDetailPlanner)
 	if !ok {
 		return nil, fmt.Errorf("renderer does not support title article details")
