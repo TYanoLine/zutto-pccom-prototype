@@ -29,5 +29,10 @@ func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCle
 		return true
 	})
 	clearDevelopmentPlanningTelemetry(r)
+	if developmentTitleFirstEnabled(r) {
+		// RESET starts a genuinely new title-first planning pass instead of
+		// reusing the cached candidate/assignment result from the prior run.
+		r.EnableDevelopmentTitleFirstPoC(nil)
+	}
 	return postsCleared, personaFactsCleared, true
 }
