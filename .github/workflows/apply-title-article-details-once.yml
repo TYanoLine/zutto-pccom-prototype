@@ -13,6 +13,7 @@ jobs:
         with:
           ref: feat/title-first-article-details
       - run: python3 .github/scripts/apply_title_article_details.py
+      - run: python3 .github/scripts/fix_title_article_detail_fixture.py
       - run: gofmt -w apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/llm/bbs_title_candidates_test.go apps/server/internal/llm/openai.go apps/server/internal/worldrepo/materialization_title_first.go apps/server/internal/worldrepo/materialization_title_first_test.go
       - name: Test server
         working-directory: apps/server
