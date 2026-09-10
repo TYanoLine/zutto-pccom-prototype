@@ -269,7 +269,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			if d.Subject != row.Original {
 				row.Status = "corrected"
 			}
-			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. Write only its matter within this actor's existing facts. Do not invent new possessions, purchases, personal history or unsupported game/technical details."}}
+			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "world_adoption=title_candidate", "world_adopted_summary=" + d.Summary, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. The accepted title and world_adopted_summary are canonical world facts for this post. You may state facts directly entailed by them plus existing persona/BBS facts; do not add further possessions, purchases, visits, progress, completions, technical causes, public events or personal history not entailed by the adopted event."}}
 		}
 		for originalCandidate := range malformedThisPass {
 			row := &state.rows[offset+originalCandidate-1]

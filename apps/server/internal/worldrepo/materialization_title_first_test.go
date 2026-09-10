@@ -94,6 +94,22 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 		if post.Subject != "話題0" {
 			t.Fatal(post.Subject)
 		}
+		if post.Intent.SituationKind != "title_first" || post.Intent.SituationSummary != "感想を共有" {
+			t.Fatalf("accepted title was not promoted to canonical title-first event: %+v", post.Intent)
+		}
+		hasWorldAdoption := false
+		hasAdoptedSummary := false
+		for _, fact := range post.Intent.SituationFacts {
+			if fact == "world_adoption=title_candidate" {
+				hasWorldAdoption = true
+			}
+			if fact == "world_adopted_summary=感想を共有" {
+				hasAdoptedSummary = true
+			}
+		}
+		if !hasWorldAdoption || !hasAdoptedSummary {
+			t.Fatalf("missing world adoption facts: %+v", post.Intent.SituationFacts)
+		}
 		rendered, found, created, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
 		if !found || !created || rendered.Subject != post.Subject || renderer.req.CanonicalSubject != post.Subject {
 			t.Fatalf("subject changed: %+v %s", rendered, diag)
