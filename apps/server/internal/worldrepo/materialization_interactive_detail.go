@@ -25,6 +25,7 @@ func worldAdoptedSummary(facts []string, fallback string) string {
 			if value := strings.TrimSpace(strings.TrimPrefix(fact, "world_adopted_summary=")); value != "" {
 				return value
 			}
+		}
 	}
 	return strings.TrimSpace(fallback)
 }
