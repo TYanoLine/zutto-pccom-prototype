@@ -54,6 +54,27 @@ func TestTitleReviewMissingReasonRejectsOnlyThatCandidate(t *testing.T) {
 	}
 }
 
+func TestTitleReviewRejectsSubjectRewriteAsCandidateLevelFailure(t *testing.T) {
+	req := BBSTitleReviewRequest{
+		Titles: []string{"ポケットモンスター赤緑　攻略情報交換", "新機種NINTENDO64を触ってみました"},
+		Events: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}},
+	}
+	draft := BBSTitleReview{Decisions: []BBSTitleDecision{
+		{Candidate: 1, EventID: "a", Subject: req.Titles[1], Reason: "別候補へ補正", Summary: "NINTENDO64を触った"},
+		{Candidate: 2, EventID: "b", Subject: req.Titles[1], Reason: "原文維持", Summary: "NINTENDO64を触った"},
+	}}
+	rejectRewrittenTitleDecisions(req, &draft)
+	if draft.Decisions[0].EventID != "" || draft.Decisions[0].Subject != "" || draft.Decisions[0].Summary != "" || !strings.HasPrefix(draft.Decisions[0].Reason, "検査結果不備：") {
+		t.Fatalf("rewritten candidate was not rejected: %+v", draft.Decisions[0])
+	}
+	if draft.Decisions[1].EventID != "b" || draft.Decisions[1].Subject != req.Titles[1] {
+		t.Fatalf("unchanged candidate was modified: %+v", draft.Decisions[1])
+	}
+	if err := ValidateBBSTitleReview(req, draft); err != nil {
+		t.Fatalf("sanitized review should validate: %v / %+v", err, draft)
+	}
+}
+
 func TestTitleReviewDuplicateSlotRejectsOnlyLaterCandidateDeterministically(t *testing.T) {
 	req := BBSTitleReviewRequest{Titles: []string{"第一候補", "第二候補", "第三候補"}, Events: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}}}
 	// Deliberately return decisions out of order. Candidate number, not JSON
