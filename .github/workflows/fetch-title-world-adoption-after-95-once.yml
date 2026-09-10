@@ -1,0 +1,32 @@
+name: fetch-title-world-adoption-after-95-once
+
+on:
+  push:
+    branches:
+      - ops/run-title-world-adoption-after-95-20260910
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch existing lab result
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh?action=status&id=lab-fresh-1789041195-0001'
+          for i in $(seq 1 20); do
+            if RESP="$(curl --retry 3 --retry-all-errors --retry-delay 2 --fail-with-body -sS "$URL")"; then
+              STATUS="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))' <<<"$RESP")"
+              echo "poll=$i status=$STATUS"
+              if [[ "$STATUS" == "completed" || "$STATUS" == "failed" ]]; then
+                echo 'FINAL_JSON_BEGIN'
+                echo "$RESP"
+                echo 'FINAL_JSON_END'
+                exit 0
+              fi
+            fi
+            sleep 10
+          done
+          echo 'Could not retrieve terminal lab state' >&2
+          exit 1
