@@ -21,9 +21,13 @@ sourceProto.connect = function (destination: AudioNode, ...rest: unknown[]) {
 };
 
 function Home() {
+  const devLinkStyle = {padding:'7px 10px',fontFamily:'monospace',fontSize:12,color:'#9fffc0',background:'#07130dee',border:'1px solid #397a53',textDecoration:'none'} as const;
   return <>
     <App />
-    <a href="/poc/image-artifact" style={{position:'fixed',right:12,bottom:12,zIndex:50,padding:'7px 10px',fontFamily:'monospace',fontSize:12,color:'#9fffc0',background:'#07130dee',border:'1px solid #397a53',textDecoration:'none'}}>IMAGE FILE PoC</a>
+    <div style={{position:'fixed',right:12,bottom:12,zIndex:50,display:'flex',gap:8}}>
+      <a href="/poc/materialization-lab-viewer" style={devLinkStyle}>LAB VIEWER</a>
+      <a href="/poc/image-artifact" style={devLinkStyle}>IMAGE FILE PoC</a>
+    </div>
   </>;
 }
 
