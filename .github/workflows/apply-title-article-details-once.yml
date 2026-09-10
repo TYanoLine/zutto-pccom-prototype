@@ -1,0 +1,26 @@
+name: apply-title-article-details-once
+on:
+  push:
+    branches: [feat/title-first-article-details]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/title-first-article-details
+      - run: python3 .github/scripts/apply_title_article_details.py
+      - run: gofmt -w apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/llm/bbs_title_candidates_test.go apps/server/internal/llm/openai.go apps/server/internal/worldrepo/materialization_title_first.go apps/server/internal/worldrepo/materialization_title_first_test.go
+      - name: Test server
+        working-directory: apps/server
+        run: go test ./...
+      - name: Commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/llm/bbs_title_candidates_test.go apps/server/internal/llm/openai.go apps/server/internal/worldrepo/materialization_title_first.go apps/server/internal/worldrepo/materialization_title_first_test.go docs/MATERIALIZATION_LAB.md
+          git commit -m 'Add canonical article details to title-first posts'
+          git push origin HEAD:feat/title-first-article-details
