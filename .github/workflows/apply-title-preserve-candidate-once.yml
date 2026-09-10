@@ -1,0 +1,114 @@
+name: apply-title-preserve-candidate-once
+
+on:
+  push:
+    branches:
+      - fix/title-first-preserve-free-candidate
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Apply title candidate preservation patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/title-first-preserve-free-candidate
+      - name: Patch title review preservation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('apps/server/internal/llm/bbs_title_candidates.go')
+          s = p.read_text()
+          s = s.replace(
+              '原文に問題がなければsubjectは一字も変えない。文体の統一、疑問文の削減、多様性の演出、見出しとしての改善はしない。人物・投稿枠との具体的な矛盾や36文字超過がある場合だけ最小限補正し、reasonに変更理由を明記する。別の話題への作り直しは禁止。対応できなければ不採用。',
+              '採用する場合、subjectは必ずそのcandidateの原文を一字も変えず返してください。人物・投稿枠との矛盾、36文字超過、その他の問題がある候補は補正せず不採用にしてください。別候補の件名や別話題への書き換えは絶対に禁止です。20候補の中から別の候補を選んでください。'
+          )
+          old = '''\tdraft.Usage = result.Usage
+          \trejectUnexplainedTitleDecisions(&draft)
+          \trejectDuplicateTitleAssignments(&draft)
+          '''
+          new = '''\tdraft.Usage = result.Usage
+          \trejectUnexplainedTitleDecisions(&draft)
+          \trejectRewrittenTitleDecisions(req, &draft)
+          \trejectDuplicateTitleAssignments(&draft)
+          '''
+          if old not in s:
+              raise SystemExit('sanitizer insertion target not found')
+          s = s.replace(old, new, 1)
+          marker = '''// A duplicate event proposal is a candidate-level model defect, not a reason to
+          // discard the whole board. Candidate number is the stable order of the original
+          '''
+          fn = '''// A candidate identity is immutable. The review model may choose a slot, but it
+          // must never turn one free candidate into another title. Treat a rewrite as a
+          // candidate-level malformed result so the existing same-pool rematch can try a
+          // different original candidate without fabricating a correction.
+          func rejectRewrittenTitleDecisions(req BBSTitleReviewRequest, draft *BBSTitleReview) {
+          \tfor i := range draft.Decisions {
+          \t\td := &draft.Decisions[i]
+          \t\tif d.EventID == "" || d.Candidate < 1 || d.Candidate > len(req.Titles) {
+          \t\t\tcontinue
+          \t\t}
+          \t\tif d.Subject == req.Titles[d.Candidate-1] {
+          \t\t\tcontinue
+          \t\t}
+          \t\td.EventID = ""
+          \t\td.Subject = ""
+          \t\td.Summary = ""
+          \t\td.Reason = "検査結果不備：候補タイトルを別内容へ書き換えたため不採用"
+          \t}
+          }
+          
+          '''
+          if marker not in s:
+              raise SystemExit('function insertion target not found')
+          s = s.replace(marker, fn + marker, 1)
+          p.write_text(s)
+
+          p = Path('apps/server/internal/llm/bbs_title_candidates_test.go')
+          s = p.read_text()
+          marker = '''func TestTitleReviewDuplicateSlotRejectsOnlyLaterCandidateDeterministically(t *testing.T) {
+          '''
+          test = '''func TestTitleReviewRejectsSubjectRewriteAsCandidateLevelFailure(t *testing.T) {
+          \treq := BBSTitleReviewRequest{
+          \t\tTitles: []string{"ポケットモンスター赤緑　攻略情報交換", "新機種NINTENDO64を触ってみました"},
+          \t\tEvents: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}},
+          \t}
+          \tdraft := BBSTitleReview{Decisions: []BBSTitleDecision{
+          \t\t{Candidate: 1, EventID: "a", Subject: req.Titles[1], Reason: "別候補へ補正", Summary: "NINTENDO64を触った"},
+          \t\t{Candidate: 2, EventID: "b", Subject: req.Titles[1], Reason: "原文維持", Summary: "NINTENDO64を触った"},
+          \t}}
+          \trejectRewrittenTitleDecisions(req, &draft)
+          \tif draft.Decisions[0].EventID != "" || draft.Decisions[0].Subject != "" || draft.Decisions[0].Summary != "" || !strings.HasPrefix(draft.Decisions[0].Reason, "検査結果不備：") {
+          \t\tt.Fatalf("rewritten candidate was not rejected: %+v", draft.Decisions[0])
+          \t}
+          \tif draft.Decisions[1].EventID != "b" || draft.Decisions[1].Subject != req.Titles[1] {
+          \t\tt.Fatalf("unchanged candidate was modified: %+v", draft.Decisions[1])
+          \t}
+          \tif err := ValidateBBSTitleReview(req, draft); err != nil {
+          \t\tt.Fatalf("sanitized review should validate: %v / %+v", err, draft)
+          \t}
+          }
+          
+          '''
+          if marker not in s:
+              raise SystemExit('test target not found')
+          s = s.replace(marker, test + marker, 1)
+          p.write_text(s)
+          PY
+          gofmt -w apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/llm/bbs_title_candidates_test.go
+      - name: Test server
+        run: cd apps/server && go test ./...
+      - name: Commit patch
+        shell: bash
+        run: |
+          git rm .github/workflows/apply-title-preserve-candidate-once.yml
+          git config user.name 'TYanoLine'
+          git config user.email '106317971+TYanoLine@users.noreply.github.com'
+          git add apps/server/internal/llm/bbs_title_candidates.go apps/server/internal/llm/bbs_title_candidates_test.go
+          git commit -m 'Reject title candidate rewrites'
+          git push origin HEAD:fix/title-first-preserve-free-candidate
