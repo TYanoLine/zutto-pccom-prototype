@@ -62,9 +62,8 @@ func titleFirstReviewDecisionMalformed(reason string) bool {
 }
 
 // Only the isolated conversation Lab calls this. Candidate wording is generated
-// independently, but each root already has a cheap canonical sparse situation
-// selected by the world layer. The title matcher may realize that situation; it
-// may not replace it with a new experience or world occurrence.
+// first. Era routing is cheap; expensive historical research runs only after the
+// persona/slot matcher has tentatively selected a candidate for an actual post.
 func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (result map[string]developmentSparseSituation, err error) {
 	stateValue, _ := developmentTitleFirst.Load(r)
 	state := stateValue.(*developmentTitleFirstState)
@@ -93,11 +92,6 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	facts := r.existingPersonaFactsByID(personas)
 	boards := []world.Board{}
 	events := map[string][]llm.BBSWorldWindowEvent{}
-	canonicalSituations := map[string]developmentSparseSituation{}
-	// Include already-canonical history plus lightweight pseudo roots as each
-	// situation is chosen. This preserves the sparse selector's novelty behavior
-	// across the same generated window before any title has been accepted.
-	situationHistory := append([]world.Post(nil), state.history...)
 	for _, item := range window {
 		s := item.shell
 		if s.action != "thread_start" || s.parentIndex != 0 || s.sourceIndex != 0 {
@@ -112,35 +106,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 				fs = append(fs, f.Key+"="+f.Value)
 			}
 		}
-		situation := developmentSituationForShell(host, item.board, s, situationHistory, nil)
-		canonicalSituations[item.eventID] = situation
-		situationHistory = append(situationHistory, world.Post{
-			BoardID:         item.board.ID,
-			AuthorPersonaID: s.persona.ID,
-			CreatedAt:       s.createdAt,
-			Intent: world.PostIntent{
-				SituationKind:    situation.kind,
-				SituationSummary: situation.summary,
-				SituationFacts:   append([]string(nil), situation.facts...),
-			},
-		})
-		events[item.board.ID] = append(events[item.board.ID], llm.BBSWorldWindowEvent{
-			EventID:          item.eventID,
-			BoardID:          item.board.ID,
-			BoardName:        item.board.Name,
-			AuthorHandle:     s.persona.Handle,
-			CreatedAt:        s.createdAt.Format(time.RFC3339),
-			Action:           s.action,
-			AnchorKey:        s.anchorKey,
-			CauseKind:        s.causeKind,
-			CauseSummary:     s.causeSummary,
-			DiscourseMode:    s.discourseMode,
-			PersonaProfile:   personaSummary(s.persona),
-			ExistingFacts:    fs,
-			SituationKind:    situation.kind,
-			SituationSummary: situation.summary,
-			SituationFacts:   append([]string(nil), situation.facts...),
-		})
+		events[item.board.ID] = append(events[item.board.ID], llm.BBSWorldWindowEvent{EventID: item.eventID, BoardID: item.board.ID, BoardName: item.board.Name, AuthorHandle: s.persona.Handle, CreatedAt: s.createdAt.Format(time.RFC3339), Action: s.action, AnchorKey: s.anchorKey, CauseKind: s.causeKind, CauseSummary: s.causeSummary, DiscourseMode: s.discourseMode, PersonaProfile: personaSummary(s.persona), ExistingFacts: fs})
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
@@ -151,20 +117,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	}
 	defer func() { storeDevelopmentPlanningUsage(r, host.ID, "title-first", usage) }()
 	for boardIndex, board := range boards {
-		generationSituations := make([]llm.BBSTitleGenerationSituation, 0, len(events[board.ID]))
-		for i, event := range events[board.ID] {
-			generationSituations = append(generationSituations, llm.BBSTitleGenerationSituation{
-				Index:   i + 1,
-				Kind:    event.SituationKind,
-				Summary: event.SituationSummary,
-				Facts:   append([]string(nil), event.SituationFacts...),
-			})
-		}
-		pool, err := planner.GenerateBBSTitleCandidates(ctx, llm.BBSTitleGenerationRequest{
-			WorldDate:  r.WorldDate,
-			BoardName:  board.Name,
-			Situations: generationSituations,
-		})
+		pool, err := planner.GenerateBBSTitleCandidates(ctx, r.WorldDate, board.Name)
 		if err != nil {
 			return nil, err
 		}
@@ -187,14 +140,14 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 			}
 		}
 		boardsRemaining := len(boards) - boardIndex
-		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], canonicalSituations, planningBBSState(prior, 48), state, offset, boardsRemaining, planner, addUsage, out); err != nil {
+		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], planningBBSState(prior, 48), state, offset, boardsRemaining, planner, addUsage, out); err != nil {
 			return nil, err
 		}
 	}
 	return out, nil
 }
 
-func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host world.Host, board world.Board, asOf string, eligibleTitles []string, originalCandidates []int, boardEvents []llm.BBSWorldWindowEvent, canonicalSituations map[string]developmentSparseSituation, recentBBSState string, state *developmentTitleFirstState, offset int, boardsRemaining int, planner llm.BBSTitleCandidatePlanner, addUsage func(llm.TokenUsage), out map[string]developmentSparseSituation) error {
+func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host world.Host, board world.Board, asOf string, eligibleTitles []string, originalCandidates []int, boardEvents []llm.BBSWorldWindowEvent, recentBBSState string, state *developmentTitleFirstState, offset int, boardsRemaining int, planner llm.BBSTitleCandidatePlanner, addUsage func(llm.TokenUsage), out map[string]developmentSparseSituation) error {
 	remainingTitles := append([]string(nil), eligibleTitles...)
 	remainingCandidates := append([]int(nil), originalCandidates...)
 	remainingEvents := append([]llm.BBSWorldWindowEvent(nil), boardEvents...)
@@ -309,10 +262,6 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			if acceptedEvents[d.EventID] {
 				return fmt.Errorf("duplicate title assignment")
 			}
-			canonical, ok := canonicalSituations[d.EventID]
-			if !ok || strings.TrimSpace(canonical.kind) == "" {
-				return fmt.Errorf("missing canonical world situation for %q", d.EventID)
-			}
 			acceptedCandidates[originalCandidate] = true
 			acceptedEvents[d.EventID] = true
 			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
@@ -320,16 +269,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			if d.Subject != row.Original {
 				row.Status = "corrected"
 			}
-			mergedFacts := append([]string(nil), canonical.facts...)
-			mergedFacts = append(mergedFacts,
-				"title_first_subject="+d.Subject,
-				"title_first_original="+row.Original,
-				"title_first_review="+d.Reason,
-				"title_first_summary="+d.Summary,
-				"historical_check=title_era_"+row.EraStatus,
-				"subject_contract=Keep the accepted title verbatim. Render only the canonical world situation and existing persona/BBS facts; do not invent a different event, possession, purchase, personal history or unsupported detail.",
-			)
-			out[d.EventID] = developmentSparseSituation{kind: canonical.kind, summary: canonical.summary, facts: mergedFacts}
+			out[d.EventID] = developmentSparseSituation{kind: "title_first", summary: d.Summary, facts: []string{"title_first_subject=" + d.Subject, "title_first_original=" + row.Original, "title_first_review=" + d.Reason, "world_adoption=title_candidate", "world_adopted_summary=" + d.Summary, "historical_check=title_era_" + row.EraStatus, "subject_contract=Keep the accepted title verbatim. The accepted title and world_adopted_summary are canonical world facts for this post. You may state facts directly entailed by them plus existing persona/BBS facts; do not add further possessions, purchases, visits, progress, completions, technical causes, public events or personal history not entailed by the adopted event."}}
 		}
 		for originalCandidate := range malformedThisPass {
 			row := &state.rows[offset+originalCandidate-1]
