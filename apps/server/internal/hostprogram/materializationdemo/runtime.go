@@ -32,6 +32,20 @@ type Runtime struct {
 
 	bulkMu  sync.Mutex
 	bulkJob *bulkBodyJob
+
+	indexMu   sync.Mutex
+	indexJobs map[string]*articleIndexJob
+}
+
+type articleIndexJob struct {
+	boardID    string
+	boardName  string
+	state      string
+	startedAt  time.Time
+	finishedAt time.Time
+	envelopes  int
+	created    bool
+	diagnostic string
 }
 
 type bulkBodyTarget struct {
@@ -445,6 +459,9 @@ func formatBulkBodyOrder(order []bulkBodyTarget) string {
 }
 
 func (r *Runtime) resetConversation() string {
+	if r.articleIndexGenerationRunning() {
+		return "\r\n[DEV] RESET BLOCKED : article index generation is still running. Wait for READY, then RESET.\r\nDEV> "
+	}
 	if r.bulkJobIsRunning() {
 		return "\r\n[DEV] RESET BLOCKED : ALLBODY is still running. Use CANCEL, wait for STATUS=CANCELLED, then RESET.\r\nDEV> "
 	}
@@ -457,6 +474,9 @@ func (r *Runtime) resetConversation() string {
 		return "\r\n[DEV] RESET STORE UNAVAILABLE\r\nDEV> "
 	}
 	r.board = world.Board{}
+	r.indexMu.Lock()
+	r.indexJobs = nil
+	r.indexMu.Unlock()
 	return fmt.Sprintf("\r\n[DEV] CONVERSATION RESET : posts=%d / persona_facts=%d\r\n[DEV] KEPT               : host + boards + core persona skeletons\r\n次に B で掲示板へ入ると因果Envelopeを再生成します。\r\n\r\nDEV> ", posts, facts)
 }
 
@@ -521,12 +541,119 @@ func (r *Runtime) handleBoards(line string) (string, bool) {
 	return r.renderArticles(true), false
 }
 
+func runtimeBoardPosts(posts []world.Post, boardID string) []world.Post {
+	out := make([]world.Post, 0)
+	for _, post := range posts {
+		if post.BoardID == boardID {
+			out = append(out, post)
+		}
+	}
+	return out
+}
+
+func (r *Runtime) articleIndexSnapshot(boardID string) (articleIndexJob, bool) {
+	r.indexMu.Lock()
+	defer r.indexMu.Unlock()
+	job := r.indexJobs[boardID]
+	if job == nil {
+		return articleIndexJob{}, false
+	}
+	return *job, true
+}
+
+func (r *Runtime) articleIndexGenerationRunning() bool {
+	r.indexMu.Lock()
+	defer r.indexMu.Unlock()
+	for _, job := range r.indexJobs {
+		if job != nil && job.state == "RUNNING" {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Runtime) startArticleIndexGeneration() string {
+	s, ok := r.Store.(materializingStore)
+	if !ok {
+		return "\r\nSTORE ERROR\r\n"
+	}
+	if len(runtimeBoardPosts(r.Store.ListPosts(r.Host.ID), r.board.ID)) > 0 {
+		return r.renderArticles(true)
+	}
+
+	r.indexMu.Lock()
+	if r.indexJobs == nil {
+		r.indexJobs = map[string]*articleIndexJob{}
+	}
+	if existing := r.indexJobs[r.board.ID]; existing != nil {
+		snapshot := *existing
+		r.indexMu.Unlock()
+		return formatArticleIndexJob(snapshot)
+	}
+	job := &articleIndexJob{boardID: r.board.ID, boardName: r.board.Name, state: "RUNNING", startedAt: time.Now()}
+	r.indexJobs[r.board.ID] = job
+	initial := *job
+	r.indexMu.Unlock()
+
+	board := r.board
+	go func() {
+		posts, created := s.MaterializationPersonaArticleHeaders(r.Host, board)
+		diagnostic := s.MaterializationPlanningDiagnostic(r.Host.ID, board.ID)
+		r.indexMu.Lock()
+		defer r.indexMu.Unlock()
+		current := r.indexJobs[board.ID]
+		if current != job {
+			return
+		}
+		job.state = "COMPLETED"
+		job.finishedAt = time.Now()
+		job.envelopes = len(posts)
+		job.created = created
+		job.diagnostic = diagnostic
+	}()
+
+	return formatArticleIndexJob(initial)
+}
+
+func formatArticleIndexJob(job articleIndexJob) string {
+	elapsedEnd := time.Now()
+	if !job.finishedAt.IsZero() {
+		elapsedEnd = job.finishedAt
+	}
+	elapsed := elapsedEnd.Sub(job.startedAt).Round(100 * time.Millisecond)
+	if elapsed < 0 {
+		elapsed = 0
+	}
+	if job.state == "RUNNING" {
+		return fmt.Sprintf("\r\n[DEV] ARTICLE INDEX : GENERATING IN BACKGROUND / %s / elapsed=%s\r\n[DEV] 端末は待たされません。RETURN または R で再読込、Qで掲示板一覧へ戻れます。\r\n\r\nR=再読込 / Q=掲示板一覧 > ", job.boardName, elapsed)
+	}
+	line := fmt.Sprintf("\r\n[DEV] ARTICLE INDEX : READY / %s / envelopes=%d / elapsed=%s\r\n", job.boardName, job.envelopes, elapsed)
+	if strings.TrimSpace(job.diagnostic) != "" {
+		line += "[DEV] CAUSAL PLAN   : " + job.diagnostic + "\r\n"
+	}
+	return line + "RETURN または R で記事一覧を表示 / Q=掲示板一覧 > "
+}
+
 func (r *Runtime) renderArticles(showMaterialization bool) string {
 	s, ok := r.Store.(materializingStore)
 	if !ok {
 		return "\r\nSTORE ERROR\r\n"
 	}
-	posts, created := s.MaterializationPersonaArticleHeaders(r.Host, r.board)
+	posts := runtimeBoardPosts(r.Store.ListPosts(r.Host.ID), r.board.ID)
+	created := false
+	if len(posts) == 0 {
+		if job, exists := r.articleIndexSnapshot(r.board.ID); exists {
+			if job.state == "RUNNING" {
+				return formatArticleIndexJob(job)
+			}
+			created = job.created
+			posts = runtimeBoardPosts(r.Store.ListPosts(r.Host.ID), r.board.ID)
+		} else {
+			return r.startArticleIndexGeneration()
+		}
+	} else if job, exists := r.articleIndexSnapshot(r.board.ID); exists {
+		created = job.created
+	}
 	status := "STORED REUSE"
 	if created {
 		status = "SPARSE CAUSAL ENVELOPES MATERIALIZED + STORED"
@@ -555,6 +682,12 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	if strings.EqualFold(line, "Q") || line == "/" {
 		r.state = "boards"
 		return r.renderBoards(), false
+	}
+	if strings.TrimSpace(line) == "" || strings.EqualFold(line, "R") || strings.EqualFold(line, "REFRESH") {
+		return r.renderArticles(false), false
+	}
+	if job, exists := r.articleIndexSnapshot(r.board.ID); exists && job.state == "RUNNING" {
+		return formatArticleIndexJob(job), false
 	}
 	id, err := strconv.ParseInt(line, 10, 64)
 	if err != nil {

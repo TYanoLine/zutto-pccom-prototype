@@ -91,6 +91,11 @@ func (r *Repository) developmentRouteTitleEra(
 		case llm.BBSTitleEraResearch:
 			row.EraStatus = "research"
 			row.EraReason = d.Reason
+			if developmentInteractiveTitleFirstEnabled(r) {
+				row.Status = "era_rejected"
+				row.Reason = "対話UIの記事一覧ではWeb史料確認を同期実行しないため候補外: " + d.Reason
+				continue
+			}
 		}
 		eligibleTitles = append(eligibleTitles, title)
 		originalCandidates = append(originalCandidates, idx)

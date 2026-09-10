@@ -324,7 +324,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 		remainingCandidates = nextCandidates
 		remainingEvents = nextEvents
 	}
-	if len(acceptedDetailSeeds) > 0 {
+	if len(acceptedDetailSeeds) > 0 && !developmentInteractiveTitleFirstEnabled(r) {
 		seeds := make([]llm.BBSTitleArticleDetailSeed, 0, len(acceptedDetailSeeds))
 		for _, event := range boardEvents {
 			if seed, ok := acceptedDetailSeeds[event.EventID]; ok {
