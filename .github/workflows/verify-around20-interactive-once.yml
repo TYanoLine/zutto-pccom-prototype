@@ -1,0 +1,24 @@
+name: verify-around20-interactive-once
+
+on:
+  push:
+    branches:
+      - ops/verify-around20-interactive-20260911
+    paths:
+      - .github/workflows/verify-around20-interactive-once.yml
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ops/verify-around20-interactive-20260911
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Reset and generate six live board indexes
+        run: |
+          cd apps/server
+          ZUTTO_LIVE_SMOKE=1 go test ./internal/ws -run TestLiveAround20InteractiveBoards -v -count=1 -timeout=23m
