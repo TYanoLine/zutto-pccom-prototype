@@ -1,3 +1,4 @@
+# retry after test fixture adjustment
 name: apply-expand-interactive-bbs-sample-once
 
 on:
