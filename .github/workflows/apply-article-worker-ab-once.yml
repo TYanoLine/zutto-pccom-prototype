@@ -22,7 +22,9 @@ jobs:
         with:
           go-version-file: apps/server/go.mod
       - name: Apply patch
-        run: python3 scripts/apply_article_worker_ab.py
+        run: |
+          python3 scripts/apply_article_worker_ab.py
+          python3 scripts/fix_article_worker_ab_tests.py
       - name: Format
         run: |
           cd apps/server
