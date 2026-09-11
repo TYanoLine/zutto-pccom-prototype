@@ -23,7 +23,7 @@ jobs:
           go-version-file: apps/server/go.mod
       - name: Apply patch
         run: |
-          # Clean application plus compact-worker regression updates.
+          # Clean application plus canonical-source compact-worker updates.
           python3 scripts/apply_article_worker_ab.py
           python3 scripts/fix_article_worker_ab_tests.py
       - name: Format
@@ -37,7 +37,7 @@ jobs:
       - name: Commit generated changes
         run: |
           git config user.name github-actions[bot]
-          git config user.email 41898282+TYanoLine@users.noreply.github.com
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add apps/server .env.example docs/MATERIALIZATION_LAB.md
           if git diff --cached --quiet; then
             echo 'No generated changes'
