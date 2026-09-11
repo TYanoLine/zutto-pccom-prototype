@@ -128,7 +128,7 @@ func (r *Repository) MaterializationPersonas(host world.Host) ([]world.Persona, 
 
 func (r *Repository) ListPosts(hostID string) []world.Post {
 	if existing := r.Base.ListPosts(hostID); len(existing) > 0 {
-		return existing
+		return r.repairDevelopmentPendingReplySubjects(hostID, existing)
 	}
 	r.mu.Lock()
 	h, known := r.hosts[hostID]
