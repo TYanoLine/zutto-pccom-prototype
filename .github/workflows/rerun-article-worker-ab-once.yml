@@ -1,0 +1,22 @@
+name: rerun-article-worker-ab-once
+on:
+  push:
+    branches:
+      - ops/rerun-article-worker-ab-after-106
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Compare repaired inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://zutto-pccom-prototype.onrender.com'
+          for CASE in '5 1201 YMO' '4 1208 GAME'; do
+            set -- $CASE
+            echo "${3}_AB_BEGIN"
+            curl -sS --fail-with-body "$BASE/api/debug/article-worker-ab?phone=0450000196&board=$1&post=$2"
+            echo
+            echo "${3}_AB_END"
+          done
