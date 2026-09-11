@@ -22,7 +22,9 @@ jobs:
         with:
           go-version-file: apps/server/go.mod
       - name: Apply patch
-        run: python3 scripts/apply_expand_interactive_bbs_sample.py
+        run: |
+          python3 scripts/apply_expand_interactive_bbs_sample.py
+          python3 scripts/fix_expand_interactive_bbs_sample_tests.py
       - name: Format
         run: |
           cd apps/server
@@ -30,6 +32,7 @@ jobs:
             internal/worldrepo/repository.go \
             internal/worldrepo/materialization_conversation_view.go \
             internal/worldrepo/materialization_interactive_title_first.go \
+            internal/worldrepo/materialization_interactive_title_first_test.go \
             internal/worldrepo/materialization_demo_persona.go \
             internal/worldrepo/materialization_interactive_board.go \
             internal/worldrepo/materialization_interactive_scale_test.go
