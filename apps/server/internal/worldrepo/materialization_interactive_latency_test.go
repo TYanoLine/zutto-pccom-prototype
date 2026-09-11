@@ -12,10 +12,12 @@ import (
 type interactiveTitleFirstTestRenderer struct {
 	titleFirstTestRenderer
 	detailCalls int
+	detailReq   llm.BBSTitleArticleDetailRequest
 }
 
 func (f *interactiveTitleFirstTestRenderer) MaterializeBBSTitleArticleDetails(ctx context.Context, req llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
 	f.detailCalls++
+	f.detailReq = req
 	return f.titleFirstTestRenderer.MaterializeBBSTitleArticleDetails(ctx, req)
 }
 
@@ -64,6 +66,9 @@ func TestInteractiveTitleFirstPlansOnlySelectedBoardAndDefersArticleDetails(t *t
 	}
 	if renderer.detailCalls != 1 {
 		t.Fatalf("article open should materialize details exactly once, got %d", renderer.detailCalls)
+	}
+	if len(renderer.detailReq.Articles) != 1 || !strings.Contains(renderer.detailReq.Articles[0].PersonaProfile, "everyday_baseline=") {
+		t.Fatalf("article detail materializer did not receive persona baseline: %+v", renderer.detailReq.Articles)
 	}
 	if !hasInteractiveArticleDetails(rendered.Intent.SituationFacts) {
 		t.Fatalf("article details were not persisted before prose: %+v", rendered.Intent.SituationFacts)

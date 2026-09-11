@@ -276,7 +276,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 			acceptedDetailSeeds[d.EventID] = llm.BBSTitleArticleDetailSeed{
 				EventID: d.EventID, Subject: d.Subject, Summary: d.Summary,
 				AuthorHandle: e.AuthorHandle, CreatedAt: e.CreatedAt, DiscourseMode: e.DiscourseMode,
-				ExistingFacts: append([]string(nil), e.ExistingFacts...),
+				PersonaProfile: e.PersonaProfile, ExistingFacts: append([]string(nil), e.ExistingFacts...),
 			}
 			row.Reason = fmt.Sprintf("時代[%s]: %s / 人物: %s", row.EraStatus, row.EraReason, d.Reason)
 			row.Status = "accepted"

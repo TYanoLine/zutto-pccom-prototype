@@ -53,8 +53,10 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 	}
 
 	existingFacts := []string{}
+	personaProfile := ""
 	if ps, ok := r.Base.(world.PersonaStore); ok && selected.AuthorPersonaID != "" {
 		if persona, found := ps.PersonaByID(selected.AuthorPersonaID); found {
+			personaProfile = personaSummary(persona)
 			facts := r.existingPersonaFactsByID([]world.Persona{persona})
 			for _, fact := range facts[persona.ID] {
 				if fact.MaterializedAt.IsZero() || !fact.MaterializedAt.After(selected.CreatedAt) {
@@ -72,13 +74,14 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 		WorldDate:      selected.CreatedAt.Format("2006-01-02"),
 		RecentBBSState: planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 48),
 		Articles: []llm.BBSTitleArticleDetailSeed{{
-			EventID:       eventID,
-			Subject:       selected.Subject,
-			Summary:       worldAdoptedSummary(selected.Intent.SituationFacts, selected.Intent.SituationSummary),
-			AuthorHandle:  selected.Author,
-			CreatedAt:     selected.CreatedAt.Format(time.RFC3339),
-			DiscourseMode: selected.Intent.DiscourseMode,
-			ExistingFacts: existingFacts,
+			EventID:        eventID,
+			Subject:        selected.Subject,
+			Summary:        worldAdoptedSummary(selected.Intent.SituationFacts, selected.Intent.SituationSummary),
+			AuthorHandle:   selected.Author,
+			CreatedAt:      selected.CreatedAt.Format(time.RFC3339),
+			DiscourseMode:  selected.Intent.DiscourseMode,
+			PersonaProfile: personaProfile,
+			ExistingFacts:  existingFacts,
 		}},
 	})
 	usage := GenerationUsage{InputTokens: draft.Usage.InputTokens, CachedInputTokens: draft.Usage.CachedInputTokens, OutputTokens: draft.Usage.OutputTokens, ReasoningTokens: draft.Usage.ReasoningTokens, TotalTokens: draft.Usage.TotalTokens, Model: draft.Usage.Model}

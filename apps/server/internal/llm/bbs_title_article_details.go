@@ -20,13 +20,14 @@ var bbsArticleDetailKinds = map[string]bool{
 }
 
 type BBSTitleArticleDetailSeed struct {
-	EventID       string   `json:"event_id"`
-	Subject       string   `json:"subject"`
-	Summary       string   `json:"summary"`
-	AuthorHandle  string   `json:"author_handle"`
-	CreatedAt     string   `json:"created_at"`
-	DiscourseMode string   `json:"discourse_mode"`
-	ExistingFacts []string `json:"existing_facts,omitempty"`
+	EventID        string   `json:"event_id"`
+	Subject        string   `json:"subject"`
+	Summary        string   `json:"summary"`
+	AuthorHandle   string   `json:"author_handle"`
+	CreatedAt      string   `json:"created_at"`
+	DiscourseMode  string   `json:"discourse_mode"`
+	PersonaProfile string   `json:"persona_profile,omitempty"`
+	ExistingFacts  []string `json:"existing_facts,omitempty"`
 }
 
 type BBSTitleArticleDetailRequest struct {
@@ -84,6 +85,9 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 - 例: 「攻略本の誤植を発見しました」なら、良いdetailは「手元の攻略本の62ページ、一覧表の3行目」「本に印刷された表記と実際の画面表示が食い違っていた」「同じ箇所を読み直してからもう一度画面と見比べた」。悪いdetailは「攻略本の誤植を発見した」「誤植について読者に注意を促す」。
 - 実在作品・製品・人物・企業・地名がsubjectにある場合、その存在から作品内容、攻略情報、仕様、価格、発売情報、実在出版物の正確なページ内容などの外部史実を連想して追加してはいけません。historical evidenceが入力にない外部事実は作らないでください。
 - ただし採用済み記事のローカルな出来事として、投稿者のその場の観察、試した順序、時刻や回数、手元の無名資料内の位置、質問の範囲、短期的な判断などを具体化して構いません。それらはこの処理を通った時点でworld factになります。
+- PersonaProfileは、この人物の役割・経験水準・普段の行動を守るためのcanonicalな整合性ガードです。題名やsummaryが明示していないのに、普段から行っている基本操作を「今回初めて知った」「これから毎回することにした」のような初心者的な発見・新習慣へ変えないでください。
+- author_handleがSYSOP、またはPersonaProfileにSYSOP役割がある場合も普通の個人的雑談は可能です。ただし局運営、回線、接続確認、ログ確認などが日常業務として示されているなら、それらの基本を今さら初めて学んだようなdetailを作らないでください。また個人環境の話を、根拠なく局設備や運営方針の変更へ膨らませないでください。
+- decisionはsubject/summaryが実際に選択・方針・質問を含む場合だけ使ってください。detailsの件数を埋めるために「今後は毎回〜することにした」のような新しい習慣を勝手に作らないでください。
 - ExistingFactsと矛盾する恒久的な所有、職歴、家族事情、長期の嗜好などは追加禁止です。
 - RecentBBSStateにない別スレッドの出来事を混ぜないでください。
 - 各event_idは入力と完全一致させてください。
