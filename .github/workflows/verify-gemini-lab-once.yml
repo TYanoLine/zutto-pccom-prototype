@@ -1,0 +1,58 @@
+name: verify-gemini-lab-once
+on:
+  push:
+    branches:
+      - ops/verify-gemini-lab-20260912
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Verify production Gemini article worker through fresh Lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://zutto-pccom-prototype.onrender.com'
+
+          echo 'Waiting for merged production backend...'
+          for i in $(seq 1 60); do
+            HEALTH="$(curl -sS --fail-with-body "$BASE/health")"
+            RENDERER="$(jq -r '.world_post_renderer // ""' <<<"$HEALTH")"
+            GEMINI="$(jq -r '.gemini_configured // false' <<<"$HEALTH")"
+            if [[ "$RENDERER" == 'gemini-article-worker-with-openai-planners' && "$GEMINI" == 'true' ]]; then
+              echo "HEALTH=$HEALTH"
+              break
+            fi
+            if [[ "$i" == 60 ]]; then
+              echo "backend did not reach expected Gemini configuration: $HEALTH" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          START="$(curl -sS --fail-with-body -X POST "$BASE/api/debug/materialization-lab-fresh?action=start&situation_mode=facets&historical_texture=off&board_count=3&shell_limit=1")"
+          JOB_ID="$(jq -r '.id' <<<"$START")"
+          test -n "$JOB_ID" && test "$JOB_ID" != null
+          echo "JOB_ID=$JOB_ID"
+
+          for i in $(seq 1 120); do
+            STATUS="$(curl -sS --fail-with-body "$BASE/api/debug/materialization-lab-fresh?action=status&id=$JOB_ID")"
+            STATE="$(jq -r '.status' <<<"$STATUS")"
+            if [[ "$STATE" == 'completed' ]]; then
+              break
+            fi
+            if [[ "$STATE" == 'failed' ]]; then
+              echo "$STATUS" | jq .
+              exit 1
+            fi
+            if [[ "$i" == 120 ]]; then
+              echo "fresh lab timed out: $STATUS" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo 'FRESH_RESULT_BEGIN'
+          jq '{id,status,build_commit,situation_mode,historical_texture,post_count,body_count,failures,usage,error,articles:[.articles[]|{id,board_id,author,subject,body}]}' <<<"$STATUS"
+          echo 'FRESH_RESULT_END'
+          test "$(jq -r '.body_count // 0' <<<"$STATUS")" -gt 0
