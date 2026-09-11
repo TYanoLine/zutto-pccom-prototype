@@ -15,9 +15,9 @@ import (
 // result in the reason. This lets the Lab inspect article quality without making
 // the production title-era gate more permissive.
 type titleEraObserveOnlyRenderer struct {
-	postRenderer llm.BoardPostRenderer
-	titlePlanner llm.BBSTitleCandidatePlanner
-	eraValidator llm.BBSTitleEraValidator
+	postRenderer  llm.BoardPostRenderer
+	titlePlanner  llm.BBSTitleCandidatePlanner
+	eraValidator  llm.BBSTitleEraValidator
 	detailPlanner llm.BBSTitleArticleDetailPlanner
 }
 
@@ -35,9 +35,9 @@ func newTitleEraObserveOnlyRenderer(renderer llm.BoardPostRenderer) (titleEraObs
 		return titleEraObserveOnlyRenderer{}, fmt.Errorf("renderer does not support title article details")
 	}
 	return titleEraObserveOnlyRenderer{
-		postRenderer: renderer,
-		titlePlanner: titlePlanner,
-		eraValidator: eraValidator,
+		postRenderer:  renderer,
+		titlePlanner:  titlePlanner,
+		eraValidator:  eraValidator,
 		detailPlanner: detailPlanner,
 	}, nil
 }
@@ -85,7 +85,20 @@ func (r titleEraObserveOnlyRenderer) ReviewBBSTitleCandidates(ctx context.Contex
 func (r titleEraObserveOnlyRenderer) ValidateBBSTitleEra(ctx context.Context, req llm.BBSTitleEraRequest) (llm.BBSTitleEraReview, error) {
 	review, err := r.eraValidator.ValidateBBSTitleEra(ctx, req)
 	if err != nil {
-		return review, err
+		// In observe-only mode the validator is diagnostic, not a gate. A malformed
+		// model response must not starve an entire board and prevent prose-quality
+		// inspection. Preserve any token usage and the validator error in each
+		// synthetic reason, while production strict mode remains unchanged.
+		decisions := make([]llm.BBSTitleEraDecision, 0, len(req.Titles))
+		for i := range req.Titles {
+			decisions = append(decisions, llm.BBSTitleEraDecision{
+				Candidate: i + 1,
+				Status:    llm.BBSTitleEraOK,
+				Reason:    fmt.Sprintf("LAB observe-only: validator_error=%v", err),
+			})
+		}
+		review.Decisions = decisions
+		return review, nil
 	}
 	for i := range review.Decisions {
 		originalStatus := review.Decisions[i].Status
