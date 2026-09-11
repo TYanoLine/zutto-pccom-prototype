@@ -27,7 +27,7 @@ type demoActivityDay struct {
 func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board world.Board) ([]world.Post, bool) {
 	hostPosts := r.Base.ListPosts(host.ID)
 	if existing := filterBoard(hostPosts, board.ID); len(existing) > 0 {
-		return existing, false
+		return r.repairDevelopmentPendingReplySubjects(host.ID, existing), false
 	}
 	if developmentConversationViewPoCEnabled(r) {
 		if developmentInteractiveTitleFirstEnabled(r) {

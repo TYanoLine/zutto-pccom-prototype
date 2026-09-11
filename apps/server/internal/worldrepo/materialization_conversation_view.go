@@ -11,6 +11,58 @@ import (
 
 const developmentConversationPendingSubject = "（本文生成時に決定）"
 
+func developmentPendingSubject(subject string) bool {
+	subject = strings.TrimSpace(subject)
+	return subject == developmentConversationPendingSubject || subject == "Re: "+developmentConversationPendingSubject
+}
+
+func developmentReplySubject(parentSubject string) string {
+	parentSubject = strings.TrimSpace(parentSubject)
+	if parentSubject == "" || developmentPendingSubject(parentSubject) {
+		return "Re: " + developmentConversationPendingSubject
+	}
+	if strings.HasPrefix(strings.ToLower(parentSubject), "re: ") {
+		return parentSubject
+	}
+	return "Re: " + parentSubject
+}
+
+// repairDevelopmentPendingReplySubjects upgrades rows written by the older
+// conversation-view PoC, where replies were persisted as
+// "Re: （本文生成時に決定）" even though the parent title was already canonical.
+// This is a data repair, not a display-only substitution: the DB remains the
+// source of truth after the first read on the fixed build.
+func (r *Repository) repairDevelopmentPendingReplySubjects(hostID string, posts []world.Post) []world.Post {
+	out := append([]world.Post(nil), posts...)
+	byID := make(map[int64]world.Post, len(out))
+	for _, post := range out {
+		byID[post.ID] = post
+	}
+	updater, canUpdate := r.Base.(world.PostUpdater)
+	for i, post := range out {
+		if post.ParentID == 0 || !developmentPendingSubject(post.Subject) {
+			continue
+		}
+		parent, ok := byID[post.ParentID]
+		if !ok {
+			continue
+		}
+		corrected := developmentReplySubject(parent.Subject)
+		if developmentPendingSubject(corrected) {
+			continue
+		}
+		post.Subject = corrected
+		if canUpdate {
+			if saved, ok := updater.UpdatePost(hostID, post); ok {
+				post = saved
+			}
+		}
+		out[i] = post
+		byID[post.ID] = post
+	}
+	return out
+}
+
 var developmentConversationViewPoC sync.Map
 var developmentConversationShellLimits sync.Map
 
@@ -154,7 +206,7 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 				continue
 			}
 			parentID = parent.ID
-			subject = "Re: " + developmentConversationPendingSubject
+			subject = developmentReplySubject(parent.Subject)
 			sourcePostID = parent.ID
 			respondsToID = parent.ID
 			sourcePost = parent

@@ -93,7 +93,7 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 				continue
 			}
 			parentID = parent.ID
-			subject = "Re: " + developmentConversationPendingSubject
+			subject = developmentReplySubject(parent.Subject)
 			sourcePostID = parent.ID
 			respondsToID = parent.ID
 			sourcePost = parent
