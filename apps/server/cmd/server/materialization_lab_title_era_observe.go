@@ -54,7 +54,11 @@ func withTitleEraObserveOnly(materializer worldrepo.Materializer) (worldrepo.Mat
 
 	switch m := materializer.(type) {
 	case worldrepo.LLMMaterializer:
-		return wrap(m)
+		wrapped, err := wrap(m)
+		if err != nil {
+			return nil, err
+		}
+		return wrapped, nil
 	case *worldrepo.LLMMaterializer:
 		clone, err := wrap(*m)
 		if err != nil {
