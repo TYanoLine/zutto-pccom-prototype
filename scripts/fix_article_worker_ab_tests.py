@@ -17,7 +17,10 @@ p.write_text(s)
 # guardrail; planning stages retain the full rules.
 p = Path("apps/server/internal/llm/board_post_prompt.go")
 s = p.read_text()
-s = s.replace("\teraRules := withDiegeticWorldFrame(req.EraRules)\n", "\teraRules := compactBoardPostEraRules(req.EraRules)\n", 1)
+old = "    eraRules := withDiegeticWorldFrame(req.EraRules)\n"
+if old not in s:
+    raise SystemExit("worker era-rules assignment not found")
+s = s.replace(old, "    eraRules := compactBoardPostEraRules(req.EraRules)\n", 1)
 insert = r'''
 func compactBoardPostEraRules(raw string) string {
 	raw = strings.TrimSpace(raw)
@@ -36,6 +39,34 @@ marker = "func validateBoardPostWorkerDraft(req BoardPostRequest, d BoardPostDra
 if marker not in s:
     raise SystemExit("board worker validator marker not found")
 s = s.replace(marker, insert + marker, 1)
+p.write_text(s)
+
+# For legacy/generic render callers that do not have a canonical Situation yet,
+# preserve their free-form semantic envelope. Title-first articles have a
+# SituationSummary and therefore do not receive the old planning motivation.
+p = Path("apps/server/internal/worldrepo/llm_materializer.go")
+s = p.read_text()
+old = '''\tif summary := strings.TrimSpace(i.SituationSummary); summary != "" {
+\t\tparts = append(parts, "canonical_event="+summary)
+\t}
+'''
+new = '''\tif summary := strings.TrimSpace(i.SituationSummary); summary != "" {
+\t\tparts = append(parts, "canonical_event="+summary)
+\t} else {
+\t\tif i.Topic != "" {
+\t\t\tparts = append(parts, "topic="+i.Topic)
+\t\t}
+\t\tif i.Motivation != "" {
+\t\t\tparts = append(parts, "motivation="+i.Motivation)
+\t\t}
+\t\tif i.Stance != "" {
+\t\t\tparts = append(parts, "stance="+i.Stance)
+\t\t}
+\t}
+'''
+if old not in s:
+    raise SystemExit("intent summary canonical-event block not found")
+s = s.replace(old, new, 1)
 p.write_text(s)
 
 # Replace the final Gemini transport test as a whole. It is deliberately last in
@@ -124,4 +155,58 @@ replacement = r'''	for _, want := range []string{
 	}
 '''
 s = s[:start] + replacement + s[end:]
+p.write_text(s)
+
+# Conversation-view tests used to require debug headers and IDs in the prose
+# packet. The new worker contract explicitly verifies their absence instead.
+p = Path("apps/server/internal/worldrepo/materialization_conversation_view_test.go")
+s = p.read_text()
+old = '''\tfor _, want := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "WORLD SITUATION", "ROOT ISOLATION", "CANONICAL BOARD CONVERSATION"} {
+\t\tif !strings.Contains(renderer.req.PostIntent, want) {
+\t\t\tt.Fatalf("conversation context missing %q: %s", want, renderer.req.PostIntent)
+\t\t}
+\t}
+'''
+new = '''\tfor _, want := range []string{"canonical_event=", "focus=", "occurrence=", "scope_boundary="} {
+\t\tif !strings.Contains(renderer.req.PostIntent, want) {
+\t\t\tt.Fatalf("compact worker content missing %q: %s", want, renderer.req.PostIntent)
+\t\t}
+\t}
+\tfor _, leaked := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "CANONICAL BOARD CONVERSATION", "MSG "} {
+\t\tif strings.Contains(renderer.req.PostIntent, leaked) {
+\t\t\tt.Fatalf("debug metadata leaked into worker context %q: %s", leaked, renderer.req.PostIntent)
+\t\t}
+\t}
+'''
+if old not in s:
+    raise SystemExit("conversation root expectation block not found")
+s = s.replace(old, new, 1)
+old = '''\tif !strings.Contains(renderer.req.PostIntent, "THREAD SO FAR") || !strings.Contains(renderer.req.PostIntent, "親から順番に生成された本文です。") {
+\t\tt.Fatalf("reply did not receive prior prose as chat history: %s", renderer.req.PostIntent)
+\t}
+'''
+new = '''\tif !strings.Contains(renderer.req.PostIntent, "THREAD CONTEXT (canonical article content only)") || !strings.Contains(renderer.req.PostIntent, "親から順番に生成された本文です。") {
+\t\tt.Fatalf("reply did not receive compact prior prose context: %s", renderer.req.PostIntent)
+\t}
+\tif strings.Contains(renderer.req.PostIntent, "MSG ") || strings.Contains(renderer.req.PostIntent, "board=") {
+\t\tt.Fatalf("reply worker context leaked transport metadata: %s", renderer.req.PostIntent)
+\t}
+'''
+if old not in s:
+    raise SystemExit("conversation reply expectation block not found")
+s = s.replace(old, new, 1)
+p.write_text(s)
+
+# Make the worker-context unit fixture a real stored chronological thread.
+p = Path("apps/server/internal/worldrepo/materialization_worker_context_test.go")
+s = p.read_text()
+old = '''\troot := base.AddPost(host.ID, world.Post{BoardID: "5", Author: "MARI", Subject: "YMOを聴き直しています", Body: "最近また聴いています。"})
+\treply := world.Post{ID: root.ID + 1, BoardID: "5", ParentID: root.ID, Author: "YUKI", Subject: "Re: YMOを聴き直しています", Intent: world.PostIntent{SourcePostID: root.ID}}
+'''
+new = '''\troot := base.AddPost(host.ID, world.Post{BoardID: "5", Author: "MARI", Subject: "YMOを聴き直しています", Body: "最近また聴いています。"})
+\treply := base.AddPost(host.ID, world.Post{BoardID: "5", ParentID: root.ID, Author: "YUKI", Subject: "Re: YMOを聴き直しています", Intent: world.PostIntent{SourcePostID: root.ID}})
+'''
+if old not in s:
+    raise SystemExit("worker context fixture not found")
+s = s.replace(old, new, 1)
 p.write_text(s)
