@@ -103,3 +103,24 @@ func TestInteractiveTitleIndexSkipsSynchronousEraWebResearch(t *testing.T) {
 		t.Fatalf("research candidate was not conservatively excluded from interactive index: %+v", rows)
 	}
 }
+
+func TestRepairInteractiveArticleDetailFactsDropsEntireMetadataTaintedSet(t *testing.T) {
+	in := []string{
+		"title_first_subject=YMOを聴き直しています",
+		"article_detail=locator:音楽板のMSG 1201として掲示されている",
+		"article_detail=timing:1996年6月7日21時36分に投稿された",
+		"article_detail_contract=old",
+		"world_adopted_summary=YMOを聴き直している",
+	}
+	out, changed := repairInteractiveArticleDetailFacts(in)
+	if !changed {
+		t.Fatal("metadata-tainted detail set should be repaired")
+	}
+	joined := strings.Join(out, "\n")
+	if strings.Contains(joined, "article_detail=") || strings.Contains(joined, "article_detail_contract=") {
+		t.Fatalf("old detail set survived repair: %s", joined)
+	}
+	if !strings.Contains(joined, "title_first_subject=") || !strings.Contains(joined, "world_adopted_summary=") {
+		t.Fatalf("unrelated canonical facts were removed: %s", joined)
+	}
+}
