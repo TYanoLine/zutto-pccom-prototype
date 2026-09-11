@@ -139,8 +139,7 @@ new_test = r'''func TestGeminiProviderUsesInteractionsStructuredOutput(t *testin
 '''
 p.write_text(s[:start] + new_test)
 
-# Update the old OpenAI prompt test: the prose stage should see the compact
-# contract rather than planning-internal terminology.
+# Update OpenAI worker tests for the compact prose-stage contract.
 p = Path("apps/server/internal/llm/openai_test.go")
 s = p.read_text()
 start_marker = '\tfor _, want := range []string{\n\t\t"DIEGETIC PRESENT / ERA NORMALITY",'
@@ -165,6 +164,38 @@ replacement = r'''	for _, want := range []string{
 	}
 '''
 p.write_text(s[:start] + replacement + s[end:])
+
+p = Path("apps/server/internal/llm/period_native_prompt_test.go")
+s = p.read_text()
+old = '''\tfor _, want := range []string{
+\t\t"DIEGETIC PRESENT / ERA NORMALITY",
+\t\t"Use shared-context economy",
+\t\t"Board placement is part of the in-world meaning",
+\t\t"Avoid assistant/FAQ voice",
+\t\t"Do not paraphrase an agreement, anecdote, or explanation",
+\t\t"BAD after several people already agreed",
+\t} {
+\t\tif !strings.Contains(capturedPrompt, want) {
+\t\t\tt.Fatalf("body prompt missing %q:\\n%s", want, capturedPrompt)
+\t\t}
+\t}
+'''
+new = '''\tfor _, want := range []string{
+\t\t"世界日付は 1996-08-29",
+\t\t"当時の本人として普通に書く",
+\t\t"現代から振り返る説明",
+\t\t"ヘッダを読み上げない",
+\t\t"記事の書き方を説明せず",
+\t\t"文章は自然なら短くて構いません",
+\t} {
+\t\tif !strings.Contains(capturedPrompt, want) {
+\t\t\tt.Fatalf("body prompt missing compact period-native rule %q:\\n%s", want, capturedPrompt)
+\t\t}
+\t}
+'''
+if old not in s:
+    raise SystemExit("period-native worker expectation block not found")
+p.write_text(s.replace(old, new, 1))
 
 # Conversation-view tests formerly required debug transport metadata in the prose
 # packet. Now assert canonical content is present and debug metadata is absent.
