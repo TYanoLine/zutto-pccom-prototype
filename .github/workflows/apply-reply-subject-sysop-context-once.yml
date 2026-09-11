@@ -1,0 +1,53 @@
+name: apply-reply-subject-sysop-context-once
+
+on:
+  push:
+    branches:
+      - fix/reply-subject-and-sysop-context
+    paths:
+      - .github/workflows/apply-reply-subject-sysop-context-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/reply-subject-and-sysop-context
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/server/go.mod
+      - name: Apply patch
+        run: python3 scripts/apply_reply_subject_sysop_context_patch.py
+      - name: Format
+        run: |
+          cd apps/server
+          gofmt -w \
+            internal/worldrepo/materialization_conversation_view.go \
+            internal/worldrepo/materialization_interactive_board.go \
+            internal/worldrepo/materialization_demo_persona.go \
+            internal/worldrepo/materialization_title_first.go \
+            internal/worldrepo/materialization_interactive_detail.go \
+            internal/worldrepo/materialization_interactive_latency_test.go \
+            internal/worldrepo/materialization_reply_subject_test.go \
+            internal/llm/bbs_title_article_details.go \
+            internal/llm/bbs_title_candidates.go
+      - name: Test
+        run: |
+          cd apps/server
+          go test ./...
+      - name: Commit applied patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/server/internal/worldrepo apps/server/internal/llm
+          if git diff --cached --quiet; then
+            echo 'No generated changes'
+          else
+            git commit -m 'Fix reply titles and preserve SYSOP persona context'
+            git push
+          fi
