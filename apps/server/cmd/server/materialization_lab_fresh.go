@@ -66,6 +66,7 @@ type materializationFreshJob struct {
 	Phone               string                                `json:"phone"`
 	SituationMode       string                                `json:"situation_mode,omitempty"`
 	HistoricalTexture   string                                `json:"historical_texture,omitempty"`
+	EraGate             string                                `json:"era_gate,omitempty"`
 	BoardCount          int                                   `json:"board_count,omitempty"`
 	ShellLimit          int                                   `json:"shell_limit,omitempty"`
 	Boards              []world.Board                         `json:"boards,omitempty"`
@@ -144,6 +145,18 @@ func normalizeFreshHistoricalTexture(raw string) (string, bool) {
 	}
 }
 
+func normalizeFreshEraGate(raw string) (string, bool) {
+	mode := strings.ToLower(strings.TrimSpace(raw))
+	switch mode {
+	case "", "strict":
+		return "strict", true
+	case "observe-only":
+		return "observe-only", true
+	default:
+		return "", false
+	}
+}
+
 func freshIntParam(raw string, fallback, min, max int) (int, bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -214,6 +227,17 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "title-first requires historical_texture=model-memory"})
 		return
 	}
+	eraGate, ok := normalizeFreshEraGate(r.URL.Query().Get("era_gate"))
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "era_gate must be strict or observe-only"})
+		return
+	}
+	if eraGate == "observe-only" && situationMode != "title-first" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "era_gate=observe-only requires situation_mode=title-first"})
+		return
+	}
 	boardCount, ok := freshIntParam(r.URL.Query().Get("board_count"), 3, 3, 6)
 	if !ok {
 		w.WriteHeader(http.StatusBadRequest)
@@ -231,7 +255,7 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 	}
 	materializationFreshLab.mu.Lock()
 	id := fmt.Sprintf("lab-fresh-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationFreshLab.seq, 1)%10000)
-	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, HistoricalTexture: historicalTexture, BoardCount: boardCount, ShellLimit: shellLimit, Boards: freshScaleBoards(boardCount), CreatedAt: time.Now().UTC()}
+	job := &materializationFreshJob{ID: id, Status: "queued", Phone: phone, SituationMode: situationMode, HistoricalTexture: historicalTexture, EraGate: eraGate, BoardCount: boardCount, ShellLimit: shellLimit, Boards: freshScaleBoards(boardCount), CreatedAt: time.Now().UTC()}
 	job.BuildCommit = buildinfo.Current().Commit
 	materializationFreshLab.jobs[id] = job
 	materializationFreshLab.active = id
@@ -318,6 +342,13 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	default:
 		if job.HistoricalTexture != "off" {
 			finishFreshError(id, fmt.Errorf("historical texture requires LLMMaterializer, got %T", l.materializer))
+			return
+		}
+	}
+	if job.EraGate == "observe-only" {
+		labMaterializer, err = withTitleEraObserveOnly(labMaterializer)
+		if err != nil {
+			finishFreshError(id, err)
 			return
 		}
 	}
