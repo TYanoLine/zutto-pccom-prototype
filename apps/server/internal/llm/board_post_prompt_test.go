@@ -21,6 +21,21 @@ func TestBuildBoardPostPromptOmitsInfrastructureMetadata(t *testing.T) {
 	}
 }
 
+func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", CanonicalSubject: "最近こればかりやってます"})
+	for _, want := range []string{
+		"本文に全部書くチェックリストではありません",
+		"一言の感想、短い報告",
+		"毎回「みなさんはどうですか？」型で締めない",
+		"本文で全detailを列挙する義務はありません",
+		"自然なら1〜3文でも構いません",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("missing sparse-human guidance %q", want)
+		}
+	}
+}
+
 func TestValidateBoardPostWorkerDraftRejectsHeaderNarration(t *testing.T) {
 	req := BoardPostRequest{}
 	for _, body := range []string{"5/22 00:27、新スレです。おすすめありますか。", "音楽板のMSG 1201です。YMOの話です。", "音楽板から失礼します。"} {
