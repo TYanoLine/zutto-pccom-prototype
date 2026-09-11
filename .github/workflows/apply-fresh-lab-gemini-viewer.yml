@@ -73,10 +73,7 @@ jobs:
           replacements = [
               ('\tBody                    string    `json:"body"`\n', '\tBody                    string    `json:"body"`\n\tBodyModel               string    `json:"body_model,omitempty"`\n'),
               ('\tsnapshot, _, err := l.snapshotForWorkerReplay(job.Phone, nil)\n', '\tsnapshot, err := l.snapshotForFreshWorld(job.Phone)\n'),
-              ('\tarticles := collectMaterializationFreshArticles(posts)\n', '\tarticles := collectMaterializationFreshArticles(repo, posts)\n'),
-              ('func collectMaterializationFreshArticles(posts []world.Post) []materializationFreshArticle {\n', 'func collectMaterializationFreshArticles(repo *worldrepo.Repository, posts []world.Post) []materializationFreshArticle {\n'),
-              ('\tfor _, p := range posts {\n\t\ttarget, targetStatus := "", ""\n', '\tfor _, p := range posts {\n\t\tusage, _ := repo.MaterializationGenerationUsage(p.ID)\n\t\ttarget, targetStatus := "", ""\n'),
-              ('\t\t\tBody:                    p.Body,\n', '\t\t\tBody:                    p.Body,\n\t\t\tBodyModel:               usage.Model,\n'),
+              ('\tarticles := collectMaterializationFreshArticles(posts)\n', '\tarticles := collectMaterializationFreshArticles(posts)\n\tfor i := range articles {\n\t\tusage, _ := repo.MaterializationGenerationUsage(articles[i].ID)\n\t\tarticles[i].BodyModel = usage.Model\n\t}\n'),
           ]
           for old, new in replacements:
               if old not in s:
