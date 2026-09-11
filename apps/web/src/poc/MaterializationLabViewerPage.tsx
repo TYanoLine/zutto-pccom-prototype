@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 type Board = { id: string; name: string };
 type Article = {
   id: number; board_id: string; parent_id?: number; author: string; created_at: string;
-  subject: string; body: string; action?: string; anchor_key?: string; cause_kind?: string;
+  subject: string; body: string; body_model?: string; action?: string; anchor_key?: string; cause_kind?: string;
   discourse_mode?: string; source_post_id?: number; responds_to_post_id?: number;
   situation_kind?: string; situation_summary?: string; situation_facts?: string[];
   topic_target?: string; topic_target_status?: string; subject_target_present?: boolean;
@@ -78,6 +78,7 @@ export default function MaterializationLabViewerPage() {
   }, []);
 
   const articles = job?.articles || [];
+  const bodyModels = Array.from(new Set(articles.map(a=>a.body_model).filter((m): m is string => !!m))).join(', ');
   const boards = useMemo(() => {
     if (job?.boards?.length) return job.boards;
     const ids = Array.from(new Set(articles.map(a=>a.board_id))).sort();
@@ -117,6 +118,7 @@ export default function MaterializationLabViewerPage() {
         <span>MODE <b>{job.situation_mode || '-'}</b></span><span>TEXTURE <b>{job.historical_texture || 'off'}</b></span><span>BOARDS <b>{job.board_count || boards.length}</b></span>
         <span>POSTS <b>{job.post_count || articles.length}</b></span><span>BODIES <b>{job.body_count || 0}</b></span>
         <span>FAIL <b>{job.failures || 0}</b></span><span>TIME <b>{job.duration_ms ? (job.duration_ms/1000).toFixed(1)+'s' : '-'}</b></span>
+        <span>BODY MODEL <b>{bodyModels || '未記録'}</b></span>
       </section>
 
       <nav className="boards">
@@ -148,7 +150,7 @@ export default function MaterializationLabViewerPage() {
         <section className="conversation">
           <div className="paneTitle">{selectedRoot?.subject || '本文'}</div>
           {selectedPosts.map((post,i)=><article key={post.id}>
-            <div className="postHead"><b>{post.author}</b><span>#{post.id} · {fmt(post.created_at)}</span></div>
+            <div className="postHead"><b>{post.author}</b><span>#{post.id} · {fmt(post.created_at)}{post.body_model ? ` · BODY ${post.body_model}` : ''}</span></div>
             {i>0 && <div className="subject">{post.subject}</div>}
             <div className="body">{post.body}</div>
             {debug && <details open className="worldDebug"><summary>WORLD / SITUATION</summary>
