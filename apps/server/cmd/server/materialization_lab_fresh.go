@@ -36,6 +36,7 @@ type materializationFreshArticle struct {
 	CreatedAt               time.Time `json:"created_at"`
 	Subject                 string    `json:"subject"`
 	Body                    string    `json:"body"`
+	BodyModel               string    `json:"body_model,omitempty"`
 	Action                  string    `json:"action,omitempty"`
 	AnchorKey               string    `json:"anchor_key,omitempty"`
 	CauseKind               string    `json:"cause_kind,omitempty"`
@@ -278,7 +279,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	job.StartedAt = time.Now().UTC()
 	materializationFreshLab.mu.Unlock()
 
-	snapshot, _, err := l.snapshotForWorkerReplay(job.Phone, nil)
+	snapshot, err := l.snapshotForFreshWorld(job.Phone)
 	if err != nil {
 		finishFreshError(id, err)
 		return
@@ -382,6 +383,10 @@ func (l *materializationLab) runFreshAllBody(id string) {
 		}
 	}
 	articles := collectMaterializationFreshArticles(posts)
+	for i := range articles {
+		usage, _ := repo.MaterializationGenerationUsage(articles[i].ID)
+		articles[i].BodyModel = usage.Model
+	}
 
 	materializationFreshLab.mu.Lock()
 	job = materializationFreshLab.jobs[id]
