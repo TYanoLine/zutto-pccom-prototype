@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -34,6 +35,12 @@ func (observeOnlyTestRenderer) MaterializeBBSTitleArticleDetails(context.Context
 	return llm.BBSTitleArticleDetailDraft{}, nil
 }
 
+type observeOnlyFailingEraRenderer struct{ observeOnlyTestRenderer }
+
+func (observeOnlyFailingEraRenderer) ValidateBBSTitleEra(context.Context, llm.BBSTitleEraRequest) (llm.BBSTitleEraReview, error) {
+	return llm.BBSTitleEraReview{Usage: llm.TokenUsage{TotalTokens: 17}}, errors.New("invalid/duplicate era candidate 1")
+}
+
 func TestTitleEraObserveOnlyRendererKeepsOriginalDecisionInReason(t *testing.T) {
 	renderer, err := newTitleEraObserveOnlyRenderer(observeOnlyTestRenderer{})
 	if err != nil {
@@ -52,6 +59,31 @@ func TestTitleEraObserveOnlyRendererKeepsOriginalDecisionInReason(t *testing.T) 
 		}
 		if !strings.Contains(decision.Reason, "LAB observe-only: original=") {
 			t.Fatalf("candidate %d reason does not preserve original status: %q", decision.Candidate, decision.Reason)
+		}
+	}
+}
+
+func TestTitleEraObserveOnlyRendererConvertsValidatorErrorToDiagnosticOKs(t *testing.T) {
+	renderer, err := newTitleEraObserveOnlyRenderer(observeOnlyFailingEraRenderer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := renderer.ValidateBBSTitleEra(context.Background(), llm.BBSTitleEraRequest{Titles: []string{"A", "B", "C"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if review.Usage.TotalTokens != 17 {
+		t.Fatalf("usage lost: %+v", review.Usage)
+	}
+	if len(review.Decisions) != 3 {
+		t.Fatalf("decisions=%d, want 3", len(review.Decisions))
+	}
+	for i, decision := range review.Decisions {
+		if decision.Candidate != i+1 || decision.Status != llm.BBSTitleEraOK {
+			t.Fatalf("decision[%d]=%+v", i, decision)
+		}
+		if !strings.Contains(decision.Reason, "validator_error=invalid/duplicate era candidate 1") {
+			t.Fatalf("validator error not preserved: %q", decision.Reason)
 		}
 	}
 }
