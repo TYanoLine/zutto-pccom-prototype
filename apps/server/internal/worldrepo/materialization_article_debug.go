@@ -77,7 +77,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 			return selected, true, false, detailDiagnostic
 		}
 	}
-	renderContext, contextStats := r.materializationRenderContext(host, board, selected)
+	_, contextStats := r.materializationRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(selected.ID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
@@ -121,7 +121,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		canonicalSubject = fixed
 	}
 	renderIntent := selected.Intent
-	renderIntent.RenderContext = renderContext
+	renderIntent.RenderContext = r.materializationArticleWorkerContext(host, board, selected)
 	req := BoardMaterializationRequest{
 		Host:             host,
 		BoardID:          board.ID,

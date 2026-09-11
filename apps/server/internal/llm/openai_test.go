@@ -99,16 +99,14 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"DIEGETIC PRESENT / ERA NORMALITY",
-		"Ordinary baseline conditions stay implicit",
-		"internal_routing_domain=...",
-		"everyday_baseline=[...]",
-		"Never convert them into novelty, rediscovery, nostalgia",
-		"Write from inside the actor's present",
-		"Never add period props",
+		"世界日付は 1996-08-29",
+		"everyday_baseline=[自宅のパソコンと通信環境は普段使いの道具]",
+		"ヘッダを読み上げない",
+		"最初の文から用件そのものに入って",
+		"当時の本人として普通に書く",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("board-post prompt missing diegetic rule %q:\n%s", want, capturedPrompt)
+			t.Fatalf("board-post prompt missing worker rule %q:\n%s", want, capturedPrompt)
 		}
 	}
 }
