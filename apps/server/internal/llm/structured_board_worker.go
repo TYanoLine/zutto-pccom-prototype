@@ -5,7 +5,16 @@ import (
 	"strings"
 )
 
+const legacyDenseArticleDetailContract = "article_detail_contract=The article_detail facts are canonical article-local specifics selected after title/persona/Era adoption. Materially express at least two distinct supplied details. A detail must add information beyond the title/summary; never collapse it back into vague wording. Do not add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context."
+const sparseArticleDetailContract = "article_detail_contract=The article_detail facts are optional canonical article-local specifics, not a prose checklist. Reveal only the detail that this person would naturally mention now; do not enumerate all details, add a conclusion, or turn a small post into an explanatory article. Do not add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context."
+
 func prepareStructuredBoardPostRequest(req BoardPostRequest) BoardPostRequest {
+	// Older title-first world rows carry the dense Article Detail contract. Keep
+	// those rows readable, but translate the rendering instruction at the worker
+	// boundary so already-materialized debug worlds do not force checklist prose.
+	if strings.Contains(req.PostIntent, legacyDenseArticleDetailContract) {
+		req.PostIntent = strings.ReplaceAll(req.PostIntent, legacyDenseArticleDetailContract, sparseArticleDetailContract)
+	}
 	if strings.Contains(req.PostIntent, "producer_event_id=") {
 		req.PostIntent = `ARTICLE WORKER CONTRACT:
 The host-window PRODUCER already coordinated this article with the rest of the world window. All producer_* fields below are canonical production instructions, not suggestions.
