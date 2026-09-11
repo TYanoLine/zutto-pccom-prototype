@@ -22,13 +22,9 @@ replace_once(
 )
 
 path = "apps/server/internal/worldrepo/materialization_interactive_scale_test.go"
+replace_once(path, '    "time"\n', '')
 replace_once(
     path,
-    '''import (\n\t"testing"\n\t"time"\n\n\t"zutto-pccom/apps/server/internal/world"\n)\n''',
-    '''import (\n\t"testing"\n\n\t"zutto-pccom/apps/server/internal/world"\n)\n''',
-)
-replace_once(
-    path,
-    '''\tstamp := worldTime(repo.WorldDate)\n\toldest := interactiveVisits[0].createdAt\n\tif !oldest.Before(stamp.AddDate(0, 0, -(developmentDefaultActivityLookbackDays - 1))) {\n\t\tt.Fatalf("oldest interactive visit=%s did not extend beyond default %d-day window", oldest.Format(time.RFC3339), developmentDefaultActivityLookbackDays)\n\t}\n\tif oldest.Before(stamp.AddDate(0, 0, -(developmentInteractiveActivityLookbackDays - 1))) {\n\t\tt.Fatalf("oldest interactive visit=%s escaped %d-day window", oldest.Format(time.RFC3339), developmentInteractiveActivityLookbackDays)\n\t}\n''',
-    '''\tif !interactiveVisits[0].createdAt.Before(labVisits[0].createdAt) {\n\t\tt.Fatalf("interactive oldest=%s, default oldest=%s; longer window should expose earlier activity", interactiveVisits[0].createdAt, labVisits[0].createdAt)\n\t}\n''',
+    '''    stamp := worldTime(repo.WorldDate)\n    oldest := interactiveVisits[0].createdAt\n    if !oldest.Before(stamp.AddDate(0, 0, -(developmentDefaultActivityLookbackDays - 1))) {\n        t.Fatalf("oldest interactive visit=%s did not extend beyond default %d-day window", oldest.Format(time.RFC3339), developmentDefaultActivityLookbackDays)\n    }\n    if oldest.Before(stamp.AddDate(0, 0, -(developmentInteractiveActivityLookbackDays - 1))) {\n        t.Fatalf("oldest interactive visit=%s escaped %d-day window", oldest.Format(time.RFC3339), developmentInteractiveActivityLookbackDays)\n    }\n''',
+    '''    if !interactiveVisits[0].createdAt.Before(labVisits[0].createdAt) {\n        t.Fatalf("interactive oldest=%s, default oldest=%s; longer window should expose earlier activity", interactiveVisits[0].createdAt, labVisits[0].createdAt)\n    }\n''',
 )
