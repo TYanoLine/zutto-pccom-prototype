@@ -28,7 +28,8 @@ func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
 		"一言の感想、短い報告",
 		"毎回「みなさんはどうですか？」型で締めない",
 		"本文で全detailを列挙する義務はありません",
-		"自然なら1〜3文でも構いません",
+		"文章は自然なら短くて構いません",
+		"1〜3文でもよく",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("missing sparse-human guidance %q", want)
