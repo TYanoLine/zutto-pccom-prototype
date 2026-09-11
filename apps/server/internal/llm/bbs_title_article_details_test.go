@@ -35,3 +35,25 @@ func TestValidateBBSTitleArticleDetailsRequiresDistinctKinds(t *testing.T) {
 		t.Fatal("details must cover at least two distinct kinds")
 	}
 }
+
+func TestValidateBBSTitleArticleDetailsRejectsHeaderMetadata(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{BoardName: "音楽", Articles: []BBSTitleArticleDetailSeed{{EventID: "e1", Subject: "YMOを聴き直しています", Summary: "YMOを聴き直している", CreatedAt: "1996-06-07T21:36:00+09:00"}}}
+	for _, bad := range []BBSArticleDetail{
+		{Kind: "locator", Fact: "音楽板のMSG 1201として掲示されている"},
+		{Kind: "timing", Fact: "1996年6月7日21時36分に投稿された"},
+		{Kind: "locator", Fact: "新規スレッドの先頭投稿になっている"},
+	} {
+		draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{EventID: "e1", Details: []BBSArticleDetail{bad, {Kind: "comparison", Fact: "前に聴いた時と印象が少し違った"}}}}}
+		if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
+			t.Fatalf("header metadata detail must be rejected: %+v", bad)
+		}
+	}
+}
+
+func TestArticleDetailFactIsRenderingMetadataAllowsEventTiming(t *testing.T) {
+	for _, good := range []string{"接続して五分ほど後に一度切れた", "昨夜二度同じ症状が出た", "手元の攻略本の62ページだった"} {
+		if ArticleDetailFactIsRenderingMetadata(good) {
+			t.Fatalf("event-local detail wrongly rejected: %q", good)
+		}
+	}
+}

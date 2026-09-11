@@ -80,6 +80,7 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 
 重要:
 - 「〜を話題にする」「〜を共有する」「読者に尋ねる」「紹介する」「報告する」のような編集指示・タイトルの言い換えは禁止です。factは世界内で成立する具体的な命題として書いてください。
+- BoardName / CreatedAt / event_id は生成制御のためのヘッダ情報であり、記事内容ではありません。MSG番号、記事番号、投稿日時、投稿時刻、「○○板に掲示された」「新規スレッドの先頭」等をdetailへ変換することを禁止します。timingは「接続して数分後」「昨夜二度起きた」など記事内の出来事の時刻・回数にだけ使ってください。
 - 2件以上は異なるkindにしてください。
 - 発見・誤植・不具合・失敗・比較を題名が主張する場合、少なくとも1件は locator/timing/sequence/comparison/observation のどれかにし、第三者が状況を想像できる粒度にしてください。
 - 例: 「攻略本の誤植を発見しました」なら、良いdetailは「手元の攻略本の62ページ、一覧表の3行目」「本に印刷された表記と実際の画面表示が食い違っていた」「同じ箇所を読み直してからもう一度画面と見比べた」。悪いdetailは「攻略本の誤植を発見した」「誤植について読者に注意を促す」。
@@ -155,6 +156,9 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			if fact == strings.TrimSpace(seed.Subject) || fact == strings.TrimSpace(seed.Summary) || articleDetailLooksEditorial(fact) {
 				return fmt.Errorf("article %q detail is only a restatement/editorial instruction: %q", article.EventID, fact)
 			}
+			if ArticleDetailFactIsRenderingMetadata(fact) {
+				return fmt.Errorf("article %q detail leaked article-header/rendering metadata: %q", article.EventID, fact)
+			}
 			kinds[kind] = true
 		}
 		if len(kinds) < 2 {
@@ -167,6 +171,26 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 func articleDetailLooksEditorial(fact string) bool {
 	for _, marker := range []string{"話題にする", "共有する", "読者に", "参加者に", "紹介する", "紹介。", "報告する", "構成にする", "説明を求め", "情報提供を求め"} {
 		if strings.Contains(fact, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// ArticleDetailFactIsRenderingMetadata identifies facts about the BBS record/header
+// rather than facts inside the fictional article event. Such facts must never become
+// canonical article_detail because prose workers can otherwise echo them verbatim.
+func ArticleDetailFactIsRenderingMetadata(fact string) bool {
+	value := strings.ToLower(strings.TrimSpace(fact))
+	if value == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"msg ", "msg#", "msg番号", "記事番号", "メッセージ番号", "投稿時刻", "投稿日時",
+		"新規スレッド", "新スレ", "先頭投稿", "スレッドの先頭", "board id",
+		"掲示されて", "掲示された", "投稿された", "書き込まれて", "書き込まれた",
+	} {
+		if strings.Contains(value, marker) {
 			return true
 		}
 	}

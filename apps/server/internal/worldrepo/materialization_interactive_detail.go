@@ -19,6 +19,34 @@ func hasInteractiveArticleDetails(facts []string) bool {
 	return false
 }
 
+func repairInteractiveArticleDetailFacts(facts []string) ([]string, bool) {
+	bad := false
+	for _, raw := range facts {
+		if !strings.HasPrefix(raw, "article_detail=") {
+			continue
+		}
+		encoded := strings.TrimSpace(strings.TrimPrefix(raw, "article_detail="))
+		if colon := strings.Index(encoded, ":"); colon >= 0 {
+			encoded = strings.TrimSpace(encoded[colon+1:])
+		}
+		if llm.ArticleDetailFactIsRenderingMetadata(encoded) {
+			bad = true
+			break
+		}
+	}
+	if !bad {
+		return facts, false
+	}
+	clean := make([]string, 0, len(facts))
+	for _, raw := range facts {
+		if strings.HasPrefix(raw, "article_detail=") || strings.HasPrefix(raw, "article_detail_contract=") {
+			continue
+		}
+		clean = append(clean, raw)
+	}
+	return clean, true
+}
+
 func worldAdoptedSummary(facts []string, fallback string) string {
 	for _, fact := range facts {
 		if strings.HasPrefix(fact, "world_adopted_summary=") {
@@ -34,7 +62,18 @@ func worldAdoptedSummary(facts []string, fallback string) string {
 // detail pass to first article open. The index only needs accepted subjects; it
 // must not wait for body-only detail materialization.
 func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
-	if !developmentInteractiveTitleFirstEnabled(r) || titleFirstSubject(selected.Intent.SituationFacts) == "" || hasInteractiveArticleDetails(selected.Intent.SituationFacts) {
+	if !developmentInteractiveTitleFirstEnabled(r) || titleFirstSubject(selected.Intent.SituationFacts) == "" {
+		return selected, "", nil
+	}
+	if repaired, changed := repairInteractiveArticleDetailFacts(selected.Intent.SituationFacts); changed {
+		selected.Intent.SituationFacts = repaired
+		if updater, ok := r.Base.(world.PostUpdater); ok {
+			if updated, ok := updater.UpdatePost(host.ID, selected); ok {
+				selected = updated
+			}
+		}
+	}
+	if hasInteractiveArticleDetails(selected.Intent.SituationFacts) {
 		return selected, "", nil
 	}
 
