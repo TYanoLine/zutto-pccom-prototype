@@ -13,7 +13,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://zutto-pccom-prototype.onrender.com'
-          START="$(curl -sS --fail-with-body "$BASE/api/debug/materialization-lab-fresh?action=start&situation_mode=title-first&historical_texture=model-memory&board_count=4&shell_limit=6")"
+          START="$(curl -sS --fail-with-body -X POST "$BASE/api/debug/materialization-lab-fresh?action=start&situation_mode=title-first&historical_texture=model-memory&board_count=4&shell_limit=6")"
           JOB_ID="$(jq -r '.id' <<<"$START")"
           test -n "$JOB_ID" && test "$JOB_ID" != null
           echo "JOB_ID=$JOB_ID"
