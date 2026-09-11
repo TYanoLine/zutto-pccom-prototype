@@ -15,8 +15,8 @@ func TestEnableDevelopmentInteractiveTitleFirstPoCUsesLargerObservationCap(t *te
 	if !developmentTitleFirstEnabled(repo) {
 		t.Fatal("title-first must be enabled for ordinary ATDT development-host access")
 	}
-	if got := developmentConversationShellLimit(repo); got != 12 {
-		t.Fatalf("shell limit=%d, want 12 for ordinary ATDT observation", got)
+	if got := developmentConversationShellLimit(repo); got != 24 {
+		t.Fatalf("shell limit=%d, want 24 for ordinary ATDT observation", got)
 	}
 }
 

@@ -84,8 +84,8 @@ func (r *Repository) SetDevelopmentConversationShellLimit(limit int) {
 	if limit < 1 {
 		limit = 1
 	}
-	if limit > 12 {
-		limit = 12
+	if limit > 24 {
+		limit = 24
 	}
 	developmentConversationShellLimits.Store(r, limit)
 }

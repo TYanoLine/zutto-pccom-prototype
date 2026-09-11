@@ -30,8 +30,8 @@ func TestInteractiveMaterializationExpandsStoredBoardsToSix(t *testing.T) {
 			t.Fatalf("board[%d]=%q, want %q", i, expanded[i].Name, name)
 		}
 	}
-	if got := developmentConversationShellLimit(repo); got != 12 {
-		t.Fatalf("interactive shell limit=%d, want 12", got)
+	if got := developmentConversationShellLimit(repo); got != 24 {
+		t.Fatalf("interactive shell limit=%d, want 24", got)
 	}
 
 	stored, changedAgain := repo.MaterializationBoards(host)
@@ -60,5 +60,26 @@ func TestInteractiveActivityWindowIsLongerThanDefaultLabWindow(t *testing.T) {
 	}
 	if !interactiveVisits[0].createdAt.Before(labVisits[0].createdAt) {
 		t.Fatalf("interactive oldest=%s, default oldest=%s; longer window should expose earlier activity", interactiveVisits[0].createdAt, labVisits[0].createdAt)
+	}
+}
+
+func TestSpecializedBoardAffinityUsesMatchingInterest(t *testing.T) {
+	p := world.Persona{Interests: map[string]float64{"games": .8, "music": .6, "software": .9}}
+	tests := []struct {
+		board world.Board
+		want  float64
+	}{
+		{world.Board{ID: "4", Name: "ゲーム"}, .8},
+		{world.Board{ID: "5", Name: "音楽"}, .6},
+		{world.Board{ID: "6", Name: "ソフトウェア"}, .9},
+	}
+	for _, tc := range tests {
+		if got := demoBoardAffinity(p, tc.board); got != tc.want {
+			t.Fatalf("board %s affinity=%v want=%v", tc.board.ID, got, tc.want)
+		}
+	}
+	unrelated := world.Persona{Interests: map[string]float64{"chat": 1, "local": 1}}
+	if got := demoBoardAffinity(unrelated, world.Board{ID: "6", Name: "ソフトウェア"}); got != 0 {
+		t.Fatalf("unrelated software affinity=%v want=0", got)
 	}
 }

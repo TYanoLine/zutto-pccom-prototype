@@ -54,11 +54,10 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 		return windowShells[i].shell.createdAt.Before(windowShells[j].shell.createdAt)
 	})
 
-	// The Lab keeps one host-wide planning state. Interactive browsing is board
-	// local: rearm title planning with already-committed posts as conversation
-	// history so opening board 2 never forces board 1 to be regenerated.
-	r.EnableDevelopmentTitleFirstPoC(r.Base.ListPosts(host.ID))
-	batchSituations, err := r.developmentPlanTitleFirst(host, windowShells, personas)
+	// The Lab keeps one host-wide, one-pool planning state. Interactive browsing
+	// is board-local and may refill the uncommitted wording pool so a larger world
+	// sample is not starved merely because one set of 20 titles missed its roots.
+	batchSituations, err := r.developmentPlanInteractiveTitleFirst(host, windowShells, personas)
 	if err != nil {
 		storeDevelopmentPlanningError(r, host.ID, board.ID, err)
 		return nil, false
