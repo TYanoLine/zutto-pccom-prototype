@@ -84,9 +84,14 @@ func TestConversationViewPoCLetsWorkerChooseRootSubjectFromConversationContext(t
 	if renderer.req.BoardTopic != boards[0].Name {
 		t.Fatalf("worker cue should be board conversation, got %q want %q", renderer.req.BoardTopic, boards[0].Name)
 	}
-	for _, want := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "WORLD SITUATION", "ROOT ISOLATION", "CANONICAL BOARD CONVERSATION"} {
+	for _, want := range []string{"canonical_event=", "focus=", "occurrence=", "scope_boundary="} {
 		if !strings.Contains(renderer.req.PostIntent, want) {
-			t.Fatalf("conversation context missing %q: %s", want, renderer.req.PostIntent)
+			t.Fatalf("compact worker content missing %q: %s", want, renderer.req.PostIntent)
+		}
+	}
+	for _, leaked := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "CANONICAL BOARD CONVERSATION", "MSG "} {
+		if strings.Contains(renderer.req.PostIntent, leaked) {
+			t.Fatalf("debug metadata leaked into worker context %q: %s", leaked, renderer.req.PostIntent)
 		}
 	}
 	if strings.Contains(renderer.req.PostIntent, "producer_event_id=") {
@@ -140,8 +145,11 @@ func TestConversationViewPoCReplyUsesRenderedParentAsChatHistory(t *testing.T) {
 	if rendered.Subject != "Re: 会話の件" {
 		t.Fatalf("reply subject not canonicalized from rendered root: %q", rendered.Subject)
 	}
-	if !strings.Contains(renderer.req.PostIntent, "THREAD SO FAR") || !strings.Contains(renderer.req.PostIntent, "親から順番に生成された本文です。") {
-		t.Fatalf("reply did not receive prior prose as chat history: %s", renderer.req.PostIntent)
+	if !strings.Contains(renderer.req.PostIntent, "THREAD CONTEXT (canonical article content only)") || !strings.Contains(renderer.req.PostIntent, "親から順番に生成された本文です。") {
+		t.Fatalf("reply did not receive compact prior prose context: %s", renderer.req.PostIntent)
+	}
+	if strings.Contains(renderer.req.PostIntent, "MSG ") || strings.Contains(renderer.req.PostIntent, "board=") {
+		t.Fatalf("reply worker context leaked transport metadata: %s", renderer.req.PostIntent)
 	}
 	if renderer.req.CanonicalSubject != "" {
 		t.Fatalf("reply worker should choose prose with subject canonicalized after render: %q", renderer.req.CanonicalSubject)

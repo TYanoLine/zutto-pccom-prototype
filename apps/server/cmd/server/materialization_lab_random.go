@@ -29,20 +29,20 @@ type materializationRandomLabState struct {
 var materializationRandomLab = materializationRandomLabState{jobs: map[string]*materializationRandomJob{}}
 
 type materializationRandomJob struct {
-	ID         string                       `json:"id"`
-	Status     string                       `json:"status"`
-	Phone      string                       `json:"phone"`
-	Runs       int                          `json:"runs"`
-	TimeoutMS  int                          `json:"timeout_ms"`
-	SeedBase   int64                        `json:"seed_base"`
-	CreatedAt  time.Time                    `json:"created_at"`
-	StartedAt  time.Time                    `json:"started_at,omitempty"`
-	FinishedAt time.Time                    `json:"finished_at,omitempty"`
-	Progress   materializationLabProgress   `json:"progress"`
-	RunOrders  []materializationRandomOrder `json:"run_orders,omitempty"`
+	ID         string                        `json:"id"`
+	Status     string                        `json:"status"`
+	Phone      string                        `json:"phone"`
+	Runs       int                           `json:"runs"`
+	TimeoutMS  int                           `json:"timeout_ms"`
+	SeedBase   int64                         `json:"seed_base"`
+	CreatedAt  time.Time                     `json:"created_at"`
+	StartedAt  time.Time                     `json:"started_at,omitempty"`
+	FinishedAt time.Time                     `json:"finished_at,omitempty"`
+	Progress   materializationLabProgress    `json:"progress"`
+	RunOrders  []materializationRandomOrder  `json:"run_orders,omitempty"`
 	Results    []materializationRandomResult `json:"results,omitempty"`
-	Summary    materializationRandomSummary `json:"summary"`
-	Error      string                       `json:"error,omitempty"`
+	Summary    materializationRandomSummary  `json:"summary"`
+	Error      string                        `json:"error,omitempty"`
 }
 
 type materializationRandomOrder struct {
@@ -73,28 +73,30 @@ type materializationRandomResult struct {
 }
 
 type materializationRandomSummary struct {
-	Attempts               int     `json:"attempts"`
-	Successes              int     `json:"successes"`
-	Failures               int     `json:"failures"`
-	Timeouts               int     `json:"timeouts"`
-	DependencyFailures     int     `json:"dependency_failures"`
-	EvidenceFailures       int     `json:"evidence_failures"`
-	RendererFailures       int     `json:"renderer_failures"`
-	OtherFailures          int     `json:"other_failures"`
-	NoopAlreadyRendered    int     `json:"noop_already_rendered"`
-	NewBodies              int     `json:"new_bodies"`
-	MultiBodyDependencyCalls int   `json:"multi_body_dependency_calls"`
-	SuccessRate            float64 `json:"success_rate"`
-	MeanDurationMS         float64 `json:"mean_duration_ms"`
-	P50DurationMS          int64   `json:"p50_duration_ms"`
-	P95DurationMS          int64   `json:"p95_duration_ms"`
+	Attempts                 int     `json:"attempts"`
+	Successes                int     `json:"successes"`
+	Failures                 int     `json:"failures"`
+	Timeouts                 int     `json:"timeouts"`
+	DependencyFailures       int     `json:"dependency_failures"`
+	EvidenceFailures         int     `json:"evidence_failures"`
+	RendererFailures         int     `json:"renderer_failures"`
+	OtherFailures            int     `json:"other_failures"`
+	NoopAlreadyRendered      int     `json:"noop_already_rendered"`
+	NewBodies                int     `json:"new_bodies"`
+	MultiBodyDependencyCalls int     `json:"multi_body_dependency_calls"`
+	SuccessRate              float64 `json:"success_rate"`
+	MeanDurationMS           float64 `json:"mean_duration_ms"`
+	P50DurationMS            int64   `json:"p50_duration_ms"`
+	P95DurationMS            int64   `json:"p95_duration_ms"`
 }
 
 func (l *materializationLab) randomHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !labRequestAllowed(w, r) { return }
+		if !labRequestAllowed(w, r) {
+			return
+		}
 		switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action"))) {
 		case "start":
 			l.handleRandomStart(w, r)
@@ -132,7 +134,9 @@ func (l *materializationLab) handleRandomStart(w http.ResponseWriter, r *http.Re
 	}
 	seedBase := int64(queryInt(r, "seed", 19660826))
 
-	if !publicLabAdmission.start(w, r, phone, runs) { return }
+	if !publicLabAdmission.start(w, r, phone, runs) {
+		return
+	}
 	materializationRandomLab.mu.Lock()
 	id := fmt.Sprintf("lab-random-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationRandomLab.seq, 1)%10000)
 	job := &materializationRandomJob{

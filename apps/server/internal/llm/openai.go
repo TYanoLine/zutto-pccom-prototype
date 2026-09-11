@@ -130,96 +130,7 @@ Return exactly one event object for every supplied event index.`, req.WorldDate,
 }
 
 func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
-	facts := "(none supplied; keep concrete historical claims generic)"
-	if len(req.HistoricalFacts) > 0 {
-		facts = "- " + strings.Join(req.HistoricalFacts, "\n- ")
-	}
-	persona := "(no persona preselected; choose an ordinary member suitable for the board)"
-	if req.AuthorHandle != "" {
-		persona = fmt.Sprintf("Handle: %s\nPersistent profile: %s", req.AuthorHandle, req.PersonaProfile)
-	}
-	intent := "(no precommitted semantic intent; infer a mundane board post from the cue)"
-	if strings.TrimSpace(req.PostIntent) != "" {
-		intent = req.PostIntent
-	}
-	subjectRule := historicalBBSSubjectCalibration
-	if strings.TrimSpace(req.CanonicalSubject) != "" {
-		subjectRule = fmt.Sprintf("The subject is already canonical world state. Return it exactly as: %s", req.CanonicalSubject)
-	}
-	authorRule := "Author handle: 2-12 ASCII letters/digits only."
-	if strings.TrimSpace(req.AuthorHandle) != "" {
-		authorRule = fmt.Sprintf("The author is already canonical world state. Return exactly this handle: %s", req.AuthorHandle)
-	}
-	eraRules := withDiegeticWorldFrame(req.EraRules)
-	prompt := fmt.Sprintf(`Write exactly one natural message for a Japanese grass-roots personal-computer BBS.
-The actor, article header and semantic intent may already be persistent world state. Your job is to render prose consistent with those facts, not to choose a different event.
-
-PRIMARY CONTENT CUE:
-- Current board/header cue: %s
-- Write about what an ordinary member would naturally mean by this cue.
-- Do not pad the message with unrelated setting details merely because they are listed below.
-
-PRECOMMITTED ACTOR:
-%s
-
-PRECOMMITTED POST INTENT AND RETRIEVED BBS CONTEXT:
-%s
-
-SEMANTIC / CONVERSATION RULES:
-- If the intent contains internal_routing_domain=..., that value is implementation metadata. Never treat the label itself as wording, a headline, or evidence that ordinary participation in that domain is remarkable.
-- If the persona profile contains everyday_baseline=[...], those are ordinary already-established conditions and normally stay unspoken. Never convert them into novelty, rediscovery, nostalgia, or a new world event.
-- If the intent contains claims=..., those are concrete fictional-world facts already decided for this person/post. Express them materially when relevant instead of replacing them with generic filler.
-- If the intent or bbs_context contains article_detail=..., those are canonical article-local specifics fixed before prose. When two or more are supplied, materially express at least two distinct details in the root body. Do not compress them back into vague wording such as 「一つ見つけた」「その部分」「少し違った」 when a page/section/position/sequence/observed difference or other concrete locator was supplied. The point is that another member should understand what actually happened without guessing the hidden detail.
-- article_detail is a ceiling as well as a floor: use the supplied concrete facts, but do not invent additional durable biography, external product/game canon, exact specifications, prices, release facts, public events or unexplained causes beyond canonical context.
-- For replies, source_article_detail=... and every other source_... fact describe the source post/source author only. Use them as concrete material to react to, but do NOT convert them into first-person claims about the reply author. In particular, never write '私も始めた/買った/使っている/行った/見つけた' merely because the source author did; that requires independent canonical support for the reply author.
-- goal is the free-form conversational purpose of this exact post. Follow it naturally; it is not a member of a fixed response-act list and it does not imply that the thread must advance.
-- If the intent contains responds_to_claims=..., those identify an earlier point this reply is especially reacting to. Make that connection natural, but do not mechanically quote it if the thread already makes the connection obvious.
-- If bbs_context is supplied, read THREAD SO FAR like prior messages in a chat. Earlier body text is canonical prose; semantic-envelope entries are canonical meaning for posts whose prose has not been materialized yet. Use this context to avoid accidental repetition and to make references/replies coherent.
-- For a reply, if the explicit source contains concrete page/position/value/step/result/observation details, respond to at least one actual supplied detail when it is relevant instead of giving only generic agreement such as 「そうですね」「気をつけた方がよさそうです」. Do not invent a second hidden detail just to sound specific.
-- RELATED EARLIER POSTS in bbs_context are retrieval hints for duplicate-topic awareness. They do not prove the actor personally read or remembers those posts, so do not refer to them as memories unless THREAD SO FAR supports that.
-- There is no obligation to ask a new question, reveal a new category of information, or keep the conversation alive. A mundane, uneven, occasionally repetitive human BBS exchange is acceptable when it fits the actor and context.
-- If discourse_mode is present, preserve it exactly: only ask_peers should solicit answers. share_observation/share_experience/state_opinion/share_tip should end as statements unless the canonical producer brief itself contains a necessary quoted/interior question.
-- Do not invent a new owned machine, modem, software setup, family situation, job history, hiatus, purchase, upgrade, membership change, maintenance event, or other durable fact merely to make the prose more specific or interesting. Durable personal details must come from claims=...; world changes must come from the committed intent/context.
-- Do not introduce a new question solely as a conversation-progression device. If the committed goal is not to ask, a natural statement can simply end.
-- Do not say vague things such as "everyone has interesting setups" unless the actual supplied context supports that statement.
-
-CANONICAL HEADER RULES:
-- %s
-- %s
-
-BACKGROUND CONSTRAINTS — THESE ARE GUARDRAILS, NOT TOPICS TO MENTION:
-- World date: %s
-- Host: %s
-- Region: %s
-- Host software family: %s
-- Board ID: %s
-- Era rules:
-%s
-
-HISTORICAL FACTS ALLOWED AS CONCRETE FACTUAL SUPPORT:
-%s
-
-Important interpretation rules:
-- If an actor, subject or intent is precommitted above, do not change it. Express it naturally in the body.
-- Background constraints exist to prevent contradictions. They are NOT a checklist of details to mention.
-- Do not mention the region, date, season, host name, host software, period technology, hobby category, or internal routing label unless the actual message content naturally requires it.
-- Historical facts are permission/constraints for concrete claims, not suggested talking points. Omit them entirely when irrelevant.
-- Never add period props such as floppy disks, magazines, modems, weather, local place names, or machine-family labels merely to make the prose feel "1990s".
-- Natural topic focus and persona consistency are more important than demonstrating that you understood the supplied context.
-
-Rules:
-- Write as the selected independent BBS member, not as an assistant or narrator.
-- Write from inside the actor's present. Do not explain the era to contemporary peers and do not import a later "retro" interpretation.
-- The human-controlled user is not the center of the world and need not be mentioned.
-- Never mention AI, simulation, prompts, web searches, databases, social media, smartphones, or anything from after the world date.
-- Do not invent exact release dates, prices, model-specific availability, technical specifications, historical events, or other concrete factual claims unless they are supported by the supplied historical facts.
-- When no historical facts are supplied, ordinary personal chatter, impressions, questions, and transient feelings are fine, but they must follow the committed event rather than inventing a new backstory.
-- Do not imply that all members share the same opinion or equipment.
-- Use plausible mid-1990s Japanese BBS prose, but avoid conspicuous era cosplay. Emoticons are optional and should follow the persona rather than being added mechanically.
-- Body: Japanese, 1-5 short paragraphs, at most about 500 Japanese characters.
-
-Return ONLY JSON with exactly these keys:
-{"author":"...","subject":"...","body":"..."}`, req.BoardTopic, persona, intent, authorRule, subjectRule, req.WorldDate, req.HostName, req.HostRegion, req.HostSoftware, req.BoardID, eraRules, facts)
+	prompt := BuildBoardPostPrompt(req)
 	result, err := p.responseText(ctx, prompt, "low")
 	if err != nil {
 		return BoardPostDraft{}, err
@@ -228,7 +139,7 @@ Return ONLY JSON with exactly these keys:
 	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &draft); err != nil {
 		return BoardPostDraft{}, fmt.Errorf("decode board post JSON: %w", err)
 	}
-	if err := validateBoardPostDraft(draft); err != nil {
+	if err := validateBoardPostWorkerDraft(req, draft); err != nil {
 		return BoardPostDraft{}, err
 	}
 	draft.Author = strings.ToUpper(strings.TrimSpace(draft.Author))

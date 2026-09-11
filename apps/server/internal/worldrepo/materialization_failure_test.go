@@ -18,9 +18,9 @@ func TestDevelopmentMaterializerDoesNotCommitGenericFallback(t *testing.T) {
 	m := LLMMaterializer{Renderer: renderer, Fallback: fallback}
 
 	posts, err := m.GenerateBoardPosts(context.Background(), BoardMaterializationRequest{
-		Host:      world.Host{SoftwareID: "materialization-demo"},
+		Host:       world.Host{SoftwareID: "materialization-demo"},
 		BoardTopic: "みなさんの98環境",
-		WorldDate: "1996-08-29",
+		WorldDate:  "1996-08-29",
 	}, worldengine.EvidenceDecision{
 		Level:     historicalkb.EvidenceAtmospheric,
 		Knowledge: historicalkb.KnowledgeResult{CanUse: true},

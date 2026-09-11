@@ -66,15 +66,15 @@ func TestGenerateBoardPostCarriesPeriodNativeConversationFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"DIEGETIC PRESENT / ERA NORMALITY",
-		"Use shared-context economy",
-		"Board placement is part of the in-world meaning",
-		"Avoid assistant/FAQ voice",
-		"Do not paraphrase an agreement, anecdote, or explanation",
-		"BAD after several people already agreed",
+		"世界日付は 1996-08-29",
+		"当時の本人として普通に書く",
+		"現代から振り返る説明",
+		"ヘッダを読み上げない",
+		"記事の書き方を説明せず",
+		"文章は自然なら短くて構いません",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("body prompt missing %q:\n%s", want, capturedPrompt)
+			t.Fatalf("body prompt missing compact period-native rule %q:\n%s", want, capturedPrompt)
 		}
 	}
 }

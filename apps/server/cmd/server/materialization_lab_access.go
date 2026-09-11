@@ -17,12 +17,12 @@ const publicLabDailyRuns = 20
 const publicLabInterval = time.Minute
 
 type labAdmission struct {
-	mu sync.Mutex
-	active bool
-	blocked bool
+	mu        sync.Mutex
+	active    bool
+	blocked   bool
 	lastStart time.Time
-	day string
-	runs int
+	day       string
+	runs      int
 }
 
 var publicLabAdmission labAdmission
@@ -58,14 +58,18 @@ func labAccessError(w http.ResponseWriter, status int, message string) {
 }
 
 func (g *labAdmission) start(w http.ResponseWriter, r *http.Request, phone string, runs int) bool {
-	if !labRequestAllowed(w, r) { return false }
+	if !labRequestAllowed(w, r) {
+		return false
+	}
 	if phone != publicLabPhone {
 		labAccessError(w, http.StatusBadRequest, "only development host 0450000196 is allowed")
 		return false
 	}
 	status, retry, message := g.acquire(time.Now(), runs)
 	if status != 0 {
-		if retry > 0 { w.Header().Set("Retry-After", strconv.Itoa(retry)) }
+		if retry > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(retry))
+		}
 		labAccessError(w, status, message)
 		return false
 	}
@@ -75,18 +79,26 @@ func (g *labAdmission) start(w http.ResponseWriter, r *http.Request, phone strin
 func (g *labAdmission) acquire(now time.Time, runs int) (int, int, string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	if g.blocked { return http.StatusServiceUnavailable, 0, "lab blocked after runtime timeout; operator restart required" }
-	if g.active { return http.StatusConflict, 0, "another materialization lab job is active" }
-	if runs < 1 || runs > publicLabDailyRuns { return http.StatusBadRequest, 0, "invalid run count" }
+	if g.blocked {
+		return http.StatusServiceUnavailable, 0, "lab blocked after runtime timeout; operator restart required"
+	}
+	if g.active {
+		return http.StatusConflict, 0, "another materialization lab job is active"
+	}
+	if runs < 1 || runs > publicLabDailyRuns {
+		return http.StatusBadRequest, 0, "invalid run count"
+	}
 	now = now.UTC()
 	day := now.Format("2006-01-02")
-	if day != g.day { g.day, g.runs = day, 0 }
-	if g.runs + runs > publicLabDailyRuns {
+	if day != g.day {
+		g.day, g.runs = day, 0
+	}
+	if g.runs+runs > publicLabDailyRuns {
 		next := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
-		return http.StatusTooManyRequests, int(next.Sub(now).Seconds())+1, "daily lab run limit reached"
+		return http.StatusTooManyRequests, int(next.Sub(now).Seconds()) + 1, "daily lab run limit reached"
 	}
 	if remaining := publicLabInterval - now.Sub(g.lastStart); remaining > 0 {
-		return http.StatusTooManyRequests, int(remaining.Seconds())+1, "wait between lab starts"
+		return http.StatusTooManyRequests, int(remaining.Seconds()) + 1, "wait between lab starts"
 	}
 	g.active, g.lastStart = true, now
 	g.runs += runs

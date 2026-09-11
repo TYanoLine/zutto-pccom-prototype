@@ -143,30 +143,27 @@ func personaSummary(p world.Persona) string {
 }
 
 func intentSummary(i world.PostIntent) string {
-	parts := make([]string, 0, 24)
-	if i.Action != "" {
-		parts = append(parts, "action="+i.Action)
-	}
-	if i.AnchorKey != "" {
-		parts = append(parts, "internal_routing_domain="+i.AnchorKey)
-	}
-	if i.CauseKind != "" {
-		parts = append(parts, "world_cause="+i.CauseKind)
-	}
+	parts := make([]string, 0, 20)
 	if i.DiscourseMode != "" {
 		parts = append(parts, "discourse_mode="+i.DiscourseMode)
 	}
-	if i.SourcePostID != 0 {
-		parts = append(parts, fmt.Sprintf("source_post_id=%d", i.SourcePostID))
+	if summary := strings.TrimSpace(i.SituationSummary); summary != "" {
+		parts = append(parts, "canonical_event="+summary)
+	} else {
+		if i.Topic != "" {
+			parts = append(parts, "topic="+i.Topic)
+		}
+		if i.Motivation != "" {
+			parts = append(parts, "motivation="+i.Motivation)
+		}
+		if i.Stance != "" {
+			parts = append(parts, "stance="+i.Stance)
+		}
 	}
-	if i.Topic != "" {
-		parts = append(parts, "topic="+i.Topic)
-	}
-	if i.Motivation != "" {
-		parts = append(parts, "motivation="+i.Motivation)
-	}
-	if i.Stance != "" {
-		parts = append(parts, "stance="+i.Stance)
+	for _, fact := range i.SituationFacts {
+		if workerRelevantSituationFact(fact) {
+			parts = append(parts, strings.TrimSpace(fact))
+		}
 	}
 	if i.Goal != "" {
 		parts = append(parts, "goal="+i.Goal)
@@ -174,17 +171,9 @@ func intentSummary(i world.PostIntent) string {
 	if len(i.Claims) > 0 {
 		parts = append(parts, "claims="+strings.Join(i.Claims, " / "))
 	}
-	if i.RespondsToPostID != 0 {
-		parts = append(parts, fmt.Sprintf("responds_to_post_id=%d", i.RespondsToPostID))
-	}
 	if len(i.RespondsToClaims) > 0 {
 		parts = append(parts, "responds_to_claims="+strings.Join(i.RespondsToClaims, " / "))
 	}
-
-	// Producer fields are canonical editorial instructions. The article renderer
-	// is deliberately a worker: it may choose wording, line breaks and period-native
-	// conversational texture, but it must not replace these facts with a different
-	// event or invent missing story state.
 	if i.ProducerEventID != "" {
 		parts = append(parts, "producer_event_id="+i.ProducerEventID)
 	}
@@ -207,9 +196,9 @@ func intentSummary(i world.PostIntent) string {
 		parts = append(parts, "producer_must_not="+strings.Join(i.ProducerMustNot, " / "))
 	}
 	if strings.TrimSpace(i.RenderContext) != "" {
-		parts = append(parts, "bbs_context:\n"+strings.TrimSpace(i.RenderContext))
+		parts = append(parts, "conversation_context:\n"+strings.TrimSpace(i.RenderContext))
 	}
-	return strings.Join(parts, "; ")
+	return strings.Join(parts, "\n")
 }
 
 func usableClaims(decision worldengine.EvidenceDecision) []string {

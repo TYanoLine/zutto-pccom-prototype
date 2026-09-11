@@ -12,9 +12,15 @@ import (
 	"time"
 )
 
-type CenterName struct { Name string `json:"name"` }
+type CenterName struct {
+	Name string `json:"name"`
+}
 
-type CenterCatalogGenerator struct { APIKey string; Model string; Client *http.Client }
+type CenterCatalogGenerator struct {
+	APIKey string
+	Model  string
+	Client *http.Client
+}
 
 func (g CenterCatalogGenerator) Generate(ctx context.Context, count int, worldDate string) ([]CenterName, error) {
 	prompt := fmt.Sprintf(`Create exactly %d fictional names for independent Japanese dial-up personal BBS host stations that could plausibly appear together in one Japanese BBS telephone directory around %s.
@@ -69,13 +75,20 @@ Return JSON only as {"centers":[{"name":"..."}]}. There must be exactly %d uniqu
 }
 
 func (g CenterCatalogGenerator) generateWithPrompt(ctx context.Context, count int, prompt string) ([]CenterName, error) {
-	if g.APIKey == "" { return nil, errors.New("OPENAI_API_KEY is not set") }
-	if count <= 0 { return nil, errors.New("center count must be positive") }
+	if g.APIKey == "" {
+		return nil, errors.New("OPENAI_API_KEY is not set")
+	}
+	if count <= 0 {
+		return nil, errors.New("center count must be positive")
+	}
 	// A fresh world currently asks Luna for 100 unique station names in one
 	// structured response. Production observations have exceeded 60 seconds,
 	// so allow enough time for that one-time bootstrap. Existing worlds are
 	// loaded from PostgreSQL and do not pay this latency again.
-	client := g.Client; if client == nil { client = &http.Client{Timeout: 180 * time.Second} }
+	client := g.Client
+	if client == nil {
+		client = &http.Client{Timeout: 180 * time.Second}
+	}
 	payload := map[string]any{
 		"model": g.Model, "input": prompt, "reasoning": map[string]any{"effort": "medium"},
 		"text": map[string]any{"verbosity": "low", "format": map[string]any{
@@ -86,27 +99,72 @@ func (g CenterCatalogGenerator) generateWithPrompt(ctx context.Context, count in
 			}}, "required": []string{"centers"}, "additionalProperties": false},
 		}},
 	}
-	body, err := json.Marshal(payload); if err != nil { return nil, err }
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body)); if err != nil { return nil, err }
-	req.Header.Set("Authorization", "Bearer "+g.APIKey); req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req); if err != nil { return nil, err }; defer resp.Body.Close()
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+g.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, readErr := io.ReadAll(io.LimitReader(resp.Body, 16*1024)); detail := strings.TrimSpace(string(b))
-		if readErr != nil { return nil, fmt.Errorf("openai center catalog returned %s (read error body: %v)", resp.Status, readErr) }
-		if detail == "" { return nil, fmt.Errorf("openai center catalog returned %s", resp.Status) }
+		b, readErr := io.ReadAll(io.LimitReader(resp.Body, 16*1024))
+		detail := strings.TrimSpace(string(b))
+		if readErr != nil {
+			return nil, fmt.Errorf("openai center catalog returned %s (read error body: %v)", resp.Status, readErr)
+		}
+		if detail == "" {
+			return nil, fmt.Errorf("openai center catalog returned %s", resp.Status)
+		}
 		return nil, fmt.Errorf("openai center catalog returned %s: %s", resp.Status, detail)
 	}
-	var decoded struct { Output []struct { Content []struct { Type string `json:"type"`; Text string `json:"text"` } `json:"content"` } `json:"output"` }
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil { return nil, err }
-	var text string; for _, out := range decoded.Output { for _, c := range out.Content { if c.Type == "output_text" { text += c.Text } } }
-	if strings.TrimSpace(text) == "" { return nil, errors.New("no output_text in center catalog response") }
-	var result struct { Centers []CenterName `json:"centers"` }; if err := json.Unmarshal([]byte(text), &result); err != nil { return nil, fmt.Errorf("decode center catalog: %w", err) }
-	if len(result.Centers) != count { return nil, fmt.Errorf("expected %d centers, got %d", count, len(result.Centers)) }
+	var decoded struct {
+		Output []struct {
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return nil, err
+	}
+	var text string
+	for _, out := range decoded.Output {
+		for _, c := range out.Content {
+			if c.Type == "output_text" {
+				text += c.Text
+			}
+		}
+	}
+	if strings.TrimSpace(text) == "" {
+		return nil, errors.New("no output_text in center catalog response")
+	}
+	var result struct {
+		Centers []CenterName `json:"centers"`
+	}
+	if err := json.Unmarshal([]byte(text), &result); err != nil {
+		return nil, fmt.Errorf("decode center catalog: %w", err)
+	}
+	if len(result.Centers) != count {
+		return nil, fmt.Errorf("expected %d centers, got %d", count, len(result.Centers))
+	}
 	seen := make(map[string]struct{}, count)
 	for i := range result.Centers {
 		result.Centers[i].Name = strings.TrimSpace(result.Centers[i].Name)
-		if result.Centers[i].Name == "" { return nil, fmt.Errorf("center %d has empty name", i) }
-		if _, exists := seen[result.Centers[i].Name]; exists { return nil, fmt.Errorf("duplicate center name %q", result.Centers[i].Name) }
+		if result.Centers[i].Name == "" {
+			return nil, fmt.Errorf("center %d has empty name", i)
+		}
+		if _, exists := seen[result.Centers[i].Name]; exists {
+			return nil, fmt.Errorf("duplicate center name %q", result.Centers[i].Name)
+		}
 		seen[result.Centers[i].Name] = struct{}{}
 	}
 	return result.Centers, nil

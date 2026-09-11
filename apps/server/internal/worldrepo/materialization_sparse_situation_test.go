@@ -86,14 +86,14 @@ func TestSparseSituationReplyInheritsCanonicalSource(t *testing.T) {
 		},
 	}
 	shell := developmentTimelineShell{
-		index:        2,
-		persona:      world.Persona{ID: "persona-b", Handle: "B"},
-		createdAt:    source.CreatedAt.Add(time.Hour),
-		action:       "reply",
-		anchorKey:    "communications",
-		causeKind:    "observed_thread",
-		parentIndex:  1,
-		sourceIndex:  1,
+		index:       2,
+		persona:     world.Persona{ID: "persona-b", Handle: "B"},
+		createdAt:   source.CreatedAt.Add(time.Hour),
+		action:      "reply",
+		anchorKey:   "communications",
+		causeKind:   "observed_thread",
+		parentIndex: 1,
+		sourceIndex: 1,
 	}
 	got := developmentSituationForShell(host, board, shell, nil, &source)
 	if got.kind != source.Intent.SituationKind || !strings.Contains(got.summary, "source situation") {

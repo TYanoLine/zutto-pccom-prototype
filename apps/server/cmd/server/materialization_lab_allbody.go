@@ -56,11 +56,11 @@ type materializationAllBodyResult struct {
 }
 
 type materializationAllBodySummary struct {
-	Runs          int     `json:"runs"`
-	CompleteRuns  int     `json:"complete_runs"`
-	FailedRuns    int     `json:"failed_runs"`
-	TotalMissing  int     `json:"total_missing_bodies"`
-	SuccessRate   float64 `json:"success_rate"`
+	Runs           int     `json:"runs"`
+	CompleteRuns   int     `json:"complete_runs"`
+	FailedRuns     int     `json:"failed_runs"`
+	TotalMissing   int     `json:"total_missing_bodies"`
+	SuccessRate    float64 `json:"success_rate"`
 	MeanDurationMS float64 `json:"mean_duration_ms"`
 }
 
@@ -68,7 +68,9 @@ func (l *materializationLab) allBodyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !labRequestAllowed(w, r) { return }
+		if !labRequestAllowed(w, r) {
+			return
+		}
 		switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action"))) {
 		case "start":
 			l.handleAllBodyStart(w, r)
@@ -99,7 +101,9 @@ func (l *materializationLab) handleAllBodyStart(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if !publicLabAdmission.start(w, r, phone, runs) { return }
+	if !publicLabAdmission.start(w, r, phone, runs) {
+		return
+	}
 	materializationAllBodyLab.mu.Lock()
 	id := fmt.Sprintf("lab-allbody-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&materializationAllBodyLab.seq, 1)%10000)
 	job := &materializationAllBodyJob{ID: id, Status: "queued", Phone: phone, Runs: runs, CreatedAt: time.Now().UTC()}
@@ -147,9 +151,13 @@ func handleAllBodyList(w http.ResponseWriter) {
 	materializationAllBodyLab.mu.Lock()
 	defer materializationAllBodyLab.mu.Unlock()
 	jobs := make([]*materializationAllBodyJob, 0, len(materializationAllBodyLab.jobs))
-	for _, job := range materializationAllBodyLab.jobs { jobs = append(jobs, job) }
+	for _, job := range materializationAllBodyLab.jobs {
+		jobs = append(jobs, job)
+	}
 	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].CreatedAt.After(jobs[j].CreatedAt) })
-	if len(jobs) > 20 { jobs = jobs[:20] }
+	if len(jobs) > 20 {
+		jobs = jobs[:20]
+	}
 	_ = json.NewEncoder(w).Encode(map[string]any{"jobs": jobs, "active": materializationAllBodyLab.active})
 }
 
@@ -162,9 +170,14 @@ func (l *materializationLab) runAllBodyReplay(id string) {
 	materializationAllBodyLab.mu.Unlock()
 
 	snapshot, selected, err := l.snapshotForWorkerReplay(job.Phone, nil)
-	if err != nil { finishAllBodyError(id, err); return }
+	if err != nil {
+		finishAllBodyError(id, err)
+		return
+	}
 	selectedIDs := map[int64]bool{}
-	for _, p := range selected { selectedIDs[p.ID] = true }
+	for _, p := range selected {
+		selectedIDs[p.ID] = true
+	}
 	materializationAllBodyLab.mu.Lock()
 	job.Progress.Total = job.Runs
 	materializationAllBodyLab.mu.Unlock()
@@ -174,12 +187,20 @@ func (l *materializationLab) runAllBodyReplay(id string) {
 		copySnapshot := snapshot
 		copySnapshot.Posts = clonePostsForLab(snapshot.Posts)
 		for i := range copySnapshot.Posts {
-			if selectedIDs[copySnapshot.Posts[i].ID] { copySnapshot.Posts[i].Body = "" }
+			if selectedIDs[copySnapshot.Posts[i].ID] {
+				copySnapshot.Posts[i].Body = ""
+			}
 		}
-		if err := base.RestoreDevelopmentSnapshot(copySnapshot); err != nil { finishAllBodyError(id, fmt.Errorf("restore isolated snapshot: %w", err)); return }
+		if err := base.RestoreDevelopmentSnapshot(copySnapshot); err != nil {
+			finishAllBodyError(id, fmt.Errorf("restore isolated snapshot: %w", err))
+			return
+		}
 		repo := worldrepo.New(base, l.engine, l.materializer, l.worldDate)
 		host, err := repo.HostByPhone(job.Phone)
-		if err != nil { finishAllBodyError(id, fmt.Errorf("isolated host lookup: %w", err)); return }
+		if err != nil {
+			finishAllBodyError(id, fmt.Errorf("isolated host lookup: %w", err))
+			return
+		}
 		runtime := materializationdemo.New(host, repo)
 		started := time.Now()
 		_, _ = runtime.HandleLine("ALLBODY")
@@ -188,7 +209,9 @@ func (l *materializationLab) runAllBodyReplay(id string) {
 		deadline := time.Now().Add(8 * time.Minute)
 		for {
 			statusText, _ = runtime.HandleLine("STATUS")
-			if terminalBulkStatus(statusText) { break }
+			if terminalBulkStatus(statusText) {
+				break
+			}
 			if time.Now().After(deadline) {
 				publicLabAdmission.block()
 				finishAllBodyError(id, fmt.Errorf("ALLBODY timeout; lab blocked until server restart"))
@@ -201,15 +224,21 @@ func (l *materializationLab) runAllBodyReplay(id string) {
 		finalBodies := 0
 		missing := make([]int64, 0)
 		for _, p := range finalPosts {
-			if !selectedIDs[p.ID] { continue }
-			if strings.TrimSpace(p.Body) != "" { finalBodies++ } else { missing = append(missing, p.ID) }
+			if !selectedIDs[p.ID] {
+				continue
+			}
+			if strings.TrimSpace(p.Body) != "" {
+				finalBodies++
+			} else {
+				missing = append(missing, p.ID)
+			}
 		}
 		sort.Slice(missing, func(i, j int) bool { return missing[i] < missing[j] })
 		state := parseBulkState(statusText)
 		failureCount := parseBulkFailureCount(statusText)
 		result := materializationAllBodyResult{
 			Run: run, DurationMS: duration.Milliseconds(), ExpectedBodies: len(selected), FinalBodies: finalBodies,
-			Complete: state == "COMPLETED" && len(missing) == 0 && failureCount == 0,
+			Complete:     state == "COMPLETED" && len(missing) == 0 && failureCount == 0,
 			RuntimeState: state, Failures: failureCount, StatusText: compactLabStatus(statusText), MissingPostIDs: missing,
 		}
 		materializationAllBodyLab.mu.Lock()
@@ -226,7 +255,9 @@ func terminalBulkStatus(s string) bool {
 
 func parseBulkState(s string) string {
 	for _, state := range []string{"COMPLETED", "FAILED", "CANCELLED", "CANCELLING", "BODIES", "ENVELOPES", "STARTING"} {
-		if strings.Contains(s, "BULK STATUS    : "+state) { return state }
+		if strings.Contains(s, "BULK STATUS    : "+state) {
+			return state
+		}
 	}
 	return "UNKNOWN"
 }
@@ -234,7 +265,9 @@ func parseBulkState(s string) string {
 func parseBulkFailureCount(s string) int {
 	marker := "[DEV] FAILURES       : "
 	idx := strings.Index(s, marker)
-	if idx < 0 { return 0 }
+	if idx < 0 {
+		return 0
+	}
 	var n int
 	_, _ = fmt.Sscanf(s[idx+len(marker):], "%d", &n)
 	return n
@@ -246,7 +279,9 @@ func compactLabStatus(s string) string {
 	out := make([]string, 0, 12)
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || line == "DEV>" { continue }
+		if line == "" || line == "DEV>" {
+			continue
+		}
 		if strings.Contains(line, "BULK STATUS") || strings.Contains(line, "BOARDS") || strings.Contains(line, "BODIES") || strings.Contains(line, "REQUESTS") || strings.Contains(line, "FAILURES") || strings.Contains(line, "EMPTY") || strings.Contains(line, "CURRENT") {
 			out = append(out, line)
 		}
@@ -258,24 +293,34 @@ func finishAllBodyError(id string, err error) {
 	materializationAllBodyLab.mu.Lock()
 	defer materializationAllBodyLab.mu.Unlock()
 	job := materializationAllBodyLab.jobs[id]
-	if job == nil { return }
+	if job == nil {
+		return
+	}
 	job.Status = "failed"
 	job.Error = err.Error()
 	job.FinishedAt = time.Now().UTC()
-	if materializationAllBodyLab.active == id { materializationAllBodyLab.active = "" }
+	if materializationAllBodyLab.active == id {
+		materializationAllBodyLab.active = ""
+	}
 }
 
 func finishAllBodySuccess(id string) {
 	materializationAllBodyLab.mu.Lock()
 	defer materializationAllBodyLab.mu.Unlock()
 	job := materializationAllBodyLab.jobs[id]
-	if job == nil { return }
+	if job == nil {
+		return
+	}
 	var totalDuration int64
 	for _, result := range job.Results {
 		totalDuration += result.DurationMS
 		job.Summary.Runs++
 		job.Summary.TotalMissing += len(result.MissingPostIDs)
-		if result.Complete { job.Summary.CompleteRuns++ } else { job.Summary.FailedRuns++ }
+		if result.Complete {
+			job.Summary.CompleteRuns++
+		} else {
+			job.Summary.FailedRuns++
+		}
 	}
 	if job.Summary.Runs > 0 {
 		job.Summary.SuccessRate = float64(job.Summary.CompleteRuns) / float64(job.Summary.Runs)
@@ -283,5 +328,7 @@ func finishAllBodySuccess(id string) {
 	}
 	job.Status = "completed"
 	job.FinishedAt = time.Now().UTC()
-	if materializationAllBodyLab.active == id { materializationAllBodyLab.active = "" }
+	if materializationAllBodyLab.active == id {
+		materializationAllBodyLab.active = ""
+	}
 }

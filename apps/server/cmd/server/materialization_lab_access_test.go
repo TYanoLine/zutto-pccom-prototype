@@ -15,8 +15,12 @@ func TestLabAdmissionLimits(t *testing.T) {
 	check := func(at time.Time, runs, want int) {
 		t.Helper()
 		got, retry, _ := g.acquire(at, runs)
-		if got != want { t.Fatalf("status=%d want=%d", got, want) }
-		if got == http.StatusTooManyRequests && retry <= 0 { t.Fatal("missing retry interval") }
+		if got != want {
+			t.Fatalf("status=%d want=%d", got, want)
+		}
+		if got == http.StatusTooManyRequests && retry <= 0 {
+			t.Fatal("missing retry interval")
+		}
 	}
 	check(now, 5, 0)
 	check(now.Add(2*time.Minute), 1, http.StatusConflict)
@@ -42,11 +46,15 @@ func TestLabAdmissionConcurrentStart(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if status, _, _ := g.acquire(now, 1); status == 0 { accepted.Add(1) }
+			if status, _, _ := g.acquire(now, 1); status == 0 {
+				accepted.Add(1)
+			}
 		}()
 	}
 	wg.Wait()
-	if accepted.Load() != 1 { t.Fatalf("accepted=%d", accepted.Load()) }
+	if accepted.Load() != 1 {
+		t.Fatalf("accepted=%d", accepted.Load())
+	}
 }
 
 func TestPublicLabHandlers(t *testing.T) {
@@ -55,7 +63,10 @@ func TestPublicLabHandlers(t *testing.T) {
 	l := newMaterializationLab(nil, nil, nil, "1996-08-26", "unused-old-token")
 	handlers := []http.HandlerFunc{l.handler(), l.randomHandler(), l.allBodyHandler(), l.freshHandler()}
 	for _, h := range handlers {
-		for _, tc := range []struct{method, query string; want int}{
+		for _, tc := range []struct {
+			method, query string
+			want          int
+		}{
 			{"GET", "?action=status", 200},
 			{"GET", "?action=start", 405},
 			{"POST", "?action=start&phone=0312345678", 400},
@@ -63,7 +74,9 @@ func TestPublicLabHandlers(t *testing.T) {
 		} {
 			w := httptest.NewRecorder()
 			h(w, httptest.NewRequest(tc.method, "/lab"+tc.query, nil))
-			if w.Code != tc.want { t.Fatalf("%s %s: %d %s", tc.method, tc.query, w.Code, w.Body.String()) }
+			if w.Code != tc.want {
+				t.Fatalf("%s %s: %d %s", tc.method, tc.query, w.Code, w.Body.String())
+			}
 		}
 	}
 	// All real start handlers must use the same gate before touching the store.
@@ -74,13 +87,17 @@ func TestPublicLabHandlers(t *testing.T) {
 	for _, h := range handlers {
 		w := httptest.NewRecorder()
 		h(w, httptest.NewRequest("POST", "/lab?action=start", nil))
-		if w.Code != http.StatusConflict { t.Fatalf("shared gate: %d %s", w.Code, w.Body.String()) }
+		if w.Code != http.StatusConflict {
+			t.Fatalf("shared gate: %d %s", w.Code, w.Body.String())
+		}
 	}
 	t.Setenv("MATERIALIZATION_LAB_DISABLED", "1")
 	for _, h := range handlers {
 		w := httptest.NewRecorder()
 		h(w, httptest.NewRequest("GET", "/lab?action=status", nil))
-		if w.Code != http.StatusServiceUnavailable { t.Fatalf("disabled: %d", w.Code) }
+		if w.Code != http.StatusServiceUnavailable {
+			t.Fatalf("disabled: %d", w.Code)
+		}
 	}
 }
 
@@ -89,9 +106,15 @@ func TestLabAdmissionRejectsInvalidScopeWithoutQuota(t *testing.T) {
 	var g labAdmission
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/lab?action=start", nil)
-	if g.start(w, r, "other-host", 1) || w.Code != 400 { t.Fatal("wrong host admitted") }
-	if g.active || g.runs != 0 { t.Fatal("invalid host consumed quota") }
+	if g.start(w, r, "other-host", 1) || w.Code != 400 {
+		t.Fatal("wrong host admitted")
+	}
+	if g.active || g.runs != 0 {
+		t.Fatal("invalid host consumed quota")
+	}
 	w = httptest.NewRecorder()
-	if !g.start(w, r, publicLabPhone, 1) { t.Fatalf("tokenless start rejected: %s", w.Body.String()) }
+	if !g.start(w, r, publicLabPhone, 1) {
+		t.Fatalf("tokenless start rejected: %s", w.Body.String())
+	}
 	g.finish()
 }

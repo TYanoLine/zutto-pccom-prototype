@@ -66,7 +66,9 @@ func (m LLMMaterializer) PlanDevelopmentTimeline(ctx context.Context, host world
 	}
 
 	dates := []string{worldDate}
-	for _, shell := range shells { dates = append(dates, shell.createdAt.Format("2006-01-02")) }
+	for _, shell := range shells {
+		dates = append(dates, shell.createdAt.Format("2006-01-02"))
+	}
 	m = m.withPeriodReferents(dates...)
 
 	workingFacts := clonePersonaFactsByID(factsByPersona)

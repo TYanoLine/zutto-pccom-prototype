@@ -179,3 +179,10 @@ Vercel exposes a strict GET-only proxy at `/api/materialization-lab-viewer` and 
 
 freshのhistorical_texture省略時は `sourced`。通常配線と共通の出典・日付付き名称claimを使用する。`off` は複製materializerの出典付き供給・追加texture・広い歴史参照を明示的に無効化する。旧 `1996-08-curated` はfixture専用として残す。situation_modeの既定は引き続きfacetsなので、状況の具体化を比較する際はbatchを明示する。Web proxyも4つの実験パラメータを転送する。詳細は [固有名詞不足の分析](research/PERIOD_REFERENTS.md)。
 
+
+
+## Article worker A/B (OpenAI / Gemini)
+
+通常の `0450000196` に既に存在するcanonical記事について、`GET /api/debug/article-worker-ab?phone=0450000196&board=<id>&post=<msg>` で最終本文workerだけを比較できる。Article Detail・人物・件名・史実判定は1つのworld inputを共有し、OpenAI側と `gemini-3.8-flash` 側の本文はどちらもDBへ保存しない。
+
+本文workerへ渡すcontextはworld/planningの正本そのものではなく、文章化に必要なcanonical event/detail/source conversationだけへ縮約する。MSG番号、日時、board id、routing/cause等の開発メタデータは本文workerへ渡さず、出力validatorでもMSG番号・ヘッダ日時の読み上げ・「新スレです」「〜板から失礼します」等を拒否する。通常runtimeの採用workerは比較結果が出るまでOpenAIのまま。
