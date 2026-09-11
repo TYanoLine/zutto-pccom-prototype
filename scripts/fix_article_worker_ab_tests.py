@@ -1,28 +1,26 @@
 from pathlib import Path
 
-# The rich diagnostic context remains available for stats, but the prose worker
-# gets its separate compact context. Change only the second occurrence (the one
-# immediately before the empty-body check), not the existing-body diagnostic path.
+# Keep the rich diagnostic context only for stats; prose gets a compact context.
 p = Path("apps/server/internal/worldrepo/materialization_article_debug.go")
 s = p.read_text()
 old = "\trenderContext, contextStats := r.materializationRenderContext(host, board, selected)\n\tif selected.Body != \"\" {\n"
 new = "\t_, contextStats := r.materializationRenderContext(host, board, selected)\n\tif selected.Body != \"\" {\n"
 if old not in s:
     raise SystemExit("second render-context pattern not found")
-s = s.replace(old, new, 1)
-p.write_text(s)
+p.write_text(s.replace(old, new, 1))
 
-# The article worker does not need the full cross-stage diegetic contract. Keep
-# the historical-reference mode/constraint first line and a short inside-the-era
-# guardrail; planning stages retain the full rules.
+# Article prose only needs the historical-reference mode plus a short inside-era
+# guardrail, not the full cross-stage diegetic planning contract.
 p = Path("apps/server/internal/llm/board_post_prompt.go")
 s = p.read_text()
 old = "    eraRules := withDiegeticWorldFrame(req.EraRules)\n"
 if old not in s:
     raise SystemExit("worker era-rules assignment not found")
 s = s.replace(old, "    eraRules := compactBoardPostEraRules(req.EraRules)\n", 1)
-insert = r'''
-func compactBoardPostEraRules(raw string) string {
+marker = "func validateBoardPostWorkerDraft(req BoardPostRequest, d BoardPostDraft) error {"
+if marker not in s:
+    raise SystemExit("worker validator marker not found")
+helper = r'''func compactBoardPostEraRules(raw string) string {
 	raw = strings.TrimSpace(raw)
 	first := raw
 	if i := strings.IndexByte(first, '\n'); i >= 0 {
@@ -35,15 +33,12 @@ func compactBoardPostEraRules(raw string) string {
 }
 
 '''
-marker = "func validateBoardPostWorkerDraft(req BoardPostRequest, d BoardPostDraft) error {"
-if marker not in s:
-    raise SystemExit("board worker validator marker not found")
-s = s.replace(marker, insert + marker, 1)
+s = s.replace(marker, helper + marker, 1)
 p.write_text(s)
 
-# For legacy/generic render callers that do not have a canonical Situation yet,
-# preserve their free-form semantic envelope. Title-first articles have a
-# SituationSummary and therefore do not receive the old planning motivation.
+# Legacy/generic render callers can lack a canonical Situation. Preserve their
+# free-form semantic envelope only in that case. Title-first normal posts have a
+# SituationSummary, so old cause/motivation prose does not leak back into them.
 p = Path("apps/server/internal/worldrepo/llm_materializer.go")
 s = p.read_text()
 old = '''\tif summary := strings.TrimSpace(i.SituationSummary); summary != "" {
@@ -66,11 +61,26 @@ new = '''\tif summary := strings.TrimSpace(i.SituationSummary); summary != "" {
 '''
 if old not in s:
     raise SystemExit("intent summary canonical-event block not found")
-s = s.replace(old, new, 1)
-p.write_text(s)
+p.write_text(s.replace(old, new, 1))
 
-# Replace the final Gemini transport test as a whole. It is deliberately last in
-# the generated test file, so this is robust against quoting differences.
+# An explicit canonical source edge already establishes reply topology. Do not
+# drop the source from prose context because of a secondary timestamp heuristic.
+p = Path("apps/server/internal/worldrepo/materialization_worker_context.go")
+s = p.read_text()
+old = '''    if selected.Intent.SourcePostID != 0 {
+        if source, ok := developmentConversationFindPost(all, selected.Intent.SourcePostID); ok && postBefore(source, selected) { add(source) }
+    }
+'''
+new = '''    if selected.Intent.SourcePostID != 0 {
+        if source, ok := developmentConversationFindPost(all, selected.Intent.SourcePostID); ok { add(source) }
+    }
+'''
+if old not in s:
+    raise SystemExit("explicit worker source block not found")
+p.write_text(s.replace(old, new, 1))
+
+# Replace the generated Gemini HTTP-contract test wholesale; it is the final
+# function in this generated test file.
 p = Path("apps/server/internal/llm/board_post_prompt_test.go")
 s = p.read_text()
 marker = "func TestGeminiProviderUsesInteractionsStructuredOutput(t *testing.T) {"
@@ -129,8 +139,8 @@ new_test = r'''func TestGeminiProviderUsesInteractionsStructuredOutput(t *testin
 '''
 p.write_text(s[:start] + new_test)
 
-# The previous article-worker test intentionally asserted that the giant
-# cross-stage contract was visible to prose. Replace only that expectation block.
+# Update the old OpenAI prompt test: the prose stage should see the compact
+# contract rather than planning-internal terminology.
 p = Path("apps/server/internal/llm/openai_test.go")
 s = p.read_text()
 start_marker = '\tfor _, want := range []string{\n\t\t"DIEGETIC PRESENT / ERA NORMALITY",'
@@ -154,11 +164,10 @@ replacement = r'''	for _, want := range []string{
 		}
 	}
 '''
-s = s[:start] + replacement + s[end:]
-p.write_text(s)
+p.write_text(s[:start] + replacement + s[end:])
 
-# Conversation-view tests used to require debug headers and IDs in the prose
-# packet. The new worker contract explicitly verifies their absence instead.
+# Conversation-view tests formerly required debug transport metadata in the prose
+# packet. Now assert canonical content is present and debug metadata is absent.
 p = Path("apps/server/internal/worldrepo/materialization_conversation_view_test.go")
 s = p.read_text()
 old = '''\tfor _, want := range []string{"CONVERSATION VIEW POC", "CURRENT WORLD SLOT", "WORLD-LAYER CAUSE BOUNDARY", "WORLD SITUATION", "ROOT ISOLATION", "CANONICAL BOARD CONVERSATION"} {
@@ -194,19 +203,4 @@ new = '''\tif !strings.Contains(renderer.req.PostIntent, "THREAD CONTEXT (canoni
 '''
 if old not in s:
     raise SystemExit("conversation reply expectation block not found")
-s = s.replace(old, new, 1)
-p.write_text(s)
-
-# Make the worker-context unit fixture a real stored chronological thread.
-p = Path("apps/server/internal/worldrepo/materialization_worker_context_test.go")
-s = p.read_text()
-old = '''\troot := base.AddPost(host.ID, world.Post{BoardID: "5", Author: "MARI", Subject: "YMOを聴き直しています", Body: "最近また聴いています。"})
-\treply := world.Post{ID: root.ID + 1, BoardID: "5", ParentID: root.ID, Author: "YUKI", Subject: "Re: YMOを聴き直しています", Intent: world.PostIntent{SourcePostID: root.ID}}
-'''
-new = '''\troot := base.AddPost(host.ID, world.Post{BoardID: "5", Author: "MARI", Subject: "YMOを聴き直しています", Body: "最近また聴いています。"})
-\treply := base.AddPost(host.ID, world.Post{BoardID: "5", ParentID: root.ID, Author: "YUKI", Subject: "Re: YMOを聴き直しています", Intent: world.PostIntent{SourcePostID: root.ID}})
-'''
-if old not in s:
-    raise SystemExit("worker context fixture not found")
-s = s.replace(old, new, 1)
-p.write_text(s)
+p.write_text(s.replace(old, new, 1))
