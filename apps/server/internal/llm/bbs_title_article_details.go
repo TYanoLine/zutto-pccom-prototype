@@ -64,9 +64,11 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 	if err != nil {
 		return BBSTitleArticleDetailDraft{}, err
 	}
-	prompt := `採用済みの記事タイトルを、本文を書く前のcanonicalな記事ローカル事実へ具体化してください。これは文章生成ではなくworld側のdetail materializationです。
+	prompt := `採用済みの記事タイトルについて、本文を書く前に本当に必要な記事ローカル事実だけをcanonical world factとして補ってください。これは文章の構成案を作る処理ではありません。
 
-各articleについてdetailsを2〜4件返してください。detailsはsubject/summaryの言い換えではなく、記事を開いた読者が初めて知る追加情報でなければなりません。
+各articleのdetailsは0〜2件です。subject/summaryだけで自然な短い投稿が成立するなら0件で構いません。件数を埋めるために事実を追加しないでください。
+
+この処理の目的は「良い記事を完成させること」ではなく、その人物がその瞬間に書き込むきっかけとして必要な事実だけを固定することです。本文の結論、説明順、読者への問いかけ、まとめ、教訓、網羅すべき論点を設計しないでください。
 
 使えるkind:
 - locator: ページ・欄・画面位置・一覧の行・物の位置など「どこ」
@@ -80,10 +82,11 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 
 重要:
 - 「〜を話題にする」「〜を共有する」「読者に尋ねる」「紹介する」「報告する」のような編集指示・タイトルの言い換えは禁止です。factは世界内で成立する具体的な命題として書いてください。
+- subject/summaryですでに十分ならdetails=[]を返してください。短い雑談、感想、一言報告を無理に情報記事へ膨らませないでください。
+- detailを追加する場合も、その投稿が存在する理由に直結する小さな観察・出来事・質問条件を優先してください。説明の網羅性を上げるためだけのdetailは禁止です。
 - BoardName / CreatedAt / event_id は生成制御のためのヘッダ情報であり、記事内容ではありません。MSG番号、記事番号、投稿日時、投稿時刻、「○○板に掲示された」「新規スレッドの先頭」等をdetailへ変換することを禁止します。timingは「接続して数分後」「昨夜二度起きた」など記事内の出来事の時刻・回数にだけ使ってください。
-- 2件以上は異なるkindにしてください。
-- 発見・誤植・不具合・失敗・比較を題名が主張する場合、少なくとも1件は locator/timing/sequence/comparison/observation のどれかにし、第三者が状況を想像できる粒度にしてください。
-- 例: 「攻略本の誤植を発見しました」なら、良いdetailは「手元の攻略本の62ページ、一覧表の3行目」「本に印刷された表記と実際の画面表示が食い違っていた」「同じ箇所を読み直してからもう一度画面と見比べた」。悪いdetailは「攻略本の誤植を発見した」「誤植について読者に注意を促す」。
+- 発見・誤植・不具合・失敗・比較を題名が主張する場合、必要なら locator/timing/sequence/comparison/observation のいずれかを1件だけ追加し、第三者が状況を想像できる粒度にしてください。複数項目を必ず揃える必要はありません。
+- 例: 「攻略本の誤植を発見しました」なら「手元の攻略本の62ページ、一覧表の3行目」だけで十分な場合があります。「攻略本の誤植を発見した」「誤植について読者に注意を促す」はdetailではありません。
 - 実在作品・製品・人物・企業・地名がsubjectにある場合、その存在から作品内容、攻略情報、仕様、価格、発売情報、実在出版物の正確なページ内容などの外部史実を連想して追加してはいけません。historical evidenceが入力にない外部事実は作らないでください。
 - ただし採用済み記事のローカルな出来事として、投稿者のその場の観察、試した順序、時刻や回数、手元の無名資料内の位置、質問の範囲、短期的な判断などを具体化して構いません。それらはこの処理を通った時点でworld factになります。
 - PersonaProfileは、この人物の役割・経験水準・普段の行動を守るためのcanonicalな整合性ガードです。題名やsummaryが明示していないのに、普段から行っている基本操作を「今回初めて知った」「これから毎回することにした」のような初心者的な発見・新習慣へ変えないでください。
@@ -102,7 +105,7 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 	}, "required": []string{"kind", "fact"}, "additionalProperties": false}
 	articleSchema := map[string]any{"type": "object", "properties": map[string]any{
 		"event_id": map[string]any{"type": "string"},
-		"details":  map[string]any{"type": "array", "items": detailSchema, "minItems": 2, "maxItems": 4},
+		"details":  map[string]any{"type": "array", "items": detailSchema, "minItems": 0, "maxItems": 2},
 	}, "required": []string{"event_id", "details"}, "additionalProperties": false}
 	schema := map[string]any{"type": "object", "properties": map[string]any{
 		"articles": map[string]any{"type": "array", "items": articleSchema, "minItems": len(req.Articles), "maxItems": len(req.Articles)},
@@ -140,10 +143,9 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			return fmt.Errorf("invalid/duplicate article detail event %q", article.EventID)
 		}
 		seen[article.EventID] = true
-		if len(article.Details) < 2 || len(article.Details) > 4 {
-			return fmt.Errorf("article %q needs 2-4 details", article.EventID)
+		if len(article.Details) > 2 {
+			return fmt.Errorf("article %q needs 0-2 details", article.EventID)
 		}
-		kinds := map[string]bool{}
 		for _, detail := range article.Details {
 			kind := strings.TrimSpace(detail.Kind)
 			fact := strings.TrimSpace(detail.Fact)
@@ -159,10 +161,6 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			if ArticleDetailFactIsRenderingMetadata(fact) {
 				return fmt.Errorf("article %q detail leaked article-header/rendering metadata: %q", article.EventID, fact)
 			}
-			kinds[kind] = true
-		}
-		if len(kinds) < 2 {
-			return fmt.Errorf("article %q needs at least two distinct detail kinds", article.EventID)
 		}
 	}
 	return nil
