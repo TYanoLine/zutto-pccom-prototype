@@ -22,18 +22,25 @@ func TestBuildBoardPostPromptOmitsInfrastructureMetadata(t *testing.T) {
 }
 
 func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
-	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", CanonicalSubject: "最近こればかりやってます"})
+	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます"})
 	for _, want := range []string{
 		"本文に全部書くチェックリストではありません",
 		"一言の感想、短い報告",
 		"毎回「みなさんはどうですか？」型で締めない",
 		"本文で全detailを列挙する義務はありません",
 		"文章は自然なら短くて構いません",
-		"1〜3文でもよく",
+		"writing= を最優先",
+		"同じ三文構成に揃えない",
+		"一文だけで終わっても、多段落になっても",
+		"具体的な操作手順",
+		"将来の予定を「自然な補足」として作らない",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("missing sparse-human guidance %q", want)
 		}
+	}
+	if strings.Contains(prompt, "1〜3文でもよく") {
+		t.Fatalf("fixed sentence-count hint should not survive: %s", prompt)
 	}
 }
 
