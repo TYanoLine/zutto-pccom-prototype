@@ -6,7 +6,7 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-func TestEnableDevelopmentInteractiveTitleFirstPoCMatchesFreshLabMode(t *testing.T) {
+func TestEnableDevelopmentInteractiveTitleFirstPoCUsesLargerObservationCap(t *testing.T) {
 	repo := New(world.NewMemoryStore(), nil, nil, "1996-08-29")
 	repo.EnableDevelopmentInteractiveTitleFirstPoC()
 	if !developmentConversationViewPoCEnabled(repo) {
@@ -15,8 +15,8 @@ func TestEnableDevelopmentInteractiveTitleFirstPoCMatchesFreshLabMode(t *testing
 	if !developmentTitleFirstEnabled(repo) {
 		t.Fatal("title-first must be enabled for ordinary ATDT development-host access")
 	}
-	if got := developmentConversationShellLimit(repo); got != 8 {
-		t.Fatalf("shell limit=%d, want 8 to match the current fresh-Lab comparison path", got)
+	if got := developmentConversationShellLimit(repo); got != 12 {
+		t.Fatalf("shell limit=%d, want 12 for ordinary ATDT observation", got)
 	}
 }
 

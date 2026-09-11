@@ -52,13 +52,23 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 	return r.materializePersonaCandidates(host, board, personas, visits)
 }
 
+const developmentDefaultActivityLookbackDays = 14
+const developmentInteractiveActivityLookbackDays = 28
+
 func developmentVisitsForBoard(host world.Host, board world.Board, personas []world.Persona, worldDate string) []demoPostCandidate {
+	return developmentVisitsForBoardDays(host, board, personas, worldDate, developmentDefaultActivityLookbackDays)
+}
+
+func developmentVisitsForBoardDays(host world.Host, board world.Board, personas []world.Persona, worldDate string, lookbackDays int) []demoPostCandidate {
+	if lookbackDays < 1 {
+		lookbackDays = 1
+	}
 	stamp := worldTime(worldDate)
-	visits := make([]demoPostCandidate, 0, 32)
+	visits := make([]demoPostCandidate, 0, len(personas)*lookbackDays)
 	for _, persona := range personas {
-		days := make([]demoActivityDay, 0, 14)
+		days := make([]demoActivityDay, 0, lookbackDays)
 		expected := 0.0
-		for dayBack := 13; dayBack >= 0; dayBack-- {
+		for dayBack := lookbackDays - 1; dayBack >= 0; dayBack-- {
 			day := stamp.AddDate(0, 0, -dayBack)
 			probability := demoActivityProbability(persona, board)
 			if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {

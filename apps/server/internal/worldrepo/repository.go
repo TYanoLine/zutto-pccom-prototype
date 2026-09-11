@@ -151,15 +151,52 @@ func (r *Repository) ListBoardPosts(host world.Host, boardID, boardTopic string)
 	return filterBoard(r.Base.ListPosts(host.ID), boardID)
 }
 
+func developmentMaterializationBoardCatalog() []world.Board {
+	return []world.Board{
+		{ID: "1", Name: "フリートーク"},
+		{ID: "2", Name: "パソコン通信・モデム"},
+		{ID: "3", Name: "地域の話題"},
+		{ID: "4", Name: "ゲーム"},
+		{ID: "5", Name: "音楽"},
+		{ID: "6", Name: "ソフトウェア"},
+	}
+}
+
 func (r *Repository) MaterializationBoards(host world.Host) ([]world.Board, bool) {
 	bs, ok := r.Base.(world.BoardStore)
 	if !ok {
 		return nil, false
 	}
+	catalog := developmentMaterializationBoardCatalog()
+	desired := catalog[:3]
+	if developmentInteractiveTitleFirstEnabled(r) {
+		desired = catalog
+	}
 	if existing := bs.ListBoards(host.ID); len(existing) > 0 {
+		if !developmentInteractiveTitleFirstEnabled(r) {
+			return existing, false
+		}
+		seen := make(map[string]bool, len(existing))
+		for _, board := range existing {
+			seen[board.ID] = true
+		}
+		merged := append([]world.Board(nil), existing...)
+		changed := false
+		for _, board := range desired {
+			if seen[board.ID] {
+				continue
+			}
+			merged = append(merged, board)
+			seen[board.ID] = true
+			changed = true
+		}
+		if changed {
+			bs.SaveBoards(host.ID, merged)
+			return merged, true
+		}
 		return existing, false
 	}
-	boards := []world.Board{{ID: "1", Name: "フリートーク"}, {ID: "2", Name: "パソコン通信・モデム"}, {ID: "3", Name: "地域の話題"}}
+	boards := append([]world.Board(nil), desired...)
 	bs.SaveBoards(host.ID, boards)
 	return boards, true
 }
