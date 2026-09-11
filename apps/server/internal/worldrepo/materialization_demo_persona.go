@@ -53,7 +53,7 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 }
 
 const developmentDefaultActivityLookbackDays = 14
-const developmentInteractiveActivityLookbackDays = 28
+const developmentInteractiveActivityLookbackDays = 120
 
 func developmentVisitsForBoard(host world.Host, board world.Board, personas []world.Persona, worldDate string) []demoPostCandidate {
 	return developmentVisitsForBoardDays(host, board, personas, worldDate, developmentDefaultActivityLookbackDays)

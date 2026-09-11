@@ -42,6 +42,12 @@ func demoBoardAffinity(p world.Persona, board world.Board) float64 {
 		values = []float64{interest("communications"), interest("modem"), interest("software"), interest("bbs") * .65}
 	case "3":
 		values = []float64{interest("local"), interest("chat") * .55, interest("games") * .20}
+	case "4":
+		values = []float64{interest("games")}
+	case "5":
+		values = []float64{interest("music")}
+	case "6":
+		values = []float64{interest("software")}
 	default:
 		values = []float64{interest("chat"), interest("music") * .80, interest("games") * .75, interest("local") * .55, interest("bbs") * .30, interest("communications") * .12}
 	}

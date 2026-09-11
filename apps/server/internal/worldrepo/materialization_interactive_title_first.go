@@ -16,7 +16,7 @@ var developmentInteractiveTitleFirstPlanningLocks sync.Map
 func (r *Repository) EnableDevelopmentInteractiveTitleFirstPoC() {
 	developmentInteractiveTitleFirst.Store(r, true)
 	r.EnableDevelopmentConversationViewPoC()
-	r.SetDevelopmentConversationShellLimit(12)
+	r.SetDevelopmentConversationShellLimit(24)
 	r.EnableDevelopmentTitleFirstPoC(nil)
 }
 
