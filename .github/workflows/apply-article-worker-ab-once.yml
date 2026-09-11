@@ -23,7 +23,7 @@ jobs:
           go-version-file: apps/server/go.mod
       - name: Apply patch
         run: |
-          # Clean application plus canonical-source compact-worker updates.
+          # Clean application plus final compact-worker regression updates.
           python3 scripts/apply_article_worker_ab.py
           python3 scripts/fix_article_worker_ab_tests.py
       - name: Format
