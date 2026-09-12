@@ -1,17 +1,13 @@
 package worldrepo
 
-import (
-	"strings"
-
-	"zutto-pccom/apps/server/internal/world"
-)
+import "strings"
 
 type conversationPosture struct {
 	knowledge string
 	attention string
 }
 
-func conversationPostureForRoot(p world.Persona, discourseMode, summary string) conversationPosture {
+func conversationPostureForRoot(discourseMode, summary string) conversationPosture {
 	knowledge := "tentative"
 	switch strings.TrimSpace(discourseMode) {
 	case "share_observation", "share_experience", "share_tip":
