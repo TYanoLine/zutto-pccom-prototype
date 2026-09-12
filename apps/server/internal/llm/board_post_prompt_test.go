@@ -25,18 +25,21 @@ func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
 	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます"})
 	for _, want := range []string{
 		"本文に全部書くチェックリストではありません",
-		"一言の感想、短い報告",
+		"多少雑でも構いません",
+		"この1件だけを切り出して完全に理解できる文章にする必要はありません",
 		"毎回「みなさんはどうですか？」型で締めない",
 		"本文で全detailを列挙する義務はありません",
-		"文章は自然なら短くて構いません",
 		"writing= を最優先",
 		"同じ三文構成に揃えない",
-		"一文だけで終わっても、多段落になっても",
+		"一文だけでも、多段落でも",
 		"具体的な操作手順",
 		"将来の予定を「自然な補足」として作らない",
+		"utterance_attention",
+		"元記事を要約してから返事を始めない",
+		"完全な解説記事やチュートリアルへ仕上げない",
 	} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("missing sparse-human guidance %q", want)
+			t.Fatalf("missing conversational guidance %q", want)
 		}
 	}
 	if strings.Contains(prompt, "1〜3文でもよく") {
