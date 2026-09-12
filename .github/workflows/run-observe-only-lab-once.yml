@@ -11,13 +11,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run three large X68k-shaped Luna fresh title-first Labs
+      - name: Run three surface-subject Luna fresh title-first Labs
         shell: bash
         run: |
           set -euo pipefail
           base='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
           for round in 1 2 3; do
-            echo "=== round ${round} ==="
+            echo "=== surface round ${round} ==="
             start="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST "${base}?action=start&situation_mode=title-first&historical_texture=model-memory&era_gate=observe-only&board_count=6&shell_limit=10")"
             printf '%s\n' "$start" | tee "lab-start-${round}.json"
             id="$(printf '%s' "$start" | jq -r '.id')"
@@ -42,5 +42,5 @@ jobs:
       - name: Upload Lab results
         uses: actions/upload-artifact@v4
         with:
-          name: x68k-shaped-luna-large-sample
+          name: surface-subject-luna-large-sample
           path: lab-final-*.json
