@@ -11,39 +11,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start X68k-shaped Luna fresh title-first Lab
+      - name: Run three large X68k-shaped Luna fresh title-first Labs
         shell: bash
         run: |
           set -euo pipefail
           base='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
-          start="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST "${base}?action=start&situation_mode=title-first&historical_texture=model-memory&era_gate=observe-only&board_count=4&shell_limit=10")"
-          printf '%s\n' "$start" | tee /tmp/lab-start.json
-          id="$(printf '%s' "$start" | jq -r '.id')"
-          test -n "$id"
-          test "$id" != null
-          echo "LAB_JOB_ID=$id" >> "$GITHUB_ENV"
+          for round in 1 2 3; do
+            echo "=== round ${round} ==="
+            start="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 -X POST "${base}?action=start&situation_mode=title-first&historical_texture=model-memory&era_gate=observe-only&board_count=6&shell_limit=10")"
+            printf '%s\n' "$start" | tee "lab-start-${round}.json"
+            id="$(printf '%s' "$start" | jq -r '.id')"
+            test -n "$id"
+            test "$id" != null
 
-      - name: Wait for Lab completion
-        shell: bash
-        run: |
-          set -euo pipefail
-          base='https://zutto-pccom-prototype.onrender.com/api/debug/materialization-lab-fresh'
-          final=''
-          for attempt in $(seq 1 120); do
-            final="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 "${base}?action=status&id=${LAB_JOB_ID}")"
-            state="$(printf '%s' "$final" | jq -r '.status')"
-            echo "attempt=$attempt status=$state"
-            if [ "$state" = completed ] || [ "$state" = failed ]; then
-              break
-            fi
-            sleep 10
+            final=''
+            for attempt in $(seq 1 180); do
+              final="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 "${base}?action=status&id=${id}")"
+              state="$(printf '%s' "$final" | jq -r '.status')"
+              echo "round=$round attempt=$attempt status=$state"
+              if [ "$state" = completed ] || [ "$state" = failed ]; then
+                break
+              fi
+              sleep 10
+            done
+            printf '%s\n' "$final" | tee "lab-final-${round}.json"
+            test "$(printf '%s' "$final" | jq -r '.status')" = completed
+            test "$(printf '%s' "$final" | jq -r '.era_gate')" = observe-only
           done
-          printf '%s\n' "$final" | tee lab-final.json
-          test "$(printf '%s' "$final" | jq -r '.status')" = completed
-          test "$(printf '%s' "$final" | jq -r '.era_gate')" = observe-only
 
-      - name: Upload Lab result
+      - name: Upload Lab results
         uses: actions/upload-artifact@v4
         with:
-          name: x68k-shaped-luna-lab-result
-          path: lab-final.json
+          name: x68k-shaped-luna-large-sample
+          path: lab-final-*.json
