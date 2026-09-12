@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Start persona-shaped Luna fresh title-first Lab
+      - name: Start X68k-shaped Luna fresh title-first Lab
         shell: bash
         run: |
           set -euo pipefail
@@ -45,5 +45,5 @@ jobs:
       - name: Upload Lab result
         uses: actions/upload-artifact@v4
         with:
-          name: persona-shaped-luna-lab-result
+          name: x68k-shaped-luna-lab-result
           path: lab-final.json
