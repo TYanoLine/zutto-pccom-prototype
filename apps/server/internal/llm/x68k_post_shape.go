@@ -2,6 +2,8 @@ package llm
 
 import "strings"
 
+// NormalizeConversationKnowledge keeps article rendering from upgrading a
+// speaker's uncertain or second-hand understanding into authoritative fact.
 func NormalizeConversationKnowledge(mode, discourse string) string {
 	mode = strings.TrimSpace(mode)
 	switch mode {
