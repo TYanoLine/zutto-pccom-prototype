@@ -47,6 +47,29 @@ func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
 	}
 }
 
+func TestBuildBoardPostPromptSeparatesSemanticAndSurfaceSubjectForTitleFirstRoot(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic:       "パソコン通信・モデム",
+		WorldDate:        "1996-08-29",
+		AuthorHandle:     "NORI",
+		PersonaProfile:   "writing=短く要点を書くこともある",
+		CanonicalSubject: "Windows 95でモデムが認識されません",
+		PostIntent:       "surface_subject_mode=title_first_root\ndiscourse_mode=ask_peers\ncanonical_event=Windows 95でモデムが認識されず相談する",
+	})
+	for _, want := range []string{
+		"意味判定用タイトル",
+		"表示件名",
+		"短縮、口語化、省略",
+		"モデムが見えない…",
+		"固定パターン化しない",
+		"36文字以内・1行",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("surface-subject guidance missing %q: %s", want, prompt)
+		}
+	}
+}
+
 func TestValidateBoardPostWorkerDraftRejectsHeaderNarration(t *testing.T) {
 	req := BoardPostRequest{}
 	for _, body := range []string{"5/22 00:27、新スレです。おすすめありますか。", "音楽板のMSG 1201です。YMOの話です。", "音楽板から失礼します。"} {
