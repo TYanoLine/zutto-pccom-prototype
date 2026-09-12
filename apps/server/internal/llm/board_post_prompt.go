@@ -32,6 +32,15 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 		subject = strings.TrimSpace(req.BoardTopic)
 	}
 	eraRules := compactBoardPostEraRules(req.EraRules)
+	subjectRule := "JSONのsubjectは上記の件名をそのまま返してください。"
+	if strings.Contains(intent, "surface_subject_mode=title_first_root") {
+		subjectRule = `上記の件名は、年代検証・人物割当・世界事実の確定に使われた意味判定用タイトルです。JSONのsubjectには、この人物が実際にBBSの件名欄へ入力しそうな表示件名を返してください。
+- 意味判定用タイトルをそのまま使っても構いませんが、人物と状況に自然なら短縮、口語化、省略、感情の混じった言い方にして構いません。
+- 表示件名は元の出来事・対象・立場を変えてはいけません。新しい製品、場所、経験、原因、評価、予定などの世界事実を追加しないでください。
+- 説明文として完全である必要はありません。本文や板の文脈があれば通じる「モデムが見えない…」「週末、秋葉原へ」「ポケモン買った？」程度の省略も自然なら可能です。ただし「あれ？」「うーむ」のような極端に曖昧な件名を毎回使うなど、固定パターン化しないでください。
+- 36文字以内・1行。rootなのでRe:は付けません。件名にもpersonaのwriting傾向を反映してよいですが、レトロ演出のために崩さないでください。
+- surface_subject_modeはレンダリング指示であり、本文や件名へ文字列として書かないでください。`
+	}
 
 	return fmt.Sprintf(`1996年前後の日本の草の根パソコン通信BBSに、指定された人物として1件だけ自然な本文を書いてください。
 
@@ -49,6 +58,9 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 時代制約:
 - 世界日付は %s。未来の知識は使わない。
 - %s
+
+件名の扱い:
+%s
 
 書き方:
 - 読者はすでにヘッダ（件名・投稿者・日時・掲示板）とスレッド文脈を見ています。本文でヘッダを読み上げないでください。前提も親切に言い直さず、この1件だけを切り出して完全に理解できる文章にする必要はありません。
@@ -70,7 +82,7 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 - 1990年代らしさを小道具で演出せず、その時代の本人として普通に書いてください。
 
 JSONだけを返してください:
-{"author":"...","subject":"...","body":"..."}`, subject, req.BoardTopic, persona, intent, facts, req.WorldDate, eraRules)
+{"author":"...","subject":"...","body":"..."}`, subject, req.BoardTopic, persona, intent, facts, req.WorldDate, eraRules, subjectRule)
 }
 
 func compactBoardPostEraRules(raw string) string {
