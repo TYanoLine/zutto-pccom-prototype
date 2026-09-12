@@ -73,7 +73,7 @@ func (f *titleFirstTestRenderer) MaterializeBBSTitleArticleDetails(_ context.Con
 	return llm.BBSTitleArticleDetailDraft{Articles: articles}, nil
 }
 
-func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
+func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &titleFirstTestRenderer{fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "書き換えられた件名", Body: "感想です。"}}}
 	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
@@ -125,9 +125,16 @@ func TestTitleFirstPreservesSubjectAndArchivesRejectedCandidates(t *testing.T) {
 		if !hasWorldAdoption || !hasAdoptedSummary || detailCount < 2 {
 			t.Fatalf("missing world adoption/detail facts: %+v", post.Intent.SituationFacts)
 		}
+		semanticSubject := post.Subject
 		rendered, found, created, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
-		if !found || !created || rendered.Subject != post.Subject || renderer.req.CanonicalSubject != post.Subject {
-			t.Fatalf("subject changed: %+v %s", rendered, diag)
+		if !found || !created || renderer.req.CanonicalSubject != semanticSubject {
+			t.Fatalf("semantic subject was not preserved for rendering: %+v %s", rendered, diag)
+		}
+		if rendered.Subject != "書き換えられた件名" {
+			t.Fatalf("surface subject was not persisted: %+v %s", rendered, diag)
+		}
+		if titleFirstSubject(rendered.Intent.SituationFacts) != semanticSubject {
+			t.Fatalf("semantic title fact changed after surface realization: %+v", rendered.Intent.SituationFacts)
 		}
 		if !strings.Contains(renderer.req.PostIntent, "article_detail=") {
 			t.Fatalf("article details were not supplied to body worker: %s", renderer.req.PostIntent)
