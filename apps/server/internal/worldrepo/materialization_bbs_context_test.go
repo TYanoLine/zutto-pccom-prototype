@@ -59,3 +59,28 @@ func TestIntentSummaryCarriesFreeFormGoalAndContentOnlyBBSContext(t *testing.T) 
 		t.Fatalf("free-form intent/render context missing from prompt summary: %q", summary)
 	}
 }
+
+func TestBBSRenderContextIncludesEarlierNestedAndSiblingReplies(t *testing.T) {
+	base := world.NewMemoryStore()
+	repo := New(base, nil, nil, "1996-08-29")
+	h, _ := repo.HostByPhone("0450000196")
+	boards, _ := repo.MaterializationBoards(h)
+	board := boards[1]
+	at := worldTime("1996-08-29").Add(-24 * time.Hour)
+
+	root := base.AddPost(h.ID, world.Post{BoardID: board.ID, Author: "TAKA", Subject: "98の通信環境", Body: "親記事", CreatedAt: at})
+	reply := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: root.ID, Author: "NEKO", Subject: "Re: 98の通信環境", CreatedAt: at.Add(time.Hour)})
+	base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: root.ID, Author: "MARI", Subject: "Re: 98の通信環境", CreatedAt: at.Add(2 * time.Hour)})
+	nested := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: reply.ID, Author: "YUKI", Subject: "Re^2: 98の通信環境", CreatedAt: at.Add(3 * time.Hour)})
+	selected := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: nested.ID, Author: "SORA", Subject: "Re^3: 98の通信環境", CreatedAt: at.Add(4 * time.Hour)})
+
+	context, stats := repo.materializationBBSRenderContext(h, board, selected)
+	for _, want := range []string{"TAKA] 98の通信環境", "NEKO] Re: 98の通信環境", "MARI] Re: 98の通信環境", "YUKI] Re^2: 98の通信環境"} {
+		if !strings.Contains(context, want) {
+			t.Fatalf("nested thread context missing %q:\n%s", want, context)
+		}
+	}
+	if stats.threadPosts != 4 {
+		t.Fatalf("unexpected nested thread post count: %+v", stats)
+	}
+}

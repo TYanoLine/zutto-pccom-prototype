@@ -156,7 +156,7 @@ ORDER BY created_at DESC LIMIT $1`, limit)
 		return nil, err
 	}
 	defer rows.Close()
-	out := make([]materializationFreshArchiveSummary, 0, limit)
+	out := make([]materializationFreshArchiveSummary, 0)
 	for rows.Next() {
 		var item materializationFreshArchiveSummary
 		if err := rows.Scan(&item.ID, &item.Status, &item.SituationMode, &item.HistoricalTexture, &item.BoardCount, &item.ShellLimit, &item.PostCount, &item.BodyCount, &item.Failures, &item.CreatedAt, &item.FinishedAt); err != nil {
@@ -241,7 +241,7 @@ func memoryFreshSummaries(limit int) []materializationFreshArchiveSummary {
 	if limit > len(jobs) {
 		limit = len(jobs)
 	}
-	out := make([]materializationFreshArchiveSummary, 0, limit)
+	out := make([]materializationFreshArchiveSummary, 0)
 	for _, job := range jobs[:limit] {
 		out = append(out, freshJobSummary(job))
 	}

@@ -165,13 +165,37 @@ func (s *Store) AddMembership(hostID, personaID string) {
 
 func (s *Store) SavePersonaFact(fact world.PersonaFact) {
 	s.MemoryStore.SavePersonaFact(fact)
-	s.persist()
+	if s.affectsDevelopmentHost([]string{fact.PersonaID}) {
+		s.persist()
+	}
 }
 
 func (s *Store) ClearPersonaFacts(personaIDs []string) int {
 	count := s.MemoryStore.ClearPersonaFacts(personaIDs)
-	s.persist()
+	if s.affectsDevelopmentHost(personaIDs) {
+		s.persist()
+	}
 	return count
+}
+
+func (s *Store) affectsDevelopmentHost(personaIDs []string) bool {
+	if len(personaIDs) == 0 {
+		return false
+	}
+	snapshot, ok := s.MemoryStore.DevelopmentSnapshot(s.phone)
+	if !ok {
+		return false
+	}
+	members := make(map[string]struct{}, len(snapshot.Memberships))
+	for _, personaID := range snapshot.Memberships {
+		members[personaID] = struct{}{}
+	}
+	for _, personaID := range personaIDs {
+		if _, ok := members[personaID]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) persist() {

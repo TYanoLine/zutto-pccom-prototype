@@ -58,3 +58,83 @@ func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 		t.Fatalf("restored next id=%d, want > %d", next.ID, post.ID)
 	}
 }
+
+func TestDevelopmentSnapshotDetachesPostIntentSlices(t *testing.T) {
+	store := NewMemoryStore()
+	host, err := store.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := store.AddPost(host.ID, Post{
+		BoardID: "1",
+		Author:  "P1",
+		Subject: "slice clone",
+		Intent: PostIntent{
+			SituationFacts:         []string{"fact-1"},
+			Claims:                 []string{"claim-1"},
+			RespondsToClaims:       []string{"respond-1"},
+			ProducerReferents:      []string{"ref-1"},
+			ProducerActorKnowledge: []string{"know-1"},
+			ProducerAudienceContext: []string{
+				"aud-1",
+			},
+			ProducerContribution: []string{"contrib-1"},
+			ProducerMustNot:      []string{"avoid-1"},
+			RenderContext:        "transient",
+		},
+	})
+
+	snapshot, ok := store.DevelopmentSnapshot(host.Phone)
+	if !ok {
+		t.Fatal("snapshot not found")
+	}
+	post.Intent.SituationFacts[0] = "mutated-fact"
+	post.Intent.Claims[0] = "mutated-claim"
+	post.Intent.RespondsToClaims[0] = "mutated-respond"
+	post.Intent.ProducerReferents[0] = "mutated-ref"
+	post.Intent.ProducerActorKnowledge[0] = "mutated-know"
+	post.Intent.ProducerAudienceContext[0] = "mutated-aud"
+	post.Intent.ProducerContribution[0] = "mutated-contrib"
+	post.Intent.ProducerMustNot[0] = "mutated-avoid"
+	if _, ok := store.UpdatePost(host.ID, post); !ok {
+		t.Fatal("update post failed")
+	}
+
+	got := snapshot.Posts[0].Intent
+	for field, want := range map[string]string{
+		"situation_facts":           "fact-1",
+		"claims":                    "claim-1",
+		"responds_to_claims":        "respond-1",
+		"producer_referents":        "ref-1",
+		"producer_actor_knowledge":  "know-1",
+		"producer_audience_context": "aud-1",
+		"producer_contribution":     "contrib-1",
+		"producer_must_not":         "avoid-1",
+	} {
+		var gotValue string
+		switch field {
+		case "situation_facts":
+			gotValue = got.SituationFacts[0]
+		case "claims":
+			gotValue = got.Claims[0]
+		case "responds_to_claims":
+			gotValue = got.RespondsToClaims[0]
+		case "producer_referents":
+			gotValue = got.ProducerReferents[0]
+		case "producer_actor_knowledge":
+			gotValue = got.ProducerActorKnowledge[0]
+		case "producer_audience_context":
+			gotValue = got.ProducerAudienceContext[0]
+		case "producer_contribution":
+			gotValue = got.ProducerContribution[0]
+		case "producer_must_not":
+			gotValue = got.ProducerMustNot[0]
+		}
+		if gotValue != want {
+			t.Fatalf("%s=%q, want %q", field, gotValue, want)
+		}
+	}
+	if got.RenderContext != "" {
+		t.Fatalf("render context leaked into snapshot: %q", got.RenderContext)
+	}
+}

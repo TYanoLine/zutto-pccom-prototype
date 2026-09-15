@@ -182,13 +182,18 @@ func (r *Repository) materializationThreadPredecessors(hostID, boardID string, s
 	if selected.ParentID == 0 {
 		return nil
 	}
-	rootID := selected.ParentID
+	all := r.Base.ListPosts(hostID)
+	postsByID := make(map[int64]world.Post, len(all))
+	for _, post := range all {
+		postsByID[post.ID] = post
+	}
+	rootID := threadRootID(postsByID, selected)
 	out := make([]world.Post, 0, 8)
-	for _, post := range r.Base.ListPosts(hostID) {
+	for _, post := range all {
 		if post.BoardID != boardID || post.ID == selected.ID || !postBefore(post, selected) {
 			continue
 		}
-		if post.ID == rootID || post.ParentID == rootID {
+		if threadRootID(postsByID, post) == rootID {
 			out = append(out, post)
 		}
 	}
