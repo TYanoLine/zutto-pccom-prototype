@@ -9,7 +9,17 @@ export type RegisteredCenter = {
   builtIn?: boolean;
 };
 
+export const MATERIALIZATION_DEV_CENTER: RegisteredCenter = {
+  id: 'materialize-demo',
+  name: '[DEV] 未生成ホスト / MATERIALIZATION DEMO',
+  phone: '0450000196',
+  dialMode: 'tone',
+  maxBaud: 14400,
+  builtIn: true,
+};
+
 export const DEFAULT_CENTERS: RegisteredCenter[] = [
+  MATERIALIZATION_DEV_CENTER,
   {
     id: 'yokohama-moonlight',
     name: 'YOKOHAMA MOONLIGHT NETWORK',
@@ -125,9 +135,12 @@ export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]>
     }
     const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
     if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
-    return payload.centers
+    const generated = payload.centers
       .map((value, index) => normalizeCenter({ ...value, builtIn: true }, index))
-      .filter((value): value is RegisteredCenter => value !== null);
+      .filter((value): value is RegisteredCenter => value !== null && value.phone !== MATERIALIZATION_DEV_CENTER.phone);
+    // Keep the development materialization entry visible even when the canonical
+    // world directory is loaded from the server.
+    return [{ ...MATERIALIZATION_DEV_CENTER }, ...generated];
   } finally {
     window.clearTimeout(timeout);
   }

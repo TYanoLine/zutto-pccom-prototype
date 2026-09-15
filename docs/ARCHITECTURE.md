@@ -67,6 +67,69 @@ A WebSocket is an attachment to a logical call session, not the call itself. Bri
 
 This separation is also required for the future RS-232C bridge: WebSocket and Serial should attach to the same logical host/session model.
 
+## Observation gate and world catch-up
+
+Normal production world advancement is demand-driven. Before a host runtime exposes facts that may have become stale, an observation gate determines which world scopes must be current enough for that action.
+
+Conceptually:
+
+```text
+terminal/host action
+ -> ObservationGate
+ -> resolve required scopes
+ -> GenerationCoordinator
+      -> read last_simulated_at + simulation_version
+      -> acquire narrow per-scope lease if stale
+      -> WorldEngine catch-up
+      -> optional OpenAIProvider prose/enrichment
+      -> validate + COMMIT
+      -> release lease
+ -> HostProgram renders committed state
+```
+
+Typical observation triggers include login, dialing/entering a host, opening a board/thread, reading mail, or another action that exposes previously unmaterialized state.
+
+Do not eagerly update the whole world on login. Advance only the scopes needed for the observation plus any shared dependencies required to keep those facts coherent.
+
+For long elapsed intervals, catch-up should be time-compressed: select durable important transitions first, then materialize only the detailed posts/events required by the current observation.
+
+## Generation coordination and concurrency
+
+The generation coordinator serializes persistent fact creation at a narrow world scope. It is responsible for concepts such as:
+
+- `last_simulated_at`;
+- `simulation_version`;
+- generation/update lease ownership and expiry;
+- idempotency/retry handling;
+- stale-result rejection;
+- queue depth and bounded generation capacity.
+
+If two callers observe the same stale scope concurrently, only one may commit the next version. The other caller waits, receives admission backpressure, or re-reads the winner's committed state. It must not commit an alternate future.
+
+Avoid a single global world lock. Prefer host/board/thread/persona or another domain-appropriate scope.
+
+## Backpressure boundary
+
+Runtime capacity and generation budgets may participate in call admission. The world/coordination layer exposes machine-readable pressure such as scope lock contention, queue saturation, provider pressure, or configured token/cost budget state. The telephone/host layer decides how that becomes period-appropriate UX.
+
+Examples include:
+
+```text
+scope unavailable / no admission capacity
+ -> VirtualTelephoneNetwork
+ -> BUSY
+
+connected call + slow materialization
+ -> host wait state or output pacing
+
+new call admitted at a plausible lower tier
+ -> CONNECT <lower supported rate>
+```
+
+Do not leak raw provider errors, HTTP status codes, or modern cloud terminology into the in-world terminal experience.
+
+The backend should still complete work as efficiently as possible. Simulated bps pacing belongs at the terminal/transport presentation boundary; it is not a reason to keep expensive backend work artificially slow.
+
 ## Persistence rule
 
 Generation is two-phase:
@@ -82,6 +145,8 @@ stable seed + deterministic distributions
 
 Never regenerate an already committed identity/history merely because a prompt is rerun.
 
+Observation-driven catch-up follows the same invariant: once an observation materializes previously unknown history, it becomes shared persisted history rather than a viewer-specific alternate past.
+
 ## LLM division of responsibility
 
 World engine owns:
@@ -94,6 +159,8 @@ World engine owns:
 - demographic sampling
 - relationship/opinion values
 - whether an event occurs
+- which stale scopes require catch-up
+- coarse-vs-detailed materialization policy
 
 LLM owns:
 

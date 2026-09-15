@@ -51,6 +51,8 @@ Dialing is a first-class interaction:
 - auto-redial and `A/`
 - line occupancy driven by host popularity, line count, time of day, audience profile and events
 - virtual users may occupy actual logical lines
+- real generation/coordination pressure may reduce admission capacity or produce `BUSY` rather than leaking modern backend errors
+- simulated bps may pace terminal output independently of actual Internet/backend throughput
 
 The user is never charged real money.
 
@@ -111,6 +113,18 @@ Reading without replying is normal. No response at all is normal. A response the
 
 Opinions are persistent facts. Do not let a human statement silently rewrite a persona's opinion simply because the LLM tends to agree with users.
 
+## Observation-driven world advancement
+
+The world should *appear* to continue while nobody is watching, but production simulation is primarily triggered by observation rather than continuous global generation.
+
+Human login/activity may cause stale world scopes to catch up, but only the scopes actually exposed by the current action should be materialized in detail. Logging in must not eagerly generate every known host or resident.
+
+Examples of observation triggers include dialing/entering a host, opening a board/thread, reading mail, or requesting another view whose facts are stale or not yet materialized.
+
+For long inactive periods, catch up using a bounded set of coarse durable events first, then generate detailed posts/events only where the current observation requires them. Once generated and committed, those events become shared history for all later observers rather than a per-user alternate world.
+
+Concurrent observation of the same stale scope must be serialized with a narrow generation/update lease, simulation version, or equivalent mechanism. If one observer commits the next history version first, the other reuses that committed result.
+
 ## Community openness
 
 Hosts should generally feel smaller and less globally open than modern social media.
@@ -139,7 +153,7 @@ The cultural/knowledge ceiling is 1996. Later products, slang and events must no
 
 The real Japan clock may drive time-of-day behavior and Telehodai windows, while the calendar is mapped into the 1996 world. Keep `WorldClock` abstract so tests can jump between 22:59, 23:00 and 08:00.
 
-Inactive hosts are not simulated continuously. Catch them up lazily using coarse events and materialize detailed posts only when needed.
+Inactive hosts are not simulated continuously. Catch them up lazily using coarse events and materialize detailed posts only when needed. Normal production catch-up is observation-driven and limited to relevant scopes; continuous background LLM simulation of the entire world is not a requirement.
 
 ## Future real-machine target
 

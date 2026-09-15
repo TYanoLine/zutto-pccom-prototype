@@ -83,3 +83,7 @@ Read, in order:
 ## Do not prematurely microservice this
 
 Keep a modular monolith until scaling evidence says otherwise. Domain interfaces matter; deployment boundaries do not yet.
+
+## Iterative generation verification
+
+Read [docs/MATERIALIZATION_LAB.md](docs/MATERIALIZATION_LAB.md) when validating generation changes. The development HTTP labs run the actual generation pipeline against an isolated MemoryStore clone. **The current fresh lab is intentionally a conversation-view PoC:** it performs RESET-equivalent shell selection, bypasses the host-wide semantic Producer for that isolated repository, rebuilds transient conversation context from canonical DB records, and then runs ALLBODY. Use it to inspect article naturalness, thread/source coherence, actor continuity, and world-shell compliance. The worker/allbody replay labs can still be used against existing Producer-materialized articles when the Producer/Article Worker boundary itself is the target. Record runtime outcomes separately from job completion; verify the deployed build before comparing changes. This does not replace terminal/browser E2E verification.

@@ -18,24 +18,109 @@ type Host struct {
 	TelehoFriendly bool    `json:"teleho_friendly"`
 }
 
+type Board struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// PostIntent stores canonical semantic state for an actual post. Action,
+// AnchorKey, CauseKind and DiscourseMode are selected by the world layer before LLM semantic
+// realization. Topic/Motivation/Stance/Goal are human-readable realization of
+// that fixed cause, not an invitation for the LLM to choose what happens.
+//
+// Situation* fields are a sparse world-owned micro-situation selected only after
+// a write action exists. They fix enough of the occurrence to keep independent
+// roots distinct and answerable without simulating every person's life at full
+// resolution. SituationFacts are open boundary/fact strings rather than a global
+// fixed event schema, so future host/domain logic can extend them compositionally.
+//
+// Producer* fields are the canonical article brief created by the host-window
+// semantic producer after world action selection and before article prose is
+// rendered. They let the later per-article worker write freely at the wording
+// level without inventing a new event, referent, owner, backstory or purpose.
+//
+// PersonaFact is deliberately separate: a persistent fact is background for
+// consistency and never becomes a posting trigger merely because it exists.
+type PostIntent struct {
+	Action        string `json:"action,omitempty"`
+	AnchorKey     string `json:"anchor_key,omitempty"`
+	CauseKind     string `json:"cause_kind,omitempty"`
+	DiscourseMode string `json:"discourse_mode,omitempty"`
+	SourcePostID  int64  `json:"source_post_id,omitempty"`
+
+	SituationKind    string   `json:"situation_kind,omitempty"`
+	SituationSummary string   `json:"situation_summary,omitempty"`
+	SituationFacts   []string `json:"situation_facts,omitempty"`
+
+	Topic            string   `json:"topic,omitempty"`
+	Motivation       string   `json:"motivation,omitempty"`
+	Stance           string   `json:"stance,omitempty"`
+	Goal             string   `json:"goal,omitempty"`
+	Claims           []string `json:"claims,omitempty"`
+	RespondsToClaims []string `json:"responds_to_claims,omitempty"`
+	RespondsToPostID int64    `json:"responds_to_post_id,omitempty"`
+
+	ProducerEventID         string   `json:"producer_event_id,omitempty"`
+	ProducerEpisode         string   `json:"producer_episode,omitempty"`
+	ProducerReferents       []string `json:"producer_referents,omitempty"`
+	ProducerActorKnowledge  []string `json:"producer_actor_knowledge,omitempty"`
+	ProducerAudienceContext []string `json:"producer_audience_context,omitempty"`
+	ProducerContribution    []string `json:"producer_contribution,omitempty"`
+	ProducerMustNot         []string `json:"producer_must_not,omitempty"`
+
+	// RenderContext is transient input assembled from canonical BBS data immediately
+	// before prose rendering. It is never canonical world state and must not be
+	// persisted/serialized. The PoC uses it for thread history + small related-post
+	// retrieval while keeping the database as the source of truth.
+	RenderContext string `json:"-"`
+}
+
 type Post struct {
-	ID        int64     `json:"id"`
-	BoardID   string    `json:"board_id,omitempty"`
-	ParentID  int64     `json:"parent_id,omitempty"`
-	Author    string    `json:"author"`
-	Subject   string    `json:"subject"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"created_at"`
+	ID              int64      `json:"id"`
+	BoardID         string     `json:"board_id,omitempty"`
+	ParentID        int64      `json:"parent_id,omitempty"`
+	Author          string     `json:"author"`
+	AuthorPersonaID string     `json:"author_persona_id,omitempty"`
+	Subject         string     `json:"subject"`
+	Intent          PostIntent `json:"intent,omitempty"`
+	Body            string     `json:"body"`
+	CreatedAt       time.Time  `json:"created_at"`
 }
 
 type Persona struct {
-	Handle           string
-	Age              int
-	Gender           string
-	Occupation       string
-	ReplyTendency    float64
-	LurkerTendency   float64
-	NewcomerOpenness float64
-	Interests        map[string]float64
-	Opinions         map[string]float64
+	ID                  string
+	Handle              string
+	Age                 int
+	Gender              string
+	Occupation          string
+	ActivityPattern     string
+	ReplyTendency       float64
+	ThreadStartTendency float64
+	LurkerTendency      float64
+	NewcomerOpenness    float64
+	Argumentativeness   float64
+	WritingStyle        string
+
+	// EverydayContext describes ordinary, already-established baseline conditions
+	// in this person's life. These facts are primarily contradiction/interpretation
+	// context and are normally left unspoken. They are deliberately separate from
+	// Interests so an ordinary machine, service, membership, commute or habit does
+	// not become a posting topic merely because it is part of the person's life.
+	EverydayContext []string
+
+	Interests map[string]float64
+	Opinions  map[string]float64
+}
+
+// PersonaFact is a concrete fictional-world fact that did not need to exist in
+// detail when the persona skeleton was first created. Key is an open semantic
+// key, not a member of a fixed slot catalog. Once stored, later planning must
+// reuse the same key/value instead of improvising a contradiction.
+type PersonaFact struct {
+	PersonaID      string    `json:"persona_id"`
+	Key            string    `json:"key"`
+	Topic          string    `json:"topic,omitempty"`
+	Value          string    `json:"value"`
+	MaterializedAt time.Time `json:"materialized_at"`
+	SourceKind     string    `json:"source_kind,omitempty"`
 }

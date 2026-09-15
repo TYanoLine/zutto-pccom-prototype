@@ -8,3 +8,7 @@ Core design documents live in this directory. For the current persistent-world g
 - `DEBUG_RESET.md` — protected prototype reset operations
 
 Host-program-specific research and behavior belongs in the host-program documents and runtimes rather than a shared BBS UI.
+
+## Development verification
+
+- [MATERIALIZATION_LAB.md](MATERIALIZATION_LAB.md) — AIエージェント向け生成の反復検証IF。fresh / worker / random / ALLBODYの使い分け、認証、結果の読み方、制約。

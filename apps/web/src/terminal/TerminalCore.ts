@@ -8,6 +8,15 @@ export type Cell = {
 
 const WIDTH = 80;
 const HEIGHT = 25;
+const MAX_SCROLLBACK = 2000;
+
+function blankRow(): Cell[] {
+  return Array.from({ length: WIDTH }, () => ({ ch: ' ', fg: 7, bg: 0, bold: false }));
+}
+
+function cloneRow(row: Cell[]): Cell[] {
+  return row.map(cell => ({ ...cell }));
+}
 
 export class TerminalCore {
   readonly width = WIDTH;
@@ -15,6 +24,7 @@ export class TerminalCore {
   cells: Cell[][] = [];
   cursorX = 0;
   cursorY = 0;
+  private scrollback: Cell[][] = [];
   private fg = 7;
   private bg = 0;
   private bold = false;
@@ -25,10 +35,24 @@ export class TerminalCore {
   subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
   private emit() { for (const fn of this.listeners) fn(); }
 
+  get scrollbackLength() { return this.scrollback.length; }
+  get maxScrollOffset() { return this.scrollback.length; }
+
+  // offset=0 is the live terminal screen. Positive offsets expose lines that
+  // physically scrolled off the top of the 80x25 screen. Keeping this in the
+  // terminal core (rather than scraping rendered pixels) preserves ANSI colors
+  // and full-width character metadata for historical display.
+  viewportRows(offset = 0): Cell[][] {
+    const clamped = Math.max(0, Math.min(this.maxScrollOffset, Math.trunc(offset)));
+    if (clamped === 0) return this.cells;
+    const history = [...this.scrollback, ...this.cells];
+    const start = Math.max(0, history.length - HEIGHT - clamped);
+    return history.slice(start, start + HEIGHT);
+  }
+
   clear() {
-    this.cells = Array.from({ length: HEIGHT }, () =>
-      Array.from({ length: WIDTH }, () => ({ ch: ' ', fg: 7, bg: 0, bold: false })),
-    );
+    this.cells = Array.from({ length: HEIGHT }, () => blankRow());
+    this.scrollback = [];
     this.cursorX = 0;
     this.cursorY = 0;
     this.emit();
@@ -82,8 +106,14 @@ export class TerminalCore {
     this.cursorX = 0;
     this.cursorY++;
     if (this.cursorY >= HEIGHT) {
-      this.cells.shift();
-      this.cells.push(Array.from({ length: WIDTH }, () => ({ ch: ' ', fg: 7, bg: 0, bold: false })));
+      const scrolled = this.cells.shift();
+      if (scrolled) {
+        this.scrollback.push(cloneRow(scrolled));
+        if (this.scrollback.length > MAX_SCROLLBACK) {
+          this.scrollback.splice(0, this.scrollback.length - MAX_SCROLLBACK);
+        }
+      }
+      this.cells.push(blankRow());
       this.cursorY = HEIGHT - 1;
     }
   }
