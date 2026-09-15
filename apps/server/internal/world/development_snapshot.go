@@ -124,8 +124,14 @@ func cloneFloatMap(in map[string]float64) map[string]float64 {
 }
 
 func clonePost(post Post) Post {
+	post.Intent.SituationFacts = append([]string(nil), post.Intent.SituationFacts...)
 	post.Intent.Claims = append([]string(nil), post.Intent.Claims...)
 	post.Intent.RespondsToClaims = append([]string(nil), post.Intent.RespondsToClaims...)
+	post.Intent.ProducerReferents = append([]string(nil), post.Intent.ProducerReferents...)
+	post.Intent.ProducerActorKnowledge = append([]string(nil), post.Intent.ProducerActorKnowledge...)
+	post.Intent.ProducerAudienceContext = append([]string(nil), post.Intent.ProducerAudienceContext...)
+	post.Intent.ProducerContribution = append([]string(nil), post.Intent.ProducerContribution...)
+	post.Intent.ProducerMustNot = append([]string(nil), post.Intent.ProducerMustNot...)
 	post.Intent.RenderContext = ""
 	return post
 }
