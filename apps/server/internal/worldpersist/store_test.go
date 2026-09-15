@@ -87,3 +87,31 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatalf("reset posts restored unexpectedly: %+v", posts)
 	}
 }
+
+func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := world.NewMemoryStore()
+	store, err := newStore(ctx, base, "0450000196", backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	otherHost, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherPersona := world.Persona{ID: otherHost.ID + "-p", Handle: "OUTSIDE"}
+	store.SavePersona(otherPersona)
+	store.AddMembership(otherHost.ID, otherPersona.ID)
+	store.SavePersonaFact(world.PersonaFact{PersonaID: otherPersona.ID, Key: "outside.note", Value: "other host"})
+	if backend.saves != 0 {
+		t.Fatalf("unexpected persist for other-host fact save: %d", backend.saves)
+	}
+	if cleared := store.ClearPersonaFacts([]string{otherPersona.ID}); cleared != 1 {
+		t.Fatalf("cleared=%d", cleared)
+	}
+	if backend.saves != 0 {
+		t.Fatalf("unexpected persist for other-host fact clear: %d", backend.saves)
+	}
+}

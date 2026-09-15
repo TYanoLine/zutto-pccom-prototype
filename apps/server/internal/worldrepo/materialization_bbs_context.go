@@ -33,10 +33,11 @@ func (s demoRenderContextStats) String() string {
 // without making a search index authoritative world state.
 func (r *Repository) materializationBBSRenderContext(host world.Host, board world.Board, selected world.Post) (string, demoRenderContextStats) {
 	all := r.Base.ListPosts(host.ID)
-	rootID := selected.ID
-	if selected.ParentID != 0 {
-		rootID = selected.ParentID
+	postsByID := make(map[int64]world.Post, len(all))
+	for _, post := range all {
+		postsByID[post.ID] = post
 	}
+	rootID := threadRootID(postsByID, selected)
 
 	thread := make([]world.Post, 0, 8)
 	threadIDs := map[int64]bool{}
@@ -44,7 +45,7 @@ func (r *Repository) materializationBBSRenderContext(host world.Host, board worl
 		if post.BoardID != board.ID || post.ID == selected.ID || !postBefore(post, selected) {
 			continue
 		}
-		if post.ID == rootID || post.ParentID == rootID {
+		if threadRootID(postsByID, post) == rootID {
 			thread = append(thread, post)
 			threadIDs[post.ID] = true
 		}
@@ -132,6 +133,25 @@ func postBefore(candidate, selected world.Post) bool {
 		return true
 	}
 	return candidate.CreatedAt.Equal(selected.CreatedAt) && candidate.ID < selected.ID
+}
+
+func threadRootID(postsByID map[int64]world.Post, post world.Post) int64 {
+	rootID := post.ID
+	current := post
+	seen := map[int64]bool{post.ID: true}
+	for current.ParentID != 0 {
+		rootID = current.ParentID
+		if seen[rootID] {
+			return rootID
+		}
+		parent, ok := postsByID[rootID]
+		if !ok {
+			return rootID
+		}
+		seen[rootID] = true
+		current = parent
+	}
+	return rootID
 }
 
 func boundedThreadContext(posts []world.Post, limit int) []world.Post {

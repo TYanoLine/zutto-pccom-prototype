@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -35,5 +36,28 @@ func TestArticleWorkerContextHasNoMSGIdsOrTimestamps(t *testing.T) {
 	}
 	if !strings.Contains(got, "[MARI] YMOを聴き直しています") {
 		t.Fatalf("source content missing: %s", got)
+	}
+}
+
+func TestMaterializationThreadPredecessorsIncludeEarlierNestedAndSiblingReplies(t *testing.T) {
+	base := world.NewMemoryStore()
+	repo := New(base, nil, nil, "1996-08-29")
+	h, _ := repo.HostByPhone("0450000196")
+	boards, _ := repo.MaterializationBoards(h)
+	board := boards[1]
+	at := worldTime("1996-08-29")
+
+	root := base.AddPost(h.ID, world.Post{BoardID: board.ID, Author: "TAKA", Subject: "親", CreatedAt: at})
+	reply := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: root.ID, Author: "NEKO", Subject: "Re: 親", CreatedAt: at.Add(time.Minute)})
+	sibling := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: root.ID, Author: "MARI", Subject: "Re: 親", CreatedAt: at.Add(2 * time.Minute)})
+	nested := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: reply.ID, Author: "YUKI", Subject: "Re^2: 親", CreatedAt: at.Add(3 * time.Minute)})
+	selected := base.AddPost(h.ID, world.Post{BoardID: board.ID, ParentID: nested.ID, Author: "SORA", Subject: "Re^3: 親", CreatedAt: at.Add(4 * time.Minute)})
+
+	predecessors := repo.materializationThreadPredecessors(h.ID, board.ID, selected)
+	if len(predecessors) != 4 {
+		t.Fatalf("predecessors=%+v", predecessors)
+	}
+	if predecessors[0].ID != root.ID || predecessors[1].ID != reply.ID || predecessors[2].ID != sibling.ID || predecessors[3].ID != nested.ID {
+		t.Fatalf("unexpected predecessor order: %+v", predecessors)
 	}
 }
