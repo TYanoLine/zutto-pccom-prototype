@@ -70,9 +70,9 @@ export default function MaterializationLabViewerPage() {
   }
 
   async function startJevFullRun() {
-    setGenerating(true); setGenerationStatus('Jev有効の6板フル生成を開始しています…'); setError('');
+    setGenerating(true); setGenerationStatus('Jev有効・具体名優先の6板フル生成を開始しています…'); setError('');
     try {
-      const start = await fetch('/api/materialization-lab-fresh?action=start&situation_mode=title-first&historical_texture=model-memory&board_count=6&shell_limit=10&era_gate=observe-only', {
+      const start = await fetch('/api/materialization-lab-fresh?action=start&situation_mode=title-first&historical_texture=model-memory-concrete&board_count=6&shell_limit=10&era_gate=observe-only', {
         method:'POST',
         headers:{ Accept:'application/json' },
         cache:'no-store'
