@@ -76,10 +76,12 @@ func main() {
 		}
 		worldEngine.WriteAdvisor = jevAdvisor
 		worldEngine.BehaviorAdvisor = jevAdvisor
+		worldEngine.TitleAdvisor = jevAdvisor
 	}
-	// Planning capabilities remain on the established OpenAI implementation while
-	// final article prose is routed to Gemini. This preserves title-first and the
-	// other development planners until they have native Gemini implementations.
+	// Candidate wording, article details, and final prose use the OpenAI renderer.
+	// When Jev is configured, title-first Era routing and persona/slot compatibility
+	// use Jev System One as a bounded semantic advisor with deterministic World-side
+	// matching and OpenAI fallback. Gemini remains available for the dedicated A/B endpoint.
 	openAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
 	geminiRenderer := llm.StructuredGeminiProvider{GeminiProvider: llm.GeminiProvider{APIKey: cfg.GeminiKey, Model: cfg.GeminiModel, Client: &http.Client{Timeout: 90 * time.Second}}}
 	postRenderer := llm.GeminiArticleWorkerRouter{StructuredOpenAIProvider: openAIRenderer, ArticleWorker: geminiRenderer}
@@ -409,7 +411,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "world_repository": true, "world_post_renderer": "gemini-article-worker-with-openai-planners", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "world_repository": true, "world_post_renderer": "openai-article-worker-with-jev-title-advisor", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}

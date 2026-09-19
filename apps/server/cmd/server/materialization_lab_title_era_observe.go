@@ -113,6 +113,8 @@ func (r titleEraObserveOnlyRenderer) MaterializeBBSTitleArticleDetails(ctx conte
 	return r.detailPlanner.MaterializeBBSTitleArticleDetails(ctx, req)
 }
 
+func (r titleEraObserveOnlyRenderer) TitleEraObserveOnly() bool { return true }
+
 var _ llm.BoardPostRenderer = titleEraObserveOnlyRenderer{}
 var _ llm.BBSTitleCandidatePlanner = titleEraObserveOnlyRenderer{}
 var _ llm.BBSTitleEraValidator = titleEraObserveOnlyRenderer{}

@@ -14,6 +14,7 @@ type Engine struct {
 	Knowledge        KnowledgeResolver
 	WriteAdvisor     WritePropensityAdvisor
 	BehaviorAdvisor  BehaviorAdvisor
+	TitleAdvisor     TitleCandidateAdvisor
 }
 
 type EvidenceRequest struct {

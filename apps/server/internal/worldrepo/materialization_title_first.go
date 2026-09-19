@@ -26,18 +26,23 @@ type DevelopmentTitleCandidate struct {
 	Details     []string `json:"details,omitempty"`
 }
 type DevelopmentTitleFirstTiming struct {
-	CandidateGenerationMS    int64 `json:"candidate_generation_ms"`
-	EraRoutingMS             int64 `json:"era_routing_ms"`
-	AssignmentReviewMS       int64 `json:"assignment_review_ms"`
-	EraResearchMS            int64 `json:"era_research_ms"`
-	ArticleDetailMS          int64 `json:"article_detail_ms"`
-	TitleEvaluationMS        int64 `json:"title_evaluation_ms"`
-	TotalPlanningMS          int64 `json:"total_planning_ms"`
-	CandidateGenerationCalls int   `json:"candidate_generation_calls"`
-	EraRoutingCalls          int   `json:"era_routing_calls"`
-	AssignmentReviewCalls    int   `json:"assignment_review_calls"`
-	EraResearchBatches       int   `json:"era_research_batches"`
-	ArticleDetailCalls       int   `json:"article_detail_calls"`
+	CandidateGenerationMS    int64  `json:"candidate_generation_ms"`
+	EraRoutingMS             int64  `json:"era_routing_ms"`
+	AssignmentReviewMS       int64  `json:"assignment_review_ms"`
+	JevTitleEvaluationMS     int64  `json:"jev_title_evaluation_ms"`
+	EraResearchMS            int64  `json:"era_research_ms"`
+	ArticleDetailMS          int64  `json:"article_detail_ms"`
+	TitleEvaluationMS        int64  `json:"title_evaluation_ms"`
+	TotalPlanningMS          int64  `json:"total_planning_ms"`
+	CandidateGenerationCalls int    `json:"candidate_generation_calls"`
+	EraRoutingCalls          int    `json:"era_routing_calls"`
+	AssignmentReviewCalls    int    `json:"assignment_review_calls"`
+	JevTitleEvaluationCalls  int    `json:"jev_title_evaluation_calls"`
+	JevTitleFallbacks        int    `json:"jev_title_fallbacks"`
+	JevTitleInputTokens      int    `json:"jev_title_input_tokens"`
+	JevTitleModel            string `json:"jev_title_model,omitempty"`
+	EraResearchBatches       int    `json:"era_research_batches"`
+	ArticleDetailCalls       int    `json:"article_detail_calls"`
 }
 
 type developmentTitleFirstState struct {
@@ -98,7 +103,7 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	planningStarted := time.Now()
 	defer func() {
 		state.timing.TotalPlanningMS = time.Since(planningStarted).Milliseconds()
-		state.timing.TitleEvaluationMS = state.timing.EraRoutingMS + state.timing.AssignmentReviewMS
+		state.timing.TitleEvaluationMS = state.timing.EraRoutingMS + state.timing.AssignmentReviewMS + state.timing.JevTitleEvaluationMS
 		state.result = result
 		state.err = err
 	}()
@@ -165,22 +170,46 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		}
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
 		asOf := earliest.Format("2006-01-02")
-		stageStarted = time.Now()
-		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentRouteTitleEra(ctx, board, asOf, pool, state, offset, eraValidator)
-		state.timing.EraRoutingMS += time.Since(stageStarted).Milliseconds()
-		state.timing.EraRoutingCalls++
-		addUsage(eraUsage)
-		if eraErr != nil || len(eligibleTitles) == 0 {
-			continue
-		}
 		prior := []world.Post{}
 		for _, post := range state.history {
 			if post.CreatedAt.Before(earliest) {
 				prior = append(prior, post)
 			}
 		}
+		recentBBSState := planningBBSState(prior, 48)
+
+		boardPlanner := planner
+		boardEraValidator := eraValidator
+		jevStarted := time.Now()
+		jevAdvice, jevAttempted, jevErr := r.developmentJevTitleAdvice(ctx, host, board, asOf, pool.Titles, events[board.ID], recentBBSState)
+		if jevAttempted {
+			state.timing.JevTitleEvaluationMS += time.Since(jevStarted).Milliseconds()
+			state.timing.JevTitleEvaluationCalls++
+			if jevErr != nil {
+				state.timing.JevTitleFallbacks++
+			} else {
+				state.timing.JevTitleInputTokens += jevAdvice.InputTokens
+				if jevAdvice.Model != "" {
+					state.timing.JevTitleModel = jevAdvice.Model
+				}
+				boardPlanner = developmentJevTitlePlanner{titles: append([]string(nil), pool.Titles...), advice: jevAdvice}
+				boardEraValidator = developmentJevTitleEraValidator{
+					advice: jevAdvice,
+					observeOnly: developmentTitleEraObserveOnly(m.Renderer),
+				}
+			}
+		}
+
+		stageStarted = time.Now()
+		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentRouteTitleEra(ctx, board, asOf, pool, state, offset, boardEraValidator)
+		state.timing.EraRoutingMS += time.Since(stageStarted).Milliseconds()
+		state.timing.EraRoutingCalls++
+		addUsage(eraUsage)
+		if eraErr != nil || len(eligibleTitles) == 0 {
+			continue
+		}
 		boardsRemaining := len(boards) - boardIndex
-		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], planningBBSState(prior, 48), state, offset, boardsRemaining, planner, detailPlanner, addUsage, out); err != nil {
+		if err := r.developmentAssignTitleFirstBoard(ctx, host, board, asOf, eligibleTitles, originalCandidates, events[board.ID], recentBBSState, state, offset, boardsRemaining, boardPlanner, detailPlanner, addUsage, out); err != nil {
 			return nil, err
 		}
 	}
