@@ -147,6 +147,13 @@ func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *test
 	if !foundRoot {
 		t.Fatal("no accepted root")
 	}
+	timing := repo.DevelopmentTitleFirstTiming()
+	if timing.CandidateGenerationCalls == 0 || timing.EraRoutingCalls == 0 || timing.AssignmentReviewCalls == 0 || timing.ArticleDetailCalls == 0 {
+		t.Fatalf("title-first stage timing call counts missing: %+v", timing)
+	}
+	if timing.TotalPlanningMS < 0 || timing.TitleEvaluationMS != timing.EraRoutingMS+timing.AssignmentReviewMS {
+		t.Fatalf("invalid title-first timing totals: %+v", timing)
+	}
 	calls := renderer.calls
 	repo.MaterializationPersonaArticleHeaders(host, boards[0])
 	if renderer.calls != calls {
