@@ -68,6 +68,13 @@ func main() {
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
+	if cfg.JevKey != "" {
+		worldEngine.WriteAdvisor = worldengine.JevAdvisor{
+			APIKey: cfg.JevKey,
+			Model:  cfg.JevModel,
+			Client: &http.Client{Timeout: 2 * time.Second},
+		}
+	}
 	// Planning capabilities remain on the established OpenAI implementation while
 	// final article prose is routed to Gemini. This preserves title-first and the
 	// other development planners until they have native Gemini implementations.
@@ -399,7 +406,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "world_repository": true, "world_post_renderer": "gemini-article-worker-with-openai-planners", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "world_repository": true, "world_post_renderer": "gemini-article-worker-with-openai-planners", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
