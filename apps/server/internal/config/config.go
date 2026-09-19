@@ -11,6 +11,8 @@ type Config struct {
 	OpenAIModel                 string
 	GeminiKey                   string
 	GeminiModel                 string
+	JevKey                      string
+	JevModel                    string
 	WorldDate                   string
 	HistoricalReferencesEnabled bool
 	DatabaseURL                 string
@@ -19,12 +21,18 @@ type Config struct {
 }
 
 func Load() Config {
+	jevKey := os.Getenv("JEV_APIKEY")
+	if jevKey == "" {
+		jevKey = os.Getenv("TYPESAFE_API_KEY")
+	}
 	return Config{
 		Addr:                        env("ADDR", ":8080"),
 		OpenAIKey:                   os.Getenv("OPENAI_API_KEY"),
 		OpenAIModel:                 env("OPENAI_MODEL", "gpt-5.6-luna"),
 		GeminiKey:                   os.Getenv("GEMINI_API_KEY"),
 		GeminiModel:                 env("GEMINI_MODEL", "gemini-3.8-flash"),
+		JevKey:                      jevKey,
+		JevModel:                    env("JEV_MODEL", "jev-latest"),
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),
 		HistoricalReferencesEnabled: envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DatabaseURL:                 os.Getenv("DATABASE_URL"),
