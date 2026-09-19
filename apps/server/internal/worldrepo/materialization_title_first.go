@@ -336,12 +336,12 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 		})
 		addUsage(detailDraft.Usage)
 		if detailErr != nil {
-			for eventID, originalCandidate := range acceptedCandidateByEvent {
+			for _, originalCandidate := range acceptedCandidateByEvent {
 				row := &state.rows[offset+originalCandidate-1]
-				row.Status = "detail_rejected"
-				row.Reason += " / 記事detail具体化失敗: " + detailErr.Error()
+				// Detail enrichment is optional. Once title/persona/Era adoption has
+				// succeeded, a secondary detail call must not erase the whole article.
+				row.Reason += " / 記事detail具体化失敗（採用記事は保持）: " + detailErr.Error()
 				row.Details = nil
-				delete(out, eventID)
 			}
 		} else {
 			for _, article := range detailDraft.Articles {
@@ -366,7 +366,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 	}
 	for _, originalCandidate := range originalCandidates {
 		row := &state.rows[offset+originalCandidate-1]
-		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" || row.Status == "detail_rejected" {
+		if row.Status == "accepted" || row.Status == "corrected" || row.Status == "era_rejected" {
 			continue
 		}
 		if row.EraStatus == "research" {

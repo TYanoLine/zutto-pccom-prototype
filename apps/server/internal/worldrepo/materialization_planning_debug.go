@@ -43,7 +43,7 @@ func (r *Repository) MaterializationPlanningDiagnostic(hostID, boardID string) s
 	parts := make([]string, 0, 3)
 	if value, ok := developmentSelectionTelemetry.Load(key); ok {
 		if stats, ok := value.(developmentSelectionStats); ok {
-			parts = append(parts, fmt.Sprintf("visits=%d posts=%d rom=%d roots=%d replies=%d jev_behavior_personas=%d jev_model=%s jev_input_tokens=%d jev_fallback=%t", stats.Visits, stats.Posts, stats.ROM, stats.Roots, stats.Replies, stats.JevPersonas, stats.JevModel, stats.JevInputTokens, stats.JevFallback))
+			parts = append(parts, fmt.Sprintf("visits=%d posts=%d rom=%d roots=%d replies=%d materialized_roots=%d materialized_replies=%d jev_behavior_personas=%d jev_model=%s jev_input_tokens=%d jev_fallback=%t", stats.Visits, stats.Posts, stats.ROM, stats.Roots, stats.Replies, stats.MaterializedRoots, stats.MaterializedReplies, stats.JevPersonas, stats.JevModel, stats.JevInputTokens, stats.JevFallback))
 		}
 	}
 	if value, ok := developmentPlanningErrors.Load(key); ok {

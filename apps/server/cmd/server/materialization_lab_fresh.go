@@ -222,9 +222,9 @@ func (l *materializationLab) handleFreshStart(w http.ResponseWriter, r *http.Req
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "topic-first requires historical_texture=search-grounded"})
 		return
 	}
-	if situationMode == "title-first" && historicalTexture != "model-memory" {
+	if situationMode == "title-first" && historicalTexture != "model-memory" && historicalTexture != "model-memory-concrete" {
 		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "title-first requires historical_texture=model-memory"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "title-first requires historical_texture=model-memory or model-memory-concrete"})
 		return
 	}
 	eraGate, ok := normalizeFreshEraGate(r.URL.Query().Get("era_gate"))

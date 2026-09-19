@@ -20,6 +20,7 @@ type titleFirstTestRenderer struct {
 	malformedFirst bool
 	eraStatuses    map[int]string
 	reviewedTitles []string
+	detailErr      bool
 }
 
 func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
@@ -63,6 +64,9 @@ func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r l
 }
 
 func (f *titleFirstTestRenderer) MaterializeBBSTitleArticleDetails(_ context.Context, r llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
+	if f.detailErr {
+		return llm.BBSTitleArticleDetailDraft{}, fmt.Errorf("detail planner unavailable")
+	}
 	articles := make([]llm.BBSTitleArticleDetailSet, 0, len(r.Articles))
 	for _, seed := range r.Articles {
 		articles = append(articles, llm.BBSTitleArticleDetailSet{EventID: seed.EventID, Details: []llm.BBSArticleDetail{
@@ -130,8 +134,8 @@ func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *test
 		if !found || !created || renderer.req.CanonicalSubject != semanticSubject {
 			t.Fatalf("semantic subject was not preserved for rendering: %+v %s", rendered, diag)
 		}
-		if rendered.Subject != "書き換えられた件名" {
-			t.Fatalf("surface subject was not persisted: %+v %s", rendered, diag)
+		if rendered.Subject != semanticSubject {
+			t.Fatalf("accepted title was renamed by the prose renderer: got %q want %q; %+v %s", rendered.Subject, semanticSubject, rendered, diag)
 		}
 		if titleFirstSubject(rendered.Intent.SituationFacts) != semanticSubject {
 			t.Fatalf("semantic title fact changed after surface realization: %+v", rendered.Intent.SituationFacts)
@@ -147,6 +151,51 @@ func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *test
 	repo.MaterializationPersonaArticleHeaders(host, boards[0])
 	if renderer.calls != calls {
 		t.Fatal("regenerated candidate pool")
+	}
+}
+
+func TestTitleFirstDetailFailureKeepsAdoptedArticle(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &titleFirstTestRenderer{
+		detailErr: true,
+		fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "本文です。"}},
+	}
+	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentConversationViewPoC()
+	repo.EnableDevelopmentTitleFirstPoC(nil)
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boards, _ := repo.MaterializationBoards(host)
+	repo.MaterializationPersonaArticleHeaders(host, boards[0])
+
+	rows := repo.DevelopmentTitleCandidates()
+	foundAccepted := false
+	for _, row := range rows {
+		if row.Status == "accepted" || row.Status == "corrected" {
+			foundAccepted = true
+			if !strings.Contains(row.Reason, "採用記事は保持") {
+				t.Fatalf("detail failure was not recorded without rejection: %+v", row)
+			}
+		}
+	}
+	if !foundAccepted {
+		t.Fatal("detail failure removed every adopted title")
+	}
+
+	for _, post := range base.ListPosts(host.ID) {
+		if post.ParentID != 0 || post.Intent.SourcePostID != 0 {
+			continue
+		}
+		semanticSubject := titleFirstSubject(post.Intent.SituationFacts)
+		if semanticSubject == "" || post.Subject != semanticSubject {
+			t.Fatalf("adopted root lost canonical title: %+v", post)
+		}
+		rendered, found, _, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
+		if !found || strings.TrimSpace(rendered.Body) == "" {
+			t.Fatalf("adopted root did not materialize prose: %+v %s", rendered, diag)
+		}
 	}
 }
 

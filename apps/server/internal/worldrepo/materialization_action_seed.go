@@ -14,12 +14,14 @@ import (
 const developmentMaxPostsPerBoardCatchup = 28
 
 type developmentSelectionStats struct {
-	Visits      int
-	Posts       int
-	ROM         int
-	Roots       int
-	Replies     int
-	JevPersonas   int
+	Visits              int
+	Posts               int
+	ROM                 int
+	Roots               int
+	Replies             int
+	MaterializedRoots   int
+	MaterializedReplies int
+	JevPersonas         int
 	JevModel      string
 	JevInputTokens int
 	JevFallback   bool

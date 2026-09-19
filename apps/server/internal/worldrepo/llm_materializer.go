@@ -35,12 +35,6 @@ func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMateri
 	return posts, err
 }
 
-func titleFirstSurfaceSubjectAllowed(intent world.PostIntent) bool {
-	return strings.TrimSpace(intent.SituationKind) == "title_first" &&
-		strings.TrimSpace(intent.Action) == "thread_start" &&
-		intent.SourcePostID == 0 && intent.RespondsToPostID == 0
-}
-
 func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, GenerationUsage, error) {
 	if m.HistoricalReferencesEnabled && decision.Level == historicalkb.EvidenceVerified && !decision.Knowledge.CanUse {
 		return nil, GenerationUsage{}, fmt.Errorf("verified historical knowledge unavailable")
@@ -77,7 +71,9 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if req.Persona != nil && req.Persona.Handle != "" {
 		draft.Author = req.Persona.Handle
 	}
-	if strings.TrimSpace(req.CanonicalSubject) != "" && !titleFirstSurfaceSubjectAllowed(req.Intent) {
+	if strings.TrimSpace(req.CanonicalSubject) != "" {
+		// CanonicalSubject is already world-selected. The prose renderer may write
+		// the body naturally, but it must never silently rename an accepted thread.
 		draft.Subject = req.CanonicalSubject
 	}
 	usage := GenerationUsage{
@@ -150,9 +146,6 @@ func personaSummary(p world.Persona) string {
 
 func intentSummary(i world.PostIntent) string {
 	parts := make([]string, 0, 20)
-	if titleFirstSurfaceSubjectAllowed(i) {
-		parts = append(parts, "surface_subject_mode=title_first_root")
-	}
 	if i.DiscourseMode != "" {
 		parts = append(parts, "discourse_mode="+i.DiscourseMode)
 	}
