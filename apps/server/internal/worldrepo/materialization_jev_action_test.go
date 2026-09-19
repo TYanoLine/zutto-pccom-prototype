@@ -1,15 +1,25 @@
 package worldrepo
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestDemoBlendWriteProbabilityIsConservative(t *testing.T) {
-	if got := demoBlendWriteProbability(.20, .80); got != .41 {
-		t.Fatalf("blend=%v, want .41", got)
-	}
-	if got := demoBlendWriteProbability(.20, 2); got != .48 {
-		t.Fatalf("high advice clamp=%v, want .48", got)
-	}
-	if got := demoBlendWriteProbability(.20, -1); got != .13 {
-		t.Fatalf("low advice clamp=%v, want .13", got)
+	for _, tc := range []struct {
+		name    string
+		base    float64
+		advised float64
+		want    float64
+	}{
+		{name: "blend", base: .20, advised: .80, want: .41},
+		{name: "high advice clamp", base: .20, advised: 2, want: .48},
+		{name: "low advice clamp", base: .20, advised: -1, want: .13},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := demoBlendWriteProbability(tc.base, tc.advised); math.Abs(got-tc.want) > 1e-9 {
+				t.Fatalf("blend=%v, want %v", got, tc.want)
+			}
+		})
 	}
 }
