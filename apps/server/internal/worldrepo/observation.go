@@ -37,6 +37,15 @@ func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board)
 	boardCopy := append([]world.Board(nil), boards...)
 	go func() {
 		job.err = r.materializeObservedHostHeaders(host, boardCopy)
+		if job.err != nil {
+			// A provider/network failure is not a canonical observation result.
+			// Remove only this failed lease so a later read/connect can retry.
+			r.observationMu.Lock()
+			if r.observationHostJobs[host.ID] == job {
+				delete(r.observationHostJobs, host.ID)
+			}
+			r.observationMu.Unlock()
+		}
 		close(job.done)
 	}()
 }
