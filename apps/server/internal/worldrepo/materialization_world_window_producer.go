@@ -219,7 +219,7 @@ func (r *Repository) materializeProducerWorldWindow(host world.Host) ([]world.Po
 	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentWorldWindowPoCMaxShellsPerBoard)
 	for _, board := range boards {
 		visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
-		shells, stats := selectDevelopmentTimelineShells(host, board, visits)
+		shells, stats := r.selectDevelopmentTimelineShells(host, board, visits)
 		// PoC only: one monolithic producer still sees the whole host window, but
 		// keep each board to a small chronological prefix so the structured response
 		// reliably finishes. Prefixing preserves parent/source dependencies because
