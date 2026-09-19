@@ -77,7 +77,9 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if req.Persona != nil && req.Persona.Handle != "" {
 		draft.Author = req.Persona.Handle
 	}
-	if strings.TrimSpace(req.CanonicalSubject) != "" && !titleFirstSurfaceSubjectAllowed(req.Intent) {
+	if strings.TrimSpace(req.CanonicalSubject) != "" {
+		// CanonicalSubject is already world-selected. The prose renderer may write
+		// the body naturally, but it must never silently rename an accepted thread.
 		draft.Subject = req.CanonicalSubject
 	}
 	usage := GenerationUsage{
