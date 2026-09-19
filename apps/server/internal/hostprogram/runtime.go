@@ -17,6 +17,20 @@ type Runtime interface {
 	HandleLine(line string) (output string, disconnect bool)
 }
 
+// ObservationCatalog is optional and keeps board topology owned by each host
+// program. The world layer may use it after CONNECT to start background catch-up,
+// but it never invents a shared cross-host-program menu or board structure.
+type ObservationCatalog interface {
+	ObservationBoards() []world.Board
+}
+
+func ObservationBoards(runtime Runtime) []world.Board {
+	if provider, ok := runtime.(ObservationCatalog); ok {
+		return append([]world.Board(nil), provider.ObservationBoards()...)
+	}
+	return nil
+}
+
 func New(host world.Host, store world.Store) Runtime {
 	switch host.SoftwareID {
 	case "erika-k":
