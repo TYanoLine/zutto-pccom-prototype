@@ -48,18 +48,27 @@ func (r *Repository) MaterializationPersonaArticleHeaders(host world.Host, board
 	}
 
 	personas, _ := r.MaterializationPersonas(host)
-	visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
-	return r.materializePersonaCandidates(host, board, personas, visits)
+	advice := r.developmentJevBehaviorAdvice(host, []world.Board{board}, personas)
+	visits := developmentVisitsForBoardWithAdvice(host, board, personas, r.WorldDate, advice)
+	return r.materializePersonaCandidates(host, board, personas, visits, advice)
 }
 
 const developmentDefaultActivityLookbackDays = 14
 const developmentInteractiveActivityLookbackDays = 120
 
 func developmentVisitsForBoard(host world.Host, board world.Board, personas []world.Persona, worldDate string) []demoPostCandidate {
-	return developmentVisitsForBoardDays(host, board, personas, worldDate, developmentDefaultActivityLookbackDays)
+	return developmentVisitsForBoardWithAdvice(host, board, personas, worldDate, developmentBehaviorAdvice{})
+}
+
+func developmentVisitsForBoardWithAdvice(host world.Host, board world.Board, personas []world.Persona, worldDate string, advice developmentBehaviorAdvice) []demoPostCandidate {
+	return developmentVisitsForBoardDaysWithAdvice(host, board, personas, worldDate, developmentDefaultActivityLookbackDays, advice)
 }
 
 func developmentVisitsForBoardDays(host world.Host, board world.Board, personas []world.Persona, worldDate string, lookbackDays int) []demoPostCandidate {
+	return developmentVisitsForBoardDaysWithAdvice(host, board, personas, worldDate, lookbackDays, developmentBehaviorAdvice{})
+}
+
+func developmentVisitsForBoardDaysWithAdvice(host world.Host, board world.Board, personas []world.Persona, worldDate string, lookbackDays int, advice developmentBehaviorAdvice) []demoPostCandidate {
 	if lookbackDays < 1 {
 		lookbackDays = 1
 	}
@@ -71,6 +80,9 @@ func developmentVisitsForBoardDays(host world.Host, board world.Board, personas 
 		for dayBack := lookbackDays - 1; dayBack >= 0; dayBack-- {
 			day := stamp.AddDate(0, 0, -dayBack)
 			probability := demoActivityProbability(persona, board)
+			if advised, ok := advice.visit(persona.ID, board.ID); ok {
+				probability = demoBlendActivityProbability(probability, advised)
+			}
 			if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
 				probability += .025
 				if persona.Handle == "MARI" {
@@ -114,7 +126,7 @@ func developmentVisitsForBoardDays(host world.Host, board world.Board, personas 
 	return visits
 }
 
-func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, personas []world.Persona, visits []demoPostCandidate) ([]world.Post, bool) {
+func (r *Repository) materializePersonaCandidates(host world.Host, board world.Board, personas []world.Persona, visits []demoPostCandidate, advice developmentBehaviorAdvice) ([]world.Post, bool) {
 	planner, ok := r.Materializer.(developmentTimelinePlanner)
 	if !ok || len(visits) == 0 {
 		return nil, false
@@ -123,7 +135,7 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 	// Cheap world simulation ends here. The selected shells already contain a
 	// causal reason to exist; semantic planning cannot create posts that the world
 	// layer did not select.
-	shells, selectionStats := r.selectDevelopmentTimelineShells(host, board, visits)
+	shells, selectionStats := r.selectDevelopmentTimelineShellsWithAdvice(host, board, visits, advice)
 	storeDevelopmentSelectionStats(r, host.ID, board.ID, selectionStats)
 	if len(shells) == 0 {
 		return nil, false
