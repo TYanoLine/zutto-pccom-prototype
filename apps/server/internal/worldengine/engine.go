@@ -11,8 +11,9 @@ type KnowledgeResolver interface {
 }
 
 type Engine struct {
-	Knowledge    KnowledgeResolver
-	WriteAdvisor WritePropensityAdvisor
+	Knowledge        KnowledgeResolver
+	WriteAdvisor     WritePropensityAdvisor
+	BehaviorAdvisor  BehaviorAdvisor
 }
 
 type EvidenceRequest struct {
