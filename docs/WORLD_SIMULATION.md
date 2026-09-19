@@ -141,6 +141,14 @@ The local simulation remains the majority prior. Jev contributes a bounded minor
 
 Advisory responses are transient operational inputs, not canonical world state. Jev probabilities are quantized to 0.05 steps before entering deterministic sampling so small provider jitter does not routinely alter retry outcomes. Once a resulting action is materialized, the database remains canonical. A future general production world engine should persist or otherwise version advisor snapshots across retry-sensitive simulation leases if advisory decisions extend beyond this bounded development materialization path.
 
+### Title-first semantic advisor
+
+When Jev is configured, the development title-first path also uses System One as a fast semantic classifier after OpenAI has generated the 20 candidate titles for a board. One bounded Jev request per board estimates two era-routing probabilities for each candidate (`safe_without_research`, `logically_impossible`) and a compatibility probability for each candidate × already-selected world root slot.
+
+These probabilities still do not create world facts. Code applies conservative thresholds, performs deterministic one-title/one-slot matching, and persists only the resulting World-side adoption. Ambiguous named products/works/services remain `research`; selected `research` candidates still require the separate Historical Knowledge/Web evidence path in strict mode. A high Jev fit score cannot bypass that verification. In Lab `observe-only` mode, the original Jev era classification is recorded but the diagnostic gate remains permissive exactly as before.
+
+If Jev is unavailable, malformed, or times out, title-first falls back to the existing OpenAI Era Validator and title-slot reviewer for that board. Candidate wording generation, Article Detail materialization, and final article prose remain outside the Jev title advisor.
+
 ## Diegetic present
 
 World simulation and rendering use the world date as the characters' literal present. A later historical interpretation must not retroactively change what actors find ordinary, old, surprising, nostalgic or explanation-worthy.
