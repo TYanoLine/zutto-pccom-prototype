@@ -1,6 +1,7 @@
 package bbs
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -17,6 +18,10 @@ type Runtime struct {
 
 func New(host world.Host, store world.Store) *Runtime {
 	return &Runtime{Host: host, Store: store, state: "command"}
+}
+
+func (r *Runtime) ObservationBoards() []world.Board {
+	return []world.Board{{ID: "main", Name: "フリートーク"}}
 }
 
 func (r *Runtime) Welcome() string {
@@ -68,10 +73,26 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 }
 
 func (r *Runtime) renderPosts() string {
+	board := world.Board{ID: "main", Name: "フリートーク"}
 	posts := r.Store.ListPosts(r.Host.ID)
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		if observed, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board); err == nil {
+			posts = observed
+		}
+	}
 	var b strings.Builder
 	b.WriteString("\r\n----- MESSAGE BOARD -----\r\n")
 	for _, p := range posts {
+		if p.BoardID != "" && p.BoardID != board.ID {
+			continue
+		}
+		if strings.TrimSpace(p.Body) == "" {
+			if observer, ok := r.Store.(world.HostObservationStore); ok {
+				if rendered, found, err := observer.WaitForArticleBody(context.Background(), r.Host, board, p.ID); err == nil && found {
+					p = rendered
+				}
+			}
+		}
 		fmt.Fprintf(&b, "%04d %-8s %s\r\n     %s\r\n", p.ID, p.Author, p.Subject, strings.ReplaceAll(p.Body, "\r\n", "\r\n     "))
 	}
 	b.WriteString("-------------------------\r\n")

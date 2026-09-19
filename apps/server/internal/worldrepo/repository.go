@@ -41,6 +41,10 @@ type Repository struct {
 	hosts                  map[string]world.Host
 	hostMaterialized       map[string]bool
 	populationMaterialized map[string]bool
+
+	observationMu       sync.Mutex
+	observationHostJobs map[string]*observationJob
+	observationBodyJobs map[string]*observationJob
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -53,6 +57,8 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		hosts:                  map[string]world.Host{},
 		hostMaterialized:       map[string]bool{},
 		populationMaterialized: map[string]bool{},
+		observationHostJobs:     map[string]*observationJob{},
+		observationBodyJobs:     map[string]*observationJob{},
 	}
 }
 
@@ -127,16 +133,10 @@ func (r *Repository) MaterializationPersonas(host world.Host) ([]world.Persona, 
 }
 
 func (r *Repository) ListPosts(hostID string) []world.Post {
-	if existing := r.Base.ListPosts(hostID); len(existing) > 0 {
-		return r.repairDevelopmentPendingReplySubjects(hostID, existing)
-	}
-	r.mu.Lock()
-	h, known := r.hosts[hostID]
-	r.mu.Unlock()
-	if known && h.SoftwareID != "materialization-demo" {
-		_ = r.ensureBoard(h, "main", "フリートーク")
-	}
-	return r.Base.ListPosts(hostID)
+	// Reads must not create world history. A successful CONNECT explicitly starts
+	// host observation; host-program index/body reads use the observation barriers
+	// when they need data that has not finished materializing yet.
+	return r.repairDevelopmentPendingReplySubjects(hostID, r.Base.ListPosts(hostID))
 }
 
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {

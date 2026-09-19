@@ -88,6 +88,11 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sm := serverMessage{Type: "dial_result", Result: string(res.Result), Baud: res.Baud, Line: res.Line}
 			if res.Result == telephone.Connect {
 				runtime := hostprogram.New(res.Host, h.Store)
+				if observer, ok := h.Store.(world.HostObservationStore); ok {
+					// A successful physical/logical CONNECT is the observation
+					// boundary. Directory lookup and HostByPhone remain metadata-only.
+					observer.BeginHostObservation(res.Host, hostprogram.ObservationBoards(runtime))
+				}
 				session, token, err := sessions.Create(res.Host, res.Baud, res.Line, runtime)
 				if err != nil {
 					_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "could not create call session"})

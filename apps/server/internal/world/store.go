@@ -1,6 +1,7 @@
 package world
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -19,6 +20,18 @@ type Store interface {
 // anything about AI or research.
 type BoardPostStore interface {
 	ListBoardPosts(host Host, boardID, boardTopic string) []Post
+}
+
+// HostObservationStore separates host existence from observation. A successful
+// dial may start catch-up in the background, while host-program reads wait only
+// when the canonical headers/body they need are not ready yet.
+//
+// Implementations must single-flight concurrent callers for the same host/board
+// or thread so observation never creates per-user copies of world history.
+type HostObservationStore interface {
+	BeginHostObservation(host Host, boards []Board)
+	WaitForBoardHeaders(ctx context.Context, host Host, board Board) ([]Post, error)
+	WaitForArticleBody(ctx context.Context, host Host, board Board, postID int64) (Post, bool, error)
 }
 
 // The following writer capabilities are intentionally optional. WorldRepository
