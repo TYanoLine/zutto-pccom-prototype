@@ -19,6 +19,7 @@ type Job = {
   id: string; status: string; situation_mode?: string; historical_texture?: string; board_count?: number; shell_limit?: number;
   boards?: Board[]; created_at: string; finished_at?: string; duration_ms?: number; post_count?: number;
   body_count?: number; failures?: number; usage?: string; situation_diagnostic?: string; articles?: Article[];
+  planning_diagnostic?: Record<string,string>; era_gate?: string;
 };
 type JobSummary = Pick<Job, 'id'|'status'|'situation_mode'|'historical_texture'|'board_count'|'shell_limit'|'created_at'|'finished_at'|'post_count'|'body_count'|'failures'>;
 
@@ -50,6 +51,8 @@ export default function MaterializationLabViewerPage() {
   const [debug,setDebug] = useState(false);
   const [error,setError] = useState('');
   const [loading,setLoading] = useState(true);
+  const [generating,setGenerating] = useState(false);
+  const [generationStatus,setGenerationStatus] = useState('');
 
   async function loadJob(id?: string) {
     setLoading(true); setError('');
@@ -66,6 +69,42 @@ export default function MaterializationLabViewerPage() {
     finally { setLoading(false); }
   }
 
+  async function startJevFullRun() {
+    setGenerating(true); setGenerationStatus('Jev有効の6板フル生成を開始しています…'); setError('');
+    try {
+      const start = await fetch('/api/materialization-lab-fresh?action=start&situation_mode=title-first&historical_texture=model-memory&board_count=6&shell_limit=10&era_gate=observe-only', {
+        method:'POST',
+        headers:{ Accept:'application/json' },
+        cache:'no-store'
+      });
+      const started: Job = await start.json();
+      if (!start.ok) throw new Error(started.error || `HTTP ${start.status}`);
+      setGenerationStatus(`生成中: ${started.id}`);
+      for (;;) {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const status = await fetch(`/api/materialization-lab-fresh?action=status&id=${encodeURIComponent(started.id)}`, { cache:'no-store' });
+        const current: Job = await status.json();
+        if (!status.ok) throw new Error(current.error || `HTTP ${status.status}`);
+        setGenerationStatus(`${current.status.toUpperCase()} · ${current.post_count || 0} posts · ${current.body_count || 0} bodies`);
+        if (current.status === 'completed') {
+          await loadJob(current.id);
+          try {
+            const listRes = await fetch('/api/materialization-lab-viewer?list=1&limit=30', { cache:'no-store' });
+            if (listRes.ok) { const data = await listRes.json(); setSummaries(data.jobs || []); }
+          } catch {}
+          setGenerationStatus('完了。現行Jev runを表示しています。');
+          break;
+        }
+        if (current.status === 'failed') throw new Error(current.error || 'fresh run failed');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setGenerationStatus('');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   useEffect(() => {
     (async () => {
       try {
@@ -73,7 +112,12 @@ export default function MaterializationLabViewerPage() {
         if (res.ok) { const data = await res.json(); setSummaries(data.jobs || []); }
       } catch { /* full job fetch below gives the useful error */ }
       const requested = new URLSearchParams(location.search).get('job') || undefined;
-      await loadJob(requested);
+      if (requested) {
+        await loadJob(requested);
+      } else {
+        const preferred = summaries.find(s => s.situation_mode==='title-first' && s.board_count===6 && s.shell_limit===10);
+        await loadJob(preferred?.id);
+      }
     })();
   }, []);
 
@@ -107,9 +151,11 @@ export default function MaterializationLabViewerPage() {
         </select>
       </label>
       <button onClick={()=>loadJob(job?.id)} disabled={loading}>再読込</button>
+      <button className="jevRun" onClick={startJevFullRun} disabled={generating || loading}>{generating ? 'JEV生成中…' : 'JEVで6板フル生成'}</button>
       <label className="debug"><input type="checkbox" checked={debug} onChange={e=>setDebug(e.target.checked)}/> 内部Situationを表示</label>
     </section>
 
+    {generationStatus && <div className="jevStatus">{generationStatus}</div>}
     {error && <div className="error">読み込み失敗: {error}</div>}
     {loading && <div className="loading">読み込み中...</div>}
     {job?.error && <div className="error">{job.error}</div>}
@@ -126,6 +172,13 @@ export default function MaterializationLabViewerPage() {
           <small>{b.id}</small>{b.name}<em>{articles.filter(a=>a.board_id===b.id).length}</em>
         </button>)}
       </nav>
+      {!!job.planning_diagnostic && <details open className="jevDiagnostic">
+        <summary>JEV / WORLD DECISION</summary>
+        <div className="jevGrid">
+          {boards.map(b => <div key={b.id} className="jevCard"><b>{b.name}</b><span>{job.planning_diagnostic?.[b.id] || '診断なし'}</span></div>)}
+        </div>
+      </details>
+
 
       {!!job.title_candidates?.length && <details open className="worldDebug">
         <summary>タイトル候補の比較（生成 → Era検証 → 人物・投稿枠整合）</summary>
@@ -168,5 +221,5 @@ export default function MaterializationLabViewerPage() {
 }
 
 const css = `
-:root{background:#07100c;color:#d8f6df;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono CJK JP",monospace}*{box-sizing:border-box}body{margin:0;background:#07100c}.labviewer{min-height:100vh;padding:22px;max-width:1500px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #335844;padding-bottom:12px}.eyebrow{font-size:11px;letter-spacing:.18em;color:#70a981}h1{font-size:25px;margin:5px 0 0;font-weight:600}.readonly{border:1px solid #72c38b;color:#9ff6b8;padding:7px 10px;font-size:12px}.note{color:#92ad9b;font-size:12px;padding:10px 0}.runbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#0c1711;border:1px solid #263b2d;padding:10px}.runbar label{font-size:11px;color:#8fad98}.runbar select{display:block;min-width:430px;max-width:70vw;margin-top:4px;background:#07100c;color:#d8f6df;border:1px solid #3d634b;padding:8px}.runbar button,.boards button,.threads button{font:inherit}.runbar>button{background:#13241a;color:#c7edcf;border:1px solid #42644c;padding:8px 12px}.debug{margin-left:auto;display:flex!important;gap:7px;align-items:center;padding-bottom:7px}.metrics{display:flex;gap:18px;flex-wrap:wrap;padding:10px 2px;font-size:11px;color:#779183}.metrics b{color:#dbf6e1;font-size:13px}.boards{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid #35513d;padding:3px 0 9px}.boards button{background:#0b150f;color:#9abb9f;border:1px solid #294333;padding:8px 12px;cursor:pointer}.boards button.active{background:#183121;color:#e1ffe8;border-color:#5b946d}.boards small{color:#5c8168;margin-right:6px}.boards em{font-style:normal;color:#6f9d7c;margin-left:8px}main{display:grid;grid-template-columns:minmax(270px,34%) 1fr;gap:12px;margin-top:12px;min-height:60vh}.threads,.conversation{border:1px solid #2c4635;background:#09130d}.paneTitle{padding:8px 10px;border-bottom:1px solid #2c4635;color:#8ebc9a;font-size:12px;letter-spacing:.08em}.threads button{width:100%;display:block;text-align:left;background:transparent;color:#c4dfca;border:0;border-bottom:1px solid #18291e;padding:11px;cursor:pointer}.threads button.selected{background:#14271a;border-left:3px solid #6bc184}.threads strong{display:block;font-size:13px;font-weight:500}.threads span{display:block;margin-top:5px;font-size:10px;color:#708b78}.conversation article{padding:16px 18px;border-bottom:1px dashed #294233}.postHead{display:flex;justify-content:space-between;gap:10px;color:#9ee3ae;font-size:13px}.postHead span{font-size:10px;color:#718d79}.subject{font-size:11px;color:#7ea488;margin-top:6px}.body{white-space:pre-wrap;line-height:1.75;margin-top:12px;color:#e1f6e5;font-family:inherit;font-size:14px}.worldDebug{margin-top:14px;background:#050b07;border:1px solid #273b2e;padding:8px;color:#8fab96;font-size:10px}.worldDebug summary{cursor:pointer;color:#72ab80}.worldDebug table{border-collapse:collapse;min-width:1050px}.worldDebug th,.worldDebug td{border:1px solid #273b2e;padding:6px 8px;vertical-align:top;text-align:left}.worldDebug th{color:#9bd2a8}.worldDebug small{color:#6f8c77}.worldDebug dl{display:grid;grid-template-columns:80px 1fr;gap:3px 8px}.worldDebug dt{color:#577762}.worldDebug dd{margin:0}.worldDebug p,.worldDebug ul{line-height:1.5}.error{margin:14px 0;padding:12px;border:1px solid #8d4949;background:#2b1212;color:#ffc6c6}.loading,.empty{padding:18px;color:#789080}footer{font-size:10px;color:#536a59;padding:14px 2px}@media(max-width:800px){.labviewer{padding:12px}.runbar select{min-width:0;width:80vw}.debug{margin-left:0}main{grid-template-columns:1fr}.threads{max-height:34vh;overflow:auto}.conversation{min-height:40vh}}
+:root{background:#07100c;color:#d8f6df;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono CJK JP",monospace}*{box-sizing:border-box}body{margin:0;background:#07100c}.labviewer{min-height:100vh;padding:22px;max-width:1500px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #335844;padding-bottom:12px}.eyebrow{font-size:11px;letter-spacing:.18em;color:#70a981}h1{font-size:25px;margin:5px 0 0;font-weight:600}.readonly{border:1px solid #72c38b;color:#9ff6b8;padding:7px 10px;font-size:12px}.note{color:#92ad9b;font-size:12px;padding:10px 0}.runbar{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:#0c1711;border:1px solid #263b2d;padding:10px}.runbar label{font-size:11px;color:#8fad98}.runbar select{display:block;min-width:430px;max-width:70vw;margin-top:4px;background:#07100c;color:#d8f6df;border:1px solid #3d634b;padding:8px}.runbar button,.boards button,.threads button{font:inherit}.runbar>button{background:#13241a;color:#c7edcf;border:1px solid #42644c;padding:8px 12px}.runbar>button.jevRun{background:#1a2e20;border-color:#67a878;color:#dfffe6;font-weight:700}.runbar>button:disabled{opacity:.55}.jevStatus{margin:12px 0;padding:10px 12px;border:1px solid #4f7e5b;background:#0e1d13;color:#bdf0c8;font-size:12px}.jevDiagnostic{margin:10px 0;border:1px solid #35513d;background:#08110c;padding:8px 10px}.jevDiagnostic summary{cursor:pointer;color:#9dd7aa;font-size:12px}.jevGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:6px;margin-top:8px}.jevCard{border:1px solid #253d2d;background:#0b1710;padding:8px;font-size:10px}.jevCard b{display:block;color:#d7f5dd;margin-bottom:4px}.jevCard span{color:#88a991;word-break:break-word}.debug{margin-left:auto;display:flex!important;gap:7px;align-items:center;padding-bottom:7px}.metrics{display:flex;gap:18px;flex-wrap:wrap;padding:10px 2px;font-size:11px;color:#779183}.metrics b{color:#dbf6e1;font-size:13px}.boards{display:flex;gap:5px;flex-wrap:wrap;border-bottom:1px solid #35513d;padding:3px 0 9px}.boards button{background:#0b150f;color:#9abb9f;border:1px solid #294333;padding:8px 12px;cursor:pointer}.boards button.active{background:#183121;color:#e1ffe8;border-color:#5b946d}.boards small{color:#5c8168;margin-right:6px}.boards em{font-style:normal;color:#6f9d7c;margin-left:8px}main{display:grid;grid-template-columns:minmax(270px,34%) 1fr;gap:12px;margin-top:12px;min-height:60vh}.threads,.conversation{border:1px solid #2c4635;background:#09130d}.paneTitle{padding:8px 10px;border-bottom:1px solid #2c4635;color:#8ebc9a;font-size:12px;letter-spacing:.08em}.threads button{width:100%;display:block;text-align:left;background:transparent;color:#c4dfca;border:0;border-bottom:1px solid #18291e;padding:11px;cursor:pointer}.threads button.selected{background:#14271a;border-left:3px solid #6bc184}.threads strong{display:block;font-size:13px;font-weight:500}.threads span{display:block;margin-top:5px;font-size:10px;color:#708b78}.conversation article{padding:16px 18px;border-bottom:1px dashed #294233}.postHead{display:flex;justify-content:space-between;gap:10px;color:#9ee3ae;font-size:13px}.postHead span{font-size:10px;color:#718d79}.subject{font-size:11px;color:#7ea488;margin-top:6px}.body{white-space:pre-wrap;line-height:1.75;margin-top:12px;color:#e1f6e5;font-family:inherit;font-size:14px}.worldDebug{margin-top:14px;background:#050b07;border:1px solid #273b2e;padding:8px;color:#8fab96;font-size:10px}.worldDebug summary{cursor:pointer;color:#72ab80}.worldDebug table{border-collapse:collapse;min-width:1050px}.worldDebug th,.worldDebug td{border:1px solid #273b2e;padding:6px 8px;vertical-align:top;text-align:left}.worldDebug th{color:#9bd2a8}.worldDebug small{color:#6f8c77}.worldDebug dl{display:grid;grid-template-columns:80px 1fr;gap:3px 8px}.worldDebug dt{color:#577762}.worldDebug dd{margin:0}.worldDebug p,.worldDebug ul{line-height:1.5}.error{margin:14px 0;padding:12px;border:1px solid #8d4949;background:#2b1212;color:#ffc6c6}.loading,.empty{padding:18px;color:#789080}footer{font-size:10px;color:#536a59;padding:14px 2px}@media(max-width:800px){.labviewer{padding:12px}.runbar select{min-width:0;width:80vw}.debug{margin-left:0}main{grid-template-columns:1fr}.threads{max-height:34vh;overflow:auto}.conversation{min-height:40vh}}
 `;
