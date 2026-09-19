@@ -16,6 +16,7 @@ type titleFirstTestRenderer struct {
 	fakeBoardRenderer
 	calls          int
 	reviewCalls    int
+	eraCalls       int
 	reject         bool
 	malformedFirst bool
 	eraStatuses    map[int]string
@@ -32,6 +33,7 @@ func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, str
 	return llm.BBSTitleCandidates{Titles: titles}, nil
 }
 func (f *titleFirstTestRenderer) ValidateBBSTitleEra(_ context.Context, r llm.BBSTitleEraRequest) (llm.BBSTitleEraReview, error) {
+	f.eraCalls++
 	decisions := make([]llm.BBSTitleEraDecision, 0, len(r.Titles))
 	for i := range r.Titles {
 		status := llm.BBSTitleEraOK
@@ -344,5 +346,71 @@ func TestTitleEraOutcomeRequiresVerifiedMarker(t *testing.T) {
 	decision.Knowledge.Facts[0].Claim = "確認できたがマーカーなし"
 	if got := developmentTitleEraOutcomeFromEvidence(decision); got.status != "unverified" {
 		t.Fatalf("accepted unmarked evidence: %+v", got)
+	}
+}
+
+
+type jevTitleAdviceTestEngine struct {
+	calls int
+}
+
+func (e *jevTitleAdviceTestEngine) ResolveEvidence(context.Context, worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	return worldengine.EvidenceDecision{Knowledge: historicalkb.KnowledgeResult{CanUse: true}}, nil
+}
+
+func (e *jevTitleAdviceTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	e.calls++
+	decision := worldengine.TitleCandidateAdviceDecision{
+		Model: "jev-test",
+		Era: map[int]worldengine.TitleEraProbabilities{},
+		Fit: map[string]float64{},
+		InputTokens: 77,
+	}
+	for i := range req.Titles {
+		candidate := i + 1
+		decision.Era[candidate] = worldengine.TitleEraProbabilities{SafeWithoutResearch: .95, LogicallyImpossible: .01}
+	}
+	if len(req.Titles) > 0 && len(req.Events) > 0 {
+		decision.Fit[worldengine.TitleCandidatePairKey(1, req.Events[0].EventID)] = .93
+	}
+	return decision, nil
+}
+
+func TestTitleFirstUsesJevForEraAndSlotEvaluationWhenAvailable(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &titleFirstTestRenderer{fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "本文"}}}
+	engine := &jevTitleAdviceTestEngine{}
+	repo := New(base, engine, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentConversationViewPoC()
+	repo.EnableDevelopmentTitleFirstPoC(nil)
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.materializeConversationWorldWindow(host)
+	if engine.calls == 0 {
+		t.Fatal("Jev title advisor was not called")
+	}
+	if renderer.eraCalls != 0 || renderer.reviewCalls != 0 {
+		t.Fatalf("OpenAI title evaluators were used despite Jev advice: era=%d review=%d", renderer.eraCalls, renderer.reviewCalls)
+	}
+	found := false
+	for _, post := range base.ListPosts(host.ID) {
+		if post.ParentID == 0 && post.Subject == "話題0" {
+			found = true
+			if !strings.Contains(post.Intent.SituationSummary, "話題0") {
+				t.Fatalf("Jev adoption summary lost exact title: %+v", post.Intent)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("Jev-selected title did not become a root post")
+	}
+	timing := repo.DevelopmentTitleFirstTiming()
+	if timing.JevTitleEvaluationCalls == 0 || timing.JevTitleFallbacks != 0 || timing.JevTitleInputTokens == 0 || timing.JevTitleModel != "jev-test" {
+		t.Fatalf("missing Jev title telemetry: %+v", timing)
+	}
+	if timing.TitleEvaluationMS != timing.EraRoutingMS+timing.AssignmentReviewMS+timing.JevTitleEvaluationMS {
+		t.Fatalf("title evaluation timing total does not include Jev: %+v", timing)
 	}
 }
