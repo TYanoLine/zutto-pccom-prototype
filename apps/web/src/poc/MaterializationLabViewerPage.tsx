@@ -182,7 +182,7 @@ export default function MaterializationLabViewerPage() {
         <div className="jevGrid">
           {boards.map(b => <div key={b.id} className="jevCard"><b>{b.name}</b><span>{job.planning_diagnostic?.[b.id] || '診断なし'}</span></div>)}
         </div>
-      </details>
+      </details>}
 
 
       {!!job.title_candidates?.length && <details open className="worldDebug">
