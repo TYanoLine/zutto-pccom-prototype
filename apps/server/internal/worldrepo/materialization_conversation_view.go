@@ -180,10 +180,14 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 	}
 
 	committedByEventID := map[string]world.Post{}
+	titleFirstReplyCounts := map[int64]int{}
 	out := make([]world.Post, 0, len(windowShells))
 	for _, item := range windowShells {
 		shell := item.shell
-		if developmentTitleFirstEnabled(r) && shell.parentIndex == 0 && shell.sourceIndex == 0 {
+		if developmentTitleFirstEnabled(r) && shell.action == "thread_start" {
+			// In title-first mode every root must come from an adopted title candidate.
+			// Continuation/progress shells may still influence later simulation, but
+			// they must not surface as a new generic thread with an unrelated title.
 			if _, accepted := batchSituations[item.eventID]; !accepted {
 				continue
 			}
@@ -220,6 +224,11 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 				respondsToID = source.ID
 				sourcePost = source
 				hasSource = true
+			}
+		}
+		if developmentTitleFirstEnabled(r) && shell.action == "reply" {
+			if parentID == 0 || titleFirstReplyCounts[parentID] >= 3 {
+				continue
 			}
 		}
 
@@ -268,6 +277,9 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		}
 		post = r.Base.AddPost(host.ID, post)
 		committedByEventID[item.eventID] = post
+		if developmentTitleFirstEnabled(r) && shell.action == "reply" && parentID != 0 {
+			titleFirstReplyCounts[parentID]++
+		}
 		out = append(out, post)
 	}
 	return out, len(out) > 0
