@@ -137,32 +137,23 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 		targets[safeKey] = target{kind: "safe", candidate: candidate}
 		questions[safeKey] = map[string]any{
 			"type": "noul",
-			"instructions": fmt.Sprintf("For title candidate %d in state, estimate whether it is clearly safe to accept at world_date without any external historical lookup. Be conservative: uncertainty, or dependence on whether a named product/work/service/standard/event existed or was available by the date, means false.", candidate),
-			"criteria": map[string]any{
-				"true": "No time-bounded external real-world fact needs verification for this title to be historically possible.",
-				"false": "Historical lookup is needed or there is meaningful uncertainty.",
-			},
+			"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it safe_without_research", candidate),
+			"criteria": map[string]any{"true": "safe_without_research", "false": "research_needed"},
 		}
 		impossibleKey := fmt.Sprintf("c%d_era_impossible", candidate)
 		targets[impossibleKey] = target{kind: "impossible", candidate: candidate}
 		questions[impossibleKey] = map[string]any{
 			"type": "noul",
-			"instructions": fmt.Sprintf("For title candidate %d in state, estimate whether it is logically impossible from world_date alone, without relying on outside historical knowledge. True should be rare, such as an explicit future date treated as present.", candidate),
-			"criteria": map[string]any{
-				"true": "The title is plainly impossible from the supplied date alone.",
-				"false": "It is not plainly impossible from the date alone; uncertainty belongs in historical research instead.",
-			},
+			"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it logically_impossible", candidate),
+			"criteria": map[string]any{"true": "logically_impossible", "false": "not_logically_impossible"},
 		}
 		for _, event := range req.Events {
 			key := fmt.Sprintf("c%d_e_%s_fit", candidate, sanitizeJevQuestionKey(event.EventID))
 			targets[key] = target{kind: "fit", candidate: candidate, eventID: event.EventID}
 			questions[key] = map[string]any{
 				"type": "noul",
-				"instructions": fmt.Sprintf("For title candidate %d and event_id %q in state, estimate whether assigning this exact unchanged title to that exact world-selected post slot is natural and non-contradictory. Judge persona/role, existing facts, cause, discourse mode and recent BBS context. Do not reassess historical release dates here and do not invent a replacement title.", candidate, event.EventID),
-				"criteria": map[string]any{
-					"true": "The unchanged title fits this exact event slot naturally and does not contradict canonical context.",
-					"false": "The title is unnatural for this slot, conflicts with persona/role/context, or would require changing the selected world event.",
-				},
+				"instructions": fmt.Sprintf("candidate=%d event_id=%q; probability that state.policy.fit is satisfied", candidate, event.EventID),
+				"criteria": map[string]any{"true": "fit", "false": "not_fit"},
 			}
 		}
 	}
