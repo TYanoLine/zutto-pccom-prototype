@@ -26,9 +26,20 @@ func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board)
 	}
 
 	r.observationMu.Lock()
-	if _, ok := r.observationHostJobs[host.ID]; ok {
-		r.observationMu.Unlock()
-		return
+	if existing := r.observationHostJobs[host.ID]; existing != nil {
+		select {
+		case <-existing.done:
+			// Successful completion remains the process-local observed marker.
+			// A completed failure is replaceable by a later CONNECT/read.
+			if existing.err == nil {
+				r.observationMu.Unlock()
+				return
+			}
+			delete(r.observationHostJobs, host.ID)
+		default:
+			r.observationMu.Unlock()
+			return
+		}
 	}
 	job := &observationJob{done: make(chan struct{})}
 	r.observationHostJobs[host.ID] = job
@@ -37,15 +48,8 @@ func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board)
 	boardCopy := append([]world.Board(nil), boards...)
 	go func() {
 		job.err = r.materializeObservedHostHeaders(host, boardCopy)
-		if job.err != nil {
-			// A provider/network failure is not a canonical observation result.
-			// Remove only this failed lease so a later read/connect can retry.
-			r.observationMu.Lock()
-			if r.observationHostJobs[host.ID] == job {
-				delete(r.observationHostJobs, host.ID)
-			}
-			r.observationMu.Unlock()
-		}
+		// Keep a failed job addressable until its current waiters have observed
+		// the error. BeginHostObservation may replace it on a later attempt.
 		close(job.done)
 	}()
 }
@@ -97,6 +101,7 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 		select {
 		case <-job.done:
 			if job.err != nil {
+				r.forgetFailedHostObservation(host.ID, job)
 				return nil, job.err
 			}
 		case <-ctx.Done():
@@ -110,6 +115,14 @@ func (r *Repository) hostObservationJob(hostID string) *observationJob {
 	r.observationMu.Lock()
 	defer r.observationMu.Unlock()
 	return r.observationHostJobs[hostID]
+}
+
+func (r *Repository) forgetFailedHostObservation(hostID string, job *observationJob) {
+	r.observationMu.Lock()
+	defer r.observationMu.Unlock()
+	if r.observationHostJobs[hostID] == job && job.err != nil {
+		delete(r.observationHostJobs, hostID)
+	}
 }
 
 // WaitForArticleBody single-flights prose materialization by thread. If two users
