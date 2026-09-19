@@ -135,9 +135,11 @@ The World Engine may consult a fast probabilistic model for **behavioral priors*
 
 An advisor must not create an event, select a concrete topic, invent a purchase/problem/change, or commit a world fact. The engine combines the advisory probability with persisted persona traits, board affinity, deterministic sampling, topology/cause gates, and other world constraints. Provider failure must degrade to the local deterministic model rather than blocking simulation.
 
-For the Jev PoC, the provider returns per-persona write propensity for already-selected visits. The local write probability remains the majority prior, Jev contributes a bounded minority weight, and the existing deterministic quota/ranking logic still decides which visits become write opportunities. A later valid root cause or reply target is still required before a post exists.
+For the Jev behavior advisor, one bounded host/board window is submitted as structured state and the provider returns three independent priors for each persona × board pair: visit/read propensity, write-vs-ROM propensity conditional on a visit, and reply-vs-root propensity conditional on a write opportunity plus an already-valid reply target. Host-wide generation batches all current boards/personas into one Jev request instead of issuing one provider call per board.
 
-Advisory responses are transient operational inputs, not canonical world state. Once a resulting action is materialized, the database remains canonical. Before using an external probabilistic advisor for retry-sensitive production simulation, persist or otherwise stabilize the decision snapshot so repeated materialization cannot silently branch history because a provider returned a slightly different probability.
+The local simulation remains the majority prior. Jev contributes a bounded minority weight (currently 30% for visit activity and 40% for write/reply topology), after which deterministic quota/ranking and causal gates make the actual action decisions. Jev never creates a root cause, thread, reply target, topic, event, purchase, problem, or other world fact. A valid root cause or reply target is still required before a post exists.
+
+Advisory responses are transient operational inputs, not canonical world state. Jev probabilities are quantized to 0.05 steps before entering deterministic sampling so small provider jitter does not routinely alter retry outcomes. Once a resulting action is materialized, the database remains canonical. A future general production world engine should persist or otherwise version advisor snapshots across retry-sensitive simulation leases if advisory decisions extend beyond this bounded development materialization path.
 
 ## Diegetic present
 
