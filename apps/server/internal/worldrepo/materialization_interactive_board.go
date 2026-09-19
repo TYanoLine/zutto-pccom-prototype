@@ -30,8 +30,9 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 		return nil, false
 	}
 
-	visits := developmentVisitsForBoardDays(host, board, personas, r.WorldDate, developmentInteractiveActivityLookbackDays)
-	shells, stats := r.selectDevelopmentTimelineShells(host, board, visits)
+	behaviorAdvice := r.developmentJevBehaviorAdvice(host, []world.Board{board}, personas)
+	visits := developmentVisitsForBoardDaysWithAdvice(host, board, personas, r.WorldDate, developmentInteractiveActivityLookbackDays, behaviorAdvice)
+	shells, stats := r.selectDevelopmentTimelineShellsWithAdvice(host, board, visits, behaviorAdvice)
 	shells, stats = limitDevelopmentShellsForConversation(r, shells, stats)
 	storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 	clearDevelopmentPlanningError(r, host.ID, board.ID)
