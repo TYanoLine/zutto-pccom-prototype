@@ -51,9 +51,9 @@ type BehaviorAdviceRequest struct {
 }
 
 type BehaviorProbabilities struct {
-	Visit float64
-	Write float64
-	Reply float64
+	Visit float64 `json:"visit"`
+	Write float64 `json:"write"`
+	Reply float64 `json:"reply"`
 }
 
 type BehaviorAdviceDecision struct {
