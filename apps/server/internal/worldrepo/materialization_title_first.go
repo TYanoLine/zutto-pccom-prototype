@@ -374,7 +374,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 				seeds = append(seeds, seed)
 			}
 		}
-		stageStarted := time.Now()
+		detailStarted := time.Now()
 		detailDraft, detailErr := detailPlanner.MaterializeBBSTitleArticleDetails(ctx, llm.BBSTitleArticleDetailRequest{
 			BoardName: board.Name, WorldDate: asOf, RecentBBSState: recentBBSState, Articles: seeds,
 		})
