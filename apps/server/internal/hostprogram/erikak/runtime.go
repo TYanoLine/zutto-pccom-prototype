@@ -1,6 +1,7 @@
 package erikak
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -66,6 +67,37 @@ type Runtime struct {
 
 func New(host world.Host, store world.Store) *Runtime {
 	return &Runtime{Host: host, Store: store, state: "login_id", handle: "GUEST"}
+}
+
+func (r *Runtime) ObservationBoards() []world.Board {
+	out := make([]world.Board, 0)
+	for _, node := range boardTree {
+		if r.isForum(node.Path) {
+			continue
+		}
+		out = append(out, world.Board{ID: node.Path, Name: node.Name})
+	}
+	return out
+}
+
+func (r *Runtime) observedBoardPosts(path string) []world.Post {
+	node, ok := findNode(path)
+	if !ok {
+		return nil
+	}
+	board := world.Board{ID: path, Name: node.Name}
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		if posts, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board); err == nil {
+			return posts
+		}
+	}
+	out := make([]world.Post, 0)
+	for _, post := range r.Store.ListPosts(r.Host.ID) {
+		if post.BoardID == path {
+			out = append(out, post)
+		}
+	}
+	return out
 }
 
 func (r *Runtime) Welcome() string {
@@ -460,12 +492,13 @@ func (r *Runtime) renderBoardIndex() string {
 	if !ok || r.isForum(r.boardPath) {
 		return r.renderBoardMenu()
 	}
+	posts := r.observedBoardPosts(r.boardPath)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n〖%s〗  ★☆＝未読  〖Board.OP〗SYSOP\r\n", node.Name)
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
 	found := false
-	for _, p := range r.Store.ListPosts(r.Host.ID) {
-		if p.BoardID != r.boardPath || p.ParentID != 0 {
+	for _, p := range posts {
+		if p.ParentID != 0 {
 			continue
 		}
 		found = true
@@ -473,7 +506,7 @@ func (r *Runtime) renderBoardIndex() string {
 		if unreadBoard[r.boardPath] {
 			mark = "★"
 		}
-		fmt.Fprintf(&b, "%s[%04d] %-10s %-28s APE:%d\r\n", mark, p.ID, trimRunes(p.Author, 10), trimRunes(p.Subject, 28), r.appendCount(p.ID))
+		fmt.Fprintf(&b, "%s[%04d] %-10s %-28s APE:%d\r\n", mark, p.ID, trimRunes(p.Author, 10), trimRunes(p.Subject, 28), r.appendCountFrom(posts, p.ID))
 	}
 	if !found {
 		b.WriteString("              --- MSG はありません ---\r\n")
@@ -485,10 +518,29 @@ func (r *Runtime) renderBoardIndex() string {
 }
 
 func (r *Runtime) renderThread(id int64) string {
-	root, ok := r.rootPost(id)
-	if !ok {
+	posts := r.observedBoardPosts(r.boardPath)
+	var root world.Post
+	found := false
+	for _, post := range posts {
+		if post.ID == id && post.ParentID == 0 {
+			root = post
+			found = true
+			break
+		}
+	}
+	if !found {
 		return "\r\nMSGが見つかりません。\r\n" + r.threadPrompt()
 	}
+	boardNode, _ := findNode(r.boardPath)
+	board := world.Board{ID: r.boardPath, Name: boardNode.Name}
+	if strings.TrimSpace(root.Body) == "" {
+		if observer, ok := r.Store.(world.HostObservationStore); ok {
+			if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, root.ID); err == nil && ok {
+				root = rendered
+			}
+		}
+	}
+
 	var b strings.Builder
 	b.WriteString("\r\n========================================================================\r\n")
 	fmt.Fprintf(&b, "MSG:%d  FROM:%s  DATE:%s\r\n", root.ID, root.Author, root.CreatedAt.Format("96/01/02 15:04"))
@@ -498,9 +550,16 @@ func (r *Runtime) renderThread(id int64) string {
 	b.WriteString("\r\n")
 
 	appendNo := 0
-	for _, p := range r.Store.ListPosts(r.Host.ID) {
+	for _, p := range posts {
 		if p.ParentID != root.ID {
 			continue
+		}
+		if strings.TrimSpace(p.Body) == "" {
+			if observer, ok := r.Store.(world.HostObservationStore); ok {
+				if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, p.ID); err == nil && ok {
+					p = rendered
+				}
+			}
 		}
 		appendNo++
 		fmt.Fprintf(&b, "\r\n--------------------------- アペ %d ---------------------------\r\n", appendNo)
@@ -673,8 +732,8 @@ func (r *Runtime) isForum(path string) bool {
 
 func (r *Runtime) rootCount(path string) int {
 	count := 0
-	for _, p := range r.Store.ListPosts(r.Host.ID) {
-		if p.BoardID == path && p.ParentID == 0 {
+	for _, p := range r.observedBoardPosts(path) {
+		if p.ParentID == 0 {
 			count++
 		}
 	}
@@ -682,8 +741,12 @@ func (r *Runtime) rootCount(path string) int {
 }
 
 func (r *Runtime) appendCount(rootID int64) int {
+	return r.appendCountFrom(r.Store.ListPosts(r.Host.ID), rootID)
+}
+
+func (r *Runtime) appendCountFrom(posts []world.Post, rootID int64) int {
 	count := 0
-	for _, p := range r.Store.ListPosts(r.Host.ID) {
+	for _, p := range posts {
 		if p.ParentID == rootID {
 			count++
 		}
