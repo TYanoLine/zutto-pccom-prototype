@@ -15,7 +15,7 @@ import (
 const (
 	developmentJevTitleEraSafeThreshold       = 0.80
 	developmentJevTitleEraImpossibleThreshold = 0.80
-	developmentJevTitleFitThreshold           = 0.65
+	developmentJevTitleFitThreshold           = 0.35
 )
 
 type developmentTitleCandidateAdvisor interface {
