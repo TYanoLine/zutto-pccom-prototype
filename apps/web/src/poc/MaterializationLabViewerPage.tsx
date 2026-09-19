@@ -107,15 +107,20 @@ export default function MaterializationLabViewerPage() {
 
   useEffect(() => {
     (async () => {
+      let listed: JobSummary[] = [];
       try {
         const res = await fetch('/api/materialization-lab-viewer?list=1&limit=30', { cache:'no-store' });
-        if (res.ok) { const data = await res.json(); setSummaries(data.jobs || []); }
+        if (res.ok) {
+          const data = await res.json();
+          listed = data.jobs || [];
+          setSummaries(listed);
+        }
       } catch { /* full job fetch below gives the useful error */ }
       const requested = new URLSearchParams(location.search).get('job') || undefined;
       if (requested) {
         await loadJob(requested);
       } else {
-        const preferred = summaries.find(s => s.situation_mode==='title-first' && s.board_count===6 && s.shell_limit===10);
+        const preferred = listed.find(s => s.situation_mode==='title-first' && s.board_count===6 && s.shell_limit===10);
         await loadJob(preferred?.id);
       }
     })();
@@ -141,7 +146,7 @@ export default function MaterializationLabViewerPage() {
       <div><div className="eyebrow">DEVELOPMENT MATERIALIZATION LAB</div><h1>生成BBS 評価ビュー</h1></div>
       <div className="readonly">READ ONLY</div>
     </header>
-    <div className="note">実験用のisolated fresh worldを閲覧しています。ここから書込・返信・生成・RESETはできません。</div>
+    <div className="note">実験用のisolated fresh worldです。通常の閲覧はREAD ONLYですが、「JEVで6板フル生成」は評価用の新規isolated runだけを作ります。canonical BBS worldは変更しません。</div>
 
     <section className="runbar">
       <label>実験run
