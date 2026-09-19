@@ -1,6 +1,7 @@
 package materializationdemo
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -73,6 +74,14 @@ type bulkBodyJob struct {
 
 func New(host world.Host, store world.Store) *Runtime {
 	return &Runtime{Host: host, Store: store, state: "command"}
+}
+
+func (r *Runtime) ObservationBoards() []world.Board {
+	if s, ok := r.Store.(materializingStore); ok {
+		boards, _ := s.MaterializationBoards(r.Host)
+		return append([]world.Board(nil), boards...)
+	}
+	return nil
 }
 
 func (r *Runtime) Welcome() string {
@@ -641,7 +650,15 @@ func (r *Runtime) renderArticles(showMaterialization bool) string {
 	}
 	posts := runtimeBoardPosts(r.Store.ListPosts(r.Host.ID), r.board.ID)
 	created := false
-	if len(posts) == 0 {
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		observed, err := observer.WaitForBoardHeaders(context.Background(), r.Host, r.board)
+		if err != nil {
+			return "\r\n[DEV] ARTICLE INDEX ERROR : " + err.Error() + "\r\nQ=掲示板一覧 > "
+		}
+		posts = observed
+	} else if len(posts) == 0 {
+		// Compatibility path for isolated tests/stores that do not implement the
+		// production observation barrier.
 		if job, exists := r.articleIndexSnapshot(r.board.ID); exists {
 			if job.state == "RUNNING" {
 				return formatArticleIndexJob(job)
@@ -697,7 +714,28 @@ func (r *Runtime) handleArticles(line string) (string, bool) {
 	if !ok {
 		return "STORE ERROR\r\n", false
 	}
-	p, found, created, usage := s.MaterializationArticleWithDebug(r.Host, r.board, id)
+	var p world.Post
+	var found bool
+	created := false
+	usage := ""
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		for _, before := range r.Store.ListPosts(r.Host.ID) {
+			if before.ID == id && before.BoardID == r.board.ID {
+				created = strings.TrimSpace(before.Body) == ""
+				break
+			}
+		}
+		var waitErr error
+		p, found, waitErr = observer.WaitForArticleBody(context.Background(), r.Host, r.board, id)
+		if waitErr != nil {
+			return "MSG READ ERROR\r\nMSG No.を選択 / Q=掲示板一覧 > ", false
+		}
+		if total := s.MaterializationUsageTotalText(); total != "" {
+			usage = total
+		}
+	} else {
+		p, found, created, usage = s.MaterializationArticleWithDebug(r.Host, r.board, id)
+	}
 	if !found {
 		return "MSG NOT FOUND\r\nMSG No.を選択 / Q=掲示板一覧 > ", false
 	}
