@@ -136,11 +136,13 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 	}
 
 	behaviorAdvice := r.developmentJevBehaviorAdvice(host, boards, personas)
+	selectionStatsByBoard := map[string]developmentSelectionStats{}
 	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentConversationShellLimit(r))
 	for _, board := range boards {
 		visits := developmentVisitsForBoardWithAdvice(host, board, personas, r.WorldDate, behaviorAdvice)
 		shells, stats := r.selectDevelopmentTimelineShellsWithAdvice(host, board, visits, behaviorAdvice)
 		shells, stats = limitDevelopmentShellsForConversation(r, shells, stats)
+		selectionStatsByBoard[board.ID] = stats
 		storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 		clearDevelopmentPlanningError(r, host.ID, board.ID)
 		for _, shell := range shells {
@@ -277,8 +279,16 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		}
 		post = r.Base.AddPost(host.ID, post)
 		committedByEventID[item.eventID] = post
-		if developmentTitleFirstEnabled(r) && shell.action == "reply" && parentID != 0 {
-			titleFirstReplyCounts[parentID]++
+		if developmentTitleFirstEnabled(r) {
+			stats := selectionStatsByBoard[item.board.ID]
+			if shell.action == "reply" && parentID != 0 {
+				titleFirstReplyCounts[parentID]++
+				stats.MaterializedReplies++
+			} else if shell.action == "thread_start" {
+				stats.MaterializedRoots++
+			}
+			selectionStatsByBoard[item.board.ID] = stats
+			storeDevelopmentSelectionStats(r, host.ID, item.board.ID, stats)
 		}
 		out = append(out, post)
 	}
