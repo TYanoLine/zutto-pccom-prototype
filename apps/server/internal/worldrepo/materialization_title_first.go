@@ -25,6 +25,21 @@ type DevelopmentTitleCandidate struct {
 	EraEvidence string   `json:"era_evidence,omitempty"`
 	Details     []string `json:"details,omitempty"`
 }
+type DevelopmentTitleFirstTiming struct {
+	CandidateGenerationMS    int64 `json:"candidate_generation_ms"`
+	EraRoutingMS             int64 `json:"era_routing_ms"`
+	AssignmentReviewMS       int64 `json:"assignment_review_ms"`
+	EraResearchMS            int64 `json:"era_research_ms"`
+	ArticleDetailMS          int64 `json:"article_detail_ms"`
+	TitleEvaluationMS        int64 `json:"title_evaluation_ms"`
+	TotalPlanningMS          int64 `json:"total_planning_ms"`
+	CandidateGenerationCalls int   `json:"candidate_generation_calls"`
+	EraRoutingCalls          int   `json:"era_routing_calls"`
+	AssignmentReviewCalls    int   `json:"assignment_review_calls"`
+	EraResearchBatches       int   `json:"era_research_batches"`
+	ArticleDetailCalls       int   `json:"article_detail_calls"`
+}
+
 type developmentTitleFirstState struct {
 	history         []world.Post
 	attempted       bool
@@ -32,6 +47,7 @@ type developmentTitleFirstState struct {
 	err             error
 	rows            []DevelopmentTitleCandidate
 	eraResearchUsed int
+	timing          DevelopmentTitleFirstTiming
 }
 
 var developmentTitleFirst sync.Map
@@ -48,6 +64,13 @@ func (r *Repository) DevelopmentTitleCandidates() []DevelopmentTitleCandidate {
 		return append([]DevelopmentTitleCandidate(nil), v.(*developmentTitleFirstState).rows...)
 	}
 	return nil
+}
+
+func (r *Repository) DevelopmentTitleFirstTiming() DevelopmentTitleFirstTiming {
+	if v, ok := developmentTitleFirst.Load(r); ok {
+		return v.(*developmentTitleFirstState).timing
+	}
+	return DevelopmentTitleFirstTiming{}
 }
 func titleFirstSubject(facts []string) string {
 	for _, f := range facts {
@@ -72,7 +95,13 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		return state.result, state.err
 	}
 	state.attempted = true
-	defer func() { state.result = result; state.err = err }()
+	planningStarted := time.Now()
+	defer func() {
+		state.timing.TotalPlanningMS = time.Since(planningStarted).Milliseconds()
+		state.timing.TitleEvaluationMS = state.timing.EraRoutingMS + state.timing.AssignmentReviewMS
+		state.result = result
+		state.err = err
+	}()
 	var m LLMMaterializer
 	switch x := r.Materializer.(type) {
 	case LLMMaterializer:
@@ -122,7 +151,10 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 	}
 	defer func() { storeDevelopmentPlanningUsage(r, host.ID, "title-first", usage) }()
 	for boardIndex, board := range boards {
+		stageStarted := time.Now()
 		pool, err := planner.GenerateBBSTitleCandidates(ctx, r.WorldDate, board.Name)
+		state.timing.CandidateGenerationMS += time.Since(stageStarted).Milliseconds()
+		state.timing.CandidateGenerationCalls++
 		if err != nil {
 			return nil, err
 		}
@@ -133,7 +165,10 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 		}
 		earliest, _ := time.Parse(time.RFC3339, events[board.ID][0].CreatedAt)
 		asOf := earliest.Format("2006-01-02")
+		stageStarted = time.Now()
 		eligibleTitles, originalCandidates, eraUsage, eraErr := r.developmentRouteTitleEra(ctx, board, asOf, pool, state, offset, eraValidator)
+		state.timing.EraRoutingMS += time.Since(stageStarted).Milliseconds()
+		state.timing.EraRoutingCalls++
 		addUsage(eraUsage)
 		if eraErr != nil || len(eligibleTitles) == 0 {
 			continue
@@ -171,7 +206,10 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 	maxPasses := len(boardEvents) + 1
 	for pass := 0; pass < maxPasses && len(remainingTitles) > 0 && len(remainingEvents) > 0; pass++ {
 		req := llm.BBSTitleReviewRequest{BoardName: board.Name, Titles: remainingTitles, Events: remainingEvents, RecentBBSState: recentBBSState}
+		stageStarted := time.Now()
 		review, err := planner.ReviewBBSTitleCandidates(ctx, req)
+		state.timing.AssignmentReviewMS += time.Since(stageStarted).Milliseconds()
+		state.timing.AssignmentReviewCalls++
 		addUsage(review.Usage)
 		if err == nil {
 			err = llm.ValidateBBSTitleReview(req, review)
@@ -229,7 +267,12 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 		}
 		state.eraResearchUsed += len(researchJobs)
 		boardResearchUsed += len(researchJobs)
+		stageStarted = time.Now()
 		outcomes := r.developmentResearchTitleEraBatch(ctx, host, board, asOf, researchJobs)
+		if len(researchJobs) > 0 {
+			state.timing.EraResearchMS += time.Since(stageStarted).Milliseconds()
+			state.timing.EraResearchBatches++
+		}
 		for originalCandidate, outcome := range outcomes {
 			row := &state.rows[offset+originalCandidate-1]
 			row.EraStatus = outcome.status
@@ -331,9 +374,12 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 				seeds = append(seeds, seed)
 			}
 		}
+		stageStarted := time.Now()
 		detailDraft, detailErr := detailPlanner.MaterializeBBSTitleArticleDetails(ctx, llm.BBSTitleArticleDetailRequest{
 			BoardName: board.Name, WorldDate: asOf, RecentBBSState: recentBBSState, Articles: seeds,
 		})
+		state.timing.ArticleDetailMS += time.Since(stageStarted).Milliseconds()
+		state.timing.ArticleDetailCalls++
 		addUsage(detailDraft.Usage)
 		if detailErr != nil {
 			for _, originalCandidate := range acceptedCandidateByEvent {
