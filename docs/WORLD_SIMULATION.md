@@ -16,9 +16,11 @@ Never silently rewrite an already observed host, persona, relationship, post, or
 
 ### Observation-driven catch-up
 
-Normal world advancement is demand-driven rather than a continuously running global simulation. A human login, dial attempt, host entry, board read, mail read, directory lookup, or other observation may cause the relevant scope to catch up from its last simulated/materialized time to the current `WorldClock` time.
+For the current host-world implementation, **successful CONNECT is the host observation boundary**. Directory/catalog display, phone-number lookup, host metadata creation, and unsuccessful dial attempts do not observe the host and must not create its article history. This deliberately keeps "the host exists" separate from "somebody has entered and observed that host."
 
-Only the scope needed for the observation should be advanced in detail. Entering one host must not eagerly generate every host, board, member, or event in the world.
+After CONNECT, the host-wide header catch-up starts immediately in the background. This is an execution optimization only: it does not make the user's connection the cause of NPC activity. The generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
+
+Do not eagerly update other hosts merely because one host was observed. A directory may contain hundreds or thousands of hosts while only connected hosts pay the expensive catch-up cost.
 
 A typical flow is:
 
@@ -40,6 +42,29 @@ For long inactive periods, do not replay every hour/day. Compress elapsed time i
 Example: if a host has not been observed for three months, first determine durable facts such as membership changes, important disputes, SYSOP actions, new boards, closures, or major relationships. Only generate individual recent posts needed for the user's current view.
 
 The service should therefore *appear* as though the world continued while nobody watched, without paying to continuously materialize unobserved detail.
+
+### Blocking read barrier
+
+Catch-up may run in the background after CONNECT, but the host program must not expose "generation in progress" as an in-world fact. If a user reaches a screen whose canonical data is not ready, that command waits on the existing shared job and renders only after the required data is committed.
+
+The current split is:
+
+```text
+successful CONNECT
+ -> begin host header catch-up asynchronously
+
+board/article index request
+ -> headers ready? yes: render immediately
+ -> no: wait for the same host observation job, then render
+
+article/thread read
+ -> body ready? yes: render immediately
+ -> no: start/join the shared thread body job, wait, then render
+```
+
+Concurrent users join the same host/thread job rather than launching private generation. Article prose remains lazy even after the host headers are observed.
+
+`ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
 ### Shared history, not per-user worlds
 
