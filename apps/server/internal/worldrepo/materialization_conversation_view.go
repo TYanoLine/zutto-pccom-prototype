@@ -138,7 +138,7 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentConversationShellLimit(r))
 	for _, board := range boards {
 		visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
-		shells, stats := selectDevelopmentTimelineShells(host, board, visits)
+		shells, stats := r.selectDevelopmentTimelineShells(host, board, visits)
 		shells, stats = limitDevelopmentShellsForConversation(r, shells, stats)
 		storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 		clearDevelopmentPlanningError(r, host.ID, board.ID)

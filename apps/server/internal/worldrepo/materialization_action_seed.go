@@ -13,11 +13,14 @@ import (
 const developmentMaxPostsPerBoardCatchup = 28
 
 type developmentSelectionStats struct {
-	Visits  int
-	Posts   int
-	ROM     int
-	Roots   int
-	Replies int
+	Visits      int
+	Posts       int
+	ROM         int
+	Roots       int
+	Replies     int
+	JevPersonas int
+	JevModel    string
+	JevFallback bool
 }
 
 type developmentRootCause struct {
@@ -74,12 +77,25 @@ func demoSelectRootDiscourseMode(host world.Host, board world.Board, rootOrdinal
 // routing domain. The routing key is internal metadata: it must not be treated as
 // the user's vocabulary or as evidence that ordinary use of that domain is news.
 func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits []demoPostCandidate) ([]developmentTimelineShell, developmentSelectionStats) {
+	return selectDevelopmentTimelineShellsWithWriteProbabilities(host, board, visits, nil)
+}
+
+func (r *Repository) selectDevelopmentTimelineShells(host world.Host, board world.Board, visits []demoPostCandidate) ([]developmentTimelineShell, developmentSelectionStats) {
+	probabilities, model, err := r.developmentJevWriteProbabilities(host, board, visits)
+	shells, stats := selectDevelopmentTimelineShellsWithWriteProbabilities(host, board, visits, probabilities)
+	stats.JevPersonas = len(probabilities)
+	stats.JevModel = model
+	stats.JevFallback = err != nil
+	return shells, stats
+}
+
+func selectDevelopmentTimelineShellsWithWriteProbabilities(host world.Host, board world.Board, visits []demoPostCandidate, probabilities map[string]float64) ([]developmentTimelineShell, developmentSelectionStats) {
 	stats := developmentSelectionStats{Visits: len(visits)}
 	if len(visits) == 0 {
 		return nil, stats
 	}
 
-	writerVisits := selectDevelopmentWriterVisits(host, board, visits)
+	writerVisits := selectDevelopmentWriterVisitsWithProbabilities(host, board, visits, probabilities)
 	shells := make([]developmentTimelineShell, 0, len(writerVisits))
 	roots := make([]developmentTimelineShell, 0, len(writerVisits))
 
@@ -150,6 +166,10 @@ func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits 
 // persona rather than one Bernoulli per event, so a two-week catch-up remains
 // stable and does not accidentally put every post at one end of the window.
 func selectDevelopmentWriterVisits(host world.Host, board world.Board, visits []demoPostCandidate) map[string]bool {
+	return selectDevelopmentWriterVisitsWithProbabilities(host, board, visits, nil)
+}
+
+func selectDevelopmentWriterVisitsWithProbabilities(host world.Host, board world.Board, visits []demoPostCandidate, probabilities map[string]float64) map[string]bool {
 	byPersona := map[string][]demoPostCandidate{}
 	for _, candidate := range visits {
 		byPersona[candidate.persona.ID] = append(byPersona[candidate.persona.ID], candidate)
@@ -168,6 +188,9 @@ func selectDevelopmentWriterVisits(host world.Host, board world.Board, visits []
 			continue
 		}
 		chance := demoWriteProbability(candidates[0].persona, board)
+		if advised, ok := probabilities[personaID]; ok {
+			chance = demoBlendWriteProbability(chance, advised)
+		}
 		target := int(math.Round(float64(len(candidates)) * chance))
 		if target < 0 {
 			target = 0
@@ -195,6 +218,12 @@ func selectDevelopmentWriterVisits(host world.Host, board world.Board, visits []
 
 func developmentVisitKey(candidate demoPostCandidate) string {
 	return candidate.persona.ID + "|" + candidate.createdAt.Format(time.RFC3339Nano)
+}
+
+func demoBlendWriteProbability(baseline, advised float64) float64 {
+	advised = math.Max(0, math.Min(1, advised))
+	chance := baseline*.65 + advised*.35
+	return math.Max(.08, math.Min(.72, chance))
 }
 
 func demoWriteProbability(p world.Persona, board world.Board) float64 {

@@ -129,6 +129,16 @@ A routing domain/interest may constrain where a root action belongs, but **ordin
 
 No reply is normal. A delayed reply is normal. NPC-to-NPC discussion is normal. A human post being ignored is normal.
 
+### Probabilistic decision advisors
+
+The World Engine may consult a fast probabilistic model for **behavioral priors** such as whether an already-plausible board visit is likely to become a write opportunity or remain ROM/no-op. That model is an advisor, not a world-authority boundary.
+
+An advisor must not create an event, select a concrete topic, invent a purchase/problem/change, or commit a world fact. The engine combines the advisory probability with persisted persona traits, board affinity, deterministic sampling, topology/cause gates, and other world constraints. Provider failure must degrade to the local deterministic model rather than blocking simulation.
+
+For the Jev PoC, the provider returns per-persona write propensity for already-selected visits. The local write probability remains the majority prior, Jev contributes a bounded minority weight, and the existing deterministic quota/ranking logic still decides which visits become write opportunities. A later valid root cause or reply target is still required before a post exists.
+
+Advisory responses are transient operational inputs, not canonical world state. Once a resulting action is materialized, the database remains canonical. Before using an external probabilistic advisor for retry-sensitive production simulation, persist or otherwise stabilize the decision snapshot so repeated materialization cannot silently branch history because a provider returned a slightly different probability.
+
 ## Diegetic present
 
 World simulation and rendering use the world date as the characters' literal present. A later historical interpretation must not retroactively change what actors find ordinary, old, surprising, nostalgic or explanation-worthy.
