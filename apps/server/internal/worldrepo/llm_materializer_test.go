@@ -115,7 +115,7 @@ func TestLLMMaterializerBindsCanonicalPersonaAndEnvelope(t *testing.T) {
 	}
 }
 
-func TestLLMMaterializerTitleFirstRootKeepsSemanticSubjectButAcceptsSurfaceSubject(t *testing.T) {
+func TestLLMMaterializerTitleFirstRootKeepsAdoptedSubjectVerbatim(t *testing.T) {
 	renderer := &fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "NORI", Subject: "モデムが見えない…", Body: "Windows 95でモデムが見えていません。"}}
 	m := LLMMaterializer{Renderer: renderer}
 	intent := world.PostIntent{
@@ -134,14 +134,14 @@ func TestLLMMaterializerTitleFirstRootKeepsSemanticSubjectButAcceptsSurfaceSubje
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(posts) != 1 || posts[0].Subject != "モデムが見えない…" {
-		t.Fatalf("surface subject was overwritten: %#v", posts)
+	if len(posts) != 1 || posts[0].Subject != "Windows 95でモデムが認識されません" {
+		t.Fatalf("adopted title was renamed by prose renderer: %#v", posts)
 	}
 	if renderer.req.CanonicalSubject != "Windows 95でモデムが認識されません" {
-		t.Fatalf("semantic subject was not supplied to renderer: %#v", renderer.req)
+		t.Fatalf("adopted subject was not supplied to renderer: %#v", renderer.req)
 	}
-	if !strings.Contains(renderer.req.PostIntent, "surface_subject_mode=title_first_root") {
-		t.Fatalf("surface-subject mode missing from renderer intent: %q", renderer.req.PostIntent)
+	if strings.Contains(renderer.req.PostIntent, "surface_subject_mode=") {
+		t.Fatalf("obsolete title rewrite mode leaked into renderer intent: %q", renderer.req.PostIntent)
 	}
 }
 
