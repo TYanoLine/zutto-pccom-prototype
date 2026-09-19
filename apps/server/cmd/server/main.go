@@ -69,11 +69,13 @@ func main() {
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
 	if cfg.JevKey != "" {
-		worldEngine.WriteAdvisor = worldengine.JevAdvisor{
+		jevAdvisor := worldengine.JevAdvisor{
 			APIKey: cfg.JevKey,
 			Model:  cfg.JevModel,
-			Client: &http.Client{Timeout: 2 * time.Second},
+			Client: &http.Client{Timeout: 4 * time.Second},
 		}
+		worldEngine.WriteAdvisor = jevAdvisor
+		worldEngine.BehaviorAdvisor = jevAdvisor
 	}
 	// Planning capabilities remain on the established OpenAI implementation while
 	// final article prose is routed to Gemini. This preserves title-first and the
