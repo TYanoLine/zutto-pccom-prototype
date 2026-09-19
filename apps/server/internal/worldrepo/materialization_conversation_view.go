@@ -135,10 +135,11 @@ func (r *Repository) materializeConversationWorldWindow(host world.Host) ([]worl
 		return nil, false
 	}
 
+	behaviorAdvice := r.developmentJevBehaviorAdvice(host, boards, personas)
 	windowShells := make([]developmentWindowShell, 0, len(boards)*developmentConversationShellLimit(r))
 	for _, board := range boards {
-		visits := developmentVisitsForBoard(host, board, personas, r.WorldDate)
-		shells, stats := r.selectDevelopmentTimelineShells(host, board, visits)
+		visits := developmentVisitsForBoardWithAdvice(host, board, personas, r.WorldDate, behaviorAdvice)
+		shells, stats := r.selectDevelopmentTimelineShellsWithAdvice(host, board, visits, behaviorAdvice)
 		shells, stats = limitDevelopmentShellsForConversation(r, shells, stats)
 		storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 		clearDevelopmentPlanningError(r, host.ID, board.ID)
