@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   }
   const incoming = new URL(req.url || '/api/materialization-lab-fresh', 'https://materialization-lab-fresh.local');
   const upstream = new URL('/api/debug/materialization-lab-fresh', BACKEND_BASE);
-  for (const key of ['action', 'phone', 'id', 'token', 'situation_mode', 'historical_texture', 'board_count', 'shell_limit']) {
+  for (const key of ['action', 'phone', 'id', 'token', 'situation_mode', 'historical_texture', 'era_gate', 'board_count', 'shell_limit']) {
     const value = incoming.searchParams.get(key);
     if (value !== null) upstream.searchParams.set(key, value);
   }
