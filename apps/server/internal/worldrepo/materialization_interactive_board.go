@@ -31,7 +31,7 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 	}
 
 	visits := developmentVisitsForBoardDays(host, board, personas, r.WorldDate, developmentInteractiveActivityLookbackDays)
-	shells, stats := selectDevelopmentTimelineShells(host, board, visits)
+	shells, stats := r.selectDevelopmentTimelineShells(host, board, visits)
 	shells, stats = limitDevelopmentShellsForConversation(r, shells, stats)
 	storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
 	clearDevelopmentPlanningError(r, host.ID, board.ID)
