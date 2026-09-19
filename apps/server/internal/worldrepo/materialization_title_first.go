@@ -378,7 +378,7 @@ func (r *Repository) developmentAssignTitleFirstBoard(ctx context.Context, host 
 		detailDraft, detailErr := detailPlanner.MaterializeBBSTitleArticleDetails(ctx, llm.BBSTitleArticleDetailRequest{
 			BoardName: board.Name, WorldDate: asOf, RecentBBSState: recentBBSState, Articles: seeds,
 		})
-		state.timing.ArticleDetailMS += time.Since(stageStarted).Milliseconds()
+		state.timing.ArticleDetailMS += time.Since(detailStarted).Milliseconds()
 		state.timing.ArticleDetailCalls++
 		addUsage(detailDraft.Usage)
 		if detailErr != nil {
