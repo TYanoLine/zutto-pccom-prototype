@@ -119,9 +119,10 @@ func (e Engine) AdviseBehavior(ctx context.Context, req BehaviorAdviceRequest) (
 	return e.BehaviorAdvisor.AdviseBehavior(ctx, req)
 }
 
-// JevAdvisor is deliberately narrow: it estimates write-vs-ROM propensity for
-// already-selected plausible board visits. It never creates an event, chooses a
-// topic, or commits world state. The World Engine remains authoritative.
+// JevAdvisor is deliberately narrow: it estimates coarse behavioral priors for
+// board visits, write-vs-ROM decisions, and reply-vs-root topology. It never
+// creates an event, chooses a topic or target, or commits world state. The World
+// Engine remains authoritative.
 type JevAdvisor struct {
 	APIKey   string
 	Model    string
