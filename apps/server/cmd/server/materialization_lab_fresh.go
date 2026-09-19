@@ -60,6 +60,7 @@ type materializationFreshArticle struct {
 
 type materializationFreshJob struct {
 	TitleCandidates     []worldrepo.DevelopmentTitleCandidate `json:"title_candidates,omitempty"`
+	TitleFirstTiming    worldrepo.DevelopmentTitleFirstTiming `json:"title_first_timing,omitempty"`
 	BuildCommit         string                                `json:"build_commit,omitempty"`
 	ID                  string                                `json:"id"`
 	Status              string                                `json:"status"`
@@ -433,6 +434,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	job.SituationDiagnostic = repo.DevelopmentBatchSituationDiagnostic(host.ID)
 	job.TitleCandidates = repo.DevelopmentTitleCandidates()
 	if job.SituationMode == "title-first" {
+		job.TitleFirstTiming = repo.DevelopmentTitleFirstTiming()
 		failedBoards := map[string]bool{}
 		for _, c := range job.TitleCandidates {
 			if c.Status == "unreviewed" {
