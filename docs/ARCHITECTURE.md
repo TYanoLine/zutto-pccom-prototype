@@ -87,13 +87,25 @@ terminal/host action
  -> HostProgram renders committed state
 ```
 
-Typical observation triggers include login, dialing/entering a host, opening a board/thread, reading mail, or another action that exposes previously unmaterialized state.
+The current host-level rule is intentionally simpler: **only a successful CONNECT observes the host**. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. CONNECT starts the host's header catch-up in the background.
 
-Do not eagerly update the whole world on login. Advance only the scopes needed for the observation plus any shared dependencies required to keep those facts coherent.
+Host-program reads are synchronization barriers over that same work. A board/index request waits when host headers are not ready; a thread/article read waits when the selected body is not ready. If the data finished while the caller was navigating login/menu screens, the read returns immediately. The terminal never needs a modern "AI generation progress" workflow.
+
+This rule is host-wide for now. It can later be refined to board-level observation without changing the lower-level coordinator contract.
 
 For long elapsed intervals, catch-up should be time-compressed: select durable important transitions first, then materialize only the detailed posts/events required by the current observation.
 
 ## Generation coordination and concurrency
+
+The runtime/store boundary exposes an optional observation capability rather than embedding AI calls into each historical host program. A host runtime supplies its own board catalog; the shared coordinator owns jobs and waiting. This preserves separate KTBBS/Erika/etc. state machines while sharing world synchronization.
+
+Conceptually:
+
+```go
+BeginHostObservation(host, hostProgramBoards) // non-blocking
+WaitForBoardHeaders(ctx, host, board)         // joins host job
+WaitForArticleBody(ctx, host, board, postID)  // joins thread job
+```
 
 The generation coordinator serializes persistent fact creation at a narrow world scope. It is responsible for concepts such as:
 
