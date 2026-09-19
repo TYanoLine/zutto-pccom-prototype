@@ -16,24 +16,38 @@ type developmentBehaviorAdvisor interface {
 }
 
 type developmentBehaviorAdvice struct {
-	Probabilities map[string]worldengine.BehaviorProbabilities
-	Model         string
-	InputTokens   int
-	Fallback      bool
+	Visit       map[string]float64
+	Write       map[string]float64
+	Reply       map[string]float64
+	Model       string
+	InputTokens int
+	Fallback    bool
 }
 
-func (a developmentBehaviorAdvice) pair(personaID, boardID string) (worldengine.BehaviorProbabilities, bool) {
-	if len(a.Probabilities) == 0 {
-		return worldengine.BehaviorProbabilities{}, false
+func (a developmentBehaviorAdvice) value(values map[string]float64, personaID, boardID string) (float64, bool) {
+	if len(values) == 0 {
+		return 0, false
 	}
-	value, ok := a.Probabilities[worldengine.BehaviorPairKey(personaID, boardID)]
+	value, ok := values[worldengine.BehaviorPairKey(personaID, boardID)]
 	return value, ok
+}
+
+func (a developmentBehaviorAdvice) visit(personaID, boardID string) (float64, bool) {
+	return a.value(a.Visit, personaID, boardID)
+}
+
+func (a developmentBehaviorAdvice) write(personaID, boardID string) (float64, bool) {
+	return a.value(a.Write, personaID, boardID)
+}
+
+func (a developmentBehaviorAdvice) reply(personaID, boardID string) (float64, bool) {
+	return a.value(a.Reply, personaID, boardID)
 }
 
 func (a developmentBehaviorAdvice) boardPairCount(boardID string, personas []world.Persona) int {
 	count := 0
 	for _, persona := range personas {
-		if _, ok := a.pair(persona.ID, boardID); ok {
+		if _, ok := a.write(persona.ID, boardID); ok {
 			count++
 		}
 	}
@@ -104,17 +118,19 @@ func (r *Repository) developmentJevBehaviorAdvice(host world.Host, boards []worl
 		return developmentBehaviorAdvice{Fallback: true}
 	}
 
-	probabilities := make(map[string]worldengine.BehaviorProbabilities, len(decision.Probabilities))
+	visit := make(map[string]float64, len(decision.Probabilities))
+	write := make(map[string]float64, len(decision.Probabilities))
+	reply := make(map[string]float64, len(decision.Probabilities))
 	for key, value := range decision.Probabilities {
-		probabilities[key] = worldengine.BehaviorProbabilities{
-			Visit: stabilizeJevProbability(value.Visit),
-			Write: stabilizeJevProbability(value.Write),
-			Reply: stabilizeJevProbability(value.Reply),
-		}
+		visit[key] = stabilizeJevProbability(value.Visit)
+		write[key] = stabilizeJevProbability(value.Write)
+		reply[key] = stabilizeJevProbability(value.Reply)
 	}
 	return developmentBehaviorAdvice{
-		Probabilities: probabilities,
-		Model:         decision.Model,
-		InputTokens:   decision.InputTokens,
+		Visit:       visit,
+		Write:       write,
+		Reply:       reply,
+		Model:       decision.Model,
+		InputTokens: decision.InputTokens,
 	}
 }
