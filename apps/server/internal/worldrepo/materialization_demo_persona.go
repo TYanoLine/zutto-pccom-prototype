@@ -123,7 +123,7 @@ func (r *Repository) materializePersonaCandidates(host world.Host, board world.B
 	// Cheap world simulation ends here. The selected shells already contain a
 	// causal reason to exist; semantic planning cannot create posts that the world
 	// layer did not select.
-	shells, selectionStats := selectDevelopmentTimelineShells(host, board, visits)
+	shells, selectionStats := r.selectDevelopmentTimelineShells(host, board, visits)
 	storeDevelopmentSelectionStats(r, host.ID, board.ID, selectionStats)
 	if len(shells) == 0 {
 		return nil, false
