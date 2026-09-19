@@ -30,6 +30,12 @@ func demoActivityProbability(p world.Persona, board world.Board) float64 {
 	return .03 + (1-p.LurkerTendency)*.12 + affinity*.25 + math.Min(1, p.ReplyTendency+p.ThreadStartTendency)*.05
 }
 
+func demoBlendActivityProbability(baseline, advised float64) float64 {
+	advised = clamp01(advised)
+	chance := baseline*.70 + advised*.30
+	return math.Max(.02, math.Min(.65, chance))
+}
+
 // demoBoardAffinity is behavioral metadata for the development fixture, not a
 // content template. It affects whether a persona is likely to visit a board; it
 // never creates a subject, claim, question, or piece of prose. In particular,
@@ -63,9 +69,23 @@ func demoBoardAffinity(p world.Persona, board world.Board) float64 {
 // demoShouldReply decides action topology only after a visit has independently
 // survived the write gate. The actual target is selected by the causal helper
 // using recency + world-selected anchor affinity.
-func demoShouldReply(host world.Host, board world.Board, p world.Persona, at time.Time, ordinal int) bool {
+func demoReplyProbability(p world.Persona) float64 {
 	chance := .12 + p.ReplyTendency*.48 - p.ThreadStartTendency*.12
-	chance = math.Max(.08, math.Min(.62, chance))
+	return math.Max(.08, math.Min(.62, chance))
+}
+
+func demoBlendReplyProbability(baseline, advised float64) float64 {
+	advised = clamp01(advised)
+	chance := baseline*.60 + advised*.40
+	return math.Max(.06, math.Min(.72, chance))
+}
+
+func demoShouldReply(host world.Host, board world.Board, p world.Persona, at time.Time, ordinal int) bool {
+	return demoShouldReplyWithProbability(host, board, p, at, ordinal, demoReplyProbability(p))
+}
+
+func demoShouldReplyWithProbability(host world.Host, board world.Board, p world.Persona, at time.Time, ordinal int, chance float64) bool {
+	chance = math.Max(.06, math.Min(.72, chance))
 	return demoStableUnit(host.ID, board.ID, p.ID, at.Format(time.RFC3339), fmt.Sprintf("reply-%d", ordinal)) < chance
 }
 

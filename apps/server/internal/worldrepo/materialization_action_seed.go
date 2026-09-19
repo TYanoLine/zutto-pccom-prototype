@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/worldengine"
 )
 
 const developmentMaxPostsPerBoardCatchup = 28
@@ -18,9 +19,10 @@ type developmentSelectionStats struct {
 	ROM         int
 	Roots       int
 	Replies     int
-	JevPersonas int
-	JevModel    string
-	JevFallback bool
+	JevPersonas   int
+	JevModel      string
+	JevInputTokens int
+	JevFallback   bool
 }
 
 type developmentRootCause struct {
@@ -81,21 +83,58 @@ func selectDevelopmentTimelineShells(host world.Host, board world.Board, visits 
 }
 
 func (r *Repository) selectDevelopmentTimelineShells(host world.Host, board world.Board, visits []demoPostCandidate) ([]developmentTimelineShell, developmentSelectionStats) {
-	probabilities, model, err := r.developmentJevWriteProbabilities(host, board, visits)
-	shells, stats := selectDevelopmentTimelineShellsWithWriteProbabilities(host, board, visits, probabilities)
-	stats.JevPersonas = len(probabilities)
-	stats.JevModel = model
-	stats.JevFallback = err != nil
-	return shells, stats
+	personas := developmentPersonasFromVisits(visits)
+	advice := r.developmentJevBehaviorAdvice(host, []world.Board{board}, personas)
+	return r.selectDevelopmentTimelineShellsWithAdvice(host, board, visits, advice)
+}
+
+func (r *Repository) selectDevelopmentTimelineShellsWithAdvice(host world.Host, board world.Board, visits []demoPostCandidate, advice developmentBehaviorAdvice) ([]developmentTimelineShell, developmentSelectionStats) {
+	return selectDevelopmentTimelineShellsWithBehaviorAdvice(host, board, visits, advice)
+}
+
+func developmentPersonasFromVisits(visits []demoPostCandidate) []world.Persona {
+	byID := make(map[string]world.Persona)
+	for _, candidate := range visits {
+		byID[candidate.persona.ID] = candidate.persona
+	}
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	out := make([]world.Persona, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, byID[id])
+	}
+	return out
 }
 
 func selectDevelopmentTimelineShellsWithWriteProbabilities(host world.Host, board world.Board, visits []demoPostCandidate, probabilities map[string]float64) ([]developmentTimelineShell, developmentSelectionStats) {
+	advice := developmentBehaviorAdvice{Write: make(map[string]float64, len(probabilities))}
+	for personaID, probability := range probabilities {
+		advice.Write[worldengine.BehaviorPairKey(personaID, board.ID)] = probability
+	}
+	return selectDevelopmentTimelineShellsWithBehaviorAdvice(host, board, visits, advice)
+}
+
+func selectDevelopmentTimelineShellsWithBehaviorAdvice(host world.Host, board world.Board, visits []demoPostCandidate, advice developmentBehaviorAdvice) ([]developmentTimelineShell, developmentSelectionStats) {
 	stats := developmentSelectionStats{Visits: len(visits)}
+	personas := developmentPersonasFromVisits(visits)
+	stats.JevPersonas = advice.boardPairCount(board.ID, personas)
+	stats.JevModel = advice.Model
+	stats.JevInputTokens = advice.InputTokens
+	stats.JevFallback = advice.Fallback
 	if len(visits) == 0 {
 		return nil, stats
 	}
 
-	writerVisits := selectDevelopmentWriterVisitsWithProbabilities(host, board, visits, probabilities)
+	writeProbabilities := make(map[string]float64, stats.JevPersonas)
+	for _, persona := range personas {
+		if probability, ok := advice.write(persona.ID, board.ID); ok {
+			writeProbabilities[persona.ID] = probability
+		}
+	}
+	writerVisits := selectDevelopmentWriterVisitsWithProbabilities(host, board, visits, writeProbabilities)
 	shells := make([]developmentTimelineShell, 0, len(writerVisits))
 	roots := make([]developmentTimelineShell, 0, len(writerVisits))
 
@@ -108,7 +147,11 @@ func selectDevelopmentTimelineShellsWithWriteProbabilities(host world.Host, boar
 		}
 
 		postOrdinal := len(shells) + 1
-		if len(roots) > 0 && demoShouldReply(host, board, candidate.persona, candidate.createdAt, visitOrdinal) {
+		replyChance := demoReplyProbability(candidate.persona)
+		if advised, ok := advice.reply(candidate.persona.ID, board.ID); ok {
+			replyChance = demoBlendReplyProbability(replyChance, advised)
+		}
+		if len(roots) > 0 && demoShouldReplyWithProbability(host, board, candidate.persona, candidate.createdAt, visitOrdinal, replyChance) {
 			if target, found := demoChooseCausalReplyTarget(host, board, candidate.persona, candidate.createdAt, roots, shells, visitOrdinal); found {
 				shell := developmentTimelineShell{
 					index:        postOrdinal,
@@ -222,8 +265,8 @@ func developmentVisitKey(candidate demoPostCandidate) string {
 
 func demoBlendWriteProbability(baseline, advised float64) float64 {
 	advised = math.Max(0, math.Min(1, advised))
-	chance := baseline*.65 + advised*.35
-	return math.Max(.08, math.Min(.72, chance))
+	chance := baseline*.60 + advised*.40
+	return math.Max(.08, math.Min(.74, chance))
 }
 
 func demoWriteProbability(p world.Persona, board world.Board) float64 {
