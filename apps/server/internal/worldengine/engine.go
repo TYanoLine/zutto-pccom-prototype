@@ -10,7 +10,10 @@ type KnowledgeResolver interface {
 	Resolve(context.Context, historicalkb.KnowledgeQuery) (historicalkb.KnowledgeResult, error)
 }
 
-type Engine struct { Knowledge KnowledgeResolver }
+type Engine struct {
+	Knowledge    KnowledgeResolver
+	WriteAdvisor WritePropensityAdvisor
+}
 
 type EvidenceRequest struct {
 	Kind          historicalkb.KnowledgeKind
