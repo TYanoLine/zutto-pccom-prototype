@@ -150,20 +150,28 @@ func TestInteractiveTitleFirstNeverDropsWorldSelectedRoots(t *testing.T) {
 		t.Fatal("missing selection telemetry")
 	}
 	stats := value.(developmentSelectionStats)
-	roots := 0
+	materializedRoots := 0
+	independentRoots := 0
 	for _, post := range posts {
-		if post.ParentID == 0 {
-			roots++
+		if post.Intent.Action != "thread_start" {
+			continue
+		}
+		materializedRoots++
+		// Continuation/progress roots have an explicit canonical source and are
+		// not independent title-first slots. They must survive, but they reuse
+		// the source situation rather than requiring a fresh title candidate.
+		if post.ParentID == 0 && post.Intent.SourcePostID == 0 {
+			independentRoots++
 			if titleFirstSubject(post.Intent.SituationFacts) == "" {
-				t.Fatalf("preserved root has no canonical title-first subject: %+v", post)
+				t.Fatalf("preserved independent root has no canonical title-first subject: %+v", post)
 			}
 		}
 	}
-	if stats.Roots == 0 {
-		t.Fatal("test world selected no roots")
+	if stats.Roots == 0 || independentRoots == 0 {
+		t.Fatalf("test world selected no usable roots: %+v", stats)
 	}
-	if roots != stats.Roots {
-		t.Fatalf("title-first dropped world-selected roots: selected=%d materialized=%d posts=%d", stats.Roots, roots, len(posts))
+	if materializedRoots != stats.Roots {
+		t.Fatalf("title-first dropped world-selected thread starts: selected=%d materialized=%d posts=%d", stats.Roots, materializedRoots, len(posts))
 	}
 	if stats.MaterializedRoots != stats.Roots {
 		t.Fatalf("materialized root telemetry disagrees with world selection: %+v", stats)
