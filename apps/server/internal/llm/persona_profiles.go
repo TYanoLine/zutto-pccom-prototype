@@ -270,8 +270,8 @@ func validatePersonaDraftAgainstSeed(seed PersonaProfileSeed, draft PersonaProfi
 		"販売・サービス業", "専門学校生", "高校生", "大学生", "短大生", "アルバイト",
 		"会社員", "技術職", "営業職", "事務職", "公務員", "教員", "自営業", "主婦",
 	} {
-		if occupation != seed.Occupation && strings.Contains(text, occupation) {
-			return fmt.Errorf("persona profile %q contradicts canonical occupation %q with %q", seed.ID, seed.Occupation, occupation)
+		if occupation != seed.Occupation && profileAssertsOccupation(draft.Profile, occupation) {
+			return fmt.Errorf("persona profile %q contradicts canonical occupation %q by asserting %q", seed.ID, seed.Occupation, occupation)
 		}
 	}
 	lower := strings.ToLower(text)
@@ -281,4 +281,18 @@ func validatePersonaDraftAgainstSeed(seed PersonaProfileSeed, draft PersonaProfi
 		}
 	}
 	return nil
+}
+
+
+func profileAssertsOccupation(profile, occupation string) bool {
+	profile = strings.TrimSpace(profile)
+	for _, suffix := range []string{
+		"だ", "です", "である", "として", "で、", "で,", "。",
+		"の男性", "の女性", "の人",
+	} {
+		if strings.Contains(profile, occupation+suffix) {
+			return true
+		}
+	}
+	return false
 }
