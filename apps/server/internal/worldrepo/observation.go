@@ -95,12 +95,13 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 // job. Callers that bypass CONNECT (tests/tools) safely start that one board on
 // demand.
 func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, board world.Board) ([]world.Post, error) {
-	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
-		return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
-	}
-
 	job := r.boardObservationJob(host.ID, board.ID)
 	if job == nil {
+		// Persisted canonical data from a previous process is already complete.
+		// Only start a new observation when this board has never materialized.
+		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+			return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
+		}
 		job = r.beginBoardObservation(host, board)
 	}
 	if job != nil {
