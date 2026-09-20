@@ -1,0 +1,79 @@
+name: persona-lab-run-100
+
+on:
+  push:
+    branches:
+      - ops/persona-lab-run-100
+    paths:
+      - .github/workflows/persona-lab-run-100.yml
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Start 100-person profile experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://zutto-pccom-prototype-liart.vercel.app/api/persona-lab?action=start-profiles&count=100&seed=19960826&profile=general&profile_count=100'
+          for attempt in $(seq 1 12); do
+            code=$(curl -sS -o start.json -w '%{http_code}' -X POST "$URL")
+            echo "start attempt=$attempt http=$code"
+            cat start.json
+            echo
+            if [ "$code" = "200" ]; then
+              break
+            fi
+            if [ "$attempt" = "12" ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+          id=$(jq -r '.id // empty' start.json)
+          test -n "$id"
+          echo "JOB_ID=$id" >> "$GITHUB_ENV"
+
+      - name: Poll until complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://zutto-pccom-prototype-liart.vercel.app/api/persona-lab?action=profile-status&id=$JOB_ID"
+          for attempt in $(seq 1 120); do
+            curl -fsS "$URL" -o status.json
+            state=$(jq -r '.status' status.json)
+            completed=$(jq -r '.progress.completed // 0' status.json)
+            total=$(jq -r '.progress.total // 0' status.json)
+            echo "poll=$attempt status=$state progress=$completed/$total"
+            if [ "$state" = "completed" ]; then
+              break
+            fi
+            if [ "$state" = "failed" ]; then
+              cat status.json
+              exit 1
+            fi
+            if [ "$attempt" = "120" ]; then
+              cat status.json
+              exit 1
+            fi
+            sleep 5
+          done
+
+      - name: Print measured summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq '{
+            id,status,account_count,profile_count,batch_size,identity_generation_us,jev_available,
+            summary,
+            batches,
+            flagged_profiles:[.results[] | select(.future_flag or .external_review_flag)],
+            sample_profiles:(.results[:10])
+          }' status.json
+
+      - name: Upload full result
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-lab-100-result
+          path: status.json
+          retention-days: 7
