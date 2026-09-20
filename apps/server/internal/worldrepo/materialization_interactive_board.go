@@ -16,7 +16,7 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 		return existing, false
 	}
 
-	planningMu := developmentInteractiveTitleFirstPlanningMutex(r)
+	planningMu := developmentInteractiveTitleFirstPlanningMutex(r, host.ID, board.ID)
 	planningMu.Lock()
 	defer planningMu.Unlock()
 	// Another session may have completed this board while this caller waited for
@@ -155,6 +155,16 @@ func (r *Repository) materializeInteractiveConversationBoardWindow(host world.Ho
 		}
 		post = r.Base.AddPost(host.ID, post)
 		committedByEventID[item.eventID] = post
+		if statsValue, ok := developmentSelectionTelemetry.Load(developmentPlanningKey{repo: r, hostID: host.ID, boardID: board.ID}); ok {
+			if stats, ok := statsValue.(developmentSelectionStats); ok {
+				if shell.action == "reply" && parentID != 0 {
+					stats.MaterializedReplies++
+				} else if shell.action == "thread_start" {
+					stats.MaterializedRoots++
+				}
+				storeDevelopmentSelectionStats(r, host.ID, board.ID, stats)
+			}
+		}
 		out = append(out, post)
 	}
 	return out, len(out) > 0
