@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -78,5 +80,20 @@ func TestResolvePersonaTimelinePocTemporaryStates(t *testing.T) {
 	}
 	if len(autumn.ActiveStates) != 0 {
 		t.Fatalf("summer break remained active: %#v", autumn.ActiveStates)
+	}
+}
+
+func TestPersonaTimelinePocViewerHandler(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/poc/persona-timeline", nil)
+	rr := httptest.NewRecorder()
+	newPersonaTimelinePocViewerHandler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d", rr.Code)
+	}
+	body := rr.Body.String()
+	for _, want := range []string{"人物を「ある日付」で解決する", "FUTURE ISOLATED", "/api/debug/persona-timeline"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("viewer missing %q", want)
+		}
 	}
 }
