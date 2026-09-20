@@ -72,7 +72,9 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 		for ei, event := range req.Events {
 			score := p.advice.Fit[worldengine.TitleCandidatePairKey(original, event.EventID)]
 			floor := p.fitFloor
-			if floor == 0 && !p.rankingOnly {
+			if p.rankingOnly {
+				floor = 0
+			} else if floor == 0 {
 				floor = developmentJevTitleFitThreshold
 			}
 			if p.rankingOnly && !p.advicePairPresent(original, event.EventID) {
@@ -126,7 +128,9 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 				Candidate: local,
 				Reason: func() string {
 					floor := p.fitFloor
-					if floor == 0 && !p.rankingOnly {
+					if p.rankingOnly {
+						floor = 0
+					} else if floor == 0 {
 						floor = developmentJevTitleFitThreshold
 					}
 					return fmt.Sprintf("Jev人物/投稿枠適合 %.2f（採用床 %.2f 未満または高得点枠が他候補に割当済み）", best, floor)
