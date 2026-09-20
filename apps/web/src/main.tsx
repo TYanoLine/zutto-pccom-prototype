@@ -5,7 +5,8 @@ import KnowledgeBbsPage from './poc/KnowledgeBbsPage';
 import ImageArtifactPocPage from './poc/ImageArtifactPocPage';
 import MaterializationLabViewerPage from './poc/MaterializationLabViewerPage';
 import GeminiArticleWorkerViewerPage from './poc/GeminiArticleWorkerViewerPage';
-import PersonaLabPage from './poc/PersonaLabPage';\nimport PersonaTimelinePocPage from './poc/PersonaTimelinePocPage';
+import PersonaLabPage from './poc/PersonaLabPage';
+import PersonaTimelinePocPage from './poc/PersonaTimelinePocPage';
 
 // Keep the modem's monitor speaker a little below the telephone-line tones.
 // Handshake PCM is always longer than 5 s; dial/ringback PCM is shorter.
@@ -27,7 +28,8 @@ function Home() {
   return <>
     <App />
     <div style={{position:'fixed',right:12,bottom:12,zIndex:50,display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
-      <a href="/poc/persona-timeline" style={devLinkStyle}>PERSONA TIME</a>\n      <a href="/poc/persona-lab" style={devLinkStyle}>PERSONA LAB</a>
+      <a href="/poc/persona-timeline" style={devLinkStyle}>PERSONA TIME</a>
+      <a href="/poc/persona-lab" style={devLinkStyle}>PERSONA LAB</a>
       <a href="/poc/gemini-article-viewer" style={devLinkStyle}>GEMINI WORKER</a>
       <a href="/poc/materialization-lab-viewer" style={devLinkStyle}>LAB VIEWER</a>
       <a href="/poc/image-artifact" style={devLinkStyle}>IMAGE FILE PoC</a>
