@@ -87,3 +87,8 @@
 .batchTable th,.batchTable td,.profileResultTable th,.profileResultTable td{border-bottom:1px solid #202a34;padding:8px;vertical-align:top;text-align:left}
 .profileResultTable .generatedProfile{min-width:320px;max-width:620px;line-height:1.55}
 .profileResultTable .summary{min-width:260px;max-width:420px}
+
+.profileResultTable .personaDetail{min-width:360px;max-width:560px;line-height:1.5}
+.profileResultTable .personaDetail>b{display:block;color:#9be7bd;margin-bottom:6px}
+.profileResultTable .personaDetail small{display:block;color:#aab5bf;margin-top:4px}
+.profileResultTable .personaDetail em{font-style:normal;color:#71808d;margin-right:4px}

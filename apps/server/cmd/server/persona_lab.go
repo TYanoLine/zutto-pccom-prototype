@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 	"sync/atomic"
 	"time"
 
@@ -23,7 +24,7 @@ const personaLabMaxProfiles = 100
 const personaLabFutureFlagThreshold = 0.50
 
 type personaProfileGenerator interface {
-	GeneratePersonaProfiles(context.Context, string, []llm.PersonaProfileSeed) (llm.PersonaProfileBatch, error)
+	GeneratePersonaProfiles(context.Context, string, []llm.PersonaProfileSeed, []string) (llm.PersonaProfileBatch, error)
 }
 
 type personaFutureAdvisor interface {
@@ -84,16 +85,22 @@ type personaProfileBatchResult struct {
 }
 
 type personaProfileResult struct {
-	PersonaID                 string  `json:"persona_id"`
-	Handle                    string  `json:"handle"`
-	DetailTier                string  `json:"detail_tier"`
-	Skeleton                  string  `json:"skeleton"`
-	Profile                   string  `json:"profile"`
-	JevChecked                bool    `json:"jev_checked"`
-	FutureProbability         float64 `json:"future_probability"`
-	ExternalReviewProbability float64 `json:"external_review_probability"`
-	FutureFlag                bool    `json:"future_flag"`
-	ExternalReviewFlag        bool    `json:"external_review_flag"`
+	PersonaID                 string   `json:"persona_id"`
+	Handle                    string   `json:"handle"`
+	DetailTier                string   `json:"detail_tier"`
+	Skeleton                  string   `json:"skeleton"`
+	DistinctiveHook           string   `json:"distinctive_hook"`
+	CoreTraits                []string `json:"core_traits"`
+	SocialDynamics            []string `json:"social_dynamics"`
+	ParticipationHabits       []string `json:"participation_habits"`
+	EverydayContext           []string `json:"everyday_context"`
+	VoiceNotes                []string `json:"voice_notes"`
+	Profile                   string   `json:"profile"`
+	JevChecked                bool     `json:"jev_checked"`
+	FutureProbability         float64  `json:"future_probability"`
+	ExternalReviewProbability float64  `json:"external_review_probability"`
+	FutureFlag                bool     `json:"future_flag"`
+	ExternalReviewFlag        bool     `json:"external_review_flag"`
 }
 
 type personaProfileSummary struct {
@@ -110,6 +117,10 @@ type personaProfileSummary struct {
 	ExternalReviewFlagged  int     `json:"external_review_flagged"`
 	MaxFutureProbability   float64 `json:"max_future_probability"`
 	MaxExternalReview      float64 `json:"max_external_review_probability"`
+	UniqueHookRatio        float64 `json:"unique_hook_ratio"`
+	UniqueTraitRatio       float64 `json:"unique_trait_signature_ratio"`
+	MaxProfileSimilarity   float64 `json:"max_profile_similarity"`
+	AvgNearestSimilarity   float64 `json:"avg_nearest_profile_similarity"`
 	TotalDurationMS        int64   `json:"total_duration_ms"`
 	ProfilesPerSecond      float64 `json:"profiles_per_second"`
 }
@@ -292,6 +303,7 @@ func (l *personaLab) runProfiles(id string, targets []personapoc.Identity) {
 	started := job.StartedAt
 	l.mu.Unlock()
 
+	avoidHooks := make([]string, 0, len(targets))
 	for offset := 0; offset < len(targets); offset += personaLabProfileBatchSize {
 		end := offset + personaLabProfileBatchSize
 		if end > len(targets) { end = len(targets) }
@@ -301,18 +313,19 @@ func (l *personaLab) runProfiles(id string, targets []personapoc.Identity) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		llmStarted := time.Now()
-		draft, err := l.generator.GeneratePersonaProfiles(ctx, l.worldDate, seeds)
+		draft, err := l.generator.GeneratePersonaProfiles(ctx, l.worldDate, seeds, avoidHooks)
 		llmDuration := time.Since(llmStarted)
 		cancel()
 		if err != nil {
 			l.finishProfileError(id, fmt.Errorf("profile batch %d: %w", offset/personaLabProfileBatchSize+1, err))
 			return
 		}
-		profileByID := make(map[string]string, len(draft.Profiles))
+		draftByID := make(map[string]llm.PersonaProfileDraft, len(draft.Profiles))
 		auditItems := make([]worldengine.PersonaProfileAdviceItem, 0, len(draft.Profiles))
 		for _, p := range draft.Profiles {
-			profileByID[p.ID] = p.Profile
-			auditItems = append(auditItems, worldengine.PersonaProfileAdviceItem{ID: p.ID, Profile: p.Profile})
+			draftByID[p.ID] = p
+			avoidHooks = append(avoidHooks, p.DistinctiveHook)
+			auditItems = append(auditItems, worldengine.PersonaProfileAdviceItem{ID: p.ID, Profile: personaProfileAuditText(p)})
 		}
 
 		var advice worldengine.PersonaProfileAdviceDecision
@@ -336,9 +349,16 @@ func (l *personaLab) runProfiles(id string, targets []personapoc.Identity) {
 
 		results := make([]personaProfileResult, 0, len(batch))
 		for _, p := range batch {
+			detail := draftByID[p.ID]
 			result := personaProfileResult{
 				PersonaID: p.ID, Handle: p.Handle, DetailTier: p.DetailTier, Skeleton: p.ProfileSummary,
-				Profile: profileByID[p.ID],
+				DistinctiveHook: detail.DistinctiveHook,
+				CoreTraits: append([]string(nil), detail.CoreTraits...),
+				SocialDynamics: append([]string(nil), detail.SocialDynamics...),
+				ParticipationHabits: append([]string(nil), detail.ParticipationHabits...),
+				EverydayContext: append([]string(nil), detail.EverydayContext...),
+				VoiceNotes: append([]string(nil), detail.VoiceNotes...),
+				Profile: detail.Profile,
 			}
 			if l.advisor != nil && jevErr == nil {
 				result.JevChecked = true
@@ -377,6 +397,7 @@ func (l *personaLab) runProfiles(id string, targets []personapoc.Identity) {
 				job.Summary.MaxExternalReview = result.ExternalReviewProbability
 			}
 		}
+		updatePersonaProfileDiversity(&job.Summary, job.Results)
 		job.Summary.TotalDurationMS = time.Since(started).Milliseconds()
 		l.mu.Unlock()
 	}
@@ -391,6 +412,107 @@ func (l *personaLab) runProfiles(id string, targets []personapoc.Identity) {
 	}
 	if l.active == id { l.active = "" }
 	l.mu.Unlock()
+}
+
+func personaProfileAuditText(p llm.PersonaProfileDraft) string {
+	parts := []string{p.DistinctiveHook}
+	parts = append(parts, p.CoreTraits...)
+	parts = append(parts, p.SocialDynamics...)
+	parts = append(parts, p.ParticipationHabits...)
+	parts = append(parts, p.EverydayContext...)
+	parts = append(parts, p.VoiceNotes...)
+	parts = append(parts, p.Profile)
+	return strings.Join(parts, "\n")
+}
+
+func updatePersonaProfileDiversity(summary *personaProfileSummary, results []personaProfileResult) {
+	if len(results) == 0 {
+		return
+	}
+	hooks := map[string]bool{}
+	traits := map[string]bool{}
+	for _, result := range results {
+		hooks[normalizePersonaText(result.DistinctiveHook)] = true
+		signature := strings.Join(result.CoreTraits, "|") + "||" + strings.Join(result.SocialDynamics, "|") + "||" + strings.Join(result.ParticipationHabits, "|")
+		traits[normalizePersonaText(signature)] = true
+	}
+	summary.UniqueHookRatio = float64(len(hooks)) / float64(len(results))
+	summary.UniqueTraitRatio = float64(len(traits)) / float64(len(results))
+
+	if len(results) < 2 {
+		summary.MaxProfileSimilarity = 0
+		summary.AvgNearestSimilarity = 0
+		return
+	}
+	sets := make([]map[string]bool, len(results))
+	for i, result := range results {
+		sets[i] = personaRuneTrigrams(result.Profile)
+	}
+	maxSimilarity := 0.0
+	nearestSum := 0.0
+	for i := range sets {
+		nearest := 0.0
+		for j := range sets {
+			if i == j {
+				continue
+			}
+			similarity := personaJaccard(sets[i], sets[j])
+			if similarity > nearest {
+				nearest = similarity
+			}
+			if similarity > maxSimilarity {
+				maxSimilarity = similarity
+			}
+		}
+		nearestSum += nearest
+	}
+	summary.MaxProfileSimilarity = maxSimilarity
+	summary.AvgNearestSimilarity = nearestSum / float64(len(results))
+}
+
+func normalizePersonaText(value string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(value) {
+		if unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func personaRuneTrigrams(value string) map[string]bool {
+	runes := []rune(normalizePersonaText(value))
+	out := map[string]bool{}
+	if len(runes) < 3 {
+		if len(runes) > 0 {
+			out[string(runes)] = true
+		}
+		return out
+	}
+	for i := 0; i+3 <= len(runes); i++ {
+		out[string(runes[i:i+3])] = true
+	}
+	return out
+}
+
+func personaJaccard(a, b map[string]bool) float64 {
+	if len(a) == 0 && len(b) == 0 {
+		return 1
+	}
+	intersection := 0
+	union := len(a)
+	for key := range b {
+		if a[key] {
+			intersection++
+		} else {
+			union++
+		}
+	}
+	if union == 0 {
+		return 0
+	}
+	return float64(intersection) / float64(union)
 }
 
 func (l *personaLab) finishProfileError(id string, err error) {
