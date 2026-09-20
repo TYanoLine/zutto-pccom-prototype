@@ -3,13 +3,14 @@ const BACKEND_BASE = 'https://zutto-pccom-prototype.onrender.com';
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  if (req.method !== 'GET') {
-    res.status(405).json({ error: 'GET only' });
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    res.setHeader('Allow', 'GET, POST');
+    res.status(405).json({ error: 'GET or POST only' });
     return;
   }
   const incoming = new URL(req.url || '/api/persona-lab', 'https://persona-lab.local');
   const upstream = new URL('/api/debug/persona-lab', BACKEND_BASE);
-  for (const key of ['count', 'seed', 'profile']) {
+  for (const key of ['action', 'id', 'count', 'seed', 'profile', 'profile_count']) {
     const value = incoming.searchParams.get(key);
     if (value !== null) upstream.searchParams.set(key, value);
   }
@@ -17,7 +18,7 @@ export default async function handler(req, res) {
   const timeout = setTimeout(() => controller.abort(), 30000);
   try {
     const response = await fetch(upstream, {
-      method: 'GET',
+      method: req.method,
       headers: { Accept: 'application/json' },
       signal: controller.signal,
       cache: 'no-store'

@@ -68,6 +68,7 @@ func main() {
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
+	var personaAdvisor personaFutureAdvisor
 	if cfg.JevKey != "" {
 		jevAdvisor := worldengine.JevAdvisor{
 			APIKey: cfg.JevKey,
@@ -77,6 +78,7 @@ func main() {
 		worldEngine.WriteAdvisor = jevAdvisor
 		worldEngine.BehaviorAdvisor = jevAdvisor
 		worldEngine.TitleAdvisor = jevAdvisor
+		personaAdvisor = jevAdvisor
 	}
 	// Candidate wording, article details, and final prose use the OpenAI renderer.
 	// When Jev is configured, title-first Era routing and persona/slot compatibility
@@ -91,6 +93,7 @@ func main() {
 	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
 	materializationLab.freshArchive = freshArchive
+	personaLab := newPersonaLab(openAIRenderer, personaAdvisor, cfg.WorldDate, cfg.OpenAIKey != "")
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -394,7 +397,7 @@ func main() {
 	mux.HandleFunc("/api/debug/materialization-lab-fresh-view", materializationLab.freshViewerHandler())
 	mux.HandleFunc("/api/debug/article-worker-ab", newArticleWorkerABHandler(runtimeStore, openAIMaterializer, geminiRenderer, cfg.GeminiKey != ""))
 	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
-	mux.HandleFunc("/api/debug/persona-lab", newPersonaLabHandler())
+	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
 	mux.HandleFunc("/api/debug/world", inspectWorld)
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)

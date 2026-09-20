@@ -21,7 +21,31 @@ type Run = { seed:number; count:number; pool_size:number; profile:HostProfile; t
 type Benchmark = { count:number; pool_size:number; total_us:number; per_person_ns:number };
 type Response = {
   generated_at:string; build_commit?:string; build_branch?:string; profiles:HostProfile[]; run:Run; benchmarks:Benchmark[];
-  semantics:{ api_calls:number; llm_calls:number; persona_bank:boolean; host_profile_affects:string; canonical:boolean; note:string };
+  semantics:{
+    api_calls:number; llm_calls:number; persona_bank:boolean; host_profile_affects:string; canonical:boolean; note:string;
+    profile_generation_available?:boolean; jev_profile_audit_available?:boolean; profile_batch_size?:number;
+  };
+};
+
+type ProfileBatch = {
+  batch:number; count:number; llm_duration_ms:number; llm_model?:string; llm_input_tokens:number; llm_output_tokens:number;
+  llm_total_tokens:number; jev_duration_ms:number; jev_model?:string; jev_input_tokens:number; jev_error?:string;
+};
+type ProfileResult = {
+  persona_id:string; handle:string; detail_tier:string; skeleton:string; profile:string; jev_checked:boolean;
+  future_probability:number; external_review_probability:number; future_flag:boolean; external_review_flag:boolean;
+};
+type ProfileSummary = {
+  llm_calls:number; llm_duration_ms:number; llm_input_tokens:number; llm_output_tokens:number; llm_total_tokens:number;
+  jev_calls:number; jev_duration_ms:number; jev_input_tokens:number; jev_errors:number; future_flagged:number;
+  external_review_flagged:number; max_future_probability:number; max_external_review_probability:number;
+  total_duration_ms:number; profiles_per_second:number;
+};
+type ProfileJob = {
+  id:string; status:string; seed:number; profile_id:string; profile_label:string; account_count:number; profile_count:number;
+  pool_size:number; batch_size:number; identity_generation_us:number; jev_available:boolean;
+  created_at:string; started_at?:string; finished_at?:string; progress:{completed:number;total:number};
+  batches?:ProfileBatch[]; results?:ProfileResult[]; summary:ProfileSummary; error?:string;
 };
 
 const interestLabels:Record<string,string> = {
@@ -39,7 +63,12 @@ function us(v:number) {
   if (v >= 1000) return `${(v/1000).toFixed(2)} ms`;
   return `${v} µs`;
 }
+function ms(v:number) {
+  if (v >= 1000) return `${(v/1000).toFixed(2)} s`;
+  return `${v} ms`;
+}
 function pct(v:number) { return `${(v*100).toFixed(1)}%`; }
+function probability(v:number) { return `${(v*100).toFixed(0)}%`; }
 
 export default function PersonaLabPage() {
   const [data,setData] = useState<Response|null>(null);
@@ -50,6 +79,10 @@ export default function PersonaLabPage() {
   const [loading,setLoading] = useState(false);
   const [error,setError] = useState('');
   const [roundTrip,setRoundTrip] = useState(0);
+  const [profileCount,setProfileCount] = useState(100);
+  const [profileJob,setProfileJob] = useState<ProfileJob|null>(null);
+  const [profileError,setProfileError] = useState('');
+  const [profileStarting,setProfileStarting] = useState(false);
 
   async function generate(nextSeed=seed) {
     setLoading(true); setError('');
@@ -69,7 +102,38 @@ export default function PersonaLabPage() {
     }
   }
 
+  async function refreshProfileJob(id:string) {
+    const q = new URLSearchParams({action:'profile-status',id});
+    const res = await fetch(`/api/persona-lab?${q}`, {cache:'no-store'});
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    setProfileJob(json);
+  }
+
+  async function startProfiles() {
+    setProfileStarting(true); setProfileError('');
+    try {
+      const q = new URLSearchParams({
+        action:'start-profiles', count:String(count), seed:String(seed), profile, profile_count:String(profileCount)
+      });
+      const res = await fetch(`/api/persona-lab?${q}`, {method:'POST',cache:'no-store'});
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setProfileJob(json);
+    } catch (e) {
+      setProfileError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setProfileStarting(false);
+    }
+  }
+
   useEffect(()=>{ void generate(); },[]);
+  useEffect(()=>{
+    const id=profileJob?.id;
+    if (!id || (profileJob?.status!=='queued' && profileJob?.status!=='running')) return;
+    const timer=window.setInterval(()=>{ void refreshProfileJob(id).catch(e=>setProfileError(e instanceof Error?e.message:String(e))); },1200);
+    return ()=>window.clearInterval(timer);
+  },[profileJob?.id,profileJob?.status]);
 
   const personas = useMemo(()=>{
     const all = data?.run.personas || [];
@@ -77,12 +141,15 @@ export default function PersonaLabPage() {
     return all.filter(p=>p.detail_tier===tier);
   },[data,tier]);
 
+  const profileOptions=[10,20,50,100].filter(n=>n<=count);
+  const progress=profileJob?.progress.total ? profileJob.progress.completed/profileJob.progress.total : 0;
+
   return <div className="personaLab">
     <header>
       <div>
         <div className="eyebrow">DEVELOPMENT PERSONA LAB</div>
-        <h1>会員Identity生成 PoC</h1>
-        <p>大量の会員をLLMなしで生成し、局傾向による加入選択・速度・多様性を確認します。永続世界には書き込みません。</p>
+        <h1>会員Identity生成 + 非同期プロフィール具現化 PoC</h1>
+        <p>大量の会員骨格はLLMなしで生成し、必要人数だけOpenAIでプロフィール化。その出力をJevで未来情報監査し、各段階の速度と必要性を比較します。永続世界には書き込みません。</p>
       </div>
       <a href="/">端末へ戻る</a>
     </header>
@@ -111,24 +178,82 @@ export default function PersonaLabPage() {
       <section className="heroMetrics">
         <div><span>LOCAL TOTAL</span><strong>{us(data.run.timing.total_us)}</strong><small>{data.run.count}人 / pool {data.run.pool_size}</small></div>
         <div><span>HTTP ROUND TRIP</span><strong>{roundTrip.toFixed(1)} ms</strong><small>Vercel→Renderを含む</small></div>
-        <div><span>LLM CALLS</span><strong>{data.semantics.llm_calls}</strong><small>API calls {data.semantics.api_calls}</small></div>
+        <div><span>IDENTITY LLM</span><strong>{data.semantics.llm_calls}</strong><small>骨格生成はAPI 0</small></div>
         <div><span>UNIQUE HANDLES</span><strong>{pct(data.run.quality.unique_handle_ratio)}</strong><small>exact clone {pct(data.run.quality.exact_clone_ratio)}</small></div>
         <div><span>HOST FIT</span><strong>{data.run.quality.average_host_fit.toFixed(3)}</strong><small>wildcard {pct(data.run.quality.wildcard_ratio)}</small></div>
       </section>
 
       <section className="panel timing">
-        <h2>処理時間内訳</h2>
+        <h2>Identity処理時間内訳</h2>
         <div className="timingGrid">
           <div><b>{us(data.run.timing.pool_generation_us)}</b><span>世界候補pool生成</span></div>
           <div><b>{us(data.run.timing.selection_us)}</b><span>局傾向による会員選択</span></div>
-          <div><b>{us(data.run.timing.formatting_us)}</b><span>プロフィール文章化</span></div>
+          <div><b>{us(data.run.timing.formatting_us)}</b><span>骨格プロフィール整形</span></div>
           <div><b>{us(data.run.timing.quality_us)}</b><span>品質診断</span></div>
         </div>
-        <p className="note">プロフィール文章もルールベースです。ここでは「人物生成にLLMが本当に必要か」を切り分けるため、ネットワーク/モデル呼び出しを一切していません。</p>
+        <p className="note">ここまでは完全ローカルです。下の実験だけがOpenAI/Jevを呼びます。</p>
+      </section>
+
+      <section className="panel profileExperiment">
+        <div className="memberHead">
+          <div>
+            <h2>非同期プロフィール具現化 + Jev未来監査</h2>
+            <p>活動度の高い core → active → identity の順で対象を選び、{data.semantics.profile_batch_size||10}人ずつ生成・監査します。</p>
+          </div>
+          <div className="profileActions">
+            <label>具現化人数
+              <select value={profileCount} onChange={e=>setProfileCount(Number(e.target.value))}>
+                {profileOptions.map(n=><option key={n} value={n}>{n}人</option>)}
+              </select>
+            </label>
+            <button onClick={startProfiles} disabled={profileStarting || !data.semantics.profile_generation_available || profileJob?.status==='running' || profileJob?.status==='queued'}>
+              {profileStarting?'開始中…':'非同期生成を開始'}
+            </button>
+          </div>
+        </div>
+        <div className="experimentAvailability">
+          <span className={data.semantics.profile_generation_available?'ok':'warn'}>OpenAI {data.semantics.profile_generation_available?'READY':'UNAVAILABLE'}</span>
+          <span className={data.semantics.jev_profile_audit_available?'ok':'warn'}>Jev {data.semantics.jev_profile_audit_available?'READY':'UNAVAILABLE'}</span>
+          <span>未来flag閾値 50%</span>
+        </div>
+        {profileError && <div className="error">{profileError}</div>}
+        {profileJob && <div className="jobBox">
+          <div className="jobTop">
+            <b>{profileJob.status.toUpperCase()}</b><span>{profileJob.id}</span>
+            <span>{profileJob.progress.completed}/{profileJob.progress.total}人</span>
+          </div>
+          <div className="progressTrack"><i style={{width:`${Math.max(1,progress*100)}%`}}/></div>
+          <div className="profileMetrics">
+            <div><span>IDENTITY</span><strong>{us(profileJob.identity_generation_us)}</strong><small>{profileJob.account_count} accounts</small></div>
+            <div><span>OPENAI PROFILE</span><strong>{ms(profileJob.summary?.llm_duration_ms||0)}</strong><small>{profileJob.summary?.llm_calls||0} calls / {(profileJob.summary?.llm_total_tokens||0).toLocaleString()} tokens</small></div>
+            <div><span>JEV AUDIT</span><strong>{ms(profileJob.summary?.jev_duration_ms||0)}</strong><small>{profileJob.summary?.jev_calls||0} calls / errors {profileJob.summary?.jev_errors||0}</small></div>
+            <div><span>END TO END</span><strong>{ms(profileJob.summary?.total_duration_ms||0)}</strong><small>{(profileJob.summary?.profiles_per_second||0).toFixed(2)} profiles/s</small></div>
+            <div><span>FUTURE FLAGS</span><strong>{profileJob.summary?.future_flagged||0}</strong><small>max {probability(profileJob.summary?.max_future_probability||0)}</small></div>
+            <div><span>REVIEW FLAGS</span><strong>{profileJob.summary?.external_review_flagged||0}</strong><small>max {probability(profileJob.summary?.max_external_review_probability||0)}</small></div>
+          </div>
+          {profileJob.error && <div className="error">{profileJob.error}</div>}
+          {!!profileJob.batches?.length && <div className="batchTable"><table>
+            <thead><tr><th>batch</th><th>人数</th><th>OpenAI</th><th>tokens</th><th>Jev</th><th>Jev input</th><th>状態</th></tr></thead>
+            <tbody>{profileJob.batches.map(b=><tr key={b.batch}>
+              <td>#{b.batch}</td><td>{b.count}</td><td>{ms(b.llm_duration_ms)}</td><td>{b.llm_total_tokens.toLocaleString()}</td>
+              <td>{ms(b.jev_duration_ms)}</td><td>{b.jev_input_tokens.toLocaleString()}</td><td>{b.jev_error?<span className="warn">ERROR</span>:<span className="ok">OK</span>}</td>
+            </tr>)}</tbody>
+          </table></div>}
+          {!!profileJob.results?.length && <div className="profileResultTable"><table>
+            <thead><tr><th>HANDLE</th><th>tier</th><th>骨格</th><th>LLMプロフィール</th><th>未来</th><th>史実review</th></tr></thead>
+            <tbody>{profileJob.results.map(r=><tr key={r.persona_id}>
+              <td><b>{r.handle}</b><small>{r.persona_id}</small></td>
+              <td>{tierLabels[r.detail_tier]||r.detail_tier}</td>
+              <td className="summary">{r.skeleton}</td><td className="generatedProfile">{r.profile}</td>
+              <td className={r.future_flag?'risk':'number'}>{r.jev_checked?probability(r.future_probability):'-'}</td>
+              <td className={r.external_review_flag?'risk':'number'}>{r.jev_checked?probability(r.external_review_probability):'-'}</td>
+            </tr>)}</tbody>
+          </table></div>}
+        </div>}
       </section>
 
       <section className="panel benchmark">
-        <h2>人数スケール</h2>
+        <h2>Identity人数スケール</h2>
         <div className="benchRows">
           {data.benchmarks.map(b=><div key={b.count} className="benchRow">
             <b>{b.count}人</b><div className="bar"><i style={{width:`${Math.min(100, Math.max(2,b.total_us/(Math.max(...data.benchmarks.map(x=>x.total_us))||1)*100))}%`}}/></div>
@@ -138,7 +263,7 @@ export default function PersonaLabPage() {
       </section>
 
       <section className="panel quality">
-        <h2>品質チェック</h2>
+        <h2>Identity品質チェック</h2>
         <div className="checks">
           {data.run.quality.checks.map(c=><div key={c.name} className={`check ${c.status}`}>
             <span>{c.status==='pass'?'PASS':'WARN'}</span><b>{c.name}</b><strong>{c.value}</strong><small>{c.note}</small>
@@ -162,7 +287,7 @@ export default function PersonaLabPage() {
           </label>
         </div>
         <div className="tableWrap"><table>
-          <thead><tr><th>HANDLE</th><th>属性</th><th>活動</th><th>関心</th><th>局fit</th><th>選出</th><th>詳細度</th><th>プロフィール</th></tr></thead>
+          <thead><tr><th>HANDLE</th><th>属性</th><th>活動</th><th>関心</th><th>局fit</th><th>選出</th><th>詳細度</th><th>骨格プロフィール</th></tr></thead>
           <tbody>{personas.map(p=><tr key={p.id}>
             <td><b>{p.handle}</b><small>{p.id}</small></td>
             <td>{p.age}歳<br/>{p.occupation}</td>

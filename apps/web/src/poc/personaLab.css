@@ -66,3 +66,24 @@
   .benchRow small{display:none}
   .personaLab header{flex-direction:column}
 }
+
+
+.profileExperiment .memberHead{align-items:flex-end}
+.profileActions{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.profileActions label{min-width:120px}
+.experimentAvailability{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0;color:#9ba8b5;font-size:12px}
+.ok{color:#7ee2ad}.warn{color:#f3c969}.risk{color:#ff9b9b;font-weight:700}
+.jobBox{margin-top:14px;border:1px solid #26313d;background:#0d1218;padding:14px}
+.jobTop{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ba8b5}
+.jobTop b{color:#e8edf2}
+.progressTrack{height:8px;background:#19212a;margin:12px 0 16px;overflow:hidden}
+.progressTrack i{display:block;height:100%;background:#7ee2ad;transition:width .2s ease}
+.profileMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.profileMetrics>div{border:1px solid #26313d;padding:10px;background:#0b0e12}
+.profileMetrics span,.profileMetrics small{display:block;color:#7f8c99;font-size:11px}
+.profileMetrics strong{display:block;font-size:20px;margin:4px 0;color:#e8edf2}
+.batchTable,.profileResultTable{overflow:auto;margin-top:14px}
+.batchTable table,.profileResultTable table{width:100%;border-collapse:collapse;font-size:12px}
+.batchTable th,.batchTable td,.profileResultTable th,.profileResultTable td{border-bottom:1px solid #202a34;padding:8px;vertical-align:top;text-align:left}
+.profileResultTable .generatedProfile{min-width:320px;max-width:620px;line-height:1.55}
+.profileResultTable .summary{min-width:260px;max-width:420px}
