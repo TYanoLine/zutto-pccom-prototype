@@ -5,19 +5,19 @@ type HostProfile = { id:string; label:string; weights:Record<string,number> };
 type Timing = { pool_generation_us:number; selection_us:number; formatting_us:number; quality_us:number; total_us:number };
 type Check = { name:string; status:string; value:string; note:string };
 type Quality = {
-  unique_handle_ratio:number; exact_clone_ratio:number; average_host_fit:number; wildcard_ratio:number;
+  unique_account_id_ratio:number; unique_handle_ratio:number; exact_clone_ratio:number; average_host_fit:number; wildcard_ratio:number;
   average_age:number; age_min:number; age_max:number; occupation_kinds:number; style_signature_kinds:number;
   future_term_hits:number; age_occupation_warnings:number;
   activity_distribution:Record<string,number>; occupation_distribution:Record<string,number>; top_interest_distribution:Record<string,number>;
   checks:Check[];
 };
 type Persona = {
-  id:string; handle:string; age:number; gender:string; occupation:string; activity_class:string; visit_days_per_week:number;
+  id:string; account_id:string; handle:string; age:number; gender:string; occupation:string; activity_class:string; visit_days_per_week:number;
   lurker_bias:number; write_bias:number; reply_bias:number; thread_start_bias:number;
   interests:Record<string,number>; top_interests:string[]; style_tags:string[]; connect_window:string; quirk:string;
   host_fit:number; membership_source:string; detail_tier:string; profile_summary:string;
 };
-type Run = { seed:number; count:number; pool_size:number; profile:HostProfile; timing:Timing; quality:Quality; personas:Persona[]; generator_note:string };
+type Run = { seed:number; count:number; pool_size:number; profile:HostProfile; account_id_scheme:string; account_id_prefix:string; timing:Timing; quality:Quality; personas:Persona[]; generator_note:string };
 type Benchmark = { count:number; pool_size:number; total_us:number; per_person_ns:number };
 type Response = {
   generated_at:string; build_commit?:string; build_branch?:string; profiles:HostProfile[]; run:Run; benchmarks:Benchmark[];
@@ -32,7 +32,7 @@ type ProfileBatch = {
   llm_total_tokens:number; jev_duration_ms:number; jev_model?:string; jev_input_tokens:number; jev_error?:string;
 };
 type ProfileResult = {
-  persona_id:string; handle:string; detail_tier:string; skeleton:string;
+  persona_id:string; account_id:string; handle:string; detail_tier:string; skeleton:string;
   distinctive_hook:string; core_traits:string[]; social_dynamics:string[]; participation_habits:string[];
   everyday_context:string[]; voice_notes:string[]; profile:string; jev_checked:boolean;
   future_probability:number; external_review_probability:number; future_flag:boolean; external_review_flag:boolean;
@@ -183,6 +183,7 @@ export default function PersonaLabPage() {
         <div><span>LOCAL TOTAL</span><strong>{us(data.run.timing.total_us)}</strong><small>{data.run.count}人 / pool {data.run.pool_size}</small></div>
         <div><span>HTTP ROUND TRIP</span><strong>{roundTrip.toFixed(1)} ms</strong><small>Vercel→Renderを含む</small></div>
         <div><span>IDENTITY LLM</span><strong>{data.semantics.llm_calls}</strong><small>骨格生成はAPI 0</small></div>
+        <div><span>ACCOUNT IDS</span><strong>{data.run.account_id_prefix}</strong><small>{data.run.account_id_scheme} / unique {pct(data.run.quality.unique_account_id_ratio)}</small></div>
         <div><span>UNIQUE HANDLES</span><strong>{pct(data.run.quality.unique_handle_ratio)}</strong><small>exact clone {pct(data.run.quality.exact_clone_ratio)}</small></div>
         <div><span>HOST FIT</span><strong>{data.run.quality.average_host_fit.toFixed(3)}</strong><small>wildcard {pct(data.run.quality.wildcard_ratio)}</small></div>
       </section>
@@ -250,7 +251,7 @@ export default function PersonaLabPage() {
           {!!profileJob.results?.length && <div className="profileResultTable"><table>
             <thead><tr><th>HANDLE</th><th>tier</th><th>骨格</th><th>LLM人物固有情報</th><th>プロフィール要約</th><th>未来</th><th>史実review</th></tr></thead>
             <tbody>{profileJob.results.map(r=><tr key={r.persona_id}>
-              <td><b>{r.handle}</b><small>{r.persona_id}</small></td>
+              <td><b>{r.handle}</b><small>{r.account_id} / world {r.persona_id}</small></td>
               <td>{tierLabels[r.detail_tier]||r.detail_tier}</td>
               <td className="summary">{r.skeleton}</td>
               <td className="personaDetail">
@@ -304,9 +305,9 @@ export default function PersonaLabPage() {
           </label>
         </div>
         <div className="tableWrap"><table>
-          <thead><tr><th>HANDLE</th><th>属性</th><th>活動</th><th>関心</th><th>局fit</th><th>選出</th><th>詳細度</th><th>骨格プロフィール</th></tr></thead>
+          <thead><tr><th>ACCOUNT / HANDLE</th><th>属性</th><th>活動</th><th>関心</th><th>局fit</th><th>選出</th><th>詳細度</th><th>骨格プロフィール</th></tr></thead>
           <tbody>{personas.map(p=><tr key={p.id}>
-            <td><b>{p.handle}</b><small>{p.id}</small></td>
+            <td><b>{p.account_id}</b><small>{p.handle} / world {p.id}</small></td>
             <td>{p.age}歳<br/>{p.occupation}</td>
             <td>{activityLabels[p.activity_class]||p.activity_class}<small>週{p.visit_days_per_week.toFixed(1)}日 / ROM {p.lurker_bias.toFixed(2)}</small></td>
             <td>{p.top_interests.map(x=>interestLabels[x]||x).join(' / ')}<small>{p.style_tags.join('・')}</small></td>
