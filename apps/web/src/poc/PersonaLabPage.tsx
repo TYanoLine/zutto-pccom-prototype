@@ -32,13 +32,16 @@ type ProfileBatch = {
   llm_total_tokens:number; jev_duration_ms:number; jev_model?:string; jev_input_tokens:number; jev_error?:string;
 };
 type ProfileResult = {
-  persona_id:string; handle:string; detail_tier:string; skeleton:string; profile:string; jev_checked:boolean;
+  persona_id:string; handle:string; detail_tier:string; skeleton:string;
+  distinctive_hook:string; core_traits:string[]; social_dynamics:string[]; participation_habits:string[];
+  everyday_context:string[]; voice_notes:string[]; profile:string; jev_checked:boolean;
   future_probability:number; external_review_probability:number; future_flag:boolean; external_review_flag:boolean;
 };
 type ProfileSummary = {
   llm_calls:number; llm_duration_ms:number; llm_input_tokens:number; llm_output_tokens:number; llm_total_tokens:number;
   jev_calls:number; jev_duration_ms:number; jev_input_tokens:number; jev_errors:number; future_flagged:number;
   external_review_flagged:number; max_future_probability:number; max_external_review_probability:number;
+  unique_hook_ratio:number; unique_trait_signature_ratio:number; max_profile_similarity:number; avg_nearest_profile_similarity:number;
   total_duration_ms:number; profiles_per_second:number;
 };
 type ProfileJob = {
@@ -148,8 +151,8 @@ export default function PersonaLabPage() {
     <header>
       <div>
         <div className="eyebrow">DEVELOPMENT PERSONA LAB</div>
-        <h1>会員Identity生成 + 非同期プロフィール具現化 PoC</h1>
-        <p>大量の会員骨格はLLMなしで生成し、必要人数だけOpenAIでプロフィール化。その出力をJevで未来情報監査し、各段階の速度と必要性を比較します。永続世界には書き込みません。</p>
+        <h1>会員Identity生成 + 非同期人格具現化 PoC</h1>
+        <p>大量の会員骨格はLLMなしで生成し、必要人数だけOpenAIで「別人として振る舞える」構造化人格へ具現化します。Jevで未来情報を監査し、固有性・文章類似度・速度まで比較します。永続世界には書き込みません。</p>
       </div>
       <a href="/">端末へ戻る</a>
     </header>
@@ -197,8 +200,8 @@ export default function PersonaLabPage() {
       <section className="panel profileExperiment">
         <div className="memberHead">
           <div>
-            <h2>非同期プロフィール具現化 + Jev未来監査</h2>
-            <p>活動度の高い core → active → identity の順で対象を選び、{data.semantics.profile_batch_size||10}人ずつ生成・監査します。</p>
+            <h2>非同期人格具現化 + Jev未来監査</h2>
+            <p>活動度の高い core → active → identity の順で対象を選び、{data.semantics.profile_batch_size||10}人ずつ人格を生成。前バッチの固有フックも渡して100人全体の同型化を抑えます。</p>
           </div>
           <div className="profileActions">
             <label>具現化人数
@@ -230,6 +233,9 @@ export default function PersonaLabPage() {
             <div><span>END TO END</span><strong>{ms(profileJob.summary?.total_duration_ms||0)}</strong><small>{(profileJob.summary?.profiles_per_second||0).toFixed(2)} profiles/s</small></div>
             <div><span>FUTURE FLAGS</span><strong>{profileJob.summary?.future_flagged||0}</strong><small>max {probability(profileJob.summary?.max_future_probability||0)}</small></div>
             <div><span>REVIEW FLAGS</span><strong>{profileJob.summary?.external_review_flagged||0}</strong><small>max {probability(profileJob.summary?.max_external_review_probability||0)}</small></div>
+            <div><span>HOOK UNIQUE</span><strong>{pct(profileJob.summary?.unique_hook_ratio||0)}</strong><small>固有フック完全一致を検出</small></div>
+            <div><span>TRAIT UNIQUE</span><strong>{pct(profileJob.summary?.unique_trait_signature_ratio||0)}</strong><small>性格+対人+投稿癖 signature</small></div>
+            <div><span>TEXT NEAREST</span><strong>{pct(profileJob.summary?.avg_nearest_profile_similarity||0)}</strong><small>3文字gram / max {pct(profileJob.summary?.max_profile_similarity||0)}</small></div>
           </div>
           {profileJob.error && <div className="error">{profileJob.error}</div>}
           {!!profileJob.batches?.length && <div className="batchTable"><table>
@@ -240,11 +246,20 @@ export default function PersonaLabPage() {
             </tr>)}</tbody>
           </table></div>}
           {!!profileJob.results?.length && <div className="profileResultTable"><table>
-            <thead><tr><th>HANDLE</th><th>tier</th><th>骨格</th><th>LLMプロフィール</th><th>未来</th><th>史実review</th></tr></thead>
+            <thead><tr><th>HANDLE</th><th>tier</th><th>骨格</th><th>LLM人物固有情報</th><th>プロフィール要約</th><th>未来</th><th>史実review</th></tr></thead>
             <tbody>{profileJob.results.map(r=><tr key={r.persona_id}>
               <td><b>{r.handle}</b><small>{r.persona_id}</small></td>
               <td>{tierLabels[r.detail_tier]||r.detail_tier}</td>
-              <td className="summary">{r.skeleton}</td><td className="generatedProfile">{r.profile}</td>
+              <td className="summary">{r.skeleton}</td>
+              <td className="personaDetail">
+                <b>{r.distinctive_hook}</b>
+                <small><em>性格</em> {r.core_traits?.join(' / ')}</small>
+                <small><em>対人</em> {r.social_dynamics?.join(' / ')}</small>
+                <small><em>投稿</em> {r.participation_habits?.join(' / ')}</small>
+                <small><em>日常</em> {r.everyday_context?.join(' / ')}</small>
+                <small><em>声</em> {r.voice_notes?.join(' / ')}</small>
+              </td>
+              <td className="generatedProfile">{r.profile}</td>
               <td className={r.future_flag?'risk':'number'}>{r.jev_checked?probability(r.future_probability):'-'}</td>
               <td className={r.external_review_flag?'risk':'number'}>{r.jev_checked?probability(r.external_review_probability):'-'}</td>
             </tr>)}</tbody>
