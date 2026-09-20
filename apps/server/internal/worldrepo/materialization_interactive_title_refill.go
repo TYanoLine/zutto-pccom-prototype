@@ -135,9 +135,9 @@ func developmentInteractiveRootFallback(item developmentWindowShell) development
 	default:
 		subject = board + "について"
 	}
-	if []rune(subject); len([]rune(subject)) > 36 {
-		r := []rune(subject)
-		subject = string(r[:36])
+	runes := []rune(subject)
+	if len(runes) > 36 {
+		subject = string(runes[:36])
 	}
 	summary := fmt.Sprintf("この人物が「%s」を話題にする", subject)
 	return developmentSparseSituation{
