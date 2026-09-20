@@ -54,7 +54,9 @@ func TestHandleCollisionVariantsAreNotOnlyNumericSuffixes(t *testing.T) {
 			hasMark = true
 		case strings.HasPrefix(variant, "KAZU") && variant != "KAZU":
 			tail := strings.TrimPrefix(variant, "KAZU")
-			hasNumber = len(tail) == 2 && tail[0] >= '0' && tail[0] <= '9' && tail[1] >= '0' && tail[1] <= '9'
+			if len(tail) == 2 && tail[0] >= '0' && tail[0] <= '9' && tail[1] >= '0' && tail[1] <= '9' {
+				hasNumber = true
+			}
 		}
 	}
 	if !hasDot || !hasInitialHyphen || !hasTechPrefix || !hasMark || !hasNumber {
