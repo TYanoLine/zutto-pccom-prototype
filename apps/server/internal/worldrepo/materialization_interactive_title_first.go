@@ -5,6 +5,12 @@ import "sync"
 var developmentInteractiveTitleFirst sync.Map
 var developmentInteractiveTitleFirstPlanningLocks sync.Map
 
+type developmentInteractivePlanningKey struct {
+	repo    *Repository
+	hostID  string
+	boardID string
+}
+
 // EnableDevelopmentInteractiveTitleFirstPoC makes the ordinary dial-up path for
 // the development materialization host use the same conversation-view +
 // title-first planning rules as the isolated fresh Lab, but marks this repository
@@ -25,7 +31,8 @@ func developmentInteractiveTitleFirstEnabled(r *Repository) bool {
 	return ok
 }
 
-func developmentInteractiveTitleFirstPlanningMutex(r *Repository) *sync.Mutex {
-	value, _ := developmentInteractiveTitleFirstPlanningLocks.LoadOrStore(r, &sync.Mutex{})
+func developmentInteractiveTitleFirstPlanningMutex(r *Repository, hostID, boardID string) *sync.Mutex {
+	key := developmentInteractivePlanningKey{repo: r, hostID: hostID, boardID: boardID}
+	value, _ := developmentInteractiveTitleFirstPlanningLocks.LoadOrStore(key, &sync.Mutex{})
 	return value.(*sync.Mutex)
 }

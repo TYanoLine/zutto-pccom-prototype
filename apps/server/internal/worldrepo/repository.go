@@ -42,9 +42,9 @@ type Repository struct {
 	hostMaterialized       map[string]bool
 	populationMaterialized map[string]bool
 
-	observationMu       sync.Mutex
-	observationHostJobs map[string]*observationJob
-	observationBodyJobs map[string]*observationJob
+	observationMu        sync.Mutex
+	observationBoardJobs map[string]*observationJob
+	observationBodyJobs  map[string]*observationJob
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -57,7 +57,7 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		hosts:                  map[string]world.Host{},
 		hostMaterialized:       map[string]bool{},
 		populationMaterialized: map[string]bool{},
-		observationHostJobs:     map[string]*observationJob{},
+		observationBoardJobs:    map[string]*observationJob{},
 		observationBodyJobs:     map[string]*observationJob{},
 	}
 }

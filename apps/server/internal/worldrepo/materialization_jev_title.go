@@ -23,12 +23,19 @@ type developmentTitleCandidateAdvisor interface {
 }
 
 type developmentJevTitlePlanner struct {
-	titles   []string
-	advice   worldengine.TitleCandidateAdviceDecision
+	titles      []string
+	advice      worldengine.TitleCandidateAdviceDecision
+	fitFloor    float64
+	rankingOnly bool
 }
 
 func (p developmentJevTitlePlanner) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
 	return llm.BBSTitleCandidates{}, fmt.Errorf("Jev title planner does not generate candidate wording")
+}
+
+func (p developmentJevTitlePlanner) advicePairPresent(candidate int, eventID string) bool {
+	_, ok := p.advice.Fit[worldengine.TitleCandidatePairKey(candidate, eventID)]
+	return ok
 }
 
 func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, req llm.BBSTitleReviewRequest) (llm.BBSTitleReview, error) {
@@ -64,7 +71,16 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 		}
 		for ei, event := range req.Events {
 			score := p.advice.Fit[worldengine.TitleCandidatePairKey(original, event.EventID)]
-			if score < developmentJevTitleFitThreshold {
+			floor := p.fitFloor
+			if p.rankingOnly {
+				floor = 0
+			} else if floor == 0 {
+				floor = developmentJevTitleFitThreshold
+			}
+			if p.rankingOnly && !p.advicePairPresent(original, event.EventID) {
+				continue
+			}
+			if score < floor {
 				continue
 			}
 			pairs = append(pairs, pair{
@@ -110,7 +126,15 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 			}
 			decisions = append(decisions, llm.BBSTitleDecision{
 				Candidate: local,
-				Reason: fmt.Sprintf("Jev人物/投稿枠適合 %.2f（採用閾値 %.2f 未満または高得点枠が他候補に割当済み）", best, developmentJevTitleFitThreshold),
+				Reason: func() string {
+					floor := p.fitFloor
+					if p.rankingOnly {
+						floor = 0
+					} else if floor == 0 {
+						floor = developmentJevTitleFitThreshold
+					}
+					return fmt.Sprintf("Jev人物/投稿枠適合 %.2f（採用床 %.2f 未満または高得点枠が他候補に割当済み）", best, floor)
+				}(),
 			})
 			continue
 		}

@@ -87,11 +87,9 @@ terminal/host action
  -> HostProgram renders committed state
 ```
 
-The current host-level rule is intentionally simpler: **only a successful CONNECT observes the host**. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. CONNECT starts the host's header catch-up in the background.
+A successful CONNECT is the host observation boundary. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. CONNECT starts independent board-header catch-up jobs in the background for that host.
 
-Host-program reads are synchronization barriers over that same work. A board/index request waits when host headers are not ready; a thread/article read waits when the selected body is not ready. If the data finished while the caller was navigating login/menu screens, the read returns immediately. The terminal never needs a modern "AI generation progress" workflow.
-
-This rule is host-wide for now. It can later be refined to board-level observation without changing the lower-level coordinator contract.
+Host-program reads are synchronization barriers over the narrowest required scope. A board/index request waits only for that board's header job; a thread/article read waits for the selected thread body job. If the needed data finished while the caller was navigating login/menu screens, the read returns immediately. A slow board must not hold unrelated boards behind a host-wide barrier, and the terminal never needs a modern "AI generation progress" workflow.
 
 For long elapsed intervals, catch-up should be time-compressed: select durable important transitions first, then materialize only the detailed posts/events required by the current observation.
 
@@ -103,7 +101,7 @@ Conceptually:
 
 ```go
 BeginHostObservation(host, hostProgramBoards) // non-blocking
-WaitForBoardHeaders(ctx, host, board)         // joins host job
+WaitForBoardHeaders(ctx, host, board)         // joins only this board job
 WaitForArticleBody(ctx, host, board, postID)  // joins thread job
 ```
 

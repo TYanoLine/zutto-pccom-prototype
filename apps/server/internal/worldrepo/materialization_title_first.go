@@ -46,8 +46,9 @@ type DevelopmentTitleFirstTiming struct {
 }
 
 type developmentTitleFirstState struct {
-	history         []world.Post
-	attempted       bool
+	history             []world.Post
+	preserveWorldRoots  bool
+	attempted           bool
 	result          map[string]developmentSparseSituation
 	err             error
 	rows            []DevelopmentTitleCandidate
@@ -93,9 +94,12 @@ func titleFirstReviewDecisionMalformed(reason string) bool {
 // Only the isolated conversation Lab calls this. Candidate wording is generated
 // first. Era routing is cheap; expensive historical research runs only after the
 // persona/slot matcher has tentatively selected a candidate for an actual post.
-func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (result map[string]developmentSparseSituation, err error) {
+func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (map[string]developmentSparseSituation, error) {
 	stateValue, _ := developmentTitleFirst.Load(r)
-	state := stateValue.(*developmentTitleFirstState)
+	return r.developmentPlanTitleFirstWithState(host, window, personas, stateValue.(*developmentTitleFirstState))
+}
+
+func (r *Repository) developmentPlanTitleFirstWithState(host world.Host, window []developmentWindowShell, personas []world.Persona, state *developmentTitleFirstState) (result map[string]developmentSparseSituation, err error) {
 	if state.attempted {
 		return state.result, state.err
 	}
@@ -192,7 +196,12 @@ func (r *Repository) developmentPlanTitleFirst(host world.Host, window []develop
 				if jevAdvice.Model != "" {
 					state.timing.JevTitleModel = jevAdvice.Model
 				}
-				boardPlanner = developmentJevTitlePlanner{titles: append([]string(nil), pool.Titles...), advice: jevAdvice}
+				boardPlanner = developmentJevTitlePlanner{
+					titles: append([]string(nil), pool.Titles...),
+					advice: jevAdvice,
+					fitFloor: developmentJevTitleFitThreshold,
+					rankingOnly: state.preserveWorldRoots,
+				}
 				boardEraValidator = developmentJevTitleEraValidator{
 					advice: jevAdvice,
 					observeOnly: developmentTitleEraObserveOnly(m.Renderer),
