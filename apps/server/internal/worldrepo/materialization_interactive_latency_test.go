@@ -124,3 +124,48 @@ func TestRepairInteractiveArticleDetailFactsDropsEntireMetadataTaintedSet(t *tes
 		t.Fatalf("unrelated canonical facts were removed: %s", joined)
 	}
 }
+
+
+func TestInteractiveTitleFirstNeverDropsWorldSelectedRoots(t *testing.T) {
+	base := world.NewMemoryStore()
+	// Force the normal title reviewer to reject every generated candidate. The
+	// interactive path must replenish pools and ultimately use its explicit safe
+	// fallback rather than erase World-selected root events.
+	renderer := &interactiveTitleFirstTestRenderer{titleFirstTestRenderer: titleFirstTestRenderer{
+		reject: true,
+		fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "本文です。"}},
+	}}
+	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentInteractiveTitleFirstPoC()
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boards, _ := repo.MaterializationBoards(host)
+	board := boards[0]
+	posts, _ := repo.MaterializationPersonaArticleHeaders(host, board)
+
+	value, ok := developmentSelectionTelemetry.Load(developmentPlanningKey{repo: repo, hostID: host.ID, boardID: board.ID})
+	if !ok {
+		t.Fatal("missing selection telemetry")
+	}
+	stats := value.(developmentSelectionStats)
+	roots := 0
+	for _, post := range posts {
+		if post.ParentID == 0 {
+			roots++
+			if titleFirstSubject(post.Intent.SituationFacts) == "" {
+				t.Fatalf("preserved root has no canonical title-first subject: %+v", post)
+			}
+		}
+	}
+	if stats.Roots == 0 {
+		t.Fatal("test world selected no roots")
+	}
+	if roots != stats.Roots {
+		t.Fatalf("title-first dropped world-selected roots: selected=%d materialized=%d posts=%d", stats.Roots, roots, len(posts))
+	}
+	if stats.MaterializedRoots != stats.Roots {
+		t.Fatalf("materialized root telemetry disagrees with world selection: %+v", stats)
+	}
+}
