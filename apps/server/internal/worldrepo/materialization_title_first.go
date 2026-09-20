@@ -93,9 +93,12 @@ func titleFirstReviewDecisionMalformed(reason string) bool {
 // Only the isolated conversation Lab calls this. Candidate wording is generated
 // first. Era routing is cheap; expensive historical research runs only after the
 // persona/slot matcher has tentatively selected a candidate for an actual post.
-func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (result map[string]developmentSparseSituation, err error) {
+func (r *Repository) developmentPlanTitleFirst(host world.Host, window []developmentWindowShell, personas []world.Persona) (map[string]developmentSparseSituation, error) {
 	stateValue, _ := developmentTitleFirst.Load(r)
-	state := stateValue.(*developmentTitleFirstState)
+	return r.developmentPlanTitleFirstWithState(host, window, personas, stateValue.(*developmentTitleFirstState))
+}
+
+func (r *Repository) developmentPlanTitleFirstWithState(host world.Host, window []developmentWindowShell, personas []world.Persona, state *developmentTitleFirstState) (result map[string]developmentSparseSituation, err error) {
 	if state.attempted {
 		return state.result, state.err
 	}
