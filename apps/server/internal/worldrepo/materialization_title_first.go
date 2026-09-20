@@ -46,8 +46,9 @@ type DevelopmentTitleFirstTiming struct {
 }
 
 type developmentTitleFirstState struct {
-	history         []world.Post
-	attempted       bool
+	history             []world.Post
+	preserveWorldRoots  bool
+	attempted           bool
 	result          map[string]developmentSparseSituation
 	err             error
 	rows            []DevelopmentTitleCandidate
@@ -195,7 +196,16 @@ func (r *Repository) developmentPlanTitleFirstWithState(host world.Host, window 
 				if jevAdvice.Model != "" {
 					state.timing.JevTitleModel = jevAdvice.Model
 				}
-				boardPlanner = developmentJevTitlePlanner{titles: append([]string(nil), pool.Titles...), advice: jevAdvice}
+				boardPlanner = developmentJevTitlePlanner{
+					titles: append([]string(nil), pool.Titles...),
+					advice: jevAdvice,
+					fitFloor: func() float64 {
+						if state.preserveWorldRoots {
+							return 0
+						}
+						return developmentJevTitleFitThreshold
+					}(),
+				}
 				boardEraValidator = developmentJevTitleEraValidator{
 					advice: jevAdvice,
 					observeOnly: developmentTitleEraObserveOnly(m.Renderer),
