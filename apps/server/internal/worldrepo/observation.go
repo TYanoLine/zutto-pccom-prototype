@@ -17,91 +17,97 @@ type observationJob struct {
 	err  error
 }
 
+func observationBoardKey(hostID, boardID string) string {
+	return hostID + "|" + boardID
+}
+
 // BeginHostObservation is called after a successful CONNECT, never by HostByPhone
-// or directory/catalog reads. It starts header catch-up in the background and is
-// idempotent for concurrent sessions observing the same host.
+// or directory/catalog reads. CONNECT starts independent board-header jobs in the
+// background. A later board read waits only for its own board job, never for
+// unrelated boards on the same host.
 func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board) {
 	if strings.TrimSpace(host.ID) == "" {
 		return
 	}
-
-	r.observationMu.Lock()
-	if existing := r.observationHostJobs[host.ID]; existing != nil {
-		select {
-		case <-existing.done:
-			// Successful completion remains the process-local observed marker.
-			// A completed failure is replaceable by a later CONNECT/read.
-			if existing.err == nil {
-				r.observationMu.Unlock()
-				return
-			}
-			delete(r.observationHostJobs, host.ID)
-		default:
-			r.observationMu.Unlock()
-			return
-		}
-	}
-	job := &observationJob{done: make(chan struct{})}
-	r.observationHostJobs[host.ID] = job
-	r.observationMu.Unlock()
-
-	boardCopy := append([]world.Board(nil), boards...)
-	go func() {
-		job.err = r.materializeObservedHostHeaders(host, boardCopy)
-		// Keep a failed job addressable until its current waiters have observed
-		// the error. BeginHostObservation may replace it on a later attempt.
-		close(job.done)
-	}()
-}
-
-func (r *Repository) materializeObservedHostHeaders(host world.Host, boards []world.Board) error {
-	// Existing canonical posts mean this prototype host has already been observed.
-	// We do not manufacture missing boards on a later process-local observation,
-	// because silence/absence may itself be part of the stored world history.
-	if len(r.Base.ListPosts(host.ID)) > 0 {
-		return nil
-	}
-
-	// The development observation host has a host-wide title-first planner. Run it
-	// once here so CONNECT, rather than the first board-index request, becomes the
-	// observation trigger. No article bodies are rendered in this phase.
-	if host.SoftwareID == "materialization-demo" && developmentConversationViewPoCEnabled(r) {
-		_, _ = r.materializeConversationWorldWindow(host)
-		return nil
-	}
-
-	// Other runtimes retain their own board topology. The host program supplies
-	// the catalog; the repository only fills content for those already-known boards.
 	seen := map[string]bool{}
 	for _, board := range boards {
-		if board.ID == "" || seen[board.ID] {
+		if strings.TrimSpace(board.ID) == "" || seen[board.ID] {
 			continue
 		}
 		seen[board.ID] = true
-		if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
-			continue
+		r.beginBoardObservation(host, board)
+	}
+}
+
+func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *observationJob {
+	key := observationBoardKey(host.ID, board.ID)
+
+	r.observationMu.Lock()
+	if existing := r.observationBoardJobs[key]; existing != nil {
+		select {
+		case <-existing.done:
+			if existing.err == nil {
+				r.observationMu.Unlock()
+				return existing
+			}
+			delete(r.observationBoardJobs, key)
+		default:
+			r.observationMu.Unlock()
+			return existing
 		}
-		if err := r.ensureBoard(host, board.ID, board.Name); err != nil {
-			return fmt.Errorf("observe host %s board %s: %w", host.ID, board.ID, err)
+	}
+	job := &observationJob{done: make(chan struct{})}
+	r.observationBoardJobs[key] = job
+	r.observationMu.Unlock()
+
+	go func() {
+		job.err = r.materializeObservedBoardHeaders(host, board)
+		// Keep a failed job addressable until current waiters see its error. A
+		// later CONNECT/read may then replace the failed lease and retry.
+		close(job.done)
+	}()
+	return job
+}
+
+func (r *Repository) materializeObservedBoardHeaders(host world.Host, board world.Board) error {
+	if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
+		return nil
+	}
+
+	// The interactive development host uses the board-local title-first planner.
+	// This is deliberately different from the Fresh Lab's host-wide planner:
+	// opening board 2 must not wait for title planning on boards 1, 3, ... 16.
+	if host.SoftwareID == "materialization-demo" && developmentInteractiveTitleFirstEnabled(r) {
+		r.materializeInteractiveConversationBoardWindow(host, board)
+		if errText := strings.TrimSpace(r.MaterializationPlanningDiagnostic(host.ID, board.ID)); strings.Contains(errText, "planning_error=") {
+			return fmt.Errorf("observe host %s board %s: %s", host.ID, board.ID, errText)
 		}
+		return nil
+	}
+
+	if err := r.ensureBoard(host, board.ID, board.Name); err != nil {
+		return fmt.Errorf("observe host %s board %s: %w", host.ID, board.ID, err)
 	}
 	return nil
 }
 
-// WaitForBoardHeaders blocks only when the CONNECT-triggered host observation is
-// still producing the canonical header set. Callers that bypass CONNECT (tests,
-// tools) safely start a one-board observation on demand.
+// WaitForBoardHeaders waits only for this board's CONNECT-triggered background
+// job. Callers that bypass CONNECT (tests/tools) safely start that one board on
+// demand.
 func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, board world.Board) ([]world.Post, error) {
-	job := r.hostObservationJob(host.ID)
+	if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+		return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
+	}
+
+	job := r.boardObservationJob(host.ID, board.ID)
 	if job == nil {
-		r.BeginHostObservation(host, []world.Board{board})
-		job = r.hostObservationJob(host.ID)
+		job = r.beginBoardObservation(host, board)
 	}
 	if job != nil {
 		select {
 		case <-job.done:
 			if job.err != nil {
-				r.forgetFailedHostObservation(host.ID, job)
+				r.forgetFailedBoardObservation(host.ID, board.ID, job)
 				return nil, job.err
 			}
 		case <-ctx.Done():
@@ -111,17 +117,19 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 	return r.repairDevelopmentPendingReplySubjects(host.ID, filterBoard(r.Base.ListPosts(host.ID), board.ID)), nil
 }
 
-func (r *Repository) hostObservationJob(hostID string) *observationJob {
+func (r *Repository) boardObservationJob(hostID, boardID string) *observationJob {
+	key := observationBoardKey(hostID, boardID)
 	r.observationMu.Lock()
 	defer r.observationMu.Unlock()
-	return r.observationHostJobs[hostID]
+	return r.observationBoardJobs[key]
 }
 
-func (r *Repository) forgetFailedHostObservation(hostID string, job *observationJob) {
+func (r *Repository) forgetFailedBoardObservation(hostID, boardID string, job *observationJob) {
+	key := observationBoardKey(hostID, boardID)
 	r.observationMu.Lock()
 	defer r.observationMu.Unlock()
-	if r.observationHostJobs[hostID] == job && job.err != nil {
-		delete(r.observationHostJobs, hostID)
+	if r.observationBoardJobs[key] == job && job.err != nil {
+		delete(r.observationBoardJobs, key)
 	}
 }
 
@@ -148,10 +156,7 @@ func (r *Repository) WaitForArticleBody(ctx context.Context, host world.Host, bo
 			rootID = selected.ParentID
 		}
 		key := fmt.Sprintf("%s|%s|%d", host.ID, board.ID, rootID)
-		job, started := r.getOrStartBodyObservationJob(key, host, board, postID)
-		if !started {
-			// Another session is already materializing this thread.
-		}
+		job, _ := r.getOrStartBodyObservationJob(key, host, board, postID)
 
 		select {
 		case <-job.done:
