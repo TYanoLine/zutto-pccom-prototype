@@ -36,10 +36,10 @@ const tierLabels:Record<string,string> = {
 };
 
 function us(v:number) {
-  if (v >= 1000) return \`\${(v/1000).toFixed(2)} ms\`;
-  return \`\${v} µs\`;
+  if (v >= 1000) return `${(v/1000).toFixed(2)} ms`;
+  return `${v} µs`;
 }
-function pct(v:number) { return \`\${(v*100).toFixed(1)}%\`; }
+function pct(v:number) { return `${(v*100).toFixed(1)}%`; }
 
 export default function PersonaLabPage() {
   const [data,setData] = useState<Response|null>(null);
@@ -56,9 +56,9 @@ export default function PersonaLabPage() {
     const started = performance.now();
     try {
       const q = new URLSearchParams({count:String(count),seed:String(nextSeed),profile});
-      const res = await fetch(\`/api/persona-lab?\${q}\`, {cache:'no-store'});
+      const res = await fetch(`/api/persona-lab?${q}`, {cache:'no-store'});
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || \`HTTP \${res.status}\`);
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
       setRoundTrip(performance.now()-started);
       setData(json);
       setSeed(nextSeed);
@@ -131,7 +131,7 @@ export default function PersonaLabPage() {
         <h2>人数スケール</h2>
         <div className="benchRows">
           {data.benchmarks.map(b=><div key={b.count} className="benchRow">
-            <b>{b.count}人</b><div className="bar"><i style={{width:\`\${Math.min(100, Math.max(2,b.total_us/(Math.max(...data.benchmarks.map(x=>x.total_us))||1)*100))}%\`}}/></div>
+            <b>{b.count}人</b><div className="bar"><i style={{width:`${Math.min(100, Math.max(2,b.total_us/(Math.max(...data.benchmarks.map(x=>x.total_us))||1)*100))}%`}}/></div>
             <span>{us(b.total_us)}</span><small>{b.per_person_ns.toLocaleString()} ns/人</small>
           </div>)}
         </div>
@@ -140,7 +140,7 @@ export default function PersonaLabPage() {
       <section className="panel quality">
         <h2>品質チェック</h2>
         <div className="checks">
-          {data.run.quality.checks.map(c=><div key={c.name} className={\`check \${c.status}\`}>
+          {data.run.quality.checks.map(c=><div key={c.name} className={`check ${c.status}`}>
             <span>{c.status==='pass'?'PASS':'WARN'}</span><b>{c.name}</b><strong>{c.value}</strong><small>{c.note}</small>
           </div>)}
         </div>
@@ -170,7 +170,7 @@ export default function PersonaLabPage() {
             <td>{p.top_interests.map(x=>interestLabels[x]||x).join(' / ')}<small>{p.style_tags.join('・')}</small></td>
             <td className="number">{p.host_fit.toFixed(3)}</td>
             <td>{p.membership_source}</td>
-            <td><span className={\`tier \${p.detail_tier}\`}>{tierLabels[p.detail_tier]||p.detail_tier}</span></td>
+            <td><span className={`tier ${p.detail_tier}`}>{tierLabels[p.detail_tier]||p.detail_tier}</span></td>
             <td className="summary">{p.profile_summary}</td>
           </tr>)}</tbody>
         </table></div>
@@ -188,6 +188,6 @@ function Distribution({title,values,labels={}}:{title:string;values:Record<strin
   const entries=Object.entries(values||{}).sort((a,b)=>b[1]-a[1]);
   const total=entries.reduce((s,[,n])=>s+n,0)||1;
   return <div className="distribution"><h3>{title}</h3>
-    {entries.map(([k,n])=><div key={k}><span>{labels[k]||k}</span><i><em style={{width:\`\${n/total*100}%\`}}/></i><b>{n}</b></div>)}
+    {entries.map(([k,n])=><div key={k}><span>{labels[k]||k}</span><i><em style={{width:`${n/total*100}%`}}/></i><b>{n}</b></div>)}
   </div>;
 }
