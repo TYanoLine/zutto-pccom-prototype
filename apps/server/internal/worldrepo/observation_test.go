@@ -260,3 +260,78 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 	}
 	close(materializer.release["a"])
 }
+
+
+func TestResetRearmsCompletedBoardObservation(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &blockingObservationMaterializer{}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "main", Name: "フリートーク"}
+
+	repo.BeginHostObservation(host, []world.Board{board})
+	posts, err := repo.WaitForBoardHeaders(context.Background(), host, board)
+	if err != nil || len(posts) != 1 {
+		t.Fatalf("initial observation failed: posts=%+v err=%v", posts, err)
+	}
+	if got := materializer.calls.Load(); got != 1 {
+		t.Fatalf("initial materialization calls=%d", got)
+	}
+
+	cleared, _, ok := repo.ResetMaterializationConversation(host)
+	if !ok || cleared != 1 {
+		t.Fatalf("reset failed: cleared=%d ok=%v", cleared, ok)
+	}
+	if repo.boardObservationJob(host.ID, board.ID) != nil {
+		t.Fatal("completed board observation marker survived reset")
+	}
+
+	posts, err = repo.WaitForBoardHeaders(context.Background(), host, board)
+	if err != nil || len(posts) != 1 {
+		t.Fatalf("post-reset observation failed: posts=%+v err=%v", posts, err)
+	}
+	if got := materializer.calls.Load(); got != 2 {
+		t.Fatalf("reset did not start a fresh observation: calls=%d", got)
+	}
+}
+
+func TestResetRefusesWhileBoardObservationIsRunning(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &blockingObservationMaterializer{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "main", Name: "フリートーク"}
+
+	repo.BeginHostObservation(host, []world.Board{board})
+	select {
+	case <-materializer.started:
+	case <-time.After(time.Second):
+		t.Fatal("observation did not start")
+	}
+	if !repo.MaterializationObservationRunning(host.ID) {
+		t.Fatal("running observation was not reported")
+	}
+	if cleared, facts, ok := repo.ResetMaterializationConversation(host); ok || cleared != 0 || facts != 0 {
+		t.Fatalf("reset should be refused while worker runs: cleared=%d facts=%d ok=%v", cleared, facts, ok)
+	}
+
+	close(materializer.release)
+	if _, err := repo.WaitForBoardHeaders(context.Background(), host, board); err != nil {
+		t.Fatal(err)
+	}
+	if repo.MaterializationObservationRunning(host.ID) {
+		t.Fatal("completed observation still reported running")
+	}
+	if _, _, ok := repo.ResetMaterializationConversation(host); !ok {
+		t.Fatal("reset should succeed after observation completes")
+	}
+}
