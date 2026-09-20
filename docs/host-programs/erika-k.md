@@ -70,6 +70,10 @@ This remains a reconstruction, not a byte-for-byte emulator of vendor binaries.
 Preserve URLs because some sources are community archives and may disappear.
 
 - Surviving 1989/1998 Erika/Erika-K connection-log discussion: https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
+- Tokyo GARAKUTA-KoBo 1996 connection/chat log (preserved third-party archive): https://sixsamana.com/library/lib/D-00078.html
+- Tokyo GARAKUTA-KoBo hidden-board log showing append controls: https://sixsamana.com/library/lib/A-00005.html
+- Tokyo GARAKUTA-KoBo 1993 board log with `APPEND` interaction: https://sixsamana.com/library/lib/B-00032.html
+- Tokyo GARAKUTA-KoBo 1995 board log: https://sixsamana.com/library/lib/A-00025.html
 - Retrospective describing Erika's append/reply model: https://kose3.wordpress.com/2000/07/05/%E7%B5%B5%E7%90%86%E9%A6%99/
 - Binary transfer protocol reference mentioning Erika K / NMODEM context: https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
 
