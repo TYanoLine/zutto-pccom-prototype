@@ -207,7 +207,7 @@ func (l *personaLab) handleStartProfiles(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	count, seed, profile := personaLabParams(r)
-	profileCount := 20
+	profileCount := 100
 	if raw := strings.TrimSpace(r.URL.Query().Get("profile_count")); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil {
 			profileCount = n
