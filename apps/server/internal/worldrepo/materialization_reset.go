@@ -12,6 +12,19 @@ func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCle
 		return 0, 0, false
 	}
 
+	// RESET must invalidate the process-local observation completion markers as
+	// well as canonical posts. Otherwise a completed board job survives the DB
+	// clear and WaitForBoardHeaders immediately returns an empty "stored reuse"
+	// result instead of starting a fresh observation. Do not reset underneath a
+	// still-running observation/body job; that worker could commit stale results
+	// after the clear.
+	r.observationMu.Lock()
+	if r.observationRunningLocked(host.ID) {
+		r.observationMu.Unlock()
+		return 0, 0, false
+	}
+	r.clearCompletedObservationJobsLocked(host.ID)
+
 	personaIDs := make([]string, 0)
 	if personas, supported := r.Base.(world.PersonaStore); supported {
 		for _, persona := range personas.ListHostPersonas(host.ID) {
@@ -20,6 +33,7 @@ func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCle
 	}
 	postsCleared = resetter.ClearHostPosts(host.ID)
 	personaFactsCleared = resetter.ClearPersonaFacts(personaIDs)
+	r.observationMu.Unlock()
 
 	developmentGenerationUsage.Range(func(key, _ any) bool {
 		usageKey, keyOK := key.(generationUsageKey)
