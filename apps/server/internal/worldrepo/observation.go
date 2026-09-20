@@ -202,3 +202,67 @@ func (r *Repository) getOrStartBodyObservationJob(key string, host world.Host, b
 	}()
 	return job, true
 }
+
+
+func (r *Repository) MaterializationObservationRunning(hostID string) bool {
+	r.observationMu.Lock()
+	defer r.observationMu.Unlock()
+	return r.observationRunningLocked(hostID)
+}
+
+func (r *Repository) observationRunningLocked(hostID string) bool {
+	prefix := hostID + "|"
+	for key, job := range r.observationBoardJobs {
+		if !strings.HasPrefix(key, prefix) || job == nil {
+			continue
+		}
+		select {
+		case <-job.done:
+		default:
+			return true
+		}
+	}
+	for key, job := range r.observationBodyJobs {
+		if !strings.HasPrefix(key, prefix) || job == nil {
+			continue
+		}
+		select {
+		case <-job.done:
+		default:
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Repository) clearCompletedObservationJobsLocked(hostID string) {
+	prefix := hostID + "|"
+	for key, job := range r.observationBoardJobs {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		if job == nil {
+			delete(r.observationBoardJobs, key)
+			continue
+		}
+		select {
+		case <-job.done:
+			delete(r.observationBoardJobs, key)
+		default:
+		}
+	}
+	for key, job := range r.observationBodyJobs {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		if job == nil {
+			delete(r.observationBodyJobs, key)
+			continue
+		}
+		select {
+		case <-job.done:
+			delete(r.observationBodyJobs, key)
+		default:
+		}
+	}
+}

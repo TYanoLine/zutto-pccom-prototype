@@ -12,6 +12,10 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
+type materializationResetGuard interface {
+	MaterializationObservationRunning(hostID string) bool
+}
+
 type materializingStore interface {
 	world.Store
 	HostWasMaterialized(hostID string) bool
@@ -477,6 +481,9 @@ func (r *Runtime) resetConversation() string {
 	s, ok := r.Store.(materializingStore)
 	if !ok {
 		return "\r\n[DEV] RESET STORE UNAVAILABLE\r\nDEV> "
+	}
+	if guard, guarded := r.Store.(materializationResetGuard); guarded && guard.MaterializationObservationRunning(r.Host.ID) {
+		return "\r\n[DEV] RESET BLOCKED : CONNECT/board observation is still running.\r\n[DEV] Header catch-up must finish before reset so an old worker cannot repopulate cleared posts.\r\n少し待ってから RESET をもう一度実行してください。\r\n\r\nDEV> "
 	}
 	posts, facts, ok := s.ResetMaterializationConversation(r.Host)
 	if !ok {
