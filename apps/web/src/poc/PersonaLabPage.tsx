@@ -79,7 +79,7 @@ export default function PersonaLabPage() {
   const [loading,setLoading] = useState(false);
   const [error,setError] = useState('');
   const [roundTrip,setRoundTrip] = useState(0);
-  const [profileCount,setProfileCount] = useState(20);
+  const [profileCount,setProfileCount] = useState(100);
   const [profileJob,setProfileJob] = useState<ProfileJob|null>(null);
   const [profileError,setProfileError] = useState('');
   const [profileStarting,setProfileStarting] = useState(false);
