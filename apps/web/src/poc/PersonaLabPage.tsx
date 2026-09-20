@@ -41,7 +41,8 @@ type ProfileSummary = {
   llm_calls:number; llm_duration_ms:number; llm_input_tokens:number; llm_output_tokens:number; llm_total_tokens:number;
   jev_calls:number; jev_duration_ms:number; jev_input_tokens:number; jev_errors:number; future_flagged:number;
   external_review_flagged:number; max_future_probability:number; max_external_review_probability:number;
-  unique_hook_ratio:number; unique_trait_signature_ratio:number; max_profile_similarity:number; avg_nearest_profile_similarity:number;
+  unique_hook_ratio:number; unique_trait_signature_ratio:number; handle_opening_ratio:number;
+  max_profile_similarity:number; avg_nearest_profile_similarity:number;
   total_duration_ms:number; profiles_per_second:number;
 };
 type ProfileJob = {
@@ -235,6 +236,7 @@ export default function PersonaLabPage() {
             <div><span>REVIEW FLAGS</span><strong>{profileJob.summary?.external_review_flagged||0}</strong><small>max {probability(profileJob.summary?.max_external_review_probability||0)}</small></div>
             <div><span>HOOK UNIQUE</span><strong>{pct(profileJob.summary?.unique_hook_ratio||0)}</strong><small>固有フック完全一致を検出</small></div>
             <div><span>TRAIT UNIQUE</span><strong>{pct(profileJob.summary?.unique_trait_signature_ratio||0)}</strong><small>性格+対人+投稿癖 signature</small></div>
+            <div><span>HANDLE OPENING</span><strong>{pct(profileJob.summary?.handle_opening_ratio||0)}</strong><small>「HANDLEは〜」型の書き出し</small></div>
             <div><span>TEXT NEAREST</span><strong>{pct(profileJob.summary?.avg_nearest_profile_similarity||0)}</strong><small>3文字gram / max {pct(profileJob.summary?.max_profile_similarity||0)}</small></div>
           </div>
           {profileJob.error && <div className="error">{profileJob.error}</div>}
