@@ -398,6 +398,7 @@ func main() {
 	mux.HandleFunc("/api/debug/article-worker-ab", newArticleWorkerABHandler(runtimeStore, openAIMaterializer, geminiRenderer, cfg.GeminiKey != ""))
 	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
 	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
+	mux.HandleFunc("/api/debug/persona-timeline", newPersonaTimelinePocHandler())
 	mux.HandleFunc("/api/debug/world", inspectWorld)
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)
