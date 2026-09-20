@@ -94,6 +94,7 @@ func main() {
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
 	materializationLab.freshArchive = freshArchive
 	personaLab := newPersonaLab(openAIRenderer, personaAdvisor, cfg.WorldDate, cfg.OpenAIKey != "")
+	personaHistoryLab := newPersonaHistoryLab(openAIRenderer, cfg.WorldDate, cfg.OpenAIKey != "")
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -399,6 +400,8 @@ func main() {
 	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
 	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
 	mux.HandleFunc("/api/debug/persona-timeline", newPersonaTimelinePocHandler())
+	mux.HandleFunc("/api/debug/persona-history", personaHistoryLab.handler())
+	mux.HandleFunc("/poc/persona-history", newPersonaHistoryPocViewerHandler())
 	mux.HandleFunc("/poc/persona-timeline", newPersonaTimelinePocViewerHandler())
 	mux.HandleFunc("/api/debug/world", inspectWorld)
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
