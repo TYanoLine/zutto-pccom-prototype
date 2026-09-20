@@ -86,6 +86,7 @@ type personaProfileBatchResult struct {
 
 type personaProfileResult struct {
 	PersonaID                 string   `json:"persona_id"`
+	AccountID                 string   `json:"account_id"`
 	Handle                    string   `json:"handle"`
 	DetailTier                string   `json:"detail_tier"`
 	Skeleton                  string   `json:"skeleton"`
@@ -352,7 +353,7 @@ func (l *personaLab) runProfiles(id string, targets []personapoc.Identity) {
 		for _, p := range batch {
 			detail := draftByID[p.ID]
 			result := personaProfileResult{
-				PersonaID: p.ID, Handle: p.Handle, DetailTier: p.DetailTier, Skeleton: p.ProfileSummary,
+				PersonaID: p.ID, AccountID: p.AccountID, Handle: p.Handle, DetailTier: p.DetailTier, Skeleton: p.ProfileSummary,
 				DistinctiveHook: detail.DistinctiveHook,
 				CoreTraits: append([]string(nil), detail.CoreTraits...),
 				SocialDynamics: append([]string(nil), detail.SocialDynamics...),
