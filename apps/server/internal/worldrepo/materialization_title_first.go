@@ -199,12 +199,8 @@ func (r *Repository) developmentPlanTitleFirstWithState(host world.Host, window 
 				boardPlanner = developmentJevTitlePlanner{
 					titles: append([]string(nil), pool.Titles...),
 					advice: jevAdvice,
-					fitFloor: func() float64 {
-						if state.preserveWorldRoots {
-							return 0
-						}
-						return developmentJevTitleFitThreshold
-					}(),
+					fitFloor: developmentJevTitleFitThreshold,
+					rankingOnly: state.preserveWorldRoots,
 				}
 				boardEraValidator = developmentJevTitleEraValidator{
 					advice: jevAdvice,
