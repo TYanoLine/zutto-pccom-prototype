@@ -17,6 +17,7 @@ type HostProfile struct {
 
 type Identity struct {
 	ID                 string             `json:"id"`
+	AccountID          string             `json:"account_id"`
 	Handle             string             `json:"handle"`
 	Age                int                `json:"age"`
 	Gender             string             `json:"gender"`
@@ -54,6 +55,7 @@ type Check struct {
 }
 
 type Quality struct {
+	UniqueAccountIDRatio float64        `json:"unique_account_id_ratio"`
 	UniqueHandleRatio    float64        `json:"unique_handle_ratio"`
 	ExactCloneRatio      float64        `json:"exact_clone_ratio"`
 	AverageHostFit       float64        `json:"average_host_fit"`
@@ -72,10 +74,12 @@ type Quality struct {
 }
 
 type Result struct {
-	Seed          int64         `json:"seed"`
-	Count         int           `json:"count"`
-	PoolSize      int           `json:"pool_size"`
-	Profile       HostProfile   `json:"profile"`
+	Seed             int64         `json:"seed"`
+	Count            int           `json:"count"`
+	PoolSize         int           `json:"pool_size"`
+	Profile          HostProfile   `json:"profile"`
+	AccountIDScheme  string        `json:"account_id_scheme"`
+	AccountIDPrefix  string        `json:"account_id_prefix"`
 	Timing        Timing        `json:"timing"`
 	Quality       Quality       `json:"quality"`
 	Personas      []Identity    `json:"personas"`
@@ -145,6 +149,7 @@ func Generate(seed int64, count int, profileID string, includePersonas bool) Res
 
 	selectionStarted := time.Now()
 	selected := selectMembers(rng, pool, count)
+	accountIDPrefix, accountIDScheme := assignAccountIDs(selected, seed)
 	assignDetailTiers(selected)
 	selectionUS := time.Since(selectionStarted).Microseconds()
 
@@ -163,7 +168,8 @@ func Generate(seed int64, count int, profileID string, includePersonas bool) Res
 		personas = nil
 	}
 	return Result{
-		Seed: seed, Count: count, PoolSize: poolSize, Profile: profile, Personas: personas,
+		Seed: seed, Count: count, PoolSize: poolSize, Profile: profile,
+		AccountIDScheme: accountIDScheme, AccountIDPrefix: accountIDPrefix, Personas: personas,
 		Timing: Timing{
 			PoolGenerationUS: poolUS,
 			SelectionUS: selectionUS,
@@ -172,7 +178,7 @@ func Generate(seed int64, count int, profileID string, includePersonas bool) Res
 			TotalUS: time.Since(started).Microseconds(),
 		},
 		Quality: quality,
-		GeneratorNote: "PoC heuristic generator: no LLM/API calls. Host tendency affects membership selection, not base-person creation. Quality checks are implementation diagnostics, not historical validation.",
+		GeneratorNote: "PoC heuristic generator: no LLM/API calls. ID is an internal world key; account_id is a host-local fictional membership ID using a period-inspired station-prefix scheme. Handle shapes and collision variants are based on observed 1990s Japanese BBS conventions, but are not claimed as one host program's exact algorithm.",
 	}
 }
 
@@ -366,6 +372,7 @@ func evaluateQuality(personas []Identity) Quality {
 		q.AgeMin = 0
 		return q
 	}
+	accountIDs := map[string]bool{}
 	handles := map[string]bool{}
 	signatures := map[string]int{}
 	styleSignatures := map[string]bool{}
@@ -374,6 +381,9 @@ func evaluateQuality(personas []Identity) Quality {
 	ageSum := 0
 	wildcards := 0
 	for _, p := range personas {
+		if p.AccountID != "" {
+			accountIDs[strings.ToLower(p.AccountID)] = true
+		}
 		handles[strings.ToLower(p.Handle)] = true
 		q.ActivityDistribution[p.ActivityClass]++
 		q.OccupationDistribution[p.Occupation]++
@@ -404,6 +414,7 @@ func evaluateQuality(personas []Identity) Quality {
 			clones += n - 1
 		}
 	}
+	q.UniqueAccountIDRatio = float64(len(accountIDs)) / float64(len(personas))
 	q.UniqueHandleRatio = float64(len(handles)) / float64(len(personas))
 	q.ExactCloneRatio = float64(clones) / float64(len(personas))
 	q.AverageHostFit = round3(hostFitSum / float64(len(personas)))
@@ -414,7 +425,8 @@ func evaluateQuality(personas []Identity) Quality {
 
 	dominantOccupation := dominantShare(q.OccupationDistribution, len(personas))
 	q.Checks = []Check{
-		{Name: "handle uniqueness", Status: pass(q.UniqueHandleRatio == 1), Value: fmt.Sprintf("%.1f%%", q.UniqueHandleRatio*100), Note: "同一局内でハンドルが衝突していないか"},
+		{Name: "account id uniqueness", Status: pass(q.UniqueAccountIDRatio == 1), Value: fmt.Sprintf("%.1f%%", q.UniqueAccountIDRatio*100), Note: "局内ログインIDが重複していないか"},
+		{Name: "handle uniqueness", Status: pass(q.UniqueHandleRatio == 1), Value: fmt.Sprintf("%.1f%%", q.UniqueHandleRatio*100), Note: "同一局内で表示ハンドルが衝突していないか"},
 		{Name: "exact persona clones", Status: pass(q.ExactCloneRatio <= .08), Value: fmt.Sprintf("%.1f%%", q.ExactCloneRatio*100), Note: "職業・興味・活動・文体タグが完全一致する比率"},
 		{Name: "occupation diversity", Status: pass(q.OccupationKinds >= minInt(8, maxInt(3, len(personas)/20))), Value: fmt.Sprintf("%d kinds", q.OccupationKinds), Note: "単一職業への偏りを避ける"},
 		{Name: "dominant occupation", Status: pass(dominantOccupation <= .38), Value: fmt.Sprintf("%.1f%%", dominantOccupation*100), Note: "最大職業カテゴリの占有率"},
@@ -541,31 +553,134 @@ func makeStyleTags(formal, verbose, emoticon, quote float64) []string {
 	return tags
 }
 
-func uniqueHandle(rng *rand.Rand, used map[string]int) string {
-	roman := []string{"AKI", "AYA", "EMI", "HIDE", "HIRO", "JUN", "KAZU", "KEN", "KOJI", "MAKO", "MARI", "MASA", "MIKI", "NAO", "NORI", "REI", "RYO", "SHIN", "TAKA", "TOMO", "YUKI", "YUJI"}
-	kana := []string{"あき", "うさぎ", "かえる", "くま", "たぬき", "ねこ", "ひろ", "ぽち", "まる", "みかん", "もも", "りん"}
-	stems := []string{"COM", "N88", "PC", "RX", "V30", "X68", "98"}
-	var base string
+func assignAccountIDs(personas []Identity, seed int64) (string, string) {
+	if len(personas) == 0 {
+		return "", "grassroots-prefix"
+	}
+	// Persona Lab has no concrete host identity yet, so it uses a synthetic
+	// three-letter station code. Production membership IDs should derive this
+	// namespace from the host itself, not from the person.
+	rng := rand.New(rand.NewSource(seed ^ int64(0x5a17c0de)))
+	prefix := syntheticStationCode(rng)
+	width := 4
+	scheme := "grassroots-prefix-3+4"
+	if rng.Float64() < .22 {
+		width = 5
+		scheme = "grassroots-prefix-3+5"
+	}
+
+	// Real local BBS member lists commonly have gaps because of reserved IDs,
+	// deleted members, and time. Draw without replacement instead of assigning
+	// the displayed list 0001, 0002, 0003... in output order.
+	span := int(math.Ceil(float64(len(personas))*1.35)) + 8
+	if span < len(personas)+8 {
+		span = len(personas) + 8
+	}
+	maxForWidth := 1
+	for i := 0; i < width; i++ {
+		maxForWidth *= 10
+	}
+	maxForWidth--
+	if span > maxForWidth {
+		span = maxForWidth
+	}
+	numbers := rng.Perm(span)
+	for i := range personas {
+		personas[i].AccountID = fmt.Sprintf("%s%0*d", prefix, width, numbers[i]+1)
+	}
+	return prefix, scheme
+}
+
+func syntheticStationCode(rng *rand.Rand) string {
+	const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	reserved := map[string]bool{
+		"CAN": true, "MMN": true, "NAT": true, "NIF": true, "PCV": true,
+		"SYS": true, "NEW": true,
+	}
+	for {
+		code := string([]byte{
+			letters[rng.Intn(len(letters))],
+			letters[rng.Intn(len(letters))],
+			letters[rng.Intn(len(letters))],
+		})
+		if !reserved[code] {
+			return code
+		}
+	}
+}
+
+var (
+	handleRoman = []string{"AKI", "AYA", "EMI", "HIDE", "HIRO", "JUN", "KAZU", "KEN", "KOJI", "MAKO", "MARI", "MASA", "MIKI", "NAO", "NORI", "REI", "RYO", "SHIN", "TAKA", "TOMO", "YUKI", "YUJI"}
+	handleKana  = []string{"あき", "うさぎ", "かえる", "くま", "たぬき", "ねこ", "ひろ", "ぽち", "まる", "みかん", "もも", "りん"}
+	handleKanji = []string{"紫苑", "千里", "弥生", "小鉄", "夕凪", "流星", "北斗", "銀次", "紅葉", "雪兎"}
+	handleWord  = []string{"MINT", "WOLF", "RABBIT", "JOKER", "NOVA", "LUNA", "MARU", "KERO"}
+	handleTech  = []string{"COM", "N88", "PC", "RX", "V30", "X68", "98"}
+)
+
+func randomHandleBase(rng *rand.Rand) string {
 	x := rng.Float64()
 	switch {
-	case x < .64:
-		base = roman[rng.Intn(len(roman))]
-	case x < .86:
-		base = kana[rng.Intn(len(kana))]
+	case x < .54:
+		return handleRoman[rng.Intn(len(handleRoman))]
+	case x < .72:
+		return handleKana[rng.Intn(len(handleKana))]
+	case x < .82:
+		return handleKanji[rng.Intn(len(handleKanji))]
+	case x < .90:
+		return handleWord[rng.Intn(len(handleWord))]
 	default:
-		base = stems[rng.Intn(len(stems))] + "-" + roman[rng.Intn(len(roman))]
+		return handleTech[rng.Intn(len(handleTech))] + "-" + handleRoman[rng.Intn(len(handleRoman))]
 	}
-	variant := base
-	if rng.Float64() < .20 {
-		variant = fmt.Sprintf("%s%d", base, 1+rng.Intn(99))
+}
+
+func uniqueHandle(rng *rand.Rand, used map[string]int) string {
+	for attempt := 0; attempt < 40; attempt++ {
+		base := randomHandleBase(rng)
+		if claimHandle(base, used) {
+			return base
+		}
+		for _, variant := range handleCollisionVariants(rng, base) {
+			if claimHandle(variant, used) {
+				return variant
+			}
+		}
 	}
-	key := strings.ToLower(variant)
-	if used[key] == 0 {
-		used[key] = 1
-		return variant
+	// Extremely large synthetic populations can exhaust the small historically
+	// styled vocabulary above. Keep the final escape hatch unique without making
+	// "-2, -3, -4..." the normal collision behavior.
+	for n := 1; ; n++ {
+		candidate := fmt.Sprintf("USER.%c%03d", 'A'+rune(rng.Intn(26)), n)
+		if claimHandle(candidate, used) {
+			return candidate
+		}
 	}
-	used[key]++
-	return fmt.Sprintf("%s-%d", variant, used[key])
+}
+
+func claimHandle(candidate string, used map[string]int) bool {
+	key := strings.ToLower(strings.TrimSpace(candidate))
+	if key == "" || used[key] != 0 {
+		return false
+	}
+	used[key] = 1
+	return true
+}
+
+func handleCollisionVariants(rng *rand.Rand, base string) []string {
+	initial := string(rune('A' + rng.Intn(26)))
+	tech := handleTech[rng.Intn(len(handleTech))]
+	number := 1 + rng.Intn(99)
+	variants := []string{
+		base + "." + initial,
+		base + "-" + initial,
+		tech + "-" + base,
+		base + "☆",
+		fmt.Sprintf("%s%02d", base, number),
+		randomHandleBase(rng),
+	}
+	rng.Shuffle(len(variants), func(i, j int) {
+		variants[i], variants[j] = variants[j], variants[i]
+	})
+	return variants
 }
 
 func topInterests(m map[string]float64, n int) []string {
