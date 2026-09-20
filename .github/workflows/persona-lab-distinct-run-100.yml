@@ -1,0 +1,63 @@
+name: Persona Lab distinct 100
+
+on:
+  push:
+    branches:
+      - ops/persona-lab-distinct-run-100
+
+jobs:
+  run-persona-lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Run 100-person production experiment
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://zutto-pccom-prototype-liart.vercel.app"
+          START_URL="$BASE/api/persona-lab?action=start-profiles&count=100&seed=19960826&profile=general&profile_count=100"
+          echo "Starting Persona Lab..."
+          curl --fail --silent --show-error --retry 3 -X POST "$START_URL" -o start.json
+          cat start.json
+          JOB_ID="$(jq -r '.id // empty' start.json)"
+          if [ -z "$JOB_ID" ]; then
+            echo "No job id returned"
+            exit 1
+          fi
+          echo "job_id=$JOB_ID"
+          for i in $(seq 1 180); do
+            curl --fail --silent --show-error --retry 3 "$BASE/api/persona-lab?action=profile-status&id=$JOB_ID" -o status.json
+            STATE="$(jq -r '.status // empty' status.json)"
+            DONE="$(jq -r '.progress.completed // 0' status.json)"
+            TOTAL="$(jq -r '.progress.total // 0' status.json)"
+            echo "poll=$i state=$STATE progress=$DONE/$TOTAL"
+            if [ "$STATE" = "completed" ]; then
+              break
+            fi
+            if [ "$STATE" = "failed" ]; then
+              cat status.json
+              exit 1
+            fi
+            sleep 3
+          done
+          STATE="$(jq -r '.status // empty' status.json)"
+          if [ "$STATE" != "completed" ]; then
+            echo "Experiment did not complete"
+            cat status.json
+            exit 1
+          fi
+          echo "=== SUMMARY ==="
+          jq '.summary' status.json
+          echo "=== SAMPLE PERSONAS ==="
+          jq -r '.results[:12][] | [.handle,.distinctive_hook, (.core_traits|join(" / ")), .profile, (.future_probability|tostring), (.external_review_probability|tostring)] | @tsv' status.json
+
+      - name: Upload full result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persona-lab-distinct-100-result
+          path: |
+            start.json
+            status.json
+          if-no-files-found: warn
+          retention-days: 7
