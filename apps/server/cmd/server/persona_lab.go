@@ -437,7 +437,8 @@ func updatePersonaProfileDiversity(summary *personaProfileSummary, results []per
 		hooks[normalizePersonaText(result.DistinctiveHook)] = true
 		signature := strings.Join(result.CoreTraits, "|") + "||" + strings.Join(result.SocialDynamics, "|") + "||" + strings.Join(result.ParticipationHabits, "|")
 		traits[normalizePersonaText(signature)] = true
-		if strings.HasPrefix(strings.TrimSpace(result.Profile), strings.TrimSpace(result.Handle)) {
+		handle := strings.TrimSpace(result.Handle)
+		if handle != "" && strings.HasPrefix(strings.TrimSpace(result.Profile), handle) {
 			handleOpenings++
 		}
 	}
