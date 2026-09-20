@@ -47,7 +47,7 @@ func TestGeneratePersonaProfilesKeepsPresentationBoundary(t *testing.T) {
 	if draft.Usage.Model != "gpt-profile-test" || draft.Usage.TotalTokens != 409 {
 		t.Fatalf("unexpected usage: %+v", draft.Usage)
 	}
-	for _, want := range []string{"WORLD DATE: 1996-08-26", "PRIMARY GOAL — INDIVIDUALITY", "Similar skeletons MUST still become different people", "EXISTING DISTINCTIVE HOOKS TO AVOID", "Never expose internal machine category labels"} {
+	for _, want := range []string{"WORLD DATE: 1996-08-26", "PRIMARY GOAL — INDIVIDUALITY", "Similar skeletons MUST still become different people", "EXISTING DISTINCTIVE HOOKS TO AVOID", "Never expose internal machine category labels", "NEVER with the handle/id", "exact input occupation string"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("prompt missing %q", want)
 		}
@@ -65,5 +65,47 @@ func TestLocalizePersonaInterestsHidesMachineKeys(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("localized interests missing %q: %q", want, joined)
 		}
+	}
+}
+
+
+func TestStripPersonaHandleOpening(t *testing.T) {
+	got := stripPersonaHandleOpening("NORIは、質問されると説明が細かくなる。", "NORI")
+	if got != "質問されると説明が細かくなる。" {
+		t.Fatalf("unexpected stripped profile: %q", got)
+	}
+}
+
+func TestValidatePersonaDraftAgainstSeedRejectsOccupationDrift(t *testing.T) {
+	seed := PersonaProfileSeed{ID: "P00001", Occupation: "販売・サービス業"}
+	draft := PersonaProfileDraft{
+		ID: "P00001",
+		DistinctiveHook: "返事は早いが雑談では引き際が早い",
+		CoreTraits: []string{"実務的", "少しお調子者", "面倒見がよい"},
+		SocialDynamics: []string{"新顔にも気軽に話す", "口論は避ける"},
+		ParticipationHabits: []string{"質問にはすぐ返す", "雑談は長引かせない"},
+		EverydayContext: []string{"週末に長めに接続する"},
+		VoiceNotes: []string{"短い挨拶から入る", "くだけた口調"},
+		Profile: "人と接する仕事の勢いを掲示板にも持ち込む会社員だ。",
+	}
+	if err := validatePersonaDraftAgainstSeed(seed, draft); err == nil {
+		t.Fatal("expected occupation drift error")
+	}
+}
+
+func TestValidatePersonaDraftAgainstSeedRejectsMachineKeyLeak(t *testing.T) {
+	seed := PersonaProfileSeed{ID: "P00001", Occupation: "会社員"}
+	draft := PersonaProfileDraft{
+		ID: "P00001",
+		DistinctiveHook: "gamesの話だけ急に長くなる",
+		CoreTraits: []string{"慎重", "好奇心旺盛", "飽きっぽい"},
+		SocialDynamics: []string{"新顔には丁寧", "常連には軽口"},
+		ParticipationHabits: []string{"質問に返す", "雑談は読むだけの日もある"},
+		EverydayContext: []string{"夜に接続する"},
+		VoiceNotes: []string{"短文", "断定を避ける"},
+		Profile: "質問には丁寧に返す。",
+	}
+	if err := validatePersonaDraftAgainstSeed(seed, draft); err == nil {
+		t.Fatal("expected machine key leak error")
 	}
 }

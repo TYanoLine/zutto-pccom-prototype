@@ -119,6 +119,7 @@ type personaProfileSummary struct {
 	MaxExternalReview      float64 `json:"max_external_review_probability"`
 	UniqueHookRatio        float64 `json:"unique_hook_ratio"`
 	UniqueTraitRatio       float64 `json:"unique_trait_signature_ratio"`
+	HandleOpeningRatio     float64 `json:"handle_opening_ratio"`
 	MaxProfileSimilarity   float64 `json:"max_profile_similarity"`
 	AvgNearestSimilarity   float64 `json:"avg_nearest_profile_similarity"`
 	TotalDurationMS        int64   `json:"total_duration_ms"`
@@ -431,13 +432,19 @@ func updatePersonaProfileDiversity(summary *personaProfileSummary, results []per
 	}
 	hooks := map[string]bool{}
 	traits := map[string]bool{}
+	handleOpenings := 0
 	for _, result := range results {
 		hooks[normalizePersonaText(result.DistinctiveHook)] = true
 		signature := strings.Join(result.CoreTraits, "|") + "||" + strings.Join(result.SocialDynamics, "|") + "||" + strings.Join(result.ParticipationHabits, "|")
 		traits[normalizePersonaText(signature)] = true
+		handle := strings.TrimSpace(result.Handle)
+		if handle != "" && strings.HasPrefix(strings.TrimSpace(result.Profile), handle) {
+			handleOpenings++
+		}
 	}
 	summary.UniqueHookRatio = float64(len(hooks)) / float64(len(results))
 	summary.UniqueTraitRatio = float64(len(traits)) / float64(len(results))
+	summary.HandleOpeningRatio = float64(handleOpenings) / float64(len(results))
 
 	if len(results) < 2 {
 		summary.MaxProfileSimilarity = 0
