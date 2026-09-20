@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -190,7 +191,7 @@ func resolvePersonaTimelinePoc(person personaTimelinePocPerson, rawAt string) (p
 
 	context := []string{
 		"観測日: " + rawAt,
-		"年齢: " + strconvItoa(age) + "歳",
+		"年齢: " + strconv.Itoa(age) + "歳",
 		"現在の所属/職業: " + occupation,
 	}
 	for _, fact := range person.BaselineFacts {
@@ -228,7 +229,3 @@ func timelinePocUntil(value string) string {
 	return value
 }
 
-func strconvItoa(value int) string {
-	// Keep this PoC self-contained without leaking formatting concerns into the model.
-	return fmt.Sprintf("%d", value)
-}
