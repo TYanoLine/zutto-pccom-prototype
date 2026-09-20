@@ -109,3 +109,21 @@ func TestValidatePersonaDraftAgainstSeedRejectsMachineKeyLeak(t *testing.T) {
 		t.Fatal("expected machine key leak error")
 	}
 }
+
+
+func TestValidatePersonaDraftAgainstSeedAllowsSecondaryJobContext(t *testing.T) {
+	seed := PersonaProfileSeed{ID: "P00068", Occupation: "大学生"}
+	draft := PersonaProfileDraft{
+		ID: "P00068",
+		DistinctiveHook: "授業の後は慎重なのにアルバイト帰りだけ急に饒舌になる",
+		CoreTraits: []string{"慎重", "好奇心旺盛", "少し気疲れしやすい"},
+		SocialDynamics: []string{"新顔には距離を取る", "常連には軽口"},
+		ParticipationHabits: []string{"質問に返す", "雑談は読むだけの日もある"},
+		EverydayContext: []string{"授業とアルバイトのある日は遅く接続する"},
+		VoiceNotes: []string{"短文", "断定を避ける"},
+		Profile: "授業の後は静かに読むことが多いが、アルバイト帰りの夜だけは話題へ入りやすい。",
+	}
+	if err := validatePersonaDraftAgainstSeed(seed, draft); err != nil {
+		t.Fatalf("secondary job context should not contradict student occupation: %v", err)
+	}
+}
