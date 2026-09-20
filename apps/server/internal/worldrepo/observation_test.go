@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -182,4 +183,80 @@ func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
 	if got := materializer.calls.Load(); got != 1 {
 		t.Fatalf("body materialization was duplicated: calls=%d", got)
 	}
+}
+
+
+type perBoardObservationMaterializer struct {
+	started chan string
+	release map[string]chan struct{}
+}
+
+func (m *perBoardObservationMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, _ worldengine.EvidenceDecision) ([]world.Post, error) {
+	m.started <- req.BoardID
+	if ch := m.release[req.BoardID]; ch != nil {
+		select {
+		case <-ch:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return []world.Post{{
+		BoardID: req.BoardID, Author: "NPC", Subject: "board " + req.BoardID,
+		Body: "body", CreatedAt: time.Date(1996, 8, 26, 20, 0, 0, 0, time.Local),
+	}}, nil
+}
+
+func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &perBoardObservationMaterializer{
+		started: make(chan string, 2),
+		release: map[string]chan struct{}{
+			"a": make(chan struct{}),
+			"b": make(chan struct{}),
+		},
+	}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boardA := world.Board{ID: "a", Name: "A"}
+	boardB := world.Board{ID: "b", Name: "B"}
+
+	repo.BeginHostObservation(host, []world.Board{boardA, boardB})
+	seen := map[string]bool{}
+	for len(seen) < 2 {
+		select {
+		case id := <-materializer.started:
+			seen[id] = true
+		case <-time.After(time.Second):
+			t.Fatalf("both board jobs did not start independently: %+v", seen)
+		}
+	}
+
+	close(materializer.release["b"])
+	resultCh := make(chan error, 1)
+	go func() {
+		posts, err := repo.WaitForBoardHeaders(context.Background(), host, boardB)
+		if err == nil && (len(posts) != 1 || posts[0].BoardID != "b") {
+			err = fmt.Errorf("unexpected board B posts: %+v", posts)
+		}
+		resultCh <- err
+	}()
+
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("board B waited for unrelated board A")
+	}
+
+	select {
+	case <-materializer.release["a"]:
+		t.Fatal("test setup unexpectedly released board A")
+	default:
+	}
+	close(materializer.release["a"])
 }
