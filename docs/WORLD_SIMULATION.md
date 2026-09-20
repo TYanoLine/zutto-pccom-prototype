@@ -18,7 +18,7 @@ Never silently rewrite an already observed host, persona, relationship, post, or
 
 For the current host-world implementation, **successful CONNECT is the host observation boundary**. Directory/catalog display, phone-number lookup, host metadata creation, and unsuccessful dial attempts do not observe the host and must not create its article history. This deliberately keeps "the host exists" separate from "somebody has entered and observed that host."
 
-After CONNECT, the host-wide header catch-up starts immediately in the background. This is an execution optimization only: it does not make the user's connection the cause of NPC activity. The generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
+After CONNECT, independent board-header catch-up jobs start immediately in the background for the observed host. This is an execution optimization only: it does not make the user's connection the cause of NPC activity. The generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
 
 Do not eagerly update other hosts merely because one host was observed. A directory may contain hundreds or thousands of hosts while only connected hosts pay the expensive catch-up cost.
 
@@ -51,18 +51,18 @@ The current split is:
 
 ```text
 successful CONNECT
- -> begin host header catch-up asynchronously
+ -> begin board-scoped header catch-up jobs asynchronously
 
 board/article index request
- -> headers ready? yes: render immediately
- -> no: wait for the same host observation job, then render
+ -> this board's headers ready? yes: render immediately
+ -> no: wait only for this board's shared observation job, then render
 
 article/thread read
  -> body ready? yes: render immediately
  -> no: start/join the shared thread body job, wait, then render
 ```
 
-Concurrent users join the same host/thread job rather than launching private generation. Article prose remains lazy even after the host headers are observed.
+Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Article prose remains lazy even after the host headers are observed.
 
 `ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
@@ -165,6 +165,10 @@ For the Jev behavior advisor, one bounded host/board window is submitted as stru
 The local simulation remains the majority prior. Jev contributes a bounded minority weight (currently 30% for visit activity and 40% for write/reply topology), after which deterministic quota/ranking and causal gates make the actual action decisions. Jev never creates a root cause, thread, reply target, topic, event, purchase, problem, or other world fact. A valid root cause or reply target is still required before a post exists.
 
 Advisory responses are transient operational inputs, not canonical world state. Jev probabilities are quantized to 0.05 steps before entering deterministic sampling so small provider jitter does not routinely alter retry outcomes. Once a resulting action is materialized, the database remains canonical. A future general production world engine should persist or otherwise version advisor snapshots across retry-sensitive simulation leases if advisory decisions extend beyond this bounded development materialization path.
+
+### World-selected roots are not optional prose candidates
+
+Once the World Engine selects a root-post slot (actor, board, timestamp, action/cause), title-first realization may choose or regenerate wording but must not erase that event merely because a candidate pool or semantic fit pass was poor. Interactive materialization ranks candidate titles, replenishes bounded 20-title pools when necessary, and uses an explicitly generic/date-safe local fallback only after those pools are exhausted. Reply survival therefore depends on canonical topology, not on whether an unrelated title candidate happened to score above a semantic threshold.
 
 ### Title-first semantic advisor
 
