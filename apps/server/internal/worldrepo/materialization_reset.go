@@ -1,6 +1,10 @@
 package worldrepo
 
-import "zutto-pccom/apps/server/internal/world"
+import (
+	"strings"
+
+	"zutto-pccom/apps/server/internal/world"
+)
 
 // ResetMaterializationConversation clears only development conversation history
 // and lazily materialized persona facts. The host profile, board catalog,
@@ -34,6 +38,17 @@ func (r *Repository) ResetMaterializationConversation(host world.Host) (postsCle
 	postsCleared = resetter.ClearHostPosts(host.ID)
 	personaFactsCleared = resetter.ClearPersonaFacts(personaIDs)
 	r.observationMu.Unlock()
+
+	// Generic ensureBoard also keeps a process-local materialized marker. RESET
+	// means "generate again", so invalidate those host/board markers too.
+	r.mu.Lock()
+	prefix := host.ID + "|"
+	for key := range r.materialized {
+		if strings.HasPrefix(key, prefix) {
+			delete(r.materialized, key)
+		}
+	}
+	r.mu.Unlock()
 
 	developmentGenerationUsage.Range(func(key, _ any) bool {
 		usageKey, keyOK := key.(generationUsageKey)
