@@ -33,6 +33,10 @@ SOURCES = [
     ("tcm-top", "T.C.M.network", "grassroots/tcm-network/raw/index.html", "https://tcm.jp/", "station-specific", "html", True),
     ("tcm-guide", "T.C.M.network", "grassroots/tcm-network/raw/guide.html", "https://tcm.jp/member/guide.html", "confirmed-manual", "manual-html", True),
     ("tokyo-bbs-index", "Tokyo BBS", "grassroots/tokyo-bbs/raw/category-320155-1.html", "https://mubou.seesaa.net/category/320155-1.html", "discovery-only", "html", True),
+    ("erikak-garakuta-chat-19960430", "Tokyo GARAKUTA-KoBo", "grassroots/erika-k/tokyo-garakuta/raw/D-00078.html", "https://sixsamana.com/library/lib/D-00078.html", "confirmed-connection-log", "html", True),
+    ("erikak-garakuta-hidden-board-1995", "Tokyo GARAKUTA-KoBo", "grassroots/erika-k/tokyo-garakuta/raw/A-00005.html", "https://sixsamana.com/library/lib/A-00005.html", "confirmed-board-log", "html", True),
+    ("erikak-garakuta-append-board-1993", "Tokyo GARAKUTA-KoBo", "grassroots/erika-k/tokyo-garakuta/raw/B-00032.html", "https://sixsamana.com/library/lib/B-00032.html", "confirmed-board-log", "html", True),
+    ("erikak-garakuta-board-1995", "Tokyo GARAKUTA-KoBo", "grassroots/erika-k/tokyo-garakuta/raw/A-00025.html", "https://sixsamana.com/library/lib/A-00025.html", "confirmed-board-log", "html", True),
     ("jipdec-1986", "JIPDEC", "commercial-reference/jipdec/J0001147.pdf", "https://www.jipdec.or.jp/archives/publications/J0001147.pdf", "confirmed-contemporary-report", "pdf", False),
     ("discovery-hally", "source index", "discovery/source-indexes/hally-20050612.html", "https://hally.hatenadiary.com/entry/20050612/p1", "discovery-only", "index", True),
     ("aaa-top", "AAA", "grassroots/aaa/raw/index.html", "https://www.aaa-int.jp/", "discovery-only", "html", True),
@@ -84,7 +88,7 @@ def allowed(url, cache):
 
 def fetch(item, root, robots, delay):
     sid, network, rel, url, ev, kind, station=item; dest=root/rel
-    base={"source_id":sid,"network_name":network,"host_program":"mmm/MASH" if sid.startswith("mash-") or sid.startswith("midnight-") else "NET-COCK" if sid.startswith("tcm-") else "KTBBS" if sid.startswith("hanzou-") else "unknown","period":"1993-1997-priority" if network not in {"JIPDEC","Yokohama Totsuka BBS"} else "1986" if network=="JIPDEC" else "1985-1987","source_url":url,"retrieved_at":now(),"material_type":kind,"evidence_class":ev,"station_specific":station,"original_filename":Path(urllib.parse.urlsplit(url).path).name or "index.html","rights_notes":"Research preservation; do not redistribute third-party body via GitHub.","pii_risk":"high" if kind=="bbs-log" else "medium" if network not in {"JIPDEC","Vector"} else "low","notes":""}
+    base={"source_id":sid,"network_name":network,"host_program":"絵理香K版" if sid.startswith("erikak-") else "mmm/MASH" if sid.startswith("mash-") or sid.startswith("midnight-") else "NET-COCK" if sid.startswith("tcm-") else "KTBBS" if sid.startswith("hanzou-") else "unknown","period":"1993-1997-priority" if network not in {"JIPDEC","Yokohama Totsuka BBS"} else "1986" if network=="JIPDEC" else "1985-1987","source_url":url,"retrieved_at":now(),"material_type":kind,"evidence_class":ev,"station_specific":station,"original_filename":Path(urllib.parse.urlsplit(url).path).name or "index.html","rights_notes":"Research preservation; do not redistribute third-party body via GitHub.","pii_risk":"high" if kind=="bbs-log" or sid.startswith("erikak-") else "medium" if network not in {"JIPDEC","Vector"} else "low","notes":""}
     if not allowed(url, robots): return {**base,"status":"skipped-robots","notes":"robots.txt disallows this URL"}
     req=urllib.request.Request(url, headers={"User-Agent":UA,"Accept":"*/*"})
     try:
