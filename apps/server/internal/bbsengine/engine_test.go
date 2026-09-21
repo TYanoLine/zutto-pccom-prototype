@@ -70,6 +70,9 @@ func TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime(t *testing.T) {
 		if post.Intent.Action != ActionWorldCatchup {
 			continue
 		}
+		if post.Body != "" {
+			t.Fatalf("header catch-up eagerly rendered body for post %d", post.ID)
+		}
 		generated++
 		if post.Body != "" {
 			t.Fatalf("header catch-up eagerly materialized body for post %d", post.ID)
