@@ -116,6 +116,31 @@ Source:
 
 復元実装では、これらを runtime command ではなく station configuration として保持する。
 
+### アカウント種別・権限によるメニュー差
+
+**Confirmed:** GUESTと一般利用者で、利用可能範囲または表示項目に差がある。
+
+- くにびきNETの `絵理香K版 Ver1.93` ログでは、ボードメニューに `GUEST:１番～４番利用可` と明示され、GUESTのボード利用範囲が制限されている。
+- 東京がらくた工房のGUESTログでは、メインメニューに `入会申込み －GUESTのみ－` が表示される。
+
+**Firsthand recollection:** GUEST、一般ユーザー、SYSOP等で選択可能なメニューに差があった。
+
+**Partially confirmed / unresolved:** SYSOP / Forum.OP / SIGOP等の管理者権限が存在したことを示すログ断片はあるが、一般ユーザーとSYSOPの同一画面・同一バージョンを比較した完全なメニュー差分はまだ未取得。
+
+復元実装では、以下を分離して扱う:
+
+- account class: GUEST / MEMBER / operator roles
+- feature visibility: メニューに表示するか
+- command authorization: コマンド自体を実行可能か
+- board/file access ACL: ボードやファイルコーナー単位の利用可否
+- moderation capability: 削除等の管理操作
+
+「表示されない」と「表示されるが実行拒否される」は別仕様として扱い、実ログで確認する。
+
+Sources:
+- https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
+- https://sixsamana.com/library/lib/D-00078.html
+
 ### メインメニュー
 
 **Confirmed / single station (東京がらくた工房, 1996)**
