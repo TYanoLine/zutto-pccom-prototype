@@ -48,6 +48,16 @@ The following are service fiction unless separately sourced:
 
 These are intentionally allowed to vary per station while preserving the host software's interaction grammar.
 
+## Station configuration model
+
+The reconstruction separates station-wide capability switches from user permissions.
+
+`station master -> account/role permission -> resource/state ACL`
+
+A station can disable entire services regardless of user role. Transfer protocols are independently switchable and default to all enabled. The reconstruction currently supports modern JSON configuration rather than attempting to guess the historical Erika-K config syntax.
+
+See `apps/server/config/erika-k.example.json`.
+
 ## Current implementation direction
 
 `apps/server/internal/hostprogram/erikak/` owns the Erika K state machine. Do not fold it back into a generic profile-driven runtime.
