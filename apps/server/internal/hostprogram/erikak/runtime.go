@@ -65,6 +65,10 @@ type Runtime struct {
 	subject   string
 }
 
+type debugBBSResetStore interface {
+	ResetBBSGeneratedArticles(host world.Host) (removed int, kept int, ok bool)
+}
+
 func New(host world.Host, store world.Store) *Runtime {
 	return &Runtime{Host: host, Store: store, state: "login_id", handle: "GUEST"}
 }
@@ -245,6 +249,15 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 		return r.renderModeMenu(), false
 	case "7":
 		return "\r\nSYSOP宛メール\r\n現在prototypeのため閲覧のみです。\r\n\r\nMAIN MENU --> ", false
+	case "99":
+		if resetter, ok := r.Store.(debugBBSResetStore); ok {
+			removed, kept, resetOK := resetter.ResetBBSGeneratedArticles(r.Host)
+			if resetOK {
+				return fmt.Sprintf("\r\n[DEBUG] BBS GENERATED HISTORY RESET\r\nremoved=%d kept=%d\r\n\r\nNO CARRIER\r\n", removed, kept), true
+			}
+			return "\r\n[DEBUG] RESET BUSY/UNAVAILABLE\r\n\r\nNO CARRIER\r\n", true
+		}
+		return "\r\n[DEBUG] RESET STORE UNAVAILABLE\r\n\r\nNO CARRIER\r\n", true
 	case "9", "BYE", "QUIT", "GOODBYE":
 		return "\r\nご利用ありがとうございました。\r\nまた HAKATA CANAL NET でお会いしましょう。\r\n", true
 	case "0":
