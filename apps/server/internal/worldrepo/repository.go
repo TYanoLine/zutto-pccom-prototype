@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -36,6 +37,7 @@ type Repository struct {
 	Materializer Materializer
 	WorldDate    string
 	worldNow     func() time.Time
+	bbsArticles  *bbsengine.Engine
 
 	mu                     sync.Mutex
 	materialized           map[string]bool
@@ -49,7 +51,7 @@ type Repository struct {
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
-	return &Repository{
+	r := &Repository{
 		Base:                   base,
 		Engine:                 engine,
 		Materializer:           materializer,
@@ -62,6 +64,8 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		observationBoardJobs:    map[string]*observationJob{},
 		observationBodyJobs:     map[string]*observationJob{},
 	}
+	r.bbsArticles = bbsengine.New(base, repositoryBBSBatchPlanner{repo: r}, r.currentWorldTime)
+	return r
 }
 
 // SetWorldNow supplies the mapped 1996 world clock used by background
@@ -70,6 +74,9 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 func (r *Repository) SetWorldNow(now func() time.Time) {
 	if now != nil {
 		r.worldNow = now
+		if r.bbsArticles != nil {
+			r.bbsArticles.Now = r.currentWorldTime
+		}
 	}
 }
 
