@@ -4,7 +4,7 @@ Each historical BBS package is modeled as its own runtime/state machine. These d
 
 Planned/active families:
 
-- TurboBBS / Turbo BBS (Robert H. Maxwell) — `turbo-bbs.md`; detailed source reconstruction — `turbo-bbs-source-notes.md`
+- TurboBBS / Turbo BBS (Robert H. Maxwell) — `turbo-bbs.md`; source reconstruction — `turbo-bbs-source-notes.md`; caller-visible/menu assets — `turbo-bbs-ui-assets.md`
 - KTBBS / KT-BBS — `ktbbs.md`
 - BIG-Model — `big-model.md`
 - 絵理香K版 — `erika-k.md`
