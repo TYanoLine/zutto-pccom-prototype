@@ -95,8 +95,30 @@ def describe(label, posts):
     assert len(normalized) == len(set(normalized)), normalized
 
 
+async def connect_ws():
+    last = None
+    for attempt in range(1, 13):
+        try:
+            # Warm the service path first; Render's edge can briefly return 520
+            # immediately after deploy even while the service status is live.
+            with urllib.request.urlopen(HTTP + "/health", timeout=20) as r:
+                print(f"health attempt {attempt}: {r.status}")
+            return await websockets.connect(
+                WS,
+                open_timeout=20,
+                close_timeout=10,
+                origin="https://zutto-pccom-prototype-liart.vercel.app",
+            )
+        except Exception as exc:
+            last = exc
+            print(f"websocket attempt {attempt} failed: {type(exc).__name__}: {exc}")
+            await asyncio.sleep(5)
+    raise last
+
+
 async def main():
-    async with websockets.connect(WS, open_timeout=20, close_timeout=10) as ws:
+    ws = await connect_ws()
+    try:
         await dial(ws)
 
         # CONNECT itself must clear the previous generated sample.
@@ -125,6 +147,8 @@ async def main():
 
         await ws.send(json.dumps({"type": "hangup"}))
         await recv_type(ws, "carrier", 20)
+    finally:
+        await ws.close()
 
     print("PRODUCTION_SMOKE_OK")
 
