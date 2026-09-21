@@ -6,6 +6,18 @@ Treat KTBBS as an independent host program, not a UI profile. Before implementin
 
 Do not use behavior from the current generic prototype as historical evidence.
 
+## Lineage
+
+### Confirmed
+
+Vector's surviving KTBBS user manual explicitly expands KTBBS as **KPUC版 Turbo BBS** and says it was initially developed by 久喜PCユーザーズクラブ for its own station, then generally released after repeated version upgrades and adopted by many BBSs.
+
+Robert H. Maxwell's 1985 TurboBBS is the upstream package documented in `turbo-bbs.md`.
+
+A later KTBBS user retrospective also describes KTBBS as a modification of the freeware Turbo-BBS. Treat that retrospective as supporting evidence, not a substitute for comparing the surviving KTBBS source with the original TurboBBS source.
+
+Do not copy behavior from original TurboBBS or RT-BBS merely because they share ancestry. Exact inherited/changed commands, records and state transitions require source-level verification.
+
 ## Account ID / handle research
 
 Current confirmed findings:
@@ -36,9 +48,11 @@ docs/research/ACCOUNT_ID_HANDLE_EVIDENCE.md
 
 Sources:
 
+- https://mirrors.archeobits.com/bbs/software.bbsdocumentary.com/expanded.html
 - https://lavenderblue.jp/chair/candic/candic07.html
 - https://lavenderblue.jp/chair/candic/candic10r.html
 - https://lavenderblue.jp/chair/candic/candicff.html
 - https://www.vector.co.jp/vpack/filearea/dos/net/comm/host/ktbbs/by_date.html
 - https://www.vector.co.jp/soft/dos/net/se009531.html
 - https://www.vector.co.jp/soft/dos/net/se009515.html
+- `turbo-bbs.md`
