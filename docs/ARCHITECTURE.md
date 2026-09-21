@@ -234,6 +234,23 @@ Recommended order for prompt-cache friendliness:
 
 Do not send all historical logs. Retrieve only relevant facts and summarize old history.
 
+## Temporary HAKATA generator evaluation mode
+
+While the shared BBS article generator is being evaluated, the fixed experiment
+station `0920000196` deliberately does not preserve generated article samples
+across calls. On every successful CONNECT the server removes only shared-engine
+generated posts (seed/user history and host configuration remain), clears the
+completed observation leases, and enables immediate first-observation generation.
+
+For that connection, the first visit to each leaf board may therefore materialize
+one fresh multi-post batch even when the normal six-hour world-time cadence has
+not elapsed. Revisiting the same board in the same call reuses that generated
+batch. This is a temporary quality-evaluation override, not the intended
+persistent-world production behavior.
+
+The former hidden bare `99` reset command has been removed; `BJ 99` continues
+to mean the station-specific hidden board.
+
 ## Current prototype shortcuts
 
 Current code intentionally still has shortcuts, including:
