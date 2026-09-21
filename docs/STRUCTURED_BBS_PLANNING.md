@@ -138,6 +138,20 @@ The fresh `topic-first` experiment selects researched targets before Situation p
 
 Root subjects are generated as the text that the selected actor would actually type into the historical BBS subject field, rather than as a modern headline or article-summary task.
 
+For the shared production batch path, a standalone root must first receive a
+**concrete canonical matter**: the actual object/event/question/update the actor
+is posting about. A broad board label such as `game`, `software`, `recent
+things`, or an unnamed `this stage` is not enough by itself. The planner also
+selects a short literal `subject_anchor` from that matter; the root subject must
+preserve that anchor verbatim. This keeps terseness and historical subject-field
+style while preventing semantic specificity from disappearing between world
+planning and title wording. Replies may rely on their parent subject and do not
+need a new anchor.
+
+The same header pass commits semantic state but not the article body. The body
+worker receives the canonical subject, concrete matter, claims and other intent
+fields later, when the article is actually read.
+
 The production structured planner includes a compact calibration derived from preserved Japanese PC-communication subject-line corpora. The evidence shows that subject fields can be terse, fragmentary, person-directed, context-dependent, declarative, announcement-like, playful, or interrogative. Questions are therefore not the default form, and subjects do not need to summarize the body or make sense to an outsider without board context.
 
 This calibration is deliberately **not** a subject template bank or percentage distribution. The planner does not rotate through title categories, copy historical strings, or assign a fixed numeric subject-style vector to every persona. It uses the already-selected causal event, the actor, prior board history, and existing persona behavior, while checking a batch for accidental convergence on the same rhetorical construction.
