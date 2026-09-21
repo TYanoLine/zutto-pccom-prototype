@@ -1,0 +1,29 @@
+{
+  "features": {
+    "board": true,
+    "file": true,
+    "mail": true,
+    "telegram_chat": true,
+    "junk": true,
+    "settings": true,
+    "sysop_mail": true,
+    "enrollment": true,
+    "auto_run": true,
+    "board_map": true,
+    "unread_search": true,
+    "access_log": true,
+    "batch_download": true,
+    "member_list": true,
+    "profile": true
+  },
+  "transfer_protocols": {
+    "raw": true,
+    "xmodem": true,
+    "xmodem_crc": true,
+    "xmodem_1k": true,
+    "ymodem": true,
+    "ymodem_g": true,
+    "zmodem": true,
+    "nmodem": true
+  }
+}
