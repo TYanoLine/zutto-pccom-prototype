@@ -515,6 +515,17 @@ func (r *Runtime) handleFile(line string) (string, bool) {
 		r.state = "file_protocol"
 		return r.renderTransferProtocolMenu(), false
 	}
+	if upper == "BAT" {
+		if !r.canUseFeature(FeatureBatchDownload) {
+			return r.protocolUnavailable() + r.filePrompt(), false
+		}
+		return "
+〖バッチダウン〗 BAT
+登録済みファイルをまとめて転送します。
+（バッチキュー実装はprototypeでは未実装）
+
+" + r.filePrompt(), false
+	}
 	if p, ok := findTransferProtocol(line); ok {
 		if !r.Config.ProtocolEnabled(p.ID) {
 			return r.protocolUnavailable() + r.filePrompt(), false
