@@ -188,6 +188,14 @@ func (s *Store) ClearHostPosts(hostID string) int {
 	return count
 }
 
+func (s *Store) ReplaceHostPosts(hostID string, posts []world.Post) int {
+	removed := s.MemoryStore.ReplaceHostPosts(hostID, posts)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTarget(target)
+	}
+	return removed
+}
+
 func (s *Store) SaveBoards(hostID string, boards []world.Board) {
 	s.MemoryStore.SaveBoards(hostID, boards)
 	if target, ok := s.targets[hostID]; ok {
