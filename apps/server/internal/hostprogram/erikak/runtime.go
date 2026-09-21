@@ -70,9 +70,12 @@ func New(host world.Host, store world.Store) *Runtime {
 }
 
 func (r *Runtime) ObservationBoards() []world.Board {
+	// Existing board headers are immediately usable and must never trigger
+	// observation/LLM work merely because the caller connected. Only genuinely
+	// empty boards are offered to the background observation coordinator.
 	out := make([]world.Board, 0)
 	for _, node := range boardTree {
-		if r.isForum(node.Path) {
+		if r.isForum(node.Path) || len(r.cachedBoardPosts(node.Path)) > 0 {
 			continue
 		}
 		out = append(out, world.Board{ID: node.Path, Name: node.Name})
@@ -80,16 +83,9 @@ func (r *Runtime) ObservationBoards() []world.Board {
 	return out
 }
 
-func (r *Runtime) observedBoardPosts(path string) []world.Post {
-	node, ok := findNode(path)
-	if !ok {
+func (r *Runtime) cachedBoardPosts(path string) []world.Post {
+	if _, ok := findNode(path); !ok {
 		return nil
-	}
-	board := world.Board{ID: path, Name: node.Name}
-	if observer, ok := r.Store.(world.HostObservationStore); ok {
-		if posts, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board); err == nil {
-			return posts
-		}
 	}
 	out := make([]world.Post, 0)
 	for _, post := range r.Store.ListPosts(r.Host.ID) {
@@ -98,6 +94,13 @@ func (r *Runtime) observedBoardPosts(path string) []world.Post {
 		}
 	}
 	return out
+}
+
+// observedBoardPosts deliberately means "already committed/available" for the
+// historical runtime. Board catalog/index navigation must not wait on LLM work.
+// Article body rendering has its own explicit WaitForArticleBody barrier.
+func (r *Runtime) observedBoardPosts(path string) []world.Post {
+	return r.cachedBoardPosts(path)
 }
 
 func (r *Runtime) Welcome() string {

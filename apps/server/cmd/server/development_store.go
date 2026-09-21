@@ -86,6 +86,15 @@ func newRuntimeStore(databaseURL string) debugExportStore {
 	if err != nil {
 		log.Fatalf("initialize experiment host persistence: %v", err)
 	}
+	// Older persisted HAKATA snapshots may predate the richer code-defined
+	// header baseline. Preserve persisted/generated/user state and only add
+	// missing provisional root headers.
+	if added := store.EnsureErikaKSeedBoardHeaders(erikaKExperimentPhone); added > 0 {
+		if host, hostErr := store.HostByPhone(erikaKExperimentPhone); hostErr == nil {
+			store.SaveHost(host)
+		}
+		log.Printf("HAKATA CANAL NET snapshot baseline upgraded: added_headers=%d", added)
+	}
 	ensureDevelopmentBoardCatalog(store)
 	status := store.DevelopmentPersistenceStatus()
 	log.Printf("experiment host persistence ready: backend=%s restored=%t targets=%d", status.Backend, status.Loaded, len(developmentSnapshotTargets))
