@@ -70,17 +70,10 @@ func New(host world.Host, store world.Store) *Runtime {
 }
 
 func (r *Runtime) ObservationBoards() []world.Board {
-	// Existing board headers are immediately usable and must never trigger
-	// observation/LLM work merely because the caller connected. Only genuinely
-	// empty boards are offered to the background observation coordinator.
-	out := make([]world.Board, 0)
-	for _, node := range boardTree {
-		if r.isForum(node.Path) || len(r.cachedBoardPosts(node.Path)) > 0 {
-			continue
-		}
-		out = append(out, world.Board{ID: node.Path, Name: node.Name})
-	}
-	return out
+	// HAKATA's current debug fixture starts with no article seed. Do not fan out
+	// generation across every empty leaf board merely because CONNECT succeeded;
+	// entering a leaf board is the demand/materialization signal.
+	return nil
 }
 
 func (r *Runtime) cachedBoardPosts(path string) []world.Post {
