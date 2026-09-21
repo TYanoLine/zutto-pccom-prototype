@@ -454,3 +454,19 @@ For a 1996 Japanese world, TurboBBS should remain primarily a lineage/ancestor r
 - provenance/version history that identifies exactly where each `*.pas` and `*.inc` variant came from;
 - pristine 1.05 source for a byte-level comparison with the 1.05 manual;
 - KTBBS source comparison to identify retained TurboBBS records/input semantics versus later redesigns.
+
+
+## Cross-check against later caller-visible help assets
+
+A separately supplied BBSINFO/menu set is documented in `turbo-bbs-ui-assets.md`.
+
+It must not be treated as the menu set for this v1.08 source snapshot:
+
+- its `BBSHELP.TXT` explicitly identifies itself as version 1.09;
+- it describes level 1 as entry, level 2 as message/upload, level 3 as hidden-file access;
+- it advertises an `A` file CRC command;
+- its file menu permits U/C/V at level 2.
+
+By contrast, this configured v1.08 source uses `newuser = 2`, `reg = 3`, gates posting/upload on regular access, and has no `A` entry in the FILESYS command dispatcher.
+
+Keep the discrepancy explicit as version/configuration evidence rather than trying to force either side to match.
