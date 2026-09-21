@@ -248,12 +248,18 @@ again, clears completed observation leases, and enables immediate
 first-observation generation. During this temporary mode, user-written test posts
 also do not survive the next call.
 
-CONNECT itself must not fan out generation over every empty board. Entering a
-leaf board is the demand/materialization signal. The first visit to that leaf
-may materialize one fresh multi-post batch even when the normal six-hour
-world-time cadence has not elapsed. Revisiting the same board in the same call
-reuses that generated batch. This is a temporary quality-evaluation override,
-not the intended persistent-world production behavior.
+CONNECT itself must not fan out generation over every empty board. After login,
+the runtime starts one deliberately small speculative board-header job. Entering
+a forum may prefetch only its first child board. When the user actually requests
+a leaf-board index, that command joins/starts exactly that board's shared job and
+**waits until its headers are committed**; ordinary UI must never show an empty
+placeholder that later requires BX/refresh to reveal completed generation.
+
+The initial board batch materializes canonical headers + semantic state only.
+Article bodies remain empty until BR/read observation, where the existing
+thread-body barrier materializes only the requested thread. This is the intended
+minimum-scope execution pattern even while HAKATA's reset-on-call behavior itself
+remains a temporary generator-quality evaluation override.
 
 The former hidden bare `99` reset command has been removed; `BJ 99` continues
 to mean the station-specific hidden board.
