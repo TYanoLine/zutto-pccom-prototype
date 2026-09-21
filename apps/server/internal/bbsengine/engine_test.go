@@ -190,6 +190,13 @@ func TestCatchUpInitialIgnoresCadenceOnlyUntilFirstGeneratedBatch(t *testing.T) 
 	planner := &fakeBatchPlanner{}
 	now := time.Date(1996, 8, 26, 0, 50, 0, 0, time.Local)
 	engine := New(store, planner, func() time.Time { return now })
+	store.AddPost(host.ID, world.Post{
+		BoardID:   board.ID,
+		Author:    "NORI",
+		Subject:   "直近の既存記事",
+		Body:      "baseline",
+		CreatedAt: now.Add(-30 * time.Minute),
+	})
 
 	if err := engine.CatchUp(context.Background(), host, board); err != nil {
 		t.Fatal(err)
