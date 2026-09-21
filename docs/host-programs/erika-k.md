@@ -62,6 +62,10 @@ See `apps/server/config/erika-k.example.json`.
 
 `apps/server/internal/hostprogram/erikak/` owns the Erika K state machine. Do not fold it back into a generic profile-driven runtime.
 
+The fictional HAKATA CANAL NET fixture now keeps at least 40 root article headers in every leaf board (including the hidden board) so board indexes feel populated. These seeded titles/authors/timestamps are **provisional fictional station content**, not historical Erika-K evidence. Their bodies remain lazy and are materialized only when a caller opens the article.
+
+Board/forum/index navigation renders only already-committed headers and does not wait on observation/LLM barriers. A missing article body may still trigger the explicit lazy body materialization path when the article is opened.
+
 The sample runtime currently demonstrates:
 
 - ID/password login sequence
