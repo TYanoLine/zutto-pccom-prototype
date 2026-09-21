@@ -138,11 +138,64 @@ func TestCommandModeAliasesAndHiddenBoard(t *testing.T) {
 	}
 }
 
-func TestNmodemAppearsInFileMenu(t *testing.T) {
+func TestTransferProtocolMenuDefaultsToAllKnownProtocols(t *testing.T) {
 	runtime, _ := sampleRuntime(t)
 	loginGuest(t, runtime)
+	if out, disconnect := runtime.HandleLine("FM"); disconnect || !strings.Contains(out, "(FM) FILE") {
+		t.Fatalf("file menu missing: %q", out)
+	}
+	out, disconnect := runtime.HandleLine("FR")
+	if disconnect {
+		t.Fatal("opening transfer protocol menu disconnected")
+	}
+	for _, label := range []string{"無手順", "XMODEM", "XMODEM CRC", "XMODEM 1K", "YMODEM", "YMODEM-g", "ZMODEM", "NMODEM"} {
+		if !strings.Contains(out, label) {
+			t.Fatalf("default transfer menu missing %q: %q", label, out)
+		}
+	}
+}
+
+func TestHostMasterFeatureGatePrecedesRoleAccess(t *testing.T) {
+	_, store := sampleRuntime(t)
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	cfg.Features[FeatureFile] = false
+	runtime := NewWithConfig(host, store, cfg)
+	menu := loginGuest(t, runtime)
+	if strings.Contains(menu, "ファイル(FM)") || strings.Contains(menu, "[BAT]") {
+		t.Fatalf("disabled file feature leaked into main menu: %q", menu)
+	}
 	out, disconnect := runtime.HandleLine("FM")
-	if disconnect || !strings.Contains(out, "NMODEM") || !strings.Contains(out, "(FM) FILE") {
-		t.Fatalf("Erika K file menu should expose NMODEM: %q", out)
+	if disconnect || !strings.Contains(out, "利用できません") {
+		t.Fatalf("direct command bypassed station master switch: %q", out)
+	}
+}
+
+func TestDisabledTransferProtocolsAreHiddenAndRejected(t *testing.T) {
+	_, store := sampleRuntime(t)
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	cfg.TransferProtocols["nmodem"] = false
+	cfg.TransferProtocols["ymodem_g"] = false
+	runtime := NewWithConfig(host, store, cfg)
+	loginGuest(t, runtime)
+	runtime.HandleLine("FM")
+	out, _ := runtime.HandleLine("FR")
+	if strings.Contains(out, "NMODEM") || strings.Contains(out, "YMODEM-g") {
+		t.Fatalf("disabled protocols leaked into selection menu: %q", out)
+	}
+	if !strings.Contains(out, "ZMODEM") || !strings.Contains(out, "XMODEM CRC") {
+		t.Fatalf("enabled protocols disappeared from selection menu: %q", out)
+	}
+	runtime.HandleLine("")
+	out, disconnect := runtime.HandleLine("NMODEM")
+	if disconnect || !strings.Contains(out, "利用できません") {
+		t.Fatalf("disabled protocol should be rejected even by direct name: %q", out)
 	}
 }
