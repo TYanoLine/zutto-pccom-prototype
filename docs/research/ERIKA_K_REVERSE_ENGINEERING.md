@@ -208,6 +208,35 @@ Sources:
 - https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
 - https://ja.wikid.org/Nmodem
 
+### ファイル転送プロトコル選択
+
+**Confirmed externally:** 絵理香K版は NMODEM をサポートしていたとする資料がある。NMODEMは複数ファイル転送・ファイル情報転送・レジューム等を備える。
+
+**Firsthand recollection:** ファイルコーナーでダウンロードを開始する際、転送プロトコルを選択できた。記憶にある選択肢は次の通り。
+
+- 無手順
+- XMODEM
+- YMODEM
+- ZMODEM
+- NMODEM
+
+さらに細分化された選択肢があった可能性があるが、名称は未確定。
+
+当時の一般的な転送プロトコルには XMODEM 128/SUM、128/CRC、1024/CRC、YMODEM-g 等の派生が存在した。ただし、これらが絵理香K版の選択メニューに実際に存在したとは現時点では断定しない。
+
+**Firsthand recollection:** 後期にはファイルをその場で転送せず「バッチ登録」でき、任意のタイミングで複数登録ファイルのダウンロードを開始できた。バッチ実行と転送プロトコル選択の正確な順序、およびプロトコルごとのバッチ対応方法は未確認。
+
+Research targets:
+- FILE/FM画面のクイックヘルプ
+- ダウンロード選択直後のプロトコル一覧
+- XMODEMのSUM/CRC/1K等が別項目だったか
+- YMODEM-gの有無
+- BAT実行時のプロトコル選択画面
+- 無手順がテキスト専用か任意ファイル対応か
+
+External reference:
+- https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
+
 ### 未取得・優先調査項目
 
 1. 正規会員ログインとPASSWORDエラー処理。
