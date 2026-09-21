@@ -120,6 +120,16 @@ func NewMemoryStore() *MemoryStore {
 		{ID: 901, BoardID: "99", Author: "MIDNIGHT", Subject: "ここ見つけた人いる？", Body: "ボードマップには出てないけど BJ 99 で入れるみたい(笑)", CreatedAt: time.Date(1996, 8, 26, 2, 11, 0, 0, time.Local)},
 	}
 
+
+	turbo := Host{ID: "silver-horizon-bbs", Phone: "0470001080", Name: "SILVER HORIZON BBS", Region: "千葉県", Software: "TurboBBS 1.08 compatible / customized", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, ANSI: false, GuestAllowed: false, TelehoFriendly: true}
+	s.hosts[turbo.Phone] = turbo
+	s.posts[turbo.ID] = []Post{
+		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "まだ動いてます", Body: "1980年代から手を入れながら使っているTurboBBSです。\r\n古い作りですが、のんびり使ってください(^^)", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, time.Local)},
+		{ID: 602, BoardID: "4", Author: "TARO YAMADA", Subject: "2400bpsモデム", Body: "高速局が増えましたが、このくらいの速度も落ち着きますね。\r\n巡回にはちょっと時間がかかります(^^;", CreatedAt: time.Date(1996, 8, 25, 0, 14, 0, 0, time.Local)},
+		{ID: 603, BoardID: "2", Author: "MIKA", Subject: "98のDOS環境", Body: "CONFIG.SYSを整理したら空きメモリが少し増えました。\r\nまだDOSも手放せません。", CreatedAt: time.Date(1996, 8, 25, 21, 47, 0, 0, time.Local)},
+		{ID: 604, BoardID: "8", Author: "KEN", Subject: "夏も終わりかな", Body: "夜は少し涼しくなってきましたね。\r\n電話代を気にしつつ、また深夜に来ます(笑)", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, time.Local)},
+	}
+
 	s.hosts["0450000001"] = Host{ID: "quiet-test", Phone: "0450000001", Name: "QUIET TEST BBS", Region: "神奈川県", Software: "mmm compatible", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, ANSI: false, GuestAllowed: true}
 	s.hosts["0459999999"] = Host{ID: "busy-test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, ANSI: true, GuestAllowed: true}
 
