@@ -18,7 +18,7 @@ Never silently rewrite an already observed host, persona, relationship, post, or
 
 For the current host-world implementation, **successful CONNECT is the host observation boundary**. Directory/catalog display, phone-number lookup, host metadata creation, and unsuccessful dial attempts do not observe the host and must not create its article history. This deliberately keeps "the host exists" separate from "somebody has entered and observed that host."
 
-After CONNECT, independent board-header catch-up jobs start immediately in the background for the observed host. This is an execution optimization only: it does not make the user's connection the cause of NPC activity. The generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
+Successful CONNECT establishes the observation boundary, but expensive detail is not fanned out over every board. After login and during navigation, the host runtime may start a **small predictive set** of board-header catch-up jobs in the background. This is only an execution optimization: it does not make the user's connection the cause of NPC activity. Generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
 
 Do not eagerly update other hosts merely because one host was observed. A directory may contain hundreds or thousands of hosts while only connected hosts pay the expensive catch-up cost.
 
@@ -51,7 +51,11 @@ The current split is:
 
 ```text
 successful CONNECT
- -> begin board-scoped header catch-up jobs asynchronously
+ -> establish observation boundary
+ -> connected runtime may prefetch a small number of likely-needed board-header scopes asynchronously
+
+navigation into a forum
+ -> may prefetch one/few immediate child scopes, bounded narrowly
 
 board/article index request
  -> this board's headers ready? yes: render immediately
@@ -62,7 +66,7 @@ article/thread read
  -> no: start/join the shared thread body job, wait, then render
 ```
 
-Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Article prose remains lazy even after the host headers are observed.
+Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Speculative prefetch should remain narrow rather than materializing every visible board. Article prose remains lazy even after the host headers are observed.
 
 `ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 

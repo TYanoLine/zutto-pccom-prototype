@@ -15,18 +15,20 @@ func testBBSArticleBatchDraft(req BBSArticleBatchRequest) BBSArticleBatchDraft {
 	for _, slot := range req.Slots {
 		post := BBSArticleBatchPost{
 			SlotIndex:        slot.Index,
-			Body:             "本文です。",
+			ConcreteMatter:   "候補タイトルに対応する具体的な用件",
 			Topic:            "topic",
 			Motivation:       "motivation",
 			Stance:           "neutral",
 			Goal:             "share",
-			SituationSummary: "summary",
+			SituationSummary: "候補タイトルに対応する具体的な用件を話す",
+			Claims:           []string{"具体的な内容"},
 		}
 		if slot.Kind == "reply" {
 			post.Candidate = 0
 		} else {
 			post.Candidate = nextCandidate
 			post.Subject = candidates[nextCandidate-1]
+			post.SubjectAnchor = "タイトル"
 			nextCandidate++
 		}
 		posts = append(posts, post)
@@ -68,5 +70,14 @@ func TestValidateBBSArticleBatchRejectsRewrittenCandidate(t *testing.T) {
 	draft.Posts[0].Subject = "候補を勝手に書き換え"
 	if err := ValidateBBSArticleBatch(req, draft); err == nil {
 		t.Fatal("rewritten candidate was accepted")
+	}
+}
+
+func TestValidateBBSArticleBatchRejectsRootWithoutConcreteSubjectAnchor(t *testing.T) {
+	req := BBSArticleBatchRequest{Slots: []BBSArticleBatchSlot{{Index: 1, Kind: "root"}}}
+	draft := testBBSArticleBatchDraft(req)
+	draft.Posts[0].SubjectAnchor = ""
+	if err := ValidateBBSArticleBatch(req, draft); err == nil {
+		t.Fatal("root without a concrete subject anchor was accepted")
 	}
 }

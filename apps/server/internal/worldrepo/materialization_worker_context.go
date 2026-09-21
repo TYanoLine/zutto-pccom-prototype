@@ -47,7 +47,7 @@ func workerRelevantSituationFact(fact string) bool {
 	for _, prefix := range []string{
 		"article_detail=", "source_article_detail=", "world_adopted_summary=", "source_world_adopted_summary=",
 		"focus=", "occurrence=", "scope_boundary=", "source_focus=", "source_occurrence=", "source_scope_boundary=",
-		"continuation=", "source_fact=",
+		"continuation=", "source_fact=", "concrete_matter=", "subject_anchor=",
 	} {
 		if strings.HasPrefix(fact, prefix) {
 			return true

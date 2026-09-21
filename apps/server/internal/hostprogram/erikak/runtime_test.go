@@ -11,15 +11,17 @@ import (
 
 type noWaitObservationStore struct {
 	*world.MemoryStore
-	begun []world.Board
+	begun  []world.Board
+	waited []world.Board
 }
 
 func (s *noWaitObservationStore) BeginHostObservation(_ world.Host, boards []world.Board) {
 	s.begun = append(s.begun, boards...)
 }
 
-func (s *noWaitObservationStore) WaitForBoardHeaders(context.Context, world.Host, world.Board) ([]world.Post, error) {
-	panic("board/index navigation must not wait for observation")
+func (s *noWaitObservationStore) WaitForBoardHeaders(_ context.Context, host world.Host, board world.Board) ([]world.Post, error) {
+	s.waited = append(s.waited, board)
+	return s.ListBoardPosts(host, board.ID, board.Name), nil
 }
 
 func (s *noWaitObservationStore) WaitForArticleBody(context.Context, world.Host, world.Board, int64) (world.Post, bool, error) {
@@ -200,7 +202,7 @@ func TestConnectDoesNotFanOutObservationAcrossEmptyBoards(t *testing.T) {
 	}
 }
 
-func TestBoardCatalogNavigationDoesNotWaitForObservation(t *testing.T) {
+func TestBoardCatalogNavigationPrefetchesNarrowlyAndWaitsAtLeaf(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -209,6 +211,9 @@ func TestBoardCatalogNavigationDoesNotWaitForObservation(t *testing.T) {
 	store := &noWaitObservationStore{MemoryStore: base}
 	runtime := New(host, store)
 	loginGuest(t, runtime)
+	if len(store.begun) != 1 || store.begun[0].ID != "4" {
+		t.Fatalf("login prefetch=%+v, want only board 4", store.begun)
+	}
 
 	out, disconnect := runtime.HandleLine("BM")
 	if disconnect || !strings.Contains(out, "ボード／フォーラムメニュー") {
@@ -218,13 +223,22 @@ func TestBoardCatalogNavigationDoesNotWaitForObservation(t *testing.T) {
 	if disconnect || !strings.Contains(out, "コンピュータワールド") {
 		t.Fatalf("forum menu missing: %q", out)
 	}
+	if got := store.begun[len(store.begun)-1]; got.ID != "60/1" {
+		t.Fatalf("forum prefetch=%+v, want first child 60/1", got)
+	}
+	if len(store.waited) != 0 {
+		t.Fatalf("forum navigation should not block on article headers: %+v", store.waited)
+	}
 	out, disconnect = runtime.HandleLine("1")
 	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") {
 		t.Fatalf("board index missing: %q", out)
 	}
+	if len(store.waited) != 1 || store.waited[0].ID != "60/1" {
+		t.Fatalf("leaf wait=%+v, want exactly 60/1", store.waited)
+	}
 }
 
-func TestLeafBoardVisitStartsBackgroundCatchupWithoutWaiting(t *testing.T) {
+func TestLeafBoardVisitJoinsBackgroundCatchupAndWaitsForHeaders(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -241,11 +255,14 @@ func TestLeafBoardVisitStartsBackgroundCatchupWithoutWaiting(t *testing.T) {
 		t.Fatalf("leaf board index missing: %q", out)
 	}
 	if len(store.begun) == 0 {
-		t.Fatal("leaf board visit did not start background observation")
+		t.Fatal("leaf board visit did not start/join observation")
 	}
 	got := store.begun[len(store.begun)-1]
 	if got.ID != "60/1" || got.Name != "ＰＣ－９８／ＭＯＤＥＭ" {
 		t.Fatalf("unexpected observed board: %+v", got)
+	}
+	if len(store.waited) == 0 || store.waited[len(store.waited)-1].ID != "60/1" {
+		t.Fatalf("leaf board did not wait for its own headers: %+v", store.waited)
 	}
 }
 

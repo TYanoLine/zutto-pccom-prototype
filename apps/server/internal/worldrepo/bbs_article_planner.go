@@ -54,6 +54,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	}
 
 	worldDate := req.WorldNow.Format(time.DateOnly)
+	materializer = materializer.withPeriodReferents(worldDate)
 	decision := worldengine.EvidenceDecision{}
 	if p.repo.Engine != nil {
 		var err error
@@ -118,12 +119,14 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		out = append(out, bbsengine.PlannedPost{
 			SlotIndex:        post.SlotIndex,
 			Subject:          post.Subject,
-			Body:             post.Body,
+			ConcreteMatter:   post.ConcreteMatter,
+			SubjectAnchor:    post.SubjectAnchor,
 			Topic:            post.Topic,
 			Motivation:       post.Motivation,
 			Stance:           post.Stance,
 			Goal:             post.Goal,
 			SituationSummary: post.SituationSummary,
+			Claims:           append([]string(nil), post.Claims...),
 		})
 	}
 	return out, nil

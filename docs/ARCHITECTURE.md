@@ -118,10 +118,18 @@ World/observation clock
 
 The current shared batch planner uses up to 48 recent board posts as title/flow
 context and may include short excerpts from the most recent bodies when the
-conversation flow needs more than subjects alone. Root titles are proposed as a
-20-title pool and multiple world-selected slots are assigned from that pool in
-the same provider call. This is specifically intended to prevent independent
-one-post calls from converging on repetitive subjects and phrasings.
+conversation flow needs more than subjects alone. Before wording a root subject,
+the planner must establish a concrete canonical matter for that slot and preserve
+a literal subject anchor from that matter in the final subject. Sourced period
+referents may be used when they naturally identify the matter; generic board
+categories must not substitute for a concrete occurrence. Root titles are then
+proposed as a 20-title pool and multiple world-selected slots are assigned from
+that pool in the same provider call. This is specifically intended to prevent
+independent one-post calls from converging on repetitive or vague subjects.
+
+Header planning does not pre-render article bodies. It commits only the canonical
+header/topology/semantic brief required to show the index. Body prose remains
+lazy and is materialized when the article is read.
 
 A host software identifier must not select a different article-generation
 algorithm. Host-program-specific code may supply topology or representation
@@ -248,12 +256,18 @@ again, clears completed observation leases, and enables immediate
 first-observation generation. During this temporary mode, user-written test posts
 also do not survive the next call.
 
-CONNECT itself must not fan out generation over every empty board. Entering a
-leaf board is the demand/materialization signal. The first visit to that leaf
-may materialize one fresh multi-post batch even when the normal six-hour
-world-time cadence has not elapsed. Revisiting the same board in the same call
-reuses that generated batch. This is a temporary quality-evaluation override,
-not the intended persistent-world production behavior.
+CONNECT itself must not fan out generation over every empty board. After login,
+the runtime starts one deliberately small speculative board-header job. Entering
+a forum may prefetch only its first child board. When the user actually requests
+a leaf-board index, that command joins/starts exactly that board's shared job and
+**waits until its headers are committed**; ordinary UI must never show an empty
+placeholder that later requires BX/refresh to reveal completed generation.
+
+The initial board batch materializes canonical headers + semantic state only.
+Article bodies remain empty until BR/read observation, where the existing
+thread-body barrier materializes only the requested thread. This is the intended
+minimum-scope execution pattern even while HAKATA's reset-on-call behavior itself
+remains a temporary generator-quality evaluation override.
 
 The former hidden bare `99` reset command has been removed; `BJ 99` continues
 to mean the station-specific hidden board.

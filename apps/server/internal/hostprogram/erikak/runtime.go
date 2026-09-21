@@ -70,10 +70,34 @@ func New(host world.Host, store world.Store) *Runtime {
 }
 
 func (r *Runtime) ObservationBoards() []world.Board {
-	// HAKATA's current debug fixture starts with no article seed. Do not fan out
-	// generation across every empty leaf board merely because CONNECT succeeded;
-	// entering a leaf board is the demand/materialization signal.
+	// CONNECT itself does not fan out materialization. Login and navigation start
+	// narrowly-scoped predictive jobs; a board read blocks on its own job if needed.
 	return nil
+}
+
+func (r *Runtime) beginBoardPrefetch(boards []world.Board) {
+	if len(boards) == 0 {
+		return
+	}
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		observer.BeginHostObservation(r.Host, boards)
+	}
+}
+
+func (r *Runtime) prefetchLoginBoard() {
+	// Keep speculative work intentionally tiny. Free-talk is a plausible first
+	// destination, but choosing any other board simply waits on that board later.
+	r.beginBoardPrefetch([]world.Board{{ID: "4", Name: "ふり～と～く"}})
+}
+
+func (r *Runtime) prefetchFirstForumChild(path string) {
+	for _, child := range visibleChildren(path) {
+		if r.isForum(child.Path) {
+			continue
+		}
+		r.beginBoardPrefetch([]world.Board{{ID: child.Path, Name: child.Name}})
+		return
+	}
 }
 
 func (r *Runtime) cachedBoardPosts(path string) []world.Post {
@@ -89,9 +113,9 @@ func (r *Runtime) cachedBoardPosts(path string) []world.Post {
 	return out
 }
 
-// observedBoardPosts deliberately means "already committed/available" for the
-// historical runtime. Board catalog/index navigation must not wait on LLM work.
-// Article body rendering has its own explicit WaitForArticleBody barrier.
+// observedBoardPosts returns only already committed canonical state. The board
+// index itself applies a blocking WaitForBoardHeaders barrier when that state is
+// not ready; article prose has its own later WaitForArticleBody barrier.
 func (r *Runtime) observedBoardPosts(path string) []world.Post {
 	return r.cachedBoardPosts(path)
 }
@@ -197,6 +221,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 
 func (r *Runtime) finishLogin() string {
 	r.state = "main"
+	r.prefetchLoginBoard()
 	last := "--/--/-- --:--"
 	if r.handle != "GUEST" {
 		last = "96/08/25 23:41"
@@ -446,6 +471,7 @@ func (r *Runtime) renderBoardMenu() string {
 	}
 
 	node, _ := findNode(r.boardPath)
+	r.prefetchFirstForumChild(r.boardPath)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n      〖%s〗        ★☆＝未読   〖Forum.OP〗SYSOP\r\n", node.Name)
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
@@ -488,13 +514,19 @@ func (r *Runtime) renderBoardIndex() string {
 	if !ok || r.isForum(r.boardPath) {
 		return r.renderBoardMenu()
 	}
-	// Entering an actual leaf board is the demand signal for background world
-	// catch-up. The current canonical index is rendered immediately; no LLM work
-	// is awaited here.
-	if observer, ok := r.Store.(world.HostObservationStore); ok {
-		observer.BeginHostObservation(r.Host, []world.Board{{ID: node.Path, Name: node.Name}})
-	}
+	board := world.Board{ID: node.Path, Name: node.Name}
 	posts := r.observedBoardPosts(r.boardPath)
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		// Predictive work may already be running from login/forum navigation. If
+		// this exact board is not ready, join/start only its shared job and wait;
+		// never expose an empty placeholder that requires the user to refresh.
+		observer.BeginHostObservation(r.Host, []world.Board{board})
+		if ready, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board); err == nil {
+			posts = ready
+		} else {
+			return "\r\n? BOARD READ ERROR\r\n" + r.boardPrompt()
+		}
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n〖%s〗  ★☆＝未読  〖Board.OP〗SYSOP\r\n", node.Name)
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
