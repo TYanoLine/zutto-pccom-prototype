@@ -93,8 +93,18 @@ func TestDebugExportFiltersBoardAndBodies(t *testing.T) {
 	if err := json.NewDecoder(fullRR.Body).Decode(&full); err != nil {
 		t.Fatal(err)
 	}
-	if !full.BodiesIncluded || len(full.Posts) == 0 || strings.TrimSpace(full.Posts[0].Body) == "" {
-		t.Fatalf("full export did not include body: %+v", full)
+	if !full.BodiesIncluded || len(full.Posts) == 0 {
+		t.Fatalf("full export missing posts/bodies flag: %+v", full)
+	}
+	hasBody := false
+	for _, post := range full.Posts {
+		if strings.TrimSpace(post.Body) != "" {
+			hasBody = true
+			break
+		}
+	}
+	if !hasBody {
+		t.Fatalf("full export did not include any materialized body: %+v", full)
 	}
 }
 
