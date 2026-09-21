@@ -127,13 +127,34 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
+	return e.catchUp(ctx, host, board, false)
+}
+
+// CatchUpInitial materializes one batch immediately when this board has no
+// shared-engine generated history yet. This is used only by explicit development
+// reset flows so testers can inspect the current generator without waiting for the
+// normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
+func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
+	if e == nil || e.Store == nil {
+		return nil
+	}
+	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
+	for _, post := range boardPosts {
+		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
+			return e.catchUp(ctx, host, board, false)
+		}
+	}
+	return e.catchUp(ctx, host, board, true)
+}
+
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool) error {
 	if e == nil || e.Store == nil || e.Planner == nil {
 		return nil
 	}
 	now := e.currentTime()
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	cursor := latestCursor(boardPosts)
-	if !cursor.IsZero() {
+	if !ignoreCadence && !cursor.IsZero() {
 		if !cursor.Before(now) || now.Sub(cursor) < e.cadence() {
 			return nil
 		}
