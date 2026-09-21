@@ -43,7 +43,7 @@ Open questions to resolve from KTBBS 6.21A source:
 
 A separate KTBBS extension, GIS & GIG 1.00, is described as providing an input function compatible with half-width semicolon. Treat this as evidence that semicolon was special in the standard input path, not as proof of a handle-specific prohibition.
 
-Upstream TurboBBS source now provides a concrete reason this may matter: its generic `getinput` routine treats `;` as a delimiter between buffered answers/commands. This makes inherited command-chaining/input syntax a plausible explanation for KTBBS semicolon handling. It is still **Likely / inferred** until the KTBBS 6.21A input source is inspected directly.
+Upstream TurboBBS source now provides a concrete reason this may matter: its generic `getinput` routine treats `;` as a delimiter between buffered answers/commands. A surviving TurboBBS 1.09 help file also explicitly documents chained commands and gives `USERNAME;PASSWORD` as a sign-on example. Thus semicolon is confirmed as intended upstream TurboBBS syntax, not merely an implementation accident. Whether KTBBS retained the same syntax/implementation is still **Likely / inferred** until the KTBBS 6.21A input source is inspected directly.
 
 Project-wide handle policy is documented in:
 docs/research/ACCOUNT_ID_HANDLE_EVIDENCE.md
