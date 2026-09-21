@@ -8,18 +8,22 @@ import (
 )
 
 type fakeBackend struct {
-	data  []byte
+	data  map[string][]byte
 	saves int
 }
 
-func (b *fakeBackend) Load(context.Context, string) ([]byte, bool, error) {
-	if len(b.data) == 0 {
+func (b *fakeBackend) Load(_ context.Context, hostID string) ([]byte, bool, error) {
+	data := b.data[hostID]
+	if len(data) == 0 {
 		return nil, false, nil
 	}
-	return append([]byte(nil), b.data...), true, nil
+	return append([]byte(nil), data...), true, nil
 }
-func (b *fakeBackend) Save(_ context.Context, _, _ string, _ int, data []byte) error {
-	b.data = append([]byte(nil), data...)
+func (b *fakeBackend) Save(_ context.Context, hostID, _ string, _ int, data []byte) error {
+	if b.data == nil {
+		b.data = map[string][]byte{}
+	}
+	b.data[hostID] = append([]byte(nil), data...)
 	b.saves++
 	return nil
 }
@@ -29,7 +33,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, "0450000196", backend)
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +54,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	}
 
 	fresh := world.NewMemoryStore()
-	restored, err := newStore(ctx, fresh, "0450000196", backend)
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0450000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +83,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	}
 
 	freshAgain := world.NewMemoryStore()
-	restoredAgain, err := newStore(ctx, freshAgain, "0450000196", backend)
+	restoredAgain, err := newStore(ctx, freshAgain, []HostTarget{{Phone: "0450000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +96,7 @@ func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, "0450000196", backend)
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,5 +117,81 @@ func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	}
 	if backend.saves != 0 {
 		t.Fatalf("unexpected persist for other-host fact clear: %d", backend.saves)
+	}
+}
+
+func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	targets := []HostTarget{
+		{Phone: "0450000196"},
+		{Phone: "0920000196", KeepSeedHostConfig: true},
+	}
+
+	base := world.NewMemoryStore()
+	store, err := newStore(ctx, base, targets, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedName := host.Name
+	seedLines := host.Lines
+
+	// Even if a runtime mutation writes host metadata into the snapshot, this
+	// experiment host must come back with the code-defined fixture settings.
+	host.Name = "MUTATED SNAPSHOT NAME"
+	host.Lines = 99
+	store.SaveHost(host)
+
+	persona := world.Persona{ID: host.ID + "-mari-persist", Handle: "MARI", Interests: map[string]float64{"local": 0.9}}
+	store.SavePersona(persona)
+	store.AddMembership(host.ID, persona.ID)
+	store.SavePersonaFact(world.PersonaFact{PersonaID: persona.ID, Key: "local.favorite_place", Value: "天神"})
+	post := store.AddPost(host.ID, world.Post{
+		BoardID:         "4",
+		Author:          "MARI",
+		AuthorPersonaID: persona.ID,
+		Subject:         "永続化テスト",
+		Body:            "再起動しても残る本文",
+	})
+
+	if len(backend.data[host.ID]) == 0 {
+		t.Fatal("expected Erika host snapshot")
+	}
+
+	fresh := world.NewMemoryStore()
+	restored, err := newStore(ctx, fresh, targets, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotHost, err := restored.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotHost.Name != seedName || gotHost.Lines != seedLines {
+		t.Fatalf("fixed host config was restored from snapshot: got=%+v want name=%q lines=%d", gotHost, seedName, seedLines)
+	}
+
+	posts := restored.ListPosts(host.ID)
+	foundPost := false
+	for _, got := range posts {
+		if got.ID == post.ID && got.Subject == "永続化テスト" && got.Body == "再起動しても残る本文" {
+			foundPost = true
+			break
+		}
+	}
+	if !foundPost {
+		t.Fatalf("persisted Erika post not restored: %+v", posts)
+	}
+	personas := restored.ListHostPersonas(host.ID)
+	if len(personas) != 1 || personas[0].ID != persona.ID {
+		t.Fatalf("persisted Erika personas not restored: %+v", personas)
+	}
+	facts := restored.ListPersonaFacts(persona.ID)
+	if len(facts) != 1 || facts[0].Value != "天神" {
+		t.Fatalf("persisted Erika persona facts not restored: %+v", facts)
 	}
 }
