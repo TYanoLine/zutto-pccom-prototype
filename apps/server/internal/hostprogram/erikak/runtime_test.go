@@ -1,11 +1,27 @@
 package erikak
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"zutto-pccom/apps/server/internal/world"
 )
+
+type noWaitObservationStore struct {
+	*world.MemoryStore
+}
+
+func (s *noWaitObservationStore) BeginHostObservation(world.Host, []world.Board) {}
+
+func (s *noWaitObservationStore) WaitForBoardHeaders(context.Context, world.Host, world.Board) ([]world.Post, error) {
+	panic("board/index navigation must not wait for observation")
+}
+
+func (s *noWaitObservationStore) WaitForArticleBody(context.Context, world.Host, world.Board, int64) (world.Post, bool, error) {
+	panic("article body wait is not expected in an index-navigation test")
+}
+
 
 func sampleRuntime(t *testing.T) (*Runtime, *world.MemoryStore) {
 	t.Helper()
@@ -144,5 +160,55 @@ func TestNmodemAppearsInFileMenu(t *testing.T) {
 	out, disconnect := runtime.HandleLine("FM")
 	if disconnect || !strings.Contains(out, "NMODEM") || !strings.Contains(out, "(FM) FILE") {
 		t.Fatalf("Erika K file menu should expose NMODEM: %q", out)
+	}
+}
+
+func TestSampleStationSeedsAtLeastFortyRootArticlesPerLeafBoard(t *testing.T) {
+	store := world.NewMemoryStore()
+	posts := store.ListPosts("hakata-canal-net")
+	for _, node := range boardTree {
+		hasChildren := false
+		for _, child := range boardTree {
+			if child.Parent == node.Path {
+				hasChildren = true
+				break
+			}
+		}
+		if hasChildren {
+			continue
+		}
+		count := 0
+		for _, post := range posts {
+			if post.BoardID == node.Path && post.ParentID == 0 {
+				count++
+			}
+		}
+		if count < 40 {
+			t.Fatalf("board %s (%s) has %d root articles, want at least 40", node.Path, node.Name, count)
+		}
+	}
+}
+
+func TestBoardCatalogNavigationDoesNotWaitForObservation(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &noWaitObservationStore{MemoryStore: base}
+	runtime := New(host, store)
+	loginGuest(t, runtime)
+
+	out, disconnect := runtime.HandleLine("BM")
+	if disconnect || !strings.Contains(out, "ボード／フォーラムメニュー") {
+		t.Fatalf("root board menu missing: %q", out)
+	}
+	out, disconnect = runtime.HandleLine("60")
+	if disconnect || !strings.Contains(out, "コンピュータワールド") {
+		t.Fatalf("forum menu missing: %q", out)
+	}
+	out, disconnect = runtime.HandleLine("1")
+	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") {
+		t.Fatalf("board index missing: %q", out)
 	}
 }
