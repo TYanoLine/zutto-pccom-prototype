@@ -187,8 +187,15 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 		t.Fatalf("persisted Erika post not restored: %+v", posts)
 	}
 	personas := restored.ListHostPersonas(host.ID)
-	if len(personas) != 1 || personas[0].ID != persona.ID {
-		t.Fatalf("persisted Erika personas not restored: %+v", personas)
+	foundPersona := false
+	for _, got := range personas {
+		if got.ID == persona.ID {
+			foundPersona = true
+			break
+		}
+	}
+	if !foundPersona {
+		t.Fatalf("persisted Erika persona not restored among resident cast: %+v", personas)
 	}
 	facts := restored.ListPersonaFacts(persona.ID)
 	if len(facts) != 1 || facts[0].Value != "天神" {

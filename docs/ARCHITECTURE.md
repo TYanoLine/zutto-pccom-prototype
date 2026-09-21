@@ -237,16 +237,23 @@ Do not send all historical logs. Retrieve only relevant facts and summarize old 
 ## Temporary HAKATA generator evaluation mode
 
 While the shared BBS article generator is being evaluated, the fixed experiment
-station `0920000196` deliberately does not preserve generated article samples
-across calls. On every successful CONNECT the server removes only shared-engine
-generated posts (seed/user history and host configuration remain), clears the
-completed observation leases, and enables immediate first-observation generation.
+station `0920000196` has **no article seed at all**. The former hand-authored
+sample posts and the generated 40-root-per-board baseline have been removed.
+Only a small station-resident identity cast is code-owned; those identities are
+not content templates.
 
-For that connection, the first visit to each leaf board may therefore materialize
-one fresh multi-post batch even when the normal six-hour world-time cadence has
-not elapsed. Revisiting the same board in the same call reuses that generated
-batch. This is a temporary quality-evaluation override, not the intended
-persistent-world production behavior.
+On process startup, any older persisted HAKATA article snapshot is cleared. On
+every successful CONNECT the server clears the station's entire article state
+again, clears completed observation leases, and enables immediate
+first-observation generation. During this temporary mode, user-written test posts
+also do not survive the next call.
+
+CONNECT itself must not fan out generation over every empty board. Entering a
+leaf board is the demand/materialization signal. The first visit to that leaf
+may materialize one fresh multi-post batch even when the normal six-hour
+world-time cadence has not elapsed. Revisiting the same board in the same call
+reuses that generated batch. This is a temporary quality-evaluation override,
+not the intended persistent-world production behavior.
 
 The former hidden bare `99` reset command has been removed; `BJ 99` continues
 to mean the station-specific hidden board.

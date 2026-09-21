@@ -2,6 +2,7 @@ package erikak
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -78,8 +79,8 @@ func TestBoardHierarchyAndBJPrompt(t *testing.T) {
 		t.Fatalf("forum hierarchy prompt missing: %q", out)
 	}
 	out, disconnect = runtime.HandleLine("1")
-	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") || !strings.Contains(out, "(BJ\\60\\1) BOARD") || !strings.Contains(out, "0201") {
-		t.Fatalf("leaf board/index missing: %q", out)
+	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") || !strings.Contains(out, "(BJ\\60\\1) BOARD") || !strings.Contains(out, "--- MSG はありません ---") {
+		t.Fatalf("empty leaf board/index missing: %q", out)
 	}
 
 	out, _ = runtime.HandleLine("")
@@ -93,43 +94,49 @@ func TestBoardHierarchyAndBJPrompt(t *testing.T) {
 }
 
 func TestThreadRendersAppendsTogether(t *testing.T) {
-	runtime, _ := sampleRuntime(t)
+	runtime, store := sampleRuntime(t)
+	root := store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "テスト記事", Body: "本文"})
+	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "MARI", Subject: "Re: テスト記事", Body: "その1"})
+	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "KAZU", Subject: "Re: テスト記事", Body: "その2"})
+
 	loginGuest(t, runtime)
 	runtime.HandleLine("1")
 	runtime.HandleLine("1")
 
-	out, disconnect := runtime.HandleLine("101")
+	out, disconnect := runtime.HandleLine(fmt.Sprintf("%d", root.ID))
 	if disconnect {
 		t.Fatal("reading a thread disconnected")
 	}
 	if !strings.Contains(out, "アペ 1") || !strings.Contains(out, "アペ 2") {
 		t.Fatalf("thread should render its appends together: %q", out)
 	}
-	if !strings.Contains(out, "MARI") || !strings.Contains(out, "KAZU") || !strings.Contains(out, "(BR\\1\\101) BOARD") {
-		t.Fatalf("append authors/current-path prompt missing: %q", out)
+	if !strings.Contains(out, "MARI") || !strings.Contains(out, "KAZU") {
+		t.Fatalf("append authors missing: %q", out)
 	}
 }
 
 func TestAppendCreatesChildPost(t *testing.T) {
 	runtime, store := sampleRuntime(t)
+	root := store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "テスト記事", Body: "本文"})
+
 	runtime.HandleLine("TESTER")
 	runtime.HandleLine("dummy")
 	runtime.HandleLine("1")
 	runtime.HandleLine("1")
-	runtime.HandleLine("101")
+	runtime.HandleLine(fmt.Sprintf("%d", root.ID))
 
 	out, disconnect := runtime.HandleLine("A")
 	if disconnect || !strings.Contains(out, "APE -->") {
 		t.Fatalf("append prompt missing: %q", out)
 	}
 	out, disconnect = runtime.HandleLine("追加テストです(^^;")
-	if disconnect || !strings.Contains(out, "アペ 3") || !strings.Contains(out, "追加テストです") {
+	if disconnect || !strings.Contains(out, "アペ 1") || !strings.Contains(out, "追加テストです") {
 		t.Fatalf("new append was not rendered: %q", out)
 	}
 
 	found := false
-	for _, post := range store.ListPosts("hakata-canal-net") {
-		if post.ParentID == 101 && post.Author == "TESTER" && post.Body == "追加テストです(^^;" {
+	for _, post := range store.ListPosts(runtime.Host.ID) {
+		if post.ParentID == root.ID && post.Author == "TESTER" && post.Body == "追加テストです(^^;" {
 			found = true
 			break
 		}
@@ -149,8 +156,8 @@ func TestCommandModeAliasesAndHiddenBoard(t *testing.T) {
 	}
 
 	out, disconnect = runtime.HandleLine("BJ 99")
-	if disconnect || !strings.Contains(out, "夜更かし部屋") || !strings.Contains(out, "0901") {
-		t.Fatalf("station-specific hidden board should remain directly reachable: %q", out)
+	if disconnect || !strings.Contains(out, "夜更かし部屋") || !strings.Contains(out, "--- MSG はありません ---") {
+		t.Fatalf("station-specific hidden board should remain directly reachable and empty: %q", out)
 	}
 	if strings.Contains(runtime.renderBoardMap(), "夜更かし部屋") {
 		t.Fatal("hidden board leaked into MA board map")
@@ -166,29 +173,30 @@ func TestNmodemAppearsInFileMenu(t *testing.T) {
 	}
 }
 
-func TestSampleStationSeedsAtLeastFortyRootArticlesPerLeafBoard(t *testing.T) {
+func TestSampleStationStartsWithNoArticlesButKeepsResidentCast(t *testing.T) {
 	store := world.NewMemoryStore()
-	posts := store.ListPosts("hakata-canal-net")
-	for _, node := range boardTree {
-		hasChildren := false
-		for _, child := range boardTree {
-			if child.Parent == node.Path {
-				hasChildren = true
-				break
-			}
+	if posts := store.ListPosts("hakata-canal-net"); len(posts) != 0 {
+		t.Fatalf("HAKATA starts with %d posts, want 0", len(posts))
+	}
+	personas := store.ListHostPersonas("hakata-canal-net")
+	if len(personas) < 10 {
+		t.Fatalf("resident cast too small: %d", len(personas))
+	}
+	seen := map[string]bool{}
+	for _, persona := range personas {
+		seen[persona.Handle] = true
+	}
+	for _, handle := range []string{"MARI", "KAZU", "NORI", "AKI"} {
+		if !seen[handle] {
+			t.Fatalf("resident handle %s missing from cast", handle)
 		}
-		if hasChildren {
-			continue
-		}
-		count := 0
-		for _, post := range posts {
-			if post.BoardID == node.Path && post.ParentID == 0 {
-				count++
-			}
-		}
-		if count < 40 {
-			t.Fatalf("board %s (%s) has %d root articles, want at least 40", node.Path, node.Name, count)
-		}
+	}
+}
+
+func TestConnectDoesNotFanOutObservationAcrossEmptyBoards(t *testing.T) {
+	runtime, _ := sampleRuntime(t)
+	if boards := runtime.ObservationBoards(); len(boards) != 0 {
+		t.Fatalf("CONNECT observation boards=%d, want 0; leaf visits should drive generation", len(boards))
 	}
 }
 

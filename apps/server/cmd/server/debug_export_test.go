@@ -56,10 +56,9 @@ func TestDebugExportFiltersBoardAndBodies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	store.AddPost(host.ID, world.Post{BoardID: "60/1", Author: "NORI", Subject: "WTERMテスト", Body: "本文あり"})
+	store.AddPost(host.ID, world.Post{BoardID: "20/1", Author: "KAZU", Subject: "GAMEテスト", Body: "別ボード"})
 	all := store.ListPosts(host.ID)
-	if len(all) == 0 {
-		t.Fatal("expected seeded posts")
-	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/debug/export?phone=0920000196&board=60/1", nil)
 	rr := httptest.NewRecorder()
