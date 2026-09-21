@@ -85,7 +85,13 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	}
 
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
-		if err := r.bbsArticles.CatchUp(context.Background(), host, board); err != nil {
+		var err error
+		if r.debugImmediateBBSHost(host.ID) {
+			err = r.bbsArticles.CatchUpInitial(context.Background(), host, board)
+		} else {
+			err = r.bbsArticles.CatchUp(context.Background(), host, board)
+		}
+		if err != nil {
 			return fmt.Errorf("shared BBS catch-up host %s board %s: %w", host.ID, board.ID, err)
 		}
 		return nil
