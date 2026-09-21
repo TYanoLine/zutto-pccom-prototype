@@ -6,6 +6,7 @@ import (
 	"zutto-pccom/apps/server/internal/bbs"
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/hostprogram/materializationdemo"
+	"zutto-pccom/apps/server/internal/hostprogram/turbobbs"
 	"zutto-pccom/apps/server/internal/world"
 )
 
@@ -37,12 +38,17 @@ func New(host world.Host, store world.Store) Runtime {
 		return erikak.New(host, store)
 	case "materialization-demo":
 		return materializationdemo.New(host, store)
+	case "turbobbs":
+		return turbobbs.New(host, store)
 	}
 
 	// Compatibility with older fixture data while SoftwareID is rolled out.
 	software := strings.ToLower(host.Software)
 	if strings.Contains(software, "絵理香k") || strings.Contains(software, "絵里香k") || strings.Contains(software, "erika k") {
 		return erikak.New(host, store)
+	}
+	if strings.Contains(software, "turbobbs") || strings.Contains(software, "turbo bbs") {
+		return turbobbs.New(host, store)
 	}
 	return bbs.New(host, store)
 }
