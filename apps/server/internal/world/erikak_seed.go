@@ -117,7 +117,7 @@ func erikaKSeedSubject(style, term string, variant int) string {
 		patterns := []string{"%sの話", "%sどうですか？", "%sで質問", "%s情報ください", "%s最近やってます", "%sの感想", "%sおすすめあります？", "%s雑談"}
 		return fmt.Sprintf(patterns[variant%len(patterns)], term)
 	case "tech":
-		patterns := []string{"%sについて", "%sで質問", "%s設定の話", "%s使ってる人います？", "%s情報ください", "%sを試してみました", "%sで困ってます", "%s雑談"}
+		patterns := []string{"%sについて", "%sで質問", "%sの話", "%s使ってる人います？", "%s情報ください", "%sを試してみました", "%sで困ってます", "%s雑談"}
 		return fmt.Sprintf(patterns[variant%len(patterns)], term)
 	default:
 		patterns := []string{"%sの話", "%sどうですか？", "%sで質問", "%s情報ください", "%s最近どうですか", "%sの近況", "%sについて", "%s雑談"}
