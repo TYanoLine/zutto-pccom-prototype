@@ -83,6 +83,27 @@ Sources:
 - https://sixsamana.com/library/lib/B-00032.html
 - https://sixsamana.com/library/lib/A-00005.html
 
+### ログアウト／切断時メッセージ
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+切断直前に、単なる `NO CARRIER` だけではなく、利用者向けの終了メッセージが表示される実ログがある。
+観測された終了シーケンスには次が含まれる:
+
+- 現在時刻と接続時間
+- ユーザー名を含む「次回の書き込みを待つ」趣旨のメッセージ
+- 局名を含むASCIIアート／ブランド表示
+- アクセスへの謝辞
+- がらくた工房ネットワーク各局の電話番号・速度案内
+- `Disconnected`
+- `NO CARRIER`
+
+局名や電話番号を含むため、少なくとも終了時メッセージの一部は局固有コンテンツであることが直接確認できる。
+ただし、その実装方法が設定ファイル／編集可能テンプレート／局固有コードのどれであったかは未確定。
+
+Source:
+- https://sixsamana.com/library/lib/D-00078.html
+
 ### メインメニュー
 
 **Confirmed / single station (東京がらくた工房, 1996)**
