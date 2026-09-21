@@ -1,6 +1,6 @@
 # TurboBBS / Turbo BBS (Robert H. Maxwell)
 
-Status: primary-source baseline established from the v1.05 System Operator Notes and a v1.08 BBS.PAS main source snapshot; include-file-level command/state reconstruction remains pending.
+Status: primary-source reconstruction established from the v1.05 System Operator Notes, a v1.08 main source snapshot, and matching/alternate support-module sets. Detailed source analysis is in `turbo-bbs-source-notes.md`.
 
 This document uses **TurboBBS** for Robert H. Maxwell's 1985 program. It is the upstream historical context for Japanese descendants such as KTBBS and, through the KPUC lineage, RT-BBS. Do not treat those descendants as UI skins or as evidence that every later feature existed in the 1985 original.
 
@@ -246,18 +246,22 @@ The 1.05 notes say the software, documentation and support files are "released t
 
 Those statements are historically important but internally inconsistent as modern licensing language. For this project, record the wording as provenance and **do not infer a clean modern open-source/public-domain license** from it without separate legal analysis.
 
-### Remaining primary-source gaps
+### Detailed source reconstruction
 
-To reconstruct the original runtime exactly, obtain the corresponding include files and menu/help assets, especially:
+The supplied BBS2/IO/MAILSYS/FILESYS/MACHDEP modules now establish the normal-user command loop, account lifecycle, message search/editor behavior, XMODEM/text-capture paths, terminal preferences, SYSOP functions and two distinct serial-port implementations.
 
-- `BBS2.INC`
-- `IO.INC`
-- `MACHDEP.INC`
-- `MAILSYS.INC`
-- `FILESYS.INC`
-- `MAINMENU.TXT`, `READMENU.TXT`, `EDITMENU.TXT`, `FILEMENU.TXT`, `BBSHELP.TXT`
+See `turbo-bbs-source-notes.md` for the source-set classification and exact reconstruction notes.
 
-These are required to establish exact sign-on prompts, new-user flow, normal command letters, message-selection/unread rules, editor subcommands, file-transfer prompts and serial/modem state transitions.
+Important conclusions:
+
+- the source bundle contains more than one port/configuration and must not be flattened into a single pristine release;
+- the v1.08-compatible set is visibly configured (including `F:` file storage and AI-oriented sections);
+- `N` is "new since the prior properly saved session", not a modern unread flag;
+- addressed-message `recved` state is separate from the account's high-message state;
+- `repto` / `reply` fields exist but are dormant in the inspected MAILSYS code;
+- the original account model has one full-name field rather than KTBBS-style separate member ID and handle;
+- generic input treats semicolon as a delimiter between buffered answers/commands;
+- file transfer implements XMODEM CRC/checksum, raw text capture, LBR member access and SQueezed-file display.
 
 ## Japanese lineage
 
@@ -336,17 +340,15 @@ These are valuable **Station-specific** observations. Do not implement them as d
 2. **KTBBS and RT-BBS must remain separate runtimes.** Shared ancestry is not a reason to collapse them into one generic menu system.
 3. **Preserve descendant provenance without copying features backward.** RT-BBS 5.x features cannot be assumed to exist in TurboBBS 1.05.
 4. **Treat station customizations as first-class evidence.** ミンキームーン demonstrates that a recognizable RT-BBS installation could be heavily themed and behaviorally customized.
-5. **Primary-source inspection now constrains the runtime substantially.** The v1.05 manual fixes the storage model, several commands, access/SYSOP behavior and modem assumptions; the v1.08 main source fixes later constants, record layout and top-level flow. Do not invent the remaining include-file behavior.
+5. **Primary-source inspection now constrains most of the Maxwell runtime.** The v1.05 manual and later source modules establish the account lifecycle, command loop, message semantics, editor, file system and serial-adapter boundaries. Preserve version/configuration differences rather than inventing one universal TurboBBS behavior.
 
 ## Open research tasks
 
-- Obtain the remaining matching include files (`BBS2.INC`, `IO.INC`, `MACHDEP.INC`, `MAILSYS.INC`, `FILESYS.INC`) and the menu/help text assets.
-- Determine the exact normal-user sign-on/new-user prompts from the matching source version.
-- Determine the complete normal-user command letters and subcommands from source/menu assets.
-- Determine the exact `readmine` selection/unread algorithm and how `IDS.BBS` high-message state interacts with per-message receiver-read state.
-- Determine exact message reply/forward/edit semantics.
-- Determine exact XMODEM/file-transfer prompts and error handling.
-- Establish whether the inspected v1.08 main file is pristine upstream 1.08 or a configured/site-modified copy (notably `filedrive = 'F:'`).
+- Obtain the matching `ASYNC.PAS` and `INT24.PAS` used by the configured v1.08-compatible source set.
+- Identify/document the `CONFIG.BBS` format rather than guessing the meaning of its fields.
+- Obtain the external menu/help assets to establish exact displayed menu wording.
+- Establish the provenance/version history of the supplied `*.pas` and alternate `*.inc` module sets.
+- Obtain pristine 1.05 source for a source-to-manual comparison.
 - Compare TurboBBS source structure with KTBBS 6.21A and RT-BBS 5.3 source headers to establish a defensible code genealogy.
 - Preserve the original distribution/licensing wording without treating it as a modern standardized license.
 
