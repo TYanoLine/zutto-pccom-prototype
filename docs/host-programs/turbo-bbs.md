@@ -1,6 +1,6 @@
 # TurboBBS / Turbo BBS (Robert H. Maxwell)
 
-Status: primary-source reconstruction established from the v1.05 System Operator Notes, a v1.08 main source snapshot, and matching/alternate support-module sets. Detailed source analysis is in `turbo-bbs-source-notes.md`.
+Status: primary-source reconstruction established from the v1.05 System Operator Notes, a v1.08 main/source-module snapshot, and a separate v1.09-era station/menu asset set. Detailed source and UI evidence is in `turbo-bbs-source-notes.md` and `turbo-bbs-ui-assets.md`.
 
 This document uses **TurboBBS** for Robert H. Maxwell's 1985 program. It is the upstream historical context for Japanese descendants such as KTBBS and, through the KPUC lineage, RT-BBS. Do not treat those descendants as UI skins or as evidence that every later feature existed in the 1985 original.
 
@@ -250,7 +250,7 @@ Those statements are historically important but internally inconsistent as moder
 
 The supplied BBS2/IO/MAILSYS/FILESYS/MACHDEP modules now establish the normal-user command loop, account lifecycle, message search/editor behavior, XMODEM/text-capture paths, terminal preferences, SYSOP functions and two distinct serial-port implementations.
 
-See `turbo-bbs-source-notes.md` for the source-set classification and exact reconstruction notes.
+See `turbo-bbs-source-notes.md` for the source-set classification and exact reconstruction notes. See `turbo-bbs-ui-assets.md` for the later caller-visible menus/help and DING DONG station customization evidence.
 
 Important conclusions:
 
