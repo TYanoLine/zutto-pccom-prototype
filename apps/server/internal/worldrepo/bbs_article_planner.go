@@ -18,6 +18,23 @@ type repositoryBBSBatchPlanner struct {
 	repo *Repository
 }
 
+func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
+	if r == nil || host.SoftwareID == "materialization-demo" {
+		return false
+	}
+	var materializer LLMMaterializer
+	switch m := r.Materializer.(type) {
+	case LLMMaterializer:
+		materializer = m
+	case *LLMMaterializer:
+		materializer = *m
+	default:
+		return false
+	}
+	_, ok := materializer.Renderer.(llm.BBSArticleBatchPlanner)
+	return ok
+}
+
 func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengine.BatchRequest) ([]bbsengine.PlannedPost, error) {
 	if p.repo == nil {
 		return nil, fmt.Errorf("bbs batch planner repository is nil")
