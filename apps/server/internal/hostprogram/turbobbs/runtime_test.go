@@ -129,7 +129,7 @@ func TestReadSectionAndRelog(t *testing.T) {
 	if disconnect {
 		t.Fatal("read-section chain disconnected")
 	}
-	if !strings.Contains(out, "MODEM") || !strings.Contains(out, "#602") {
+	if !strings.Contains(out, "2400bps") || !strings.Contains(out, "#602") {
 		t.Fatalf("section read did not return section 4 message: %q", out)
 	}
 
