@@ -34,6 +34,24 @@ The Erika family is also documented as using a parent-message + appended-respons
 
 NMODEM support is documented in secondary protocol references and may be exposed where appropriate. Actual binary-transfer protocol implementation is a separate task.
 
+## Account ID / handle research
+
+The surviving Erika-K connection evidence confirms an explicit ID/password login flow.
+
+However, the current research has not established the handle validation rules needed for the identity generator:
+
+- whether a separate changeable handle exists in every target version
+- handle charset
+- punctuation
+- maximum/minimum length
+- case preservation/comparison
+- duplicate rules
+
+Do not borrow these rules from KTBBS, mmm or BIG-Model.
+
+Project-wide handle policy is documented in:
+docs/research/ACCOUNT_ID_HANDLE_EVIDENCE.md
+
 ## Station-specific / fictional
 
 The following are service fiction unless separately sourced:
