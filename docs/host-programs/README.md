@@ -4,6 +4,7 @@ Each historical BBS package is modeled as its own runtime/state machine. These d
 
 Planned/active families:
 
+- TurboBBS / Turbo BBS (Robert H. Maxwell) — `turbo-bbs.md`; source reconstruction — `turbo-bbs-source-notes.md`; caller-visible/menu assets — `turbo-bbs-ui-assets.md`
 - KTBBS / KT-BBS — `ktbbs.md`
 - BIG-Model — `big-model.md`
 - 絵理香K版 — `erika-k.md`
@@ -24,4 +25,4 @@ For each package, record:
 9. source list;
 10. explicit `Confirmed`, `Likely`, `Station-specific`, and `Fictional reconstruction` notes.
 
-Do not infer one program's behavior from another merely because both were Japanese grass-roots BBS software.
+Do not infer one program's behavior from another merely because both were Japanese grass-roots BBS software. Shared source ancestry (for example TurboBBS → KTBBS/RT-BBS) is provenance, not proof that commands or UI behavior remained unchanged.
