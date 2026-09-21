@@ -17,6 +17,10 @@ import (
 // policy that decides when residents write or what a board's recent flow is.
 const ActionWorldCatchup = "bbs-world-catchup"
 
+// legacyActionWorldCatchup was used by the temporary Erika-K-only catch-up.
+// Treat it as shared-engine generated history for cursor/reset migration only.
+const legacyActionWorldCatchup = "world-catchup"
+
 const (
 	DefaultCadence     = 6 * time.Hour
 	DefaultRecentLimit = 48
@@ -219,7 +223,7 @@ func (e *Engine) ResetGenerated(hostID string) (removed int, kept int, ok bool) 
 	all := e.Store.ListPosts(hostID)
 	removeIDs := map[int64]bool{}
 	for _, post := range all {
-		if post.Intent.Action == ActionWorldCatchup {
+		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
 			removeIDs[post.ID] = true
 		}
 	}
@@ -257,7 +261,7 @@ func latestCursor(posts []world.Post) time.Time {
 		if post.CreatedAt.After(latestBaseline) {
 			latestBaseline = post.CreatedAt
 		}
-		if post.Intent.Action == ActionWorldCatchup && post.CreatedAt.After(latestGenerated) {
+		if (post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup) && post.CreatedAt.After(latestGenerated) {
 			latestGenerated = post.CreatedAt
 		}
 	}
