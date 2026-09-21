@@ -10,9 +10,12 @@ import (
 
 type noWaitObservationStore struct {
 	*world.MemoryStore
+	begun []world.Board
 }
 
-func (s *noWaitObservationStore) BeginHostObservation(world.Host, []world.Board) {}
+func (s *noWaitObservationStore) BeginHostObservation(_ world.Host, boards []world.Board) {
+	s.begun = append(s.begun, boards...)
+}
 
 func (s *noWaitObservationStore) WaitForBoardHeaders(context.Context, world.Host, world.Board) ([]world.Post, error) {
 	panic("board/index navigation must not wait for observation")
@@ -210,5 +213,30 @@ func TestBoardCatalogNavigationDoesNotWaitForObservation(t *testing.T) {
 	out, disconnect = runtime.HandleLine("1")
 	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") {
 		t.Fatalf("board index missing: %q", out)
+	}
+}
+
+func TestLeafBoardVisitStartsBackgroundCatchupWithoutWaiting(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &noWaitObservationStore{MemoryStore: base}
+	runtime := New(host, store)
+	loginGuest(t, runtime)
+
+	runtime.HandleLine("BM")
+	runtime.HandleLine("60")
+	out, disconnect := runtime.HandleLine("1")
+	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") {
+		t.Fatalf("leaf board index missing: %q", out)
+	}
+	if len(store.begun) == 0 {
+		t.Fatal("leaf board visit did not start background observation")
+	}
+	got := store.begun[len(store.begun)-1]
+	if got.ID != "60/1" || got.Name != "ＰＣ－９８／ＭＯＤＥＭ" {
+		t.Fatalf("unexpected observed board: %+v", got)
 	}
 }

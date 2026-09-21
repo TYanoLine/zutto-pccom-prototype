@@ -495,6 +495,12 @@ func (r *Runtime) renderBoardIndex() string {
 	if !ok || r.isForum(r.boardPath) {
 		return r.renderBoardMenu()
 	}
+	// Entering an actual leaf board is the demand signal for background world
+	// catch-up. The current canonical index is rendered immediately; no LLM work
+	// is awaited here.
+	if observer, ok := r.Store.(world.HostObservationStore); ok {
+		observer.BeginHostObservation(r.Host, []world.Board{{ID: node.Path, Name: node.Name}})
+	}
 	posts := r.observedBoardPosts(r.boardPath)
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n〖%s〗  ★☆＝未読  〖Board.OP〗SYSOP\r\n", node.Name)

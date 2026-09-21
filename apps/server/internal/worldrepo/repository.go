@@ -35,6 +35,7 @@ type Repository struct {
 	Engine       EvidenceResolver
 	Materializer Materializer
 	WorldDate    string
+	worldNow     func() time.Time
 
 	mu                     sync.Mutex
 	materialized           map[string]bool
@@ -53,6 +54,7 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		Engine:                 engine,
 		Materializer:           materializer,
 		WorldDate:              worldDate,
+		worldNow:               func() time.Time { return worldTime(worldDate) },
 		materialized:           map[string]bool{},
 		hosts:                  map[string]world.Host{},
 		hostMaterialized:       map[string]bool{},
@@ -60,6 +62,22 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		observationBoardJobs:    map[string]*observationJob{},
 		observationBodyJobs:     map[string]*observationJob{},
 	}
+}
+
+// SetWorldNow supplies the mapped 1996 world clock used by background
+// simulation/catch-up. Tests and non-runtime tools keep the deterministic
+// WorldDate fallback installed by New.
+func (r *Repository) SetWorldNow(now func() time.Time) {
+	if now != nil {
+		r.worldNow = now
+	}
+}
+
+func (r *Repository) currentWorldTime() time.Time {
+	if r.worldNow != nil {
+		return r.worldNow()
+	}
+	return worldTime(r.WorldDate)
 }
 
 func (r *Repository) HostByPhone(phone string) (world.Host, error) {

@@ -90,6 +90,7 @@ func main() {
 	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
 	openAIMaterializer := worldrepo.LLMMaterializer{Renderer: openAIRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
+	runtimeStore.SetWorldNow(clock.Now)
 	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
 	materializationLab.freshArchive = freshArchive
