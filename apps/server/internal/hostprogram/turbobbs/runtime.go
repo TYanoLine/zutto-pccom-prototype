@@ -58,11 +58,10 @@ type Runtime struct {
 	loginTries  int
 	newUser     bool
 	pendingName string
-	firstMenu   bool
+	terminalReturn string
 
 	accounts map[string]account
 
-	readMode string
 
 	applyLines []string
 
@@ -71,7 +70,6 @@ type Runtime struct {
 	enterSection string
 	enterLines   []string
 
-	fileMode string
 }
 
 func New(host world.Host, store world.Store) *Runtime {
@@ -81,7 +79,6 @@ func New(host world.Host, store world.Store) *Runtime {
 		state:     "login_name",
 		width:     80,
 		sendLF:    true,
-		firstMenu: true,
 		accounts: map[string]account{
 			"TARO YAMADA": {Password: "MODEM", Access: 3, LastMess: 602},
 			"SYSOP":       {Password: "TURBO", Access: 5, LastMess: 0},
@@ -250,6 +247,7 @@ func (r *Runtime) handleNewPasswordConfirm(line string) (string, bool) {
 		r.state = "new_password"
 		return "\r\n         Passwords did not match!\r\nEnter the password you want on this system : ", false
 	}
+	r.terminalReturn = "login"
 	r.state = "terminal_setup"
 	return "\r\n" + r.renderTerminalSetup(), false
 }
@@ -257,6 +255,12 @@ func (r *Runtime) handleNewPasswordConfirm(line string) (string, bool) {
 func (r *Runtime) handleTerminalSetup(line string) (string, bool) {
 	switch strings.TrimSpace(line) {
 	case "", "0":
+		if r.terminalReturn == "main" {
+			r.state = "main"
+			r.terminalReturn = ""
+			return "\r\nNew definitions are saved by [G]oodbye command." + r.renderMainPrompt(false), false
+		}
+		r.terminalReturn = ""
 		return r.finishLogin(), false
 	case "1":
 		r.caps = !r.caps
@@ -288,7 +292,6 @@ func (r *Runtime) finishLogin() string {
 		return fmt.Sprintf("\r\n  User %s has been denied system access!\r\n", r.caller)
 	}
 	r.state = "main"
-	r.firstMenu = true
 	var b strings.Builder
 	if !r.newUser && r.lastMess > 0 {
 		fmt.Fprintf(&b, "\r\nLast message number seen: %d\r\n", r.lastMess)
@@ -328,10 +331,11 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 	case "H":
 		return r.renderHelp() + r.renderMainPrompt(false), false
 	case "I":
+		r.terminalReturn = "main"
 		r.state = "terminal_setup"
 		return "\r\n" + r.renderTerminalSetup(), false
 	case "K":
-		return "\r\nDelete requires sender/receiver metadata not present in this station fixture.\r\n" + r.renderMainPrompt(false), false
+		return "\r\nDelete not permitted.\r\n" + r.renderMainPrompt(false), false
 	case "L":
 		return r.renderUserLog() + r.renderMainPrompt(false), false
 	case "M":
@@ -426,7 +430,7 @@ func (r *Runtime) handleReadTo(line string) (string, bool) {
 	if strings.EqualFold(strings.TrimSpace(line), "ALL") {
 		return r.renderPosts(func(world.Post) bool { return true }, false) + r.renderMainPrompt(false), false
 	}
-	return "\r\nNo addressed private messages are stored in this station fixture.\r\n" + r.renderMainPrompt(false), false
+	return "\r\nNo messages found.\r\n" + r.renderMainPrompt(false), false
 }
 
 func (r *Runtime) handleReadSection(line string) (string, bool) {
@@ -571,7 +575,7 @@ func (r *Runtime) handleChangePasswordConfirm(line string) (string, bool) {
 		r.accounts[r.caller] = a
 	}
 	r.state = "main"
-	return "\r\nNew password is saved by [G]oodbye within this call-local reconstruction.\r\n" + r.renderMainPrompt(false), false
+	return "\r\nNew password is saved when the [G]oodbye command is executed.\r\n" + r.renderMainPrompt(false), false
 }
 
 func (r *Runtime) handleGoodbyeComment(line string) (string, bool) {
@@ -617,7 +621,7 @@ func (r *Runtime) handleFile(line string) (string, bool) {
 		if r.access <= 2 {
 			return "\r\nUpload requires regular access.\r\n" + r.filePrompt(), false
 		}
-		return "\r\nTransfer aborted - no transport adapter attached.\r\n" + r.filePrompt(), false
+		return "\r\nTransfer cancelled.\r\n" + r.filePrompt(), false
 	default:
 		return "?\r\n" + r.filePrompt(), false
 	}
@@ -627,7 +631,7 @@ func (r *Runtime) handleFileType(line string) (string, bool) {
 	r.state = "file"
 	switch strings.ToUpper(strings.TrimSpace(line)) {
 	case "README.TXT":
-		return "\r\nThis is a fictional 1996 station running a reconstructed TurboBBS runtime.\r\n" + r.filePrompt(), false
+		return "\r\nSILVER HORIZON BBS user information.\r\nPlease leave comments for the Sysop if you find a problem.\r\n" + r.filePrompt(), false
 	case "BBSINFO/BULLETIN.TXT":
 		return "\r\nThe station is running normally.\r\n" + r.filePrompt(), false
 	default:
@@ -640,7 +644,7 @@ func (r *Runtime) handleSysop(line string) (string, bool) {
 	case "C":
 		return "\r\nNo comments.\r\n? ", false
 	case "L":
-		return "\r\nAccess editor is not exposed in this fixture.\r\n? ", false
+		return "\r\nAccess editor unavailable.\r\n? ", false
 	case "!":
 		return "\r\nPrinter mirror toggled.\r\n? ", false
 	default:
@@ -663,6 +667,7 @@ func (r *Runtime) resetForRelog() {
 	r.caps = false
 	r.sendLF = true
 	r.promptBell = false
+	r.terminalReturn = ""
 	r.applyLines = nil
 	r.clearEntry()
 }
@@ -775,7 +780,7 @@ func (r *Runtime) renderUserLog() string {
 }
 
 func (r *Runtime) renderStationWelcome() string {
-	return fmt.Sprintf("\r\nWelcome to %s.\r\nA small, old-fashioned TurboBBS station still running in 1996.\r\n", r.Host.Name)
+	return fmt.Sprintf("\r\nWelcome to %s.\r\nPlease enjoy the message and file sections.\r\n", r.Host.Name)
 }
 
 func (r *Runtime) renderSystemInfo() string {
@@ -797,9 +802,8 @@ func (r *Runtime) renderFileMenu() string {
 
 func (r *Runtime) renderFileHelp() string {
 	return "\r\nFile System Help\r\n" +
-		"TurboBBS supports XMODEM checksum/CRC, text capture, .LBR member access,\r\n" +
-		"and automatic display of SQueezed text files. Binary transfer is not yet\r\n" +
-		"attached to the prototype transport.\r\n"
+		"XMODEM checksum/CRC, text capture, .LBR member access and SQueezed\r\n" +
+		"text display are supported by TurboBBS. Use [D]irectory before transfer.\r\n"
 }
 
 func (r *Runtime) renderFileDirectory() string {
