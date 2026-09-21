@@ -118,10 +118,18 @@ World/observation clock
 
 The current shared batch planner uses up to 48 recent board posts as title/flow
 context and may include short excerpts from the most recent bodies when the
-conversation flow needs more than subjects alone. Root titles are proposed as a
-20-title pool and multiple world-selected slots are assigned from that pool in
-the same provider call. This is specifically intended to prevent independent
-one-post calls from converging on repetitive subjects and phrasings.
+conversation flow needs more than subjects alone. Before wording a root subject,
+the planner must establish a concrete canonical matter for that slot and preserve
+a literal subject anchor from that matter in the final subject. Sourced period
+referents may be used when they naturally identify the matter; generic board
+categories must not substitute for a concrete occurrence. Root titles are then
+proposed as a 20-title pool and multiple world-selected slots are assigned from
+that pool in the same provider call. This is specifically intended to prevent
+independent one-post calls from converging on repetitive or vague subjects.
+
+Header planning does not pre-render article bodies. It commits only the canonical
+header/topology/semantic brief required to show the index. Body prose remains
+lazy and is materialized when the article is read.
 
 A host software identifier must not select a different article-generation
 algorithm. Host-program-specific code may supply topology or representation
