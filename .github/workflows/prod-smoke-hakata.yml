@@ -1,0 +1,20 @@
+name: prod-smoke-hakata
+
+on:
+  push:
+    branches:
+      - debug/prod-smoke-20260922
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install websocket client
+        run: python -m pip install --disable-pip-version-check websockets
+      - name: Exercise production HAKATA reset and batch generation
+        run: python .github/scripts/hakata_prod_smoke.py
