@@ -49,12 +49,14 @@ type BatchRequest struct {
 type PlannedPost struct {
 	SlotIndex        int
 	Subject          string
-	Body             string
+	ConcreteMatter   string
+	SubjectAnchor    string
 	Topic            string
 	Motivation       string
 	Stance           string
 	Goal             string
 	SituationSummary string
+	Claims           []string
 }
 
 type BatchPlanner interface {
@@ -202,7 +204,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		if slot.ReplyToPostID != 0 {
 			subject = "Re: " + strings.TrimSpace(slot.ReplyToSubject)
 		}
-		if subject == "" || strings.TrimSpace(draft.Body) == "" {
+		if subject == "" || strings.TrimSpace(draft.SituationSummary) == "" || strings.TrimSpace(draft.ConcreteMatter) == "" {
 			return fmt.Errorf("bbs article batch slot %d is incomplete", slot.Index)
 		}
 		e.Store.AddPost(host.ID, world.Post{
@@ -211,7 +213,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			Author:          slot.Author,
 			AuthorPersonaID: slot.AuthorPersonaID,
 			Subject:         subject,
-			Body:            draft.Body,
+			Body:            "",
 			Intent: world.PostIntent{
 				Action:           ActionWorldCatchup,
 				CauseKind:        "board_activity_window",
@@ -219,10 +221,15 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 				SourcePostID:     slot.ReplyToPostID,
 				SituationKind:    "bbs_activity",
 				SituationSummary: draft.SituationSummary,
+				SituationFacts: []string{
+					"concrete_matter=" + strings.TrimSpace(draft.ConcreteMatter),
+					"subject_anchor=" + strings.TrimSpace(draft.SubjectAnchor),
+				},
 				Topic:            draft.Topic,
 				Motivation:       draft.Motivation,
 				Stance:           draft.Stance,
 				Goal:             draft.Goal,
+				Claims:           append([]string(nil), draft.Claims...),
 				RespondsToPostID: slot.ReplyToPostID,
 			},
 			CreatedAt: slot.CreatedAt,
