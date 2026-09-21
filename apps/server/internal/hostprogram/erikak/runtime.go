@@ -735,22 +735,27 @@ func (r *Runtime) renderCommandHelp() string {
 	b.WriteString("HELP と入力すると コマンド の簡単な説明が出てきます。\r\n")
 	b.WriteString("==== 次のコマンドが使用出来ます ====\r\n")
 	if r.canUseFeature(FeatureBoard) {
-		b.WriteString("1. ボード [BM/BX/BXS/BR/BW/BWX/BJ]\r\n")
+		b.WriteString("1. ボード\r\n")
+		b.WriteString("   メニュー [BM] インデックス [BX | BXS] 読む [BR]\r\n")
+		b.WriteString("   書く [BW | BWX] 階層移動 [BJ]\r\n")
 	}
 	if r.canUseFeature(FeatureFile) {
-		b.WriteString("2. ファイル [FM/FX/FXS/FR/FW/FWX/FJ]\r\n")
+		b.WriteString("2. ファイル\r\n")
+		b.WriteString("   メニュー [FM] インデックス [FX | FXS] 読む [FR]\r\n")
+		b.WriteString("   書く [FW | FWX] 階層移動 [FJ]\r\n")
 	}
 	if r.canUseFeature(FeatureMail) {
-		b.WriteString("3. メール [MX/MR/MW/MKILL]\r\n")
+		b.WriteString("3. メール  インデックス [MX] 読む [MR] 書く [MW]\r\n")
 	}
 	if r.canUseFeature(FeatureTelegramChat) {
-		b.WriteString("4. チャット [CHAT/CALL/WHO]\r\n")
+		b.WriteString("4. チャット 入る [CHAT] 呼ぶ [CALL]\r\n")
+		b.WriteString("5. 使用状態表示 [WHO]\r\n")
 	}
 	if r.canUseFeature(FeatureMemberList) {
-		b.WriteString("5. メンバーリスト [MEMB]\r\n")
+		b.WriteString("6. メンバーリスト [MEMB]\r\n")
 	}
 	if r.canUseFeature(FeatureSettings) {
-		b.WriteString("6. 設定変更 [MODE]\r\n")
+		b.WriteString("7. パスワード変更 [PASS] 8. 設定変更 [MODE]\r\n")
 	}
 	b.WriteString("9. メニューモード [GUIDE] 10. 終了 [BYE]\r\n")
 	return b.String()
