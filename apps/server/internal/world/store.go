@@ -102,24 +102,8 @@ func NewMemoryStore() *MemoryStore {
 
 	erika := Host{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, ANSI: false, GuestAllowed: true, TelehoFriendly: true}
 	s.hosts[erika.Phone] = erika
-	s.posts[erika.ID] = []Post{
-		{ID: 101, BoardID: "1", Author: "SYSOP", Subject: "今週末のメンテナンス", Body: "土曜の午前3時ごろに30分ほど止めます。\r\nHDDの整理とログの退避をします。", CreatedAt: time.Date(1996, 8, 24, 22, 10, 0, 0, time.Local)},
-		{ID: 102, BoardID: "1", ParentID: 101, Author: "MARI", Subject: "Re: 今週末のメンテナンス", Body: "了解ですー。夜更かし組はその前に落ちます(^^;", CreatedAt: time.Date(1996, 8, 24, 23, 2, 0, 0, time.Local)},
-		{ID: 103, BoardID: "1", ParentID: 101, Author: "KAZU", Subject: "Re: 今週末のメンテナンス", Body: "バックアップご苦労さまです。", CreatedAt: time.Date(1996, 8, 25, 0, 18, 0, 0, time.Local)},
-		{ID: 120, BoardID: "4", Author: "MARI", Subject: "まだまだ暑いですね～", Body: "昼の天神は暑かったです(^^;\r\n夜になると少し楽かな。", CreatedAt: time.Date(1996, 8, 25, 19, 34, 0, 0, time.Local)},
-		{ID: 121, BoardID: "4", ParentID: 120, Author: "YUKI", Subject: "Re: まだまだ暑いですね～", Body: "こっちはクーラー全開です(笑)", CreatedAt: time.Date(1996, 8, 25, 20, 1, 0, 0, time.Local)},
-		{ID: 110, BoardID: "10/2", Author: "YUKI", Subject: "天神でオフしません？", Body: "9月の最初の土曜あたり、天神でどうでしょう。\r\n人数集まりそうなら店を探します。", CreatedAt: time.Date(1996, 8, 25, 20, 45, 0, 0, time.Local)},
-		{ID: 111, BoardID: "10/2", ParentID: 110, Author: "MARI", Subject: "Re: 天神でオフしません？", Body: "参加希望です(^_^)/", CreatedAt: time.Date(1996, 8, 25, 21, 3, 0, 0, time.Local)},
-		{ID: 130, BoardID: "20/1", Author: "KAZU", Subject: "ポケモン赤と緑", Body: "弟がずっとやってます。\r\n通信ケーブルまで買わされました(^^;", CreatedAt: time.Date(1996, 8, 25, 17, 48, 0, 0, time.Local)},
-		{ID: 201, BoardID: "60/1", Author: "TAKU", Subject: "PC-9821で28.8K", Body: "V.34モデムを入れてみました。\r\n回線によっては26400くらいに落ちますね。", CreatedAt: time.Date(1996, 8, 25, 18, 27, 0, 0, time.Local)},
-		{ID: 202, BoardID: "60/1", ParentID: 201, Author: "SYSOP", Subject: "Re: PC-9821で28.8K", Body: "うちの3回線目も夜は24000まで落ちることがあります。", CreatedAt: time.Date(1996, 8, 25, 19, 12, 0, 0, time.Local)},
-		{ID: 210, BoardID: "60/1", Author: "NORI", Subject: "WTERMの設定", Body: "自動巡回のマクロを作り直してます。\r\nうまくいったらアップします。", CreatedAt: time.Date(1996, 8, 26, 0, 20, 0, 0, time.Local)},
-		{ID: 301, BoardID: "60/3", Author: "SYSOP", Subject: "NMODEMテスト用ファイル", Body: "NMODEMの転送テストをする人は声をかけてください。\r\n夜中なら空いていることが多いです。", CreatedAt: time.Date(1996, 8, 23, 23, 50, 0, 0, time.Local)},
-		{ID: 401, BoardID: "70/1", Author: "NORI", Subject: "9821Xaのメモリ", Body: "32MBまで増やしたらWin95がかなり楽になりました。", CreatedAt: time.Date(1996, 8, 25, 22, 8, 0, 0, time.Local)},
-		{ID: 501, BoardID: "80/2", Author: "KAZU", Subject: "MSX turbo Rまだ現役", Body: "うちはFS-A1GTがまだ机の横にいます(^^)", CreatedAt: time.Date(1996, 8, 24, 21, 16, 0, 0, time.Local)},
-		{ID: 901, BoardID: "99", Author: "MIDNIGHT", Subject: "ここ見つけた人いる？", Body: "ボードマップには出てないけど BJ 99 で入れるみたい(笑)", CreatedAt: time.Date(1996, 8, 26, 2, 11, 0, 0, time.Local)},
-	}
-	seedErikaKBoardHeaders(s, erika.ID)
+	s.posts[erika.ID] = nil
+	ensureHakataExperimentCastLocked(s, erika.ID)
 
 
 	turbo := Host{ID: "silver-horizon-bbs", Phone: "0470001080", Name: "SILVER HORIZON BBS", Region: "千葉県", Software: "TurboBBS 1.08 compatible / customized", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, ANSI: false, GuestAllowed: false, TelehoFriendly: true}
