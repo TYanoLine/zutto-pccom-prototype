@@ -28,7 +28,7 @@ If a document and current code disagree, do not silently guess. Determine whethe
 
 ## Historical host programs
 
-KTBBS, BIG-Model, 絵理香K版, mmm, RT-BBS, VS, and other historical packages are **different programs**, not skins for one generic runtime.
+TurboBBS, KTBBS, BIG-Model, 絵理香K版, mmm, RT-BBS, VS, and other historical packages are **different programs**, not skins for one generic runtime.
 
 Share lower layers such as world data, persistence, sessions, transports, access-control primitives, and reusable utilities. Keep software-specific state machines, commands, menus, board/article semantics, unread behavior, mail/chat/files, prompts, login/logout flows, and escape-sequence behavior in their own host-program implementations.
 
