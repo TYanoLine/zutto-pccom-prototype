@@ -179,3 +179,37 @@ func TestSharedEngineWorksForDifferentHostPrograms(t *testing.T) {
 		}
 	}
 }
+
+func TestCatchUpInitialIgnoresCadenceOnlyUntilFirstGeneratedBatch(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ"}
+	planner := &fakeBatchPlanner{}
+	now := time.Date(1996, 8, 26, 0, 50, 0, 0, time.Local)
+	engine := New(store, planner, func() time.Time { return now })
+
+	if err := engine.CatchUp(context.Background(), host, board); err != nil {
+		t.Fatal(err)
+	}
+	if planner.calls != 0 {
+		t.Fatalf("normal cadence unexpectedly generated: calls=%d", planner.calls)
+	}
+
+	if err := engine.CatchUpInitial(context.Background(), host, board); err != nil {
+		t.Fatal(err)
+	}
+	if planner.calls != 1 {
+		t.Fatalf("immediate debug catch-up calls=%d, want 1", planner.calls)
+	}
+
+	// Reopening the same board in the same connection must reuse that batch.
+	if err := engine.CatchUpInitial(context.Background(), host, board); err != nil {
+		t.Fatal(err)
+	}
+	if planner.calls != 1 {
+		t.Fatalf("same board regenerated inside one debug connection: calls=%d", planner.calls)
+	}
+}
