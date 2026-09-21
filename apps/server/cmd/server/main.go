@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"zutto-pccom/apps/server/internal/config"
@@ -235,6 +236,56 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "reset": "host", "center": center})
 	}
 
+	resetBBSArticles := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if !labEnabled() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "development BBS reset is disabled"})
+			return
+		}
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST only"})
+			return
+		}
+		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+		// Public test deployment safety: expose the generic reset machinery only
+		// for the current persistent HAKATA experiment station.
+		if phone != erikaKExperimentPhone {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset currently allows only 0920000196"})
+			return
+		}
+		host, err := runtimeStore.HostByPhone(phone)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "host not found"})
+			return
+		}
+		if runtimeStore.MaterializationObservationRunning(host.ID) {
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "BBS observation/generation is still running; retry after it completes"})
+			return
+		}
+		removed, kept, ok := runtimeStore.ResetBBSGeneratedArticles(host)
+		if !ok {
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "shared BBS article reset unavailable"})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok": true,
+			"phone": phone,
+			"host_id": host.ID,
+			"removed_generated_posts": removed,
+			"kept_posts": kept,
+			"kept": "seed/user history + boards + personas + host program configuration",
+			"next": "visit a board again to run a fresh shared-engine catch-up batch",
+		})
+	}
+
 	listResearch := func(w http.ResponseWriter, r *http.Request) {
 		if !adminGuard(w, r) {
 			return
@@ -407,6 +458,7 @@ func main() {
 	mux.HandleFunc("/api/debug/world", inspectWorld)
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)
+	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
 	mux.HandleFunc("/api/admin/research", listResearch)
 	mux.HandleFunc("/api/admin/research/case", getResearch)
 	mux.HandleFunc("/api/admin/research/new", createResearch)
