@@ -13,6 +13,19 @@ type noWaitObservationStore struct {
 	begun []world.Board
 }
 
+type hiddenResetStore struct {
+	*world.MemoryStore
+	calls   int
+	removed int
+	kept    int
+	ok      bool
+}
+
+func (s *hiddenResetStore) ResetBBSGeneratedArticles(world.Host) (int, int, bool) {
+	s.calls++
+	return s.removed, s.kept, s.ok
+}
+
 func (s *noWaitObservationStore) BeginHostObservation(_ world.Host, boards []world.Board) {
 	s.begun = append(s.begun, boards...)
 }
@@ -238,5 +251,55 @@ func TestLeafBoardVisitStartsBackgroundCatchupWithoutWaiting(t *testing.T) {
 	got := store.begun[len(store.begun)-1]
 	if got.ID != "60/1" || got.Name != "ＰＣ－９８／ＭＯＤＥＭ" {
 		t.Fatalf("unexpected observed board: %+v", got)
+	}
+}
+
+func TestHidden99ResetsGeneratedBBSHistoryAndDisconnects(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &hiddenResetStore{MemoryStore: base, removed: 17, kept: 923, ok: true}
+	runtime := New(host, store)
+	login := loginGuest(t, runtime)
+	if strings.Contains(login, "[99]") || strings.Contains(login, "RESET") {
+		t.Fatalf("hidden debug command leaked into main menu: %q", login)
+	}
+
+	out, disconnect := runtime.HandleLine("99")
+	if !disconnect {
+		t.Fatal("hidden 99 reset must disconnect immediately")
+	}
+	if store.calls != 1 {
+		t.Fatalf("reset calls=%d, want 1", store.calls)
+	}
+	if !strings.Contains(out, "BBS GENERATED HISTORY RESET") ||
+		!strings.Contains(out, "removed=17") ||
+		!strings.Contains(out, "kept=923") ||
+		!strings.Contains(out, "NO CARRIER") {
+		t.Fatalf("unexpected reset output: %q", out)
+	}
+}
+
+func TestHidden99StillLeavesBJ99AsHiddenBoardNavigation(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &hiddenResetStore{MemoryStore: base, ok: true}
+	runtime := New(host, store)
+	loginGuest(t, runtime)
+
+	out, disconnect := runtime.HandleLine("BJ 99")
+	if disconnect {
+		t.Fatal("BJ 99 must navigate, not trigger reset")
+	}
+	if store.calls != 0 {
+		t.Fatalf("BJ 99 unexpectedly triggered reset: calls=%d", store.calls)
+	}
+	if !strings.Contains(out, "夜更かし部屋") {
+		t.Fatalf("BJ 99 hidden board missing: %q", out)
 	}
 }
