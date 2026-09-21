@@ -26,12 +26,14 @@ func (p *fakeBatchPlanner) PlanBBSBatch(_ context.Context, req BatchRequest) ([]
 		out = append(out, PlannedPost{
 			SlotIndex:        slot.Index,
 			Subject:          subject,
-			Body:             fmt.Sprintf("body %02d", slot.Index),
+			ConcreteMatter:   fmt.Sprintf("batch title %02d の具体的な用件", slot.Index),
+			SubjectAnchor:    func() string { if slot.ReplyToPostID != 0 { return "" }; return fmt.Sprintf("title %02d", slot.Index) }(),
 			Topic:            fmt.Sprintf("topic-%02d", slot.Index),
 			Motivation:       "periodic board activity",
 			Stance:           "neutral",
 			Goal:             "share or respond",
-			SituationSummary: fmt.Sprintf("slot %02d event", slot.Index),
+			SituationSummary: fmt.Sprintf("batch title %02d に関する具体的な出来事", slot.Index),
+			Claims:           []string{"具体的な内容を述べる"},
 		})
 	}
 	return out, nil
