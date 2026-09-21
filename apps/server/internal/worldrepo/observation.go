@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
-	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/world"
-	"zutto-pccom/apps/server/internal/worldengine"
 )
 
 // observationJob is process-local coordination only. Canonical observation
@@ -19,11 +16,6 @@ type observationJob struct {
 	done chan struct{}
 	err  error
 }
-
-const (
-	erikaKCatchupAction  = "world-catchup"
-	erikaKCatchupCadence = 6 * time.Hour
-)
 
 func observationBoardKey(hostID, boardID string) string {
 	return hostID + "|" + boardID
@@ -55,10 +47,7 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 		select {
 		case <-existing.done:
 			if existing.err == nil {
-				// Normal board observation is one-shot. Erika-K experiment boards
-				// are different: a completed job can be re-armed after the world
-				// clock has advanced far enough to justify another background post.
-				if host.SoftwareID != "erika-k" || !r.erikaKBoardNeedsCatchup(host.ID, board.ID, r.currentWorldTime()) {
+				if !r.sharedBBSArticleEngineEnabled(host) || r.bbsArticles == nil || !r.bbsArticles.NeedsCatchUp(host, board) {
 					r.observationMu.Unlock()
 					return existing
 				}
@@ -83,16 +72,10 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 }
 
 func (r *Repository) materializeObservedBoardHeaders(host world.Host, board world.Board) error {
-	if host.SoftwareID == "erika-k" {
-		return r.materializeErikaKCatchup(host, board)
-	}
-	if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
-		return nil
-	}
-
-	// The interactive development host uses the board-local title-first planner.
-	// This is deliberately different from the Fresh Lab's host-wide planner:
-	// opening board 2 must not wait for title planning on boards 1, 3, ... 16.
+	// The isolated materialization-demo host remains a diagnostic harness for the
+	// older title-first experiments. Real host runtimes all use the same shared
+	// BBS article engine below; host software only controls how canonical posts
+	// are presented to callers.
 	if host.SoftwareID == "materialization-demo" && developmentInteractiveTitleFirstEnabled(r) {
 		r.materializeInteractiveConversationBoardWindow(host, board)
 		if errText := strings.TrimSpace(r.MaterializationPlanningDiagnostic(host.ID, board.ID)); strings.Contains(errText, "planning_error=") {
@@ -101,88 +84,18 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		return nil
 	}
 
+	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
+		if err := r.bbsArticles.CatchUp(context.Background(), host, board); err != nil {
+			return fmt.Errorf("shared BBS catch-up host %s board %s: %w", host.ID, board.ID, err)
+		}
+		return nil
+	}
+
+	if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
+		return nil
+	}
 	if err := r.ensureBoard(host, board.ID, board.Name); err != nil {
 		return fmt.Errorf("observe host %s board %s: %w", host.ID, board.ID, err)
-	}
-	return nil
-}
-
-func (r *Repository) erikaKBoardNeedsCatchup(hostID, boardID string, now time.Time) bool {
-	posts := filterBoard(r.Base.ListPosts(hostID), boardID)
-	if len(posts) == 0 {
-		return true
-	}
-	cursor := latestErikaKBoardCursor(posts)
-	if cursor.IsZero() || !cursor.Before(now) {
-		return false
-	}
-	return now.Sub(cursor) >= erikaKCatchupCadence
-}
-
-func latestErikaKBoardCursor(posts []world.Post) time.Time {
-	var latestRoot time.Time
-	var latestCatchup time.Time
-	for _, post := range posts {
-		if post.ParentID != 0 || post.CreatedAt.IsZero() {
-			continue
-		}
-		if post.CreatedAt.After(latestRoot) {
-			latestRoot = post.CreatedAt
-		}
-		if post.Intent.Action == erikaKCatchupAction && post.CreatedAt.After(latestCatchup) {
-			latestCatchup = post.CreatedAt
-		}
-	}
-	if !latestCatchup.IsZero() {
-		return latestCatchup
-	}
-	return latestRoot
-}
-
-func (r *Repository) materializeErikaKCatchup(host world.Host, board world.Board) error {
-	now := r.currentWorldTime()
-	if !r.erikaKBoardNeedsCatchup(host.ID, board.ID, now) {
-		return nil
-	}
-	if r.Engine == nil || r.Materializer == nil {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	worldDate := now.Format(time.DateOnly)
-	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
-		Kind:        historicalkb.KnowledgeCulturalSignal,
-		Subject:     board.Name,
-		WorldDate:   worldDate,
-		Region:      host.Region,
-		Audience:    []string{host.SoftwareID},
-		Need:        fmt.Sprintf("%s の %s ボードに、経過した世界時間に応じた新しい投稿を1件追加するための時代背景", host.Name, board.Name),
-		Persistence: true,
-		Importance:  .25,
-		Specificity: .25,
-	})
-	if err != nil {
-		return fmt.Errorf("catch up Erika-K host %s board %s: %w", host.ID, board.ID, err)
-	}
-	posts, err := r.Materializer.GenerateBoardPosts(ctx, BoardMaterializationRequest{
-		Host:       host,
-		BoardID:    board.ID,
-		BoardTopic: board.Name,
-		WorldDate:  worldDate,
-	}, decision)
-	if err != nil {
-		return fmt.Errorf("catch up Erika-K host %s board %s: %w", host.ID, board.ID, err)
-	}
-	for _, post := range posts {
-		if post.ParentID != 0 {
-			continue
-		}
-		post.BoardID = board.ID
-		post.CreatedAt = now
-		post.Intent.Action = erikaKCatchupAction
-		r.Base.AddPost(host.ID, post)
-		break // one new root per cadence/window; never backfill a burst at once
 	}
 	return nil
 }
@@ -191,10 +104,10 @@ func (r *Repository) materializeErikaKCatchup(host world.Host, board world.Board
 // job. Callers that bypass CONNECT (tests/tools) safely start that one board on
 // demand.
 func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, board world.Board) ([]world.Post, error) {
-	// Erika-K board growth is intentionally background-only. Existing index data
-	// is immediately usable and article-body reads must never wait for an unrelated
-	// catch-up post that happens to be generating for the same board.
-	if host.SoftwareID == "erika-k" {
+	// Existing canonical history is immediately readable for every real host.
+	// Background catch-up may add a new batch later, but host-program navigation
+	// never waits merely because the shared article engine is extending history.
+	if r.sharedBBSArticleEngineEnabled(host) {
 		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
 			return existing, nil
 		}

@@ -197,6 +197,15 @@ func (s *MemoryStore) ClearHostPosts(hostID string) int {
 	delete(s.posts, hostID)
 	return count
 }
+func (s *MemoryStore) ReplaceHostPosts(hostID string, posts []Post) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	oldCount := len(s.posts[hostID])
+	out := make([]Post, len(posts))
+	copy(out, posts)
+	s.posts[hostID] = out
+	return oldCount - len(out)
+}
 func (s *MemoryStore) ListBoards(hostID string) []Board {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

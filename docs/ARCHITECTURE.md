@@ -94,6 +94,44 @@ Host-program reads are synchronization barriers over the narrowest required scop
 
 For long elapsed intervals, catch-up should be time-compressed: select durable important transitions first, then materialize only the detailed posts/events required by the current observation.
 
+## Shared BBS article engine
+
+BBS article generation is a world service, not a host-program feature. Historical
+host runtimes own menus, commands, board topology, threading/append presentation,
+limits, and access rules; they do not each implement a separate "AI posting"
+algorithm.
+
+The canonical direction is:
+
+```text
+World/observation clock
+ -> shared BBS article engine
+      -> decide bounded catch-up window
+      -> fix actor/time/root-vs-reply slots before prose
+      -> load recent canonical board history
+      -> generate a board-level title pool in one batch
+      -> realize multiple selected slots together
+      -> validate diversity / era / causal consistency
+      -> commit canonical posts
+ -> host program renders those committed posts in its own grammar
+```
+
+The current shared batch planner uses up to 48 recent board posts as title/flow
+context and may include short excerpts from the most recent bodies when the
+conversation flow needs more than subjects alone. Root titles are proposed as a
+20-title pool and multiple world-selected slots are assigned from that pool in
+the same provider call. This is specifically intended to prevent independent
+one-post calls from converging on repetitive subjects and phrasings.
+
+A host software identifier must not select a different article-generation
+algorithm. Host-program-specific code may supply topology or representation
+constraints only. The isolated materialization-demo host remains a diagnostic
+harness and is not a production host-program exception to this rule.
+
+Debug resets must likewise operate at the shared engine boundary. They may remove
+engine-generated history for an experiment host while retaining seed history,
+human/user posts, boards, personas, and host-program configuration.
+
 ## Generation coordination and concurrency
 
 The runtime/store boundary exposes an optional observation capability rather than embedding AI calls into each historical host program. A host runtime supplies its own board catalog; the shared coordinator owns jobs and waiting. This preserves separate KTBBS/Erika/etc. state machines while sharing world synchronization.
