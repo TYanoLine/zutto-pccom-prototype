@@ -51,7 +51,11 @@ The current split is:
 
 ```text
 successful CONNECT
- -> begin board-scoped header catch-up jobs asynchronously
+ -> establish observation boundary
+ -> connected runtime may prefetch a small number of likely-needed board-header scopes asynchronously
+
+navigation into a forum
+ -> may prefetch one/few immediate child scopes, bounded narrowly
 
 board/article index request
  -> this board's headers ready? yes: render immediately
@@ -62,7 +66,7 @@ article/thread read
  -> no: start/join the shared thread body job, wait, then render
 ```
 
-Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Article prose remains lazy even after the host headers are observed.
+Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Speculative prefetch should remain narrow rather than materializing every visible board. Article prose remains lazy even after the host headers are observed.
 
 `ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
