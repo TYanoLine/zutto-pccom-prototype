@@ -21,10 +21,10 @@ func observationBoardKey(hostID, boardID string) string {
 	return hostID + "|" + boardID
 }
 
-// BeginHostObservation is called after a successful CONNECT, never by HostByPhone
-// or directory/catalog reads. CONNECT starts independent board-header jobs in the
-// background. A later board read waits only for its own board job, never for
-// unrelated boards on the same host.
+// BeginHostObservation is valid only after a successful CONNECT observation
+// boundary, never from HostByPhone or directory/catalog reads. A connected runtime
+// may call it at login or during navigation to prefetch a narrowly-scoped board.
+// A later board read waits only for its own board job, never for unrelated boards.
 func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board) {
 	if strings.TrimSpace(host.ID) == "" {
 		return
