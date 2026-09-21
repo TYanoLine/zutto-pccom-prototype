@@ -38,6 +38,14 @@ var erikaKSeedProfiles = map[string]erikaKSeedProfile{
 	"99":   {style: "social", terms: []string{"夜更かし", "深夜の独り言", "今夜のメンバー", "眠気", "朝まで雑談"}},
 }
 
+var erikaKSeedBoardOrder = []string{
+	"1", "2", "3", "4", "5", "6", "7", "8",
+	"10/1", "10/2", "20/1", "20/2",
+	"60/1", "60/2", "60/3", "68/1",
+	"70/1", "70/2", "80/1", "80/2", "80/3", "80/4",
+	"99",
+}
+
 var erikaKSeedAuthors = []string{
 	"MARI", "YUKI", "NORI", "KAZU", "TAKU", "NEKO", "KEN", "MAKO", "TOMO", "AKI", "RYO", "HIRO", "SACHI", "JUN",
 }
@@ -54,7 +62,8 @@ func seedErikaKBoardHeaders(s *MemoryStore, hostID string) {
 
 	base := time.Date(1996, 8, 26, 1, 30, 0, 0, time.Local)
 	boardOffset := 0
-	for boardID, profile := range erikaKSeedProfiles {
+	for _, boardID := range erikaKSeedBoardOrder {
+		profile := erikaKSeedProfiles[boardID]
 		rootCount := 0
 		for _, post := range s.posts[hostID] {
 			if post.BoardID == boardID && post.ParentID == 0 {
