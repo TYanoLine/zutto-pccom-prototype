@@ -119,6 +119,7 @@ func NewMemoryStore() *MemoryStore {
 		{ID: 501, BoardID: "80/2", Author: "KAZU", Subject: "MSX turbo Rまだ現役", Body: "うちはFS-A1GTがまだ机の横にいます(^^)", CreatedAt: time.Date(1996, 8, 24, 21, 16, 0, 0, time.Local)},
 		{ID: 901, BoardID: "99", Author: "MIDNIGHT", Subject: "ここ見つけた人いる？", Body: "ボードマップには出てないけど BJ 99 で入れるみたい(笑)", CreatedAt: time.Date(1996, 8, 26, 2, 11, 0, 0, time.Local)},
 	}
+	seedErikaKBoardHeaders(s, erika.ID)
 
 
 	turbo := Host{ID: "silver-horizon-bbs", Phone: "0470001080", Name: "SILVER HORIZON BBS", Region: "千葉県", Software: "TurboBBS 1.08 compatible / customized", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, ANSI: false, GuestAllowed: false, TelehoFriendly: true}
