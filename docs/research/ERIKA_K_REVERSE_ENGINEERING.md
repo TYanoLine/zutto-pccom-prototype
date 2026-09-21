@@ -30,6 +30,31 @@
 - 正規会員の `PASSWORD:` フロー。
 - 認証失敗時の再試行回数、ロック、ゲストとの差分。
 
+### 局ごとのメニュー・説明文カスタマイズ
+
+**Confirmed / repeated across multiple K-version stations**
+
+くにびきNETの発掘ログでは `絵理香K版 Ver1.93` と明示され、メインメニューは
+`[1] ボード(BM) [2] ファイル(FM) [3] メール(MAIL) [4] 電報･チャット(C) [5] ジャンク(JUNK) [6] 各種設定(MODE) ... [9] 接続終了(BYE)`
+のように構成されている。
+
+一方、東京がらくた工房のK版ログでは、同じ中核コマンド `BM`, `MAIL`, `C`, `JUNK`, `MODE`, `BYE`, `ASET` 等を使いながら、
+メニュー番号・文字キー・説明文・追加項目が異なる。たとえば MODE は `[O]`、BYE は `[Q]`、ボードマップは `[K]` と表示され、
+`PROF`, 最終接続日時仮設定、GUEST入会申込み、`BAT` などもトップメニューに露出している。
+
+この差から、リバースエンジニアリングでは少なくとも次を分離して扱う:
+
+- **core command semantics**: `BM/FM/MAIL/C/JUNK/MODE/BYE/ASET` 等の実コマンドと状態遷移
+- **station menu mapping**: 数字・文字ショートカットからコマンドへの割当
+- **station labels/help text**: 「各種ボードの読み書き」「ボード」「環境設定･変更メニュー」等の説明文
+- **feature exposure**: その局がトップメニューに見せる機能、GUEST権限、追加機能
+
+したがって、ある1局のメニュー文言を「絵理香K版の固定UI」として実装しない。
+
+Sources:
+- https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
+- https://sixsamana.com/library/lib/D-00078.html
+
 ### メインメニュー
 
 **Confirmed / single station (東京がらくた工房, 1996)**
