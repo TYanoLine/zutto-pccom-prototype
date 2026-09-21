@@ -86,14 +86,16 @@ func newRuntimeStore(databaseURL string) debugExportStore {
 	if err != nil {
 		log.Fatalf("initialize experiment host persistence: %v", err)
 	}
-	// Older persisted HAKATA snapshots may predate the richer code-defined
-	// header baseline. Preserve persisted/generated/user state and only add
-	// missing provisional root headers.
-	if added := store.EnsureErikaKSeedBoardHeaders(erikaKExperimentPhone); added > 0 {
-		if host, hostErr := store.HostByPhone(erikaKExperimentPhone); hostErr == nil {
-			store.SaveHost(host)
-		}
-		log.Printf("HAKATA CANAL NET snapshot baseline upgraded: added_headers=%d", added)
+	// HAKATA is currently a pure generator-evaluation fixture: keep resident
+	// identities but no article baseline. Older snapshots may contain the former
+	// 40-per-board seed or prior generated/user posts, so clear them immediately
+	// on process startup and persist the empty article state.
+	if added := store.EnsureHakataExperimentCast(erikaKExperimentPhone); added > 0 {
+		log.Printf("HAKATA CANAL NET resident cast restored: added_members=%d", added)
+	}
+	if host, hostErr := store.HostByPhone(erikaKExperimentPhone); hostErr == nil {
+		removed := store.ClearHostPosts(host.ID)
+		log.Printf("HAKATA CANAL NET article baseline cleared: removed_posts=%d", removed)
 	}
 	ensureDevelopmentBoardCatalog(store)
 	status := store.DevelopmentPersistenceStatus()
