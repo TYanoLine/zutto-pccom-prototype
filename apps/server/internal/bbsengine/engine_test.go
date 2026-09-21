@@ -71,6 +71,9 @@ func TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime(t *testing.T) {
 			continue
 		}
 		generated++
+		if post.Body != "" {
+			t.Fatalf("header catch-up eagerly materialized body for post %d", post.ID)
+		}
 		if post.ParentID != 0 {
 			replyCount++
 		}
