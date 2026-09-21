@@ -9,7 +9,19 @@ import (
 	"zutto-pccom/apps/server/internal/worldpersist"
 )
 
-const developmentMaterializationPhone = "0450000196"
+const (
+	developmentMaterializationPhone = "0450000196"
+	erikaKExperimentPhone           = "0920000196"
+)
+
+var developmentSnapshotTargets = []worldpersist.HostTarget{
+	{Phone: developmentMaterializationPhone},
+	// HAKATA CANAL NET is currently a fixed fixture at the host-program/config
+	// layer. Persist its evolving world state, but keep code-defined host settings
+	// authoritative across restarts. Future AI host generation can change this
+	// policy when host configuration itself becomes canonical world state.
+	{Phone: erikaKExperimentPhone, KeepSeedHostConfig: true},
+}
 
 var developmentGrassrootsBoardCatalog = []world.Board{
 	{ID: "1", Name: "フリートーク"},
@@ -57,7 +69,7 @@ func ensureDevelopmentBoardCatalog(store debugExportStore) {
 }
 
 // newRuntimeStore keeps the broad prototype on MemoryStore while adding durable
-// persistence only for the expensive development materialization host. This is
+// JSONB snapshot persistence only for selected experiment hosts. This is
 // intentionally a stepping stone toward a proper canonical Postgres world store,
 // not a claim that JSON snapshots are the final production schema.
 func newRuntimeStore(databaseURL string) debugExportStore {
@@ -70,12 +82,12 @@ func newRuntimeStore(databaseURL string) debugExportStore {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	store, err := worldpersist.Open(ctx, databaseURL, base, developmentMaterializationPhone)
+	store, err := worldpersist.Open(ctx, databaseURL, base, developmentSnapshotTargets)
 	if err != nil {
-		log.Fatalf("initialize development materialization persistence: %v", err)
+		log.Fatalf("initialize experiment host persistence: %v", err)
 	}
 	ensureDevelopmentBoardCatalog(store)
 	status := store.DevelopmentPersistenceStatus()
-	log.Printf("development materialization persistence ready: backend=%s restored=%t", status.Backend, status.Loaded)
+	log.Printf("experiment host persistence ready: backend=%s restored=%t targets=%d", status.Backend, status.Loaded, len(developmentSnapshotTargets))
 	return store
 }
