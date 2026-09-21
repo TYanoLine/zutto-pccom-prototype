@@ -116,6 +116,53 @@ Source:
 
 復元実装では、これらを runtime command ではなく station configuration として保持する。
 
+### ホスト全体のマスター機能設定（暫定仕様）
+
+**Provisional implementation decision / firsthand-compatible**
+
+各局は、ユーザー権限判定より上位に「このホストで機能そのものを提供するか」のマスター設定を持つものとする。
+
+判定順序:
+
+1. **station master** — ホスト全体で機能がONか
+2. **account / role permission** — GUEST / MEMBER / OPERATOR / SYSOP等で利用可能か
+3. **resource ACL / state rule** — 個別ボード、ファイルコーナー、現在状態等で利用可能か
+
+station master がOFFなら、SYSOPを含むどのロールもその機能を利用できず、メニューにも原則表示しない。
+
+暫定的な設定対象:
+
+- board
+- file
+- mail
+- telegram/chat
+- junk
+- settings
+- SYSOP mail
+- enrollment
+- automatic operation
+- board map
+- unread search
+- access log
+- batch download
+- member list
+- profile
+
+設定形式は当時のファイル形式再現を目的とせず、現代的なJSON等を使用してよい。現在の実装ではJSONを採用し、未指定項目はONを既定値とする。
+
+ファイル転送プロトコルもホスト単位で個別ON/OFF可能とし、既定値は全てON:
+
+- 無手順
+- XMODEM
+- XMODEM CRC
+- XMODEM 1K
+- YMODEM
+- YMODEM-g
+- ZMODEM
+- NMODEM
+
+ユーザー向けプロトコル選択UIについては、史料で正確なキー割当が確定するまでは復元用の既定メニューを用いる。
+
 ### アカウント種別・権限によるメニュー差
 
 **Confirmed:** GUESTと一般利用者で、利用可能範囲または表示項目に差がある。
