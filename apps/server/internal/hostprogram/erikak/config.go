@@ -3,6 +3,7 @@ package erikak
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -85,6 +86,14 @@ func DefaultConfig() Config {
 // ParseConfigJSON overlays a partial JSON document on top of DefaultConfig.
 // Unknown keys are rejected so a misspelled "false" cannot silently enable a
 // feature by falling back to the default.
+func LoadConfigFile(path string) (Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return Config{}, err
+	}
+	return ParseConfigJSON(data)
+}
+
 func ParseConfigJSON(data []byte) (Config, error) {
 	var raw Config
 	if err := json.Unmarshal(data, &raw); err != nil {
