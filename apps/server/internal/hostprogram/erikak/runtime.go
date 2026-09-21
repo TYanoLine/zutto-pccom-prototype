@@ -524,9 +524,7 @@ func (r *Runtime) renderBoardIndex() string {
 		if ready, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board); err == nil {
 			posts = ready
 		} else {
-			return "
-? BOARD READ ERROR
-" + r.boardPrompt()
+			return "\r\n? BOARD READ ERROR\r\n" + r.boardPrompt()
 		}
 	}
 	var b strings.Builder
