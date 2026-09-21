@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/worldengine"
 )
 
 // observationJob is process-local coordination only. Canonical observation
@@ -16,6 +19,11 @@ type observationJob struct {
 	done chan struct{}
 	err  error
 }
+
+const (
+	erikaKCatchupAction  = "world-catchup"
+	erikaKCatchupCadence = 6 * time.Hour
+)
 
 func observationBoardKey(hostID, boardID string) string {
 	return hostID + "|" + boardID
@@ -47,8 +55,13 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 		select {
 		case <-existing.done:
 			if existing.err == nil {
-				r.observationMu.Unlock()
-				return existing
+				// Normal board observation is one-shot. Erika-K experiment boards
+				// are different: a completed job can be re-armed after the world
+				// clock has advanced far enough to justify another background post.
+				if host.SoftwareID != "erika-k" || !r.erikaKBoardNeedsCatchup(host.ID, board.ID, r.currentWorldTime()) {
+					r.observationMu.Unlock()
+					return existing
+				}
 			}
 			delete(r.observationBoardJobs, key)
 		default:
@@ -70,6 +83,9 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 }
 
 func (r *Repository) materializeObservedBoardHeaders(host world.Host, board world.Board) error {
+	if host.SoftwareID == "erika-k" {
+		return r.materializeErikaKCatchup(host, board)
+	}
 	if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
 		return nil
 	}
@@ -91,10 +107,98 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	return nil
 }
 
+func (r *Repository) erikaKBoardNeedsCatchup(hostID, boardID string, now time.Time) bool {
+	posts := filterBoard(r.Base.ListPosts(hostID), boardID)
+	if len(posts) == 0 {
+		return true
+	}
+	cursor := latestErikaKBoardCursor(posts)
+	if cursor.IsZero() || !cursor.Before(now) {
+		return false
+	}
+	return now.Sub(cursor) >= erikaKCatchupCadence
+}
+
+func latestErikaKBoardCursor(posts []world.Post) time.Time {
+	var latestRoot time.Time
+	var latestCatchup time.Time
+	for _, post := range posts {
+		if post.ParentID != 0 || post.CreatedAt.IsZero() {
+			continue
+		}
+		if post.CreatedAt.After(latestRoot) {
+			latestRoot = post.CreatedAt
+		}
+		if post.Intent.Action == erikaKCatchupAction && post.CreatedAt.After(latestCatchup) {
+			latestCatchup = post.CreatedAt
+		}
+	}
+	if !latestCatchup.IsZero() {
+		return latestCatchup
+	}
+	return latestRoot
+}
+
+func (r *Repository) materializeErikaKCatchup(host world.Host, board world.Board) error {
+	now := r.currentWorldTime()
+	if !r.erikaKBoardNeedsCatchup(host.ID, board.ID, now) {
+		return nil
+	}
+	if r.Engine == nil || r.Materializer == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	worldDate := now.Format(time.DateOnly)
+	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
+		Kind:        historicalkb.KnowledgeCulturalSignal,
+		Subject:     board.Name,
+		WorldDate:   worldDate,
+		Region:      host.Region,
+		Audience:    []string{host.SoftwareID},
+		Need:        fmt.Sprintf("%s の %s ボードに、経過した世界時間に応じた新しい投稿を1件追加するための時代背景", host.Name, board.Name),
+		Persistence: true,
+		Importance:  .25,
+		Specificity: .25,
+	})
+	if err != nil {
+		return fmt.Errorf("catch up Erika-K host %s board %s: %w", host.ID, board.ID, err)
+	}
+	posts, err := r.Materializer.GenerateBoardPosts(ctx, BoardMaterializationRequest{
+		Host:       host,
+		BoardID:    board.ID,
+		BoardTopic: board.Name,
+		WorldDate:  worldDate,
+	}, decision)
+	if err != nil {
+		return fmt.Errorf("catch up Erika-K host %s board %s: %w", host.ID, board.ID, err)
+	}
+	for _, post := range posts {
+		if post.ParentID != 0 {
+			continue
+		}
+		post.BoardID = board.ID
+		post.CreatedAt = now
+		post.Intent.Action = erikaKCatchupAction
+		r.Base.AddPost(host.ID, post)
+		break // one new root per cadence/window; never backfill a burst at once
+	}
+	return nil
+}
+
 // WaitForBoardHeaders waits only for this board's CONNECT-triggered background
 // job. Callers that bypass CONNECT (tests/tools) safely start that one board on
 // demand.
 func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, board world.Board) ([]world.Post, error) {
+	// Erika-K board growth is intentionally background-only. Existing index data
+	// is immediately usable and article-body reads must never wait for an unrelated
+	// catch-up post that happens to be generating for the same board.
+	if host.SoftwareID == "erika-k" {
+		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+			return existing, nil
+		}
+	}
 	job := r.boardObservationJob(host.ID, board.ID)
 	if job == nil {
 		// Persisted canonical data from a previous process is already complete.
