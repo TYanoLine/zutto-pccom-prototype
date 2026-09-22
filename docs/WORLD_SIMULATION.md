@@ -66,7 +66,7 @@ article/thread read
  -> no: start/join the shared thread body job, wait, then render
 ```
 
-Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Speculative prefetch should remain narrow rather than materializing every visible board. Article prose remains lazy even after the host headers are observed.
+Concurrent users join the same board/thread job rather than launching private generation. A ready board must never wait on unrelated work. For boards that still require shared-engine header materialization, one host runs at most one expensive header-generation pipeline at a time: narrow predictive prefetch may queue ahead of a demanded board briefly, but it must not create parallel LLM bursts. Speculative prefetch should remain narrow rather than materializing every visible board. Article prose remains lazy even after the host headers are observed.
 
 `ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
