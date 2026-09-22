@@ -26,8 +26,6 @@ func (p *fakeBatchPlanner) PlanBBSBatch(_ context.Context, req BatchRequest) ([]
 		out = append(out, PlannedPost{
 			SlotIndex:        slot.Index,
 			Subject:          subject,
-			ConcreteMatter:   fmt.Sprintf("batch title %02d の具体的な用件", slot.Index),
-			SubjectAnchor:    func() string { if slot.ReplyToPostID != 0 { return "" }; return fmt.Sprintf("title %02d", slot.Index) }(),
 			Topic:            fmt.Sprintf("topic-%02d", slot.Index),
 			Motivation:       "periodic board activity",
 			Stance:           "neutral",
