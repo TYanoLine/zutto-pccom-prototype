@@ -183,9 +183,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
 		}
 		if err != nil {
-			if attempt+1 < sharedTitlePoolAttempts {
-				continue
-			}
+			// The structured provider already retries transient transport/rate
+			// failures with backoff. A pool attempt means a new semantic pool,
+			// not another burst of identical HTTP retries.
 			return nil, fmt.Errorf("generate title-first candidate pool: %w", err)
 		}
 
