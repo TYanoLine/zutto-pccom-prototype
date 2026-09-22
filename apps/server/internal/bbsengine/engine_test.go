@@ -228,3 +228,38 @@ func TestCatchUpInitialIgnoresCadenceOnlyUntilFirstGeneratedBatch(t *testing.T) 
 		t.Fatalf("same board regenerated inside one debug connection: calls=%d", planner.calls)
 	}
 }
+
+func TestActiveActorTargetScalesWithMembershipWithoutUsingWholePopulation(t *testing.T) {
+	if got := activeActorTarget(326, 326); got < 45 || got > 65 {
+		t.Fatalf("HAKATA active actor window=%d, want realistic bounded subset around 18%%", got)
+	}
+	if got := activeActorTarget(326, 326); got >= 326 {
+		t.Fatalf("active actor window must not equal whole membership: %d", got)
+	}
+	if got := activeActorTarget(52, 52); got != 12 {
+		t.Fatalf("small-host active floor=%d, want 12", got)
+	}
+}
+
+func TestHakataActorRosterDrawsFromLargeMembershipButStaysBounded(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := New(store, &fakeBatchPlanner{}, func() time.Time {
+		return time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	})
+	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+	roster := engine.actorRoster(host, board, nil, engine.currentTime())
+	if len(roster) < 45 || len(roster) > 72 {
+		t.Fatalf("active roster=%d, expected bounded subset of 326 members", len(roster))
+	}
+	all := store.ListHostPersonas(host.ID)
+	if len(all) != host.Members {
+		t.Fatalf("membership=%d, host.Members=%d", len(all), host.Members)
+	}
+	if len(roster) >= len(all) {
+		t.Fatalf("active roster should be smaller than membership: active=%d membership=%d", len(roster), len(all))
+	}
+}
