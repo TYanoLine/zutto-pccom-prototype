@@ -42,9 +42,9 @@ func ensureHakataExperimentPopulationLocked(s *MemoryStore, host Host) int {
 		}
 	}
 
-	rng := rand.New(rand.NewSource(199608260920))
 	added := 0
 	for i := 0; i < target; i++ {
+		rng := rand.New(rand.NewSource(199608260920 + int64(i+1)*7919))
 		id := fmt.Sprintf("hakata-member-%03d", i+1)
 		handle := ""
 		if i < len(hakataCoreHandles) {
