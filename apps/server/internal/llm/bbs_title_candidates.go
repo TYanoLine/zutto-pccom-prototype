@@ -65,6 +65,7 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 掲示板名を言い換えただけの抽象題を量産しないこと。
 - 「この面」「クリア後」「最近のこと」「何かおすすめ」「どうですか？」のように、何の話か消えた件名へ偏らないこと。
 - 20件のうち十分な数は、具体的な作品・製品・ソフト・機種・場所・イベント・症状・操作・用件など、読者が話題の芯を識別できる対象を含めること。
+- supplied historical facts にBoardNameと自然に合う実在名が複数ある場合、候補段階ではそれらを積極的に試してください。目安として20件の半分程度は具体名を含む候補にして構いません。これは採用ノルマではなく候補プールの多様化です。後段のJev/史料検証が不適切な候補を落とします。
 - supplied historical facts に自然に使える実在名がある場合は、必要以上に総称へぼかさず使ってよい。ただし無関係な時代小道具として挿入しない。
 - supplied historical facts にない新しい実在固有名詞は、era_rulesが明示的に許可しない限り導入しない。
 - RecentBBSState / RecentSubjects / AvoidSubjects と同じ題材・同じ言い回し・同じ疑問形を避けること。
