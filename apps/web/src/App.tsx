@@ -158,6 +158,13 @@ export default function App() {
     }
     if (e.key !== 'Enter') return;
     if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; }
+    e.preventDefault();
+    submitInput();
+  }
+  function submitInput() {
+    // A soft Enter and a physical Enter share the same IME guard and routing.
+    if (composingRef.current || suppressEnterRef.current) return;
+    if (directoryRef.current?.isOpen()) { softKey('Enter'); return; }
     terminal.write('\r\n');
     const raw = input;
     const command = raw.trim();
@@ -178,7 +185,6 @@ export default function App() {
     } else {
       routeCommand(raw);
     }
-    e.preventDefault();
   }
   function softKey(key: string) { directoryRef.current?.handleKey(key); }
   function dialCenter(center: RegisteredCenter) { screenModeRef.current = 'terminal'; const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`; terminal.write(`${command}\r\n`); routeCommand(command); resetInput(); }
@@ -188,12 +194,18 @@ export default function App() {
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
   return <main className="shell">
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
-    <section className="screen-wrap" onClick={() => document.getElementById('kbd')?.focus()}><TerminalCanvas terminal={terminal} /><input id="kbd" className="keyboard-capture" value={input} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" spellCheck={false} /></section>
+    <section className="screen-wrap"><TerminalCanvas terminal={terminal} onKeyboardRequest={() => document.getElementById('kbd')?.focus()} /></section>
     {directoryOpen && <nav className="directory-softkeys" aria-label="センターリスト操作">
       <button type="button" onClick={() => softKey('ArrowUp')}>▲<small>上</small></button><button type="button" onClick={() => softKey('ArrowDown')}>▼<small>下</small></button>
       <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
       <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
     </nav>}
+    <form className="command-dock" onSubmit={e => { e.preventDefault(); submitInput(); }}>
+      <label className="command-prompt" htmlFor="kbd">&gt;</label>
+      <input id="kbd" className="keyboard-capture" aria-label="コマンド入力" placeholder={directoryOpen ? 'センターは上下キーで選択' : 'コマンドを入力'} readOnly={directoryOpen} value={input} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" autoComplete="off" enterKeyHint="send" spellCheck={false} />
+      <button className="command-enter" type="submit">Enter</button>
+      <button className="command-escape" type="button" disabled={!!activeCall || localTestConnected} onClick={() => { if (directoryRef.current?.isOpen()) softKey('Escape'); else { openDirectoryWhenReadyRef.current = false; showMainMenu(); } }}>Esc</button>
+    </form>
     <footer className="statusbar"><span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span><label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label></footer>
     <aside className="quick-help"><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}

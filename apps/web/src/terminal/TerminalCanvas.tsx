@@ -1,15 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import type { TerminalCore } from './TerminalCore';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
-export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
+export function TerminalCanvas({ terminal, onKeyboardRequest }: { terminal: TerminalCore; onKeyboardRequest?: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [display, setDisplay] = useState<'readable' | 'fit'>('readable');
+  const [historyOffset, setHistoryOffset] = useState(0);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
   const activePointerIdRef = useRef<number | null>(null);
   const pointerLastYRef = useRef(0);
+  const pointerLastXRef = useRef(0);
   const pointerRemainderRef = useRef(0);
 
   useEffect(() => terminal.subscribe(() => {
@@ -26,6 +30,7 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
       scrollOffsetRef.current = Math.min(terminal.maxScrollOffset, scrollOffsetRef.current);
     }
     previousScrollbackLengthRef.current = nextLength;
+    setHistoryOffset(scrollOffsetRef.current);
     draw();
   }), [terminal]);
   useEffect(() => { draw(); });
@@ -34,6 +39,7 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
     const clamped = Math.max(0, Math.min(terminal.maxScrollOffset, next));
     if (clamped === scrollOffsetRef.current) return;
     scrollOffsetRef.current = clamped;
+    setHistoryOffset(clamped);
     draw();
   }
 
@@ -95,8 +101,10 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
 
   function pointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (e.pointerType === 'mouse') return;
+    if (activePointerIdRef.current !== null) return;
     activePointerIdRef.current = e.pointerId;
     pointerLastYRef.current = e.clientY;
+    pointerLastXRef.current = e.clientX;
     pointerRemainderRef.current = 0;
     e.currentTarget.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -113,6 +121,8 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
     // so the gesture feels the same on iPhone, iPad and desktop-sized canvases.
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
     const dragPixels = e.clientY - pointerLastYRef.current;
+    if (viewportRef.current) viewportRef.current.scrollLeft += pointerLastXRef.current - e.clientX;
+    pointerLastXRef.current = e.clientX;
     pointerLastYRef.current = e.clientY;
     pointerRemainderRef.current += dragPixels;
 
@@ -133,16 +143,30 @@ export function TerminalCanvas({ terminal }: { terminal: TerminalCore }) {
   }
 
   return (
-    <canvas
-      ref={ref}
-      width={640}
-      height={400}
-      className="terminal-canvas"
-      onWheel={wheel}
-      onPointerDown={pointerDown}
-      onPointerMove={pointerMove}
-      onPointerUp={pointerEnd}
-      onPointerCancel={pointerEnd}
-    />
+    <div className={`terminal-display terminal-display--${display}`}>
+      <nav className="terminal-tools" aria-label="端末表示">
+        <button type="button" aria-pressed={display === 'readable'} onClick={() => setDisplay('readable')}>文字拡大</button>
+        <button type="button" aria-pressed={display === 'fit'} onClick={() => setDisplay('fit')}>全体表示</button>
+        <button type="button" onClick={() => setScrollOffset(scrollOffsetRef.current + 12)}>履歴↑</button>
+        <button type="button" onClick={() => setScrollOffset(scrollOffsetRef.current - 12)}>履歴↓</button>
+        <button type="button" onClick={() => setScrollOffset(0)} disabled={historyOffset === 0}>最新</button>
+      </nav>
+      <div ref={viewportRef} className="terminal-viewport" tabIndex={0} aria-label="端末画面。左右にスクロールできます">
+        <canvas
+          ref={ref}
+          width={640}
+          height={400}
+          className="terminal-canvas"
+          aria-label="80桁25行の通信端末"
+          onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) onKeyboardRequest?.(); }}
+          onWheel={wheel}
+          onPointerDown={pointerDown}
+          onPointerMove={pointerMove}
+          onPointerUp={pointerEnd}
+          onPointerCancel={pointerEnd}
+        />
+      </div>
+      <p className="terminal-hint">{historyOffset > 0 ? `履歴表示中（${historyOffset}行前） /「最新」で受信画面へ` : display === 'readable' ? '左右にスワイプで移動・上下で受信履歴' : '80桁全体表示・上下スワイプで受信履歴'}</p>
+    </div>
   );
 }
