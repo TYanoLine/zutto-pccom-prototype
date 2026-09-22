@@ -247,10 +247,11 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		reviewer := titlePlanner
 		if jevAttempted {
 			reviewer = developmentJevTitlePlanner{
-				titles:      append([]string(nil), pool.Titles...),
-				advice:      jevAdvice,
-				fitFloor:    developmentJevTitleFitThreshold,
-				rankingOnly: attempt == sharedTitlePoolAttempts-1,
+				titles:           append([]string(nil), pool.Titles...),
+				advice:           jevAdvice,
+				fitFloor:         developmentJevTitleFitThreshold,
+				rankingOnly:      attempt == sharedTitlePoolAttempts-1,
+				specificityBonus: sourcedTitleSpecificityBonus(pool.Titles, worldDate),
 			}
 		}
 		reviewReq := llm.BBSTitleReviewRequest{
@@ -327,6 +328,23 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		out = append(out, adopted[eventID])
 	}
 	return out, nil
+}
+
+func sourcedTitleSpecificityBonus(titles []string, worldDate string) map[int]float64 {
+	out := map[int]float64{}
+	referents := historicalkb.PeriodReferents(worldDate)
+	for i, title := range titles {
+		for _, ref := range referents {
+			name := strings.TrimSpace(ref.Name)
+			if name != "" && strings.Contains(strings.ToLower(title), strings.ToLower(name)) {
+				// Deliberately small: it breaks near-ties among already-fitting
+				// candidates, never substitutes for Jev's board/person fit gate.
+				out[i+1] = 0.12
+				break
+			}
+		}
+	}
+	return out
 }
 
 func adoptedRoot(slot bbsengine.Slot, d llm.BBSTitleDecision) bbsengine.PlannedPost {
