@@ -348,26 +348,66 @@ type actor struct {
 	personaID string
 }
 
-func (e *Engine) actorRoster(host world.Host, recent []world.Post) []actor {
+func (e *Engine) actorRoster(host world.Host, board world.Board, recent []world.Post, now time.Time) []actor {
+	type rankedActor struct {
+		actor
+		score float64
+	}
+	recentAuthor := map[string]bool{}
+	for _, post := range recent {
+		if h := strings.ToUpper(strings.TrimSpace(post.Author)); h != "" {
+			recentAuthor[h] = true
+		}
+	}
+
+	ranked := make([]rankedActor, 0, host.Members)
 	seen := map[string]bool{}
-	out := make([]actor, 0, 12)
 	if source, ok := e.Store.(personaSource); ok {
 		for _, persona := range source.ListHostPersonas(host.ID) {
 			handle := strings.TrimSpace(persona.Handle)
-			if handle == "" || seen[strings.ToUpper(handle)] {
+			key := strings.ToUpper(handle)
+			if handle == "" || seen[key] {
 				continue
 			}
-			seen[strings.ToUpper(handle)] = true
-			out = append(out, actor{handle: handle, personaID: persona.ID})
+			seen[key] = true
+			activity := personaActivityWeight(persona.ActivityPattern, persona.LurkerTendency)
+			window := fmt.Sprintf("%s|%s|%s|%02d", host.ID, board.ID, now.Format("2006-01-02"), now.Hour()/6)
+			jitter := float64(stableHash(window+"|"+persona.ID)%10000) / 10000.0
+			score := .78*activity + .22*jitter
+			if recentAuthor[key] {
+				score += .10
+			}
+			ranked = append(ranked, rankedActor{
+				actor: actor{handle: handle, personaID: persona.ID},
+				score: score,
+			})
 		}
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].score == ranked[j].score {
+			return ranked[i].handle < ranked[j].handle
+		}
+		return ranked[i].score > ranked[j].score
+	})
+	target := activeActorTarget(host.Members, len(ranked))
+	out := make([]actor, 0, target+8)
+	for i := 0; i < target && i < len(ranked); i++ {
+		out = append(out, ranked[i].actor)
+	}
+
+	// A recently visible author should not vanish from an ongoing conversation
+	// merely because they missed this window's activity cutoff.
+	outSeen := map[string]bool{}
+	for _, a := range out {
+		outSeen[strings.ToUpper(a.handle)] = true
 	}
 	for i := len(recent) - 1; i >= 0; i-- {
 		handle := strings.TrimSpace(recent[i].Author)
 		key := strings.ToUpper(handle)
-		if handle == "" || key == "GUEST" || key == "USER" || seen[key] {
+		if handle == "" || key == "GUEST" || key == "USER" || outSeen[key] {
 			continue
 		}
-		seen[key] = true
+		outSeen[key] = true
 		out = append(out, actor{handle: handle, personaID: recent[i].AuthorPersonaID})
 	}
 	if len(out) == 0 {
@@ -376,11 +416,56 @@ func (e *Engine) actorRoster(host world.Host, recent []world.Post) []actor {
 	return out
 }
 
+func activeActorTarget(members, available int) int {
+	if available <= 0 {
+		return 0
+	}
+	if members <= 0 || members > available {
+		members = available
+	}
+	// This is a simulation heuristic, not a claimed historical statistic. It
+	// represents the pool plausibly active in the current board/time window;
+	// only a much smaller subset will actually write in a materialized batch.
+	target := int(math.Round(float64(members) * .18))
+	if target < 12 {
+		target = 12
+	}
+	if target > 72 {
+		target = 72
+	}
+	if target > available {
+		target = available
+	}
+	return target
+}
+
+func personaActivityWeight(pattern string, lurker float64) float64 {
+	var base float64
+	switch strings.ToLower(strings.TrimSpace(pattern)) {
+	case "regular":
+		base = 1.00
+	case "active":
+		base = .82
+	case "occasional":
+		base = .56
+	case "lurker":
+		base = .30
+	case "dormant":
+		base = .10
+	default:
+		base = .48
+	}
+	if lurker > 0 {
+		base *= 1 - .35*math.Min(1, lurker)
+	}
+	return base
+}
+
 func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Post, cursor, now time.Time, count int) []Slot {
 	if count <= 0 {
 		return nil
 	}
-	actors := e.actorRoster(host, recent)
+	actors := e.actorRoster(host, board, recent, now)
 	roots := make([]world.Post, 0)
 	for _, post := range recent {
 		if post.ParentID == 0 {
