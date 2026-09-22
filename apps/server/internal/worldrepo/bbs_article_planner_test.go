@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"sync/atomic"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
@@ -18,6 +19,10 @@ type fakeSharedTitleRenderer struct {
 	contextCalls int
 	lastContext  llm.BBSContextualTitleCandidateRequest
 	titles       []string
+	started      chan string
+	release      <-chan struct{}
+	active       atomic.Int32
+	maxActive    atomic.Int32
 }
 
 func (f *fakeSharedTitleRenderer) GenerateBoardPost(context.Context, llm.BoardPostRequest) (llm.BoardPostDraft, error) {
@@ -28,9 +33,27 @@ func (f *fakeSharedTitleRenderer) GenerateBBSTitleCandidates(context.Context, st
 	return llm.BBSTitleCandidates{}, fmt.Errorf("legacy non-contextual candidate path should not be used")
 }
 
-func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(_ context.Context, req llm.BBSContextualTitleCandidateRequest) (llm.BBSTitleCandidates, error) {
+func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx context.Context, req llm.BBSContextualTitleCandidateRequest) (llm.BBSTitleCandidates, error) {
 	f.contextCalls++
 	f.lastContext = req
+	active := f.active.Add(1)
+	defer f.active.Add(-1)
+	for {
+		max := f.maxActive.Load()
+		if active <= max || f.maxActive.CompareAndSwap(max, active) {
+			break
+		}
+	}
+	if f.started != nil {
+		f.started <- req.BoardName
+	}
+	if f.release != nil {
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+			return llm.BBSTitleCandidates{}, ctx.Err()
+		}
+	}
 	titles := append([]string(nil), f.titles...)
 	if len(titles) == 0 {
 		titles = []string{
@@ -217,5 +240,54 @@ func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnver
 	}
 	if renderer.contextCalls != 1 {
 		t.Fatalf("candidate pools=%d, want reuse of one generated pool", renderer.contextCalls)
+	}
+}
+
+func TestSharedBBSHeaderMaterializationSerializesBoardsPerHost(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	renderer := &fakeSharedTitleRenderer{
+		started: make(chan string, 2),
+		release: release,
+	}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	repo.SetWorldNow(func() time.Time {
+		return time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	})
+
+	boardA := world.Board{ID: "4", Name: "ふり～と～く"}
+	boardB := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+	repo.BeginHostObservation(host, []world.Board{boardA})
+	select {
+	case <-renderer.started:
+	case <-time.After(time.Second):
+		t.Fatal("first shared BBS board did not start")
+	}
+	repo.BeginHostObservation(host, []world.Board{boardB})
+
+	select {
+	case second := <-renderer.started:
+		t.Fatalf("second board entered title generation concurrently: %s", second)
+	case <-time.After(80 * time.Millisecond):
+	}
+	if got := renderer.maxActive.Load(); got != 1 {
+		t.Fatalf("max concurrent title generators=%d, want 1", got)
+	}
+
+	close(release)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if _, err := repo.WaitForBoardHeaders(ctx, host, boardA); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.WaitForBoardHeaders(ctx, host, boardB); err != nil {
+		t.Fatal(err)
+	}
+	if got := renderer.maxActive.Load(); got != 1 {
+		t.Fatalf("max concurrent title generators after completion=%d, want 1", got)
 	}
 }
