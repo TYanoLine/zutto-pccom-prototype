@@ -195,8 +195,8 @@ func TestSampleStationStartsWithNoArticlesButKeepsResidentCast(t *testing.T) {
 		}
 	}
 	for _, handle := range []string{"MARI", "KAZU", "NORI", "AKI"} {
-		if !seen[handle] {
-			t.Fatalf("resident handle %s missing from cast", handle)
+		if !seen[strings.ToLower(handle)] {
+			t.Fatalf("resident handle %s missing from population", handle)
 		}
 	}
 }
