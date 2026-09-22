@@ -89,6 +89,15 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	}
 
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
+		// Predictive prefetch and a user's demanded board may overlap in wall-clock
+		// time. Keep only one expensive header-materialization pipeline active per
+		// host so the "minimal range" policy cannot turn into parallel LLM bursts.
+		// Board jobs remain distinct: callers still wait only for their requested
+		// board, but its worker may queue briefly behind the host's current prefetch.
+		lock := r.sharedBBSHostMaterializationLock(host.ID)
+		lock.Lock()
+		defer lock.Unlock()
+
 		var err error
 		if r.debugImmediateBBSHost(host.ID) {
 			err = r.bbsArticles.CatchUpInitial(context.Background(), host, board)
