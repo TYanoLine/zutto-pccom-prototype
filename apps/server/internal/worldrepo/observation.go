@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"zutto-pccom/apps/server/internal/world"
@@ -64,6 +65,9 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 
 	go func() {
 		job.err = r.materializeObservedBoardHeaders(host, board)
+		if job.err != nil {
+			log.Printf("BBS header observation failed: host=%s board=%s err=%v", host.ID, board.ID, job.err)
+		}
 		// Keep a failed job addressable until current waiters see its error. A
 		// later CONNECT/read may then replace the failed lease and retry.
 		close(job.done)
