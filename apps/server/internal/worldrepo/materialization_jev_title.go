@@ -23,10 +23,11 @@ type developmentTitleCandidateAdvisor interface {
 }
 
 type developmentJevTitlePlanner struct {
-	titles      []string
-	advice      worldengine.TitleCandidateAdviceDecision
-	fitFloor    float64
-	rankingOnly bool
+	titles           []string
+	advice           worldengine.TitleCandidateAdviceDecision
+	fitFloor         float64
+	rankingOnly      bool
+	specificityBonus map[int]float64
 }
 
 func (p developmentJevTitlePlanner) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
@@ -70,7 +71,8 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 			continue
 		}
 		for ei, event := range req.Events {
-			score := p.advice.Fit[worldengine.TitleCandidatePairKey(original, event.EventID)]
+			rawScore := p.advice.Fit[worldengine.TitleCandidatePairKey(original, event.EventID)]
+			score := rawScore
 			floor := p.fitFloor
 			if p.rankingOnly {
 				floor = 0
@@ -80,9 +82,12 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 			if p.rankingOnly && !p.advicePairPresent(original, event.EventID) {
 				continue
 			}
-			if score < floor {
+			// Specificity may reorder already-plausible candidates, but must never
+			// rescue a candidate that failed the semantic fit floor.
+			if rawScore < floor {
 				continue
 			}
+			score += p.specificityBonus[original]
 			pairs = append(pairs, pair{
 				localCandidate: local + 1,
 				original: original,
@@ -142,7 +147,7 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 			Candidate: local,
 			EventID: pair.eventID,
 			Subject: title,
-			Reason: fmt.Sprintf("Jev人物/投稿枠適合 %.2f; World側の決定的マッチングで採用", pair.score),
+			Reason: fmt.Sprintf("Jev人物/投稿枠+具体性順位 %.2f; World側の決定的マッチングで採用", pair.score),
 			Summary: "この人物が「" + title + "」を話題にする",
 			Details: []string{},
 		})
