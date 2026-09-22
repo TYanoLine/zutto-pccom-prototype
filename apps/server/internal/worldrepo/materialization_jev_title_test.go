@@ -46,3 +46,61 @@ func TestJevTitlePlannerUsesRelativeRankingAbovePlausibilityFloor(t *testing.T) 
 		}
 	}
 }
+
+func TestJevTitlePlannerSpecificityBonusBreaksPlausibleTieOnly(t *testing.T) {
+	planner := developmentJevTitlePlanner{
+		titles: []string{"ゲームの話", "バーチャファイター２"},
+		advice: worldengine.TitleCandidateAdviceDecision{
+			Fit: map[string]float64{
+				worldengine.TitleCandidatePairKey(1, "e1"): 0.60,
+				worldengine.TitleCandidatePairKey(2, "e1"): 0.55,
+			},
+		},
+		specificityBonus: map[int]float64{2: 0.12},
+	}
+	req := llm.BBSTitleReviewRequest{
+		BoardName: "ＧＡＭＥ",
+		Titles: []string{"ゲームの話", "バーチャファイター２"},
+		Events: []llm.BBSWorldWindowEvent{{EventID: "e1"}},
+	}
+	got, err := planner.ReviewBBSTitleCandidates(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range got.Decisions {
+		if d.EventID == "e1" {
+			if d.Subject != "バーチャファイター２" {
+				t.Fatalf("specific supported title did not win near-tie: %+v", got.Decisions)
+			}
+			return
+		}
+	}
+	t.Fatal("event was not assigned")
+}
+
+func TestJevTitlePlannerSpecificityBonusCannotRescueBelowFitFloor(t *testing.T) {
+	planner := developmentJevTitlePlanner{
+		titles: []string{"バーチャファイター２", "ゲームの話"},
+		advice: worldengine.TitleCandidateAdviceDecision{
+			Fit: map[string]float64{
+				worldengine.TitleCandidatePairKey(1, "e1"): 0.20,
+				worldengine.TitleCandidatePairKey(2, "e1"): 0.50,
+			},
+		},
+		specificityBonus: map[int]float64{1: 0.40},
+	}
+	req := llm.BBSTitleReviewRequest{
+		BoardName: "ＧＡＭＥ",
+		Titles: []string{"バーチャファイター２", "ゲームの話"},
+		Events: []llm.BBSWorldWindowEvent{{EventID: "e1"}},
+	}
+	got, err := planner.ReviewBBSTitleCandidates(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range got.Decisions {
+		if d.EventID == "e1" && d.Subject != "ゲームの話" {
+			t.Fatalf("below-floor specific title was incorrectly rescued: %+v", got.Decisions)
+		}
+	}
+}
