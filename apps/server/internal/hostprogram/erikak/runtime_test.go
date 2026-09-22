@@ -181,12 +181,18 @@ func TestSampleStationStartsWithNoArticlesButKeepsResidentCast(t *testing.T) {
 		t.Fatalf("HAKATA starts with %d posts, want 0", len(posts))
 	}
 	personas := store.ListHostPersonas("hakata-canal-net")
-	if len(personas) < 10 {
-		t.Fatalf("resident cast too small: %d", len(personas))
+	if len(personas) != 326 {
+		t.Fatalf("HAKATA membership population=%d, want 326", len(personas))
 	}
 	seen := map[string]bool{}
 	for _, persona := range personas {
-		seen[persona.Handle] = true
+		if seen[strings.ToLower(persona.Handle)] {
+			t.Fatalf("duplicate HAKATA handle: %q", persona.Handle)
+		}
+		seen[strings.ToLower(persona.Handle)] = true
+		if strings.TrimSpace(persona.ActivityPattern) == "" {
+			t.Fatalf("member %q lacks activity skeleton", persona.Handle)
+		}
 	}
 	for _, handle := range []string{"MARI", "KAZU", "NORI", "AKI"} {
 		if !seen[handle] {
