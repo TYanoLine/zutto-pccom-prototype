@@ -116,16 +116,23 @@ World/observation clock
  -> host program renders those committed posts in its own grammar
 ```
 
-The current shared batch planner uses up to 48 recent board posts as title/flow
-context and may include short excerpts from the most recent bodies when the
-conversation flow needs more than subjects alone. Before wording a root subject,
-the planner must establish a concrete canonical matter for that slot and preserve
-a literal subject anchor from that matter in the final subject. Sourced period
-referents may be used when they naturally identify the matter; generic board
-categories must not substitute for a concrete occurrence. Root titles are then
-proposed as a 20-title pool and multiple world-selected slots are assigned from
-that pool in the same provider call. This is specifically intended to prevent
-independent one-post calls from converging on repetitive or vague subjects.
+The shared planner keeps actor/time/root-vs-reply topology world-owned, then
+uses a **title-first candidate pool** for root wording. OpenAI generates 20
+uncommitted subjects for the board using the world date, recent board history,
+avoid-list and bounded historical referents. The prompt explicitly asks for a
+wide spread of concrete subjects rather than generic board-category paraphrases.
+
+Jev then evaluates candidate × already-selected world-slot compatibility and
+cheap era plausibility. Code performs the one-title/one-slot assignment. A named
+candidate that remains historically ambiguous is researched only if it is
+tentatively selected. Only after those gates pass does the selected subject and
+its minimal summary become canonical world state. In other words, the system
+does **not** first invent a detailed canonical topic and then force the subject to
+echo it; specificity is proposed broadly and filtered before adoption.
+
+The planner uses up to 48 recent board posts as title/flow context and may include
+short excerpts from recent bodies when available. Failed/duplicate/too-similar
+candidates are discarded and bounded pools may be replenished.
 
 Header planning does not pre-render article bodies. It commits only the canonical
 header/topology/semantic brief required to show the index. Body prose remains
