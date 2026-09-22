@@ -3,17 +3,21 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
+	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/worldengine"
 )
 
 type fakeSharedTitleRenderer struct {
 	contextCalls int
 	lastContext  llm.BBSContextualTitleCandidateRequest
+	titles       []string
 }
 
 func (f *fakeSharedTitleRenderer) GenerateBoardPost(context.Context, llm.BoardPostRequest) (llm.BoardPostDraft, error) {
@@ -27,12 +31,15 @@ func (f *fakeSharedTitleRenderer) GenerateBBSTitleCandidates(context.Context, st
 func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(_ context.Context, req llm.BBSContextualTitleCandidateRequest) (llm.BBSTitleCandidates, error) {
 	f.contextCalls++
 	f.lastContext = req
-	titles := []string{
-		"バーチャ2のパイ", "ポケモン赤と緑", "サターンのパッド", "メモリーカード不足",
-		"通信対戦してみたい", "中古ソフト売り場", "攻略本を買いました", "RPGで徹夜(^^;",
-		"格ゲーのコマンド", "セーブデータ消失", "二人用ゲーム探し", "アーケード移植",
-		"音ゲーじゃないけど", "SFCまだ現役", "PSのロード時間", "ゲーム雑誌の付録",
-		"夏休みの一本", "シューティング苦手", "対戦相手募集", "エンディング後の話",
+	titles := append([]string(nil), f.titles...)
+	if len(titles) == 0 {
+		titles = []string{
+			"バーチャ2のパイ", "ポケモン赤と緑", "サターンのパッド", "メモリーカード不足",
+			"通信対戦してみたい", "中古ソフト売り場", "攻略本を買いました", "RPGで徹夜(^^;",
+			"格ゲーのコマンド", "セーブデータ消失", "二人用ゲーム探し", "アーケード移植",
+			"音ゲーじゃないけど", "SFCまだ現役", "PSのロード時間", "ゲーム雑誌の付録",
+			"夏休みの一本", "シューティング苦手", "対戦相手募集", "エンディング後の話",
+		}
 	}
 	return llm.BBSTitleCandidates{Titles: titles}, nil
 }
@@ -120,5 +127,95 @@ func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 		if post.Subject == "" || post.SituationSummary == "" {
 			t.Fatalf("adopted root is incomplete: %+v", post)
 		}
+	}
+}
+
+type fallbackTitleTestEngine struct{}
+
+func (fallbackTitleTestEngine) ResolveEvidence(_ context.Context, req worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	if strings.HasPrefix(req.Subject, "bbs-title-era:") {
+		// Simulate a selected proper-name candidate whose synchronous historical
+		// verification did not finish. The planner must consume it and try the
+		// next candidate from the already-generated pool.
+		return worldengine.EvidenceDecision{
+			Knowledge: historicalkb.KnowledgeResult{CanUse: false},
+		}, nil
+	}
+	return worldengine.EvidenceDecision{
+		Knowledge: historicalkb.KnowledgeResult{CanUse: true},
+	}, nil
+}
+
+func (fallbackTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	out := worldengine.TitleCandidateAdviceDecision{
+		Era: map[int]worldengine.TitleEraProbabilities{},
+		Fit: map[string]float64{},
+	}
+	for i := range req.Titles {
+		candidate := i + 1
+		if candidate == 1 {
+			out.Era[candidate] = worldengine.TitleEraProbabilities{
+				SafeWithoutResearch: .10,
+				LogicallyImpossible: .00,
+			}
+		} else {
+			out.Era[candidate] = worldengine.TitleEraProbabilities{
+				SafeWithoutResearch: .95,
+				LogicallyImpossible: .00,
+			}
+		}
+		for _, event := range req.Events {
+			score := .10
+			switch candidate {
+			case 1:
+				score = .90
+			case 2:
+				score = .80
+			}
+			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = score
+		}
+	}
+	return out, nil
+}
+
+func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnverified(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := []string{
+		"要研究の実在作品A",
+		"攻略本なしで進める？",
+	}
+	for i := 3; i <= 20; i++ {
+		titles = append(titles, fmt.Sprintf("低適合候補%02d", i))
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles}
+	repo := New(base, fallbackTitleTestEngine{}, LLMMaterializer{
+		Renderer: renderer,
+	}, "1996-08-26")
+
+	req := bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: []bbsengine.Slot{
+			{Index: 1, Author: "MARI", AuthorPersonaID: "hakata-mari", CreatedAt: time.Date(1996, 8, 26, 22, 0, 0, 0, time.Local)},
+		},
+	}
+
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 1 {
+		t.Fatalf("planned=%d, want 1", len(planned))
+	}
+	if planned[0].Subject != "攻略本なしで進める？" {
+		t.Fatalf("subject=%q, want same-pool safe fallback", planned[0].Subject)
+	}
+	if renderer.contextCalls != 1 {
+		t.Fatalf("candidate pools=%d, want reuse of one generated pool", renderer.contextCalls)
 	}
 }
