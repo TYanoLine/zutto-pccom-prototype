@@ -138,15 +138,23 @@ The fresh `topic-first` experiment selects researched targets before Situation p
 
 Root subjects are generated as the text that the selected actor would actually type into the historical BBS subject field, rather than as a modern headline or article-summary task.
 
-For the shared production batch path, a standalone root must first receive a
-**concrete canonical matter**: the actual object/event/question/update the actor
-is posting about. A broad board label such as `game`, `software`, `recent
-things`, or an unnamed `this stage` is not enough by itself. The planner also
-selects a short literal `subject_anchor` from that matter; the root subject must
-preserve that anchor verbatim. This keeps terseness and historical subject-field
-style while preventing semantic specificity from disappearing between world
-planning and title wording. Replies may rely on their parent subject and do not
-need a new anchor.
+For the shared production batch path, standalone roots use the same
+**candidate-first** principle as the title-first Lab. The World Engine fixes the
+actor, board, timestamp and root/reply topology but does not pre-commit a detailed
+topic merely to manufacture a title.
+
+The title model receives the board, world date, recent board state, recent/avoid
+subjects and bounded historical referents and proposes a pool of 20 uncommitted
+subjects. That pool should be concrete and diverse: specific works/products,
+operations, symptoms, places, events or ordinary concrete questions may appear
+when supported, while vague board-category paraphrases are discouraged.
+
+Jev evaluates each candidate against the already-selected world slots and its era
+plausibility. Code performs deterministic one-title/one-slot matching. Candidates
+with ambiguous named real-world references are historically researched only
+after tentative selection. A candidate becomes canonical only after it survives
+these gates. This preserves the creative breadth of the first generation pass
+without giving the wording model authority to rewrite actor/time/topology.
 
 The same header pass commits semantic state but not the article body. The body
 worker receives the canonical subject, concrete matter, claims and other intent

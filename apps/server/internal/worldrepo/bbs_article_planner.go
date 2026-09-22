@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
@@ -13,6 +14,8 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
 )
+
+const sharedTitlePoolAttempts = 3
 
 type repositoryBBSBatchPlanner struct {
 	repo *Repository
@@ -31,10 +34,18 @@ func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
 	default:
 		return false
 	}
-	_, ok := materializer.Renderer.(llm.BBSArticleBatchPlanner)
+	_, ok := materializer.Renderer.(llm.BBSTitleCandidatePlanner)
 	return ok
 }
 
+// PlanBBSBatch intentionally keeps the World/wording boundary narrow.
+//
+// World Engine: actor, time and root/reply topology.
+// Title candidate model: proposes many uncommitted subjects.
+// Jev/OpenAI review: ranks/maps candidates to already-selected root slots.
+// Historical gate: checks only selected ambiguous titles.
+// World: adopts the winning title/summary as canonical.
+// Body prose: remains lazy until the article is read.
 func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengine.BatchRequest) ([]bbsengine.PlannedPost, error) {
 	if p.repo == nil {
 		return nil, fmt.Errorf("bbs batch planner repository is nil")
@@ -48,9 +59,9 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	default:
 		return nil, fmt.Errorf("shared BBS article engine requires LLMMaterializer")
 	}
-	planner, ok := materializer.Renderer.(llm.BBSArticleBatchPlanner)
+	titlePlanner, ok := materializer.Renderer.(llm.BBSTitleCandidatePlanner)
 	if !ok {
-		return nil, fmt.Errorf("configured renderer does not support batched BBS article planning")
+		return nil, fmt.Errorf("configured renderer does not support title-first candidate planning")
 	}
 
 	worldDate := req.WorldNow.Format(time.DateOnly)
@@ -64,72 +75,381 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 			WorldDate:   worldDate,
 			Region:      req.Host.Region,
 			Audience:    []string{"Japanese dial-up BBS users"},
-			Need:        fmt.Sprintf("%s の「%s」で、この期間に自然に起きる複数投稿の時代背景", req.Host.Name, req.Board.Name),
+			Need:        fmt.Sprintf("%s の「%s」で、その時点のBBS件名候補に使ってよい時代背景・参照対象", req.Host.Name, req.Board.Name),
 			Persistence: true,
 			Importance:  .3,
 			Specificity: .3,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("resolve BBS batch historical context: %w", err)
+			return nil, fmt.Errorf("resolve BBS title historical context: %w", err)
 		}
 	}
 
-	slots := make([]llm.BBSArticleBatchSlot, 0, len(req.Slots))
+	planned := make(map[int]bbsengine.PlannedPost, len(req.Slots))
+	rootSlots := make([]bbsengine.Slot, 0, len(req.Slots))
 	for _, slot := range req.Slots {
-		kind := "root"
-		if slot.ReplyToPostID != 0 {
-			kind = "reply"
+		if slot.ReplyToPostID == 0 {
+			rootSlots = append(rootSlots, slot)
+			continue
 		}
-		slots = append(slots, llm.BBSArticleBatchSlot{
-			Index:          slot.Index,
-			AuthorHandle:   slot.Author,
-			CreatedAt:      slot.CreatedAt.Format(time.RFC3339),
-			Kind:           kind,
-			ReplyToPostID:  slot.ReplyToPostID,
-			ReplyToSubject: slot.ReplyToSubject,
-			ReplyToAuthor:  slot.ReplyToAuthor,
-		})
+		planned[slot.Index] = bbsengine.PlannedPost{
+			SlotIndex:        slot.Index,
+			Topic:            strings.TrimSpace(slot.ReplyToSubject),
+			Motivation:       "reply_to_existing_thread",
+			Goal:             "respond to the existing thread",
+			SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の既存記事へ返信する", slot.Author, slot.ReplyToAuthor, slot.ReplyToSubject),
+		}
 	}
 
-	recentSubjects := make([]string, 0, len(req.RecentPosts))
-	for _, post := range req.RecentPosts {
-		if post.ParentID == 0 && strings.TrimSpace(post.Subject) != "" {
-			recentSubjects = append(recentSubjects, post.Subject)
+	if len(rootSlots) > 0 {
+		roots, err := p.planRootTitles(ctx, materializer, decision, titlePlanner, req, rootSlots, worldDate)
+		if err != nil {
+			return nil, err
+		}
+		for _, root := range roots {
+			planned[root.SlotIndex] = root
 		}
 	}
-	draft, err := planner.GenerateBBSArticleBatch(ctx, llm.BBSArticleBatchRequest{
-		HostName:        req.Host.Name,
-		HostRegion:      req.Host.Region,
-		HostSoftware:    req.Host.Software,
-		BoardID:         req.Board.ID,
-		BoardName:       req.Board.Name,
-		WorldDate:       worldDate,
-		RecentBBSState:  planningBBSStateWithBodyExcerpts(req.RecentPosts, 48, 8),
-		RecentSubjects:  recentSubjects,
-		HistoricalFacts: materializer.historicalFacts(decision),
-		EraRules:        materializer.eraRules(),
-		Slots:           slots,
-	})
-	if err != nil {
-		return nil, err
-	}
-	sort.SliceStable(draft.Posts, func(i, j int) bool { return draft.Posts[i].SlotIndex < draft.Posts[j].SlotIndex })
-	out := make([]bbsengine.PlannedPost, 0, len(draft.Posts))
-	for _, post := range draft.Posts {
-		out = append(out, bbsengine.PlannedPost{
-			SlotIndex:        post.SlotIndex,
-			Subject:          post.Subject,
-			ConcreteMatter:   post.ConcreteMatter,
-			SubjectAnchor:    post.SubjectAnchor,
-			Topic:            post.Topic,
-			Motivation:       post.Motivation,
-			Stance:           post.Stance,
-			Goal:             post.Goal,
-			SituationSummary: post.SituationSummary,
-			Claims:           append([]string(nil), post.Claims...),
-		})
+
+	out := make([]bbsengine.PlannedPost, 0, len(req.Slots))
+	for _, slot := range req.Slots {
+		post, ok := planned[slot.Index]
+		if !ok {
+			return nil, fmt.Errorf("title-first batch omitted slot %d", slot.Index)
+		}
+		out = append(out, post)
 	}
 	return out, nil
+}
+
+func (p repositoryBBSBatchPlanner) planRootTitles(
+	ctx context.Context,
+	materializer LLMMaterializer,
+	decision worldengine.EvidenceDecision,
+	titlePlanner llm.BBSTitleCandidatePlanner,
+	req bbsengine.BatchRequest,
+	rootSlots []bbsengine.Slot,
+	worldDate string,
+) ([]bbsengine.PlannedPost, error) {
+	recentState := planningBBSStateWithBodyExcerpts(req.RecentPosts, 48, 8)
+	recentSubjects := rootSubjects(req.RecentPosts)
+	avoid := append([]string(nil), recentSubjects...)
+
+	events := make([]llm.BBSWorldWindowEvent, 0, len(rootSlots))
+	slotByEvent := map[string]bbsengine.Slot{}
+	for _, slot := range rootSlots {
+		eventID := fmt.Sprintf("slot-%d", slot.Index)
+		profile, facts := p.personaTitleContext(slot.AuthorPersonaID)
+		event := llm.BBSWorldWindowEvent{
+			EventID:        eventID,
+			BoardID:        req.Board.ID,
+			BoardName:      req.Board.Name,
+			AuthorHandle:   slot.Author,
+			CreatedAt:      slot.CreatedAt.Format(time.RFC3339),
+			Action:         "thread_start",
+			AnchorKey:      "board:" + req.Board.ID,
+			CauseKind:      "board_activity_window",
+			CauseSummary:   "World Engine selected a root-post opportunity in this board/time window.",
+			DiscourseMode:  "thread_start",
+			PersonaProfile: profile,
+			ExistingFacts:  facts,
+		}
+		events = append(events, event)
+		slotByEvent[eventID] = slot
+	}
+
+	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
+	adopted := map[string]bbsengine.PlannedPost{}
+	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
+	eraFallback, hasEraFallback := materializer.Renderer.(llm.BBSTitleEraValidator)
+
+	for attempt := 0; attempt < sharedTitlePoolAttempts && len(remaining) > 0; attempt++ {
+		var pool llm.BBSTitleCandidates
+		var err error
+		if hasContextual {
+			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
+				WorldDate:       worldDate,
+				BoardName:       req.Board.Name,
+				RecentBBSState:  recentState,
+				RecentSubjects:  recentSubjects,
+				AvoidSubjects:   avoid,
+				HistoricalFacts: materializer.historicalFacts(decision),
+				EraRules:        materializer.eraRules(),
+			})
+		} else {
+			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("generate title-first candidate pool: %w", err)
+		}
+
+		titles := uniqueUsableTitles(pool.Titles, avoid)
+		if len(titles) == 0 {
+			continue
+		}
+		avoid = append(avoid, titles...)
+
+		jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleAdvice(
+			ctx, req.Host, req.Board, worldDate, pool.Titles, remaining, recentState,
+		)
+		if jevErr != nil {
+			jevAttempted = false
+		}
+
+		eraStatus := map[string]string{}
+		if jevAttempted {
+			for i, title := range pool.Titles {
+				prob := jevAdvice.Era[i+1]
+				switch {
+				case prob.LogicallyImpossible >= developmentJevTitleEraImpossibleThreshold:
+					eraStatus[title] = "ng"
+				case prob.SafeWithoutResearch >= developmentJevTitleEraSafeThreshold:
+					eraStatus[title] = "ok"
+				default:
+					eraStatus[title] = "research"
+				}
+			}
+		} else if hasEraFallback {
+			eraReq := llm.BBSTitleEraRequest{WorldDate: worldDate, BoardName: req.Board.Name, Titles: pool.Titles}
+			eraReview, eraErr := eraFallback.ValidateBBSTitleEra(ctx, eraReq)
+			if eraErr == nil {
+				for _, d := range eraReview.Decisions {
+					if d.Candidate < 1 || d.Candidate > len(pool.Titles) {
+						continue
+					}
+					switch d.Status {
+					case llm.BBSTitleEraOK:
+						eraStatus[pool.Titles[d.Candidate-1]] = "ok"
+					case llm.BBSTitleEraNG:
+						eraStatus[pool.Titles[d.Candidate-1]] = "ng"
+					default:
+						eraStatus[pool.Titles[d.Candidate-1]] = "research"
+					}
+				}
+			}
+		}
+		for _, title := range pool.Titles {
+			if _, ok := eraStatus[title]; !ok {
+				eraStatus[title] = "research"
+			}
+		}
+
+		eligible := make([]string, 0, len(titles))
+		for _, title := range titles {
+			if eraStatus[title] != "ng" {
+				eligible = append(eligible, title)
+			}
+		}
+		if len(eligible) == 0 {
+			continue
+		}
+
+		reviewer := titlePlanner
+		if jevAttempted {
+			reviewer = developmentJevTitlePlanner{
+				titles:      append([]string(nil), pool.Titles...),
+				advice:      jevAdvice,
+				fitFloor:    developmentJevTitleFitThreshold,
+				rankingOnly: attempt == sharedTitlePoolAttempts-1,
+			}
+		}
+		reviewReq := llm.BBSTitleReviewRequest{
+			BoardName:      req.Board.Name,
+			Titles:         eligible,
+			Events:         remaining,
+			RecentBBSState: recentState,
+		}
+		review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
+		if err != nil {
+			if attempt+1 < sharedTitlePoolAttempts {
+				continue
+			}
+			return nil, fmt.Errorf("review title-first candidates: %w", err)
+		}
+
+		candidates := make([]llm.BBSTitleDecision, 0)
+		for _, d := range review.Decisions {
+			if d.EventID == "" || strings.TrimSpace(d.Subject) == "" || strings.TrimSpace(d.Summary) == "" {
+				continue
+			}
+			if _, exists := adopted[d.EventID]; exists {
+				continue
+			}
+			if titleTooSimilarToAny(d.Subject, recentSubjects) || titleTooSimilarToAdopted(d.Subject, adopted) {
+				continue
+			}
+			candidates = append(candidates, d)
+		}
+
+		researchJobs := make([]developmentTitleEraResearchJob, 0)
+		researchDecision := map[int]llm.BBSTitleDecision{}
+		jobID := 1
+		for _, d := range candidates {
+			switch eraStatus[d.Subject] {
+			case "ok":
+				adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+			case "research":
+				researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: jobID, title: d.Subject})
+				researchDecision[jobID] = d
+				jobID++
+			}
+		}
+		if len(researchJobs) > 0 {
+			outcomes := p.repo.developmentResearchTitleEraBatch(ctx, req.Host, req.Board, worldDate, researchJobs)
+			for id, outcome := range outcomes {
+				if outcome.status != "verified" {
+					continue
+				}
+				d := researchDecision[id]
+				adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+			}
+		}
+
+		next := make([]llm.BBSWorldWindowEvent, 0, len(remaining))
+		for _, event := range remaining {
+			if _, ok := adopted[event.EventID]; !ok {
+				next = append(next, event)
+			}
+		}
+		remaining = next
+	}
+
+	// World-selected roots survive wording difficulty. If Jev/OpenAI could not
+	// fill every slot after bounded pools, adopt unused era-safe candidates from
+	// the last generated pools is preferable to erasing the world action.
+	if len(remaining) > 0 {
+		return nil, fmt.Errorf("title-first pools exhausted with %d unfilled root slots", len(remaining))
+	}
+
+	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
+	for _, slot := range rootSlots {
+		eventID := fmt.Sprintf("slot-%d", slot.Index)
+		out = append(out, adopted[eventID])
+	}
+	return out, nil
+}
+
+func adoptedRoot(slot bbsengine.Slot, d llm.BBSTitleDecision) bbsengine.PlannedPost {
+	return bbsengine.PlannedPost{
+		SlotIndex:        slot.Index,
+		Subject:          d.Subject,
+		Topic:            d.Subject,
+		Motivation:       "world_selected_board_activity",
+		Goal:             "share or ask about the adopted subject",
+		SituationSummary: d.Summary,
+	}
+}
+
+func (p repositoryBBSBatchPlanner) personaTitleContext(personaID string) (string, []string) {
+	if p.repo == nil || personaID == "" {
+		return "", nil
+	}
+	var profile string
+	if store, ok := p.repo.Base.(world.PersonaStore); ok {
+		if persona, found := store.PersonaByID(personaID); found {
+			profile = personaSummary(persona)
+		}
+	}
+	facts := []string{}
+	if store, ok := p.repo.Base.(world.PersonaFactStore); ok {
+		for _, fact := range store.ListPersonaFacts(personaID) {
+			facts = append(facts, fact.Key+"="+fact.Value)
+		}
+	}
+	return profile, facts
+}
+
+func rootSubjects(posts []world.Post) []string {
+	out := make([]string, 0, len(posts))
+	for _, post := range posts {
+		if post.ParentID == 0 && strings.TrimSpace(post.Subject) != "" {
+			out = append(out, strings.TrimSpace(post.Subject))
+		}
+	}
+	return out
+}
+
+func uniqueUsableTitles(titles, avoid []string) []string {
+	out := make([]string, 0, len(titles))
+	seen := map[string]bool{}
+	for _, title := range titles {
+		title = strings.TrimSpace(title)
+		key := normalizeTitleForSimilarity(title)
+		if title == "" || seen[key] || titleTooSimilarToAny(title, avoid) {
+			continue
+		}
+		seen[key] = true
+		out = append(out, title)
+	}
+	return out
+}
+
+func titleTooSimilarToAdopted(title string, adopted map[string]bbsengine.PlannedPost) bool {
+	for _, post := range adopted {
+		if titleSimilarity(title, post.Subject) >= .78 {
+			return true
+		}
+	}
+	return false
+}
+
+func titleTooSimilarToAny(title string, others []string) bool {
+	for _, other := range others {
+		if titleSimilarity(title, other) >= .78 {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeTitleForSimilarity(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+		if unicode.IsSpace(r) || strings.ContainsRune("！？?!。、・「」『』（）()[]【】〜～", r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func titleSimilarity(a, b string) float64 {
+	a = normalizeTitleForSimilarity(a)
+	b = normalizeTitleForSimilarity(b)
+	if a == "" || b == "" {
+		return 0
+	}
+	if a == b {
+		return 1
+	}
+	grams := func(s string) map[string]bool {
+		r := []rune(s)
+		out := map[string]bool{}
+		if len(r) == 1 {
+			out[s] = true
+			return out
+		}
+		for i := 0; i+1 < len(r); i++ {
+			out[string(r[i:i+2])] = true
+		}
+		return out
+	}
+	ga, gb := grams(a), grams(b)
+	union := map[string]bool{}
+	inter := 0
+	for g := range ga {
+		union[g] = true
+		if gb[g] {
+			inter++
+		}
+	}
+	for g := range gb {
+		union[g] = true
+	}
+	if len(union) == 0 {
+		return 0
+	}
+	return float64(inter) / float64(len(union))
 }
 
 func planningBBSStateWithBodyExcerpts(posts []world.Post, titleLimit, bodyLimit int) string {

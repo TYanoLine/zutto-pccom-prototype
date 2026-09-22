@@ -103,7 +103,7 @@ func NewMemoryStore() *MemoryStore {
 	erika := Host{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, ANSI: false, GuestAllowed: true, TelehoFriendly: true}
 	s.hosts[erika.Phone] = erika
 	s.posts[erika.ID] = nil
-	ensureHakataExperimentCastLocked(s, erika.ID)
+	ensureHakataExperimentPopulationLocked(s, erika)
 
 
 	turbo := Host{ID: "silver-horizon-bbs", Phone: "0470001080", Name: "SILVER HORIZON BBS", Region: "千葉県", Software: "TurboBBS 1.08 compatible / customized", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, ANSI: false, GuestAllowed: false, TelehoFriendly: true}

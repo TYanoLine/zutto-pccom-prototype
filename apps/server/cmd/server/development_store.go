@@ -90,8 +90,8 @@ func newRuntimeStore(databaseURL string) debugExportStore {
 	// identities but no article baseline. Older snapshots may contain the former
 	// 40-per-board seed or prior generated/user posts, so clear them immediately
 	// on process startup and persist the empty article state.
-	if added := store.EnsureHakataExperimentCast(erikaKExperimentPhone); added > 0 {
-		log.Printf("HAKATA CANAL NET resident cast restored: added_members=%d", added)
+	if added := store.EnsureHakataExperimentPopulation(erikaKExperimentPhone); added > 0 {
+		log.Printf("HAKATA CANAL NET membership population restored: added_members=%d", added)
 	}
 	if host, hostErr := store.HostByPhone(erikaKExperimentPhone); hostErr == nil {
 		removed := store.ClearHostPosts(host.ID)

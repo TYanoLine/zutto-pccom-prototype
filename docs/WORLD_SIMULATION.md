@@ -113,6 +113,25 @@ Personas should have persistent traits and state such as:
 
 A large proportion of accounts should read rarely, lurk, or be inactive. Online population must not equal active posters.
 
+Treat membership scale and activity scale as different layers:
+
+```text
+registered members
+ -> plausible recent visitors
+ -> current time-window activity candidates
+ -> readers / ROM
+ -> writers
+ -> actual root/reply actions
+```
+
+Do not model a 300-member local BBS as a fixed cast of a dozen recurring people.
+Conversely, do not feed all 300 members into every planning call. Keep sparse
+identity/activity skeletons for the membership population, then deterministically
+select a bounded activity window from persisted traits, time and board context.
+The current HAKATA evaluation uses an approximately 18% time-window candidate
+pool with a floor/cap for small/large hosts; this number is an explicit
+simulation heuristic, **not a claimed historical active-user statistic**.
+
 ### Baseline, interest, and current salience are different
 
 Do not collapse these three concepts into one field.
