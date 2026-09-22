@@ -109,3 +109,46 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		}
 	}
 }
+
+func TestStructuredOpenAIRetriesTransient429(t *testing.T) {
+	attempts := 0
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			if attempts == 1 {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Status:     "429 Too Many Requests",
+					Header:     http.Header{"Retry-After": []string{"0"}},
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_exceeded"}}`)),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"model":"gpt-test",
+					"output":[{"content":[{"type":"output_text","text":"{}"}]}],
+					"usage":{"input_tokens":1,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":2}
+				}`)),
+			}, nil
+		})},
+	}}
+	result, err := provider.responseTextWithJSONSchema(context.Background(), "test", "low", 100, "test_schema", map[string]any{
+		"type": "object",
+		"properties": map[string]any{},
+		"additionalProperties": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Text != "{}" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts=%d, want 2", attempts)
+	}
+}

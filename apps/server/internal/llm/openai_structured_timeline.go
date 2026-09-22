@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -184,7 +185,7 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
 	httpReq.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(httpReq)
+	resp, err := doStructuredOpenAIRequest(ctx, client, httpReq)
 	if err != nil {
 		return responseTextResult{}, err
 	}
@@ -234,4 +235,56 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 		}
 	}
 	return responseTextResult{}, errors.New("no structured output_text in OpenAI response")
+}
+
+
+func doStructuredOpenAIRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+	const maxAttempts = 3
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		current := req
+		if attempt > 0 {
+			current = req.Clone(ctx)
+			if req.GetBody != nil {
+				body, err := req.GetBody()
+				if err != nil {
+					return nil, err
+				}
+				current.Body = body
+			}
+		}
+		resp, err := client.Do(current)
+		if err != nil {
+			return nil, err
+		}
+		transient := resp.StatusCode == http.StatusTooManyRequests || (resp.StatusCode >= 500 && resp.StatusCode <= 599)
+		if !transient || attempt+1 >= maxAttempts {
+			return resp, nil
+		}
+
+		delay := time.Duration(1<<attempt) * time.Second
+		if raw := strings.TrimSpace(resp.Header.Get("Retry-After")); raw != "" {
+			if d, err := time.ParseDuration(raw + "s"); err == nil && d >= 0 {
+				delay = d
+			} else if when, err := http.ParseTime(raw); err == nil {
+				if d := time.Until(when); d > 0 {
+					delay = d
+				}
+			}
+		}
+		if delay < 250*time.Millisecond {
+			delay = 250 * time.Millisecond
+		}
+		if delay > 8*time.Second {
+			delay = 8 * time.Second
+		}
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	return nil, errors.New("openai structured responses retry loop exhausted")
 }
