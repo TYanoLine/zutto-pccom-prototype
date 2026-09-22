@@ -15,7 +15,10 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
-const sharedTitlePoolAttempts = 3
+const (
+	sharedTitlePoolAttempts   = 3
+	sharedTitleResearchBudget = 6 * time.Second
+)
 
 type repositoryBBSBatchPlanner struct {
 	repo *Repository
@@ -180,6 +183,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
 		}
 		if err != nil {
+			if attempt+1 < sharedTitlePoolAttempts {
+				continue
+			}
 			return nil, fmt.Errorf("generate title-first candidate pool: %w", err)
 		}
 
@@ -254,65 +260,96 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				specificityBonus: sourcedTitleSpecificityBonus(pool.Titles, worldDate),
 			}
 		}
-		reviewReq := llm.BBSTitleReviewRequest{
-			BoardName:      req.Board.Name,
-			Titles:         eligible,
-			Events:         remaining,
-			RecentBBSState: recentState,
-		}
-		review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
-		if err != nil {
-			if attempt+1 < sharedTitlePoolAttempts {
-				continue
+		available := append([]string(nil), eligible...)
+		for len(available) > 0 && len(remaining) > 0 {
+			reviewReq := llm.BBSTitleReviewRequest{
+				BoardName:      req.Board.Name,
+				Titles:         available,
+				Events:         remaining,
+				RecentBBSState: recentState,
 			}
-			return nil, fmt.Errorf("review title-first candidates: %w", err)
-		}
+			review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
+			if err != nil {
+				if attempt+1 < sharedTitlePoolAttempts {
+					break
+				}
+				return nil, fmt.Errorf("review title-first candidates: %w", err)
+			}
 
-		candidates := make([]llm.BBSTitleDecision, 0)
-		for _, d := range review.Decisions {
-			if d.EventID == "" || strings.TrimSpace(d.Subject) == "" || strings.TrimSpace(d.Summary) == "" {
-				continue
-			}
-			if _, exists := adopted[d.EventID]; exists {
-				continue
-			}
-			if titleTooSimilarToAny(d.Subject, recentSubjects) || titleTooSimilarToAdopted(d.Subject, adopted) {
-				continue
-			}
-			candidates = append(candidates, d)
-		}
-
-		researchJobs := make([]developmentTitleEraResearchJob, 0)
-		researchDecision := map[int]llm.BBSTitleDecision{}
-		jobID := 1
-		for _, d := range candidates {
-			switch eraStatus[d.Subject] {
-			case "ok":
-				adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
-			case "research":
-				researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: jobID, title: d.Subject})
-				researchDecision[jobID] = d
-				jobID++
-			}
-		}
-		if len(researchJobs) > 0 {
-			outcomes := p.repo.developmentResearchTitleEraBatch(ctx, req.Host, req.Board, worldDate, researchJobs)
-			for id, outcome := range outcomes {
-				if outcome.status != "verified" {
+			// Every candidate that won a slot in this round is consumed from this
+			// pool, even if later rejected by duplicate/era research. This is the
+			// key candidate-first fallback: the next-best candidate can then be
+			// tried for the still-unfilled world slot without asking the wording
+			// model to invent a new pool.
+			consumed := map[string]bool{}
+			candidates := make([]llm.BBSTitleDecision, 0)
+			for _, d := range review.Decisions {
+				subject := strings.TrimSpace(d.Subject)
+				if d.EventID == "" || subject == "" {
 					continue
 				}
-				d := researchDecision[id]
-				adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+				consumed[subject] = true
+				if strings.TrimSpace(d.Summary) == "" {
+					continue
+				}
+				if _, exists := adopted[d.EventID]; exists {
+					continue
+				}
+				if titleTooSimilarToAny(subject, recentSubjects) || titleTooSimilarToAdopted(subject, adopted) {
+					continue
+				}
+				candidates = append(candidates, d)
 			}
-		}
+			if len(consumed) == 0 {
+				break
+			}
 
-		next := make([]llm.BBSWorldWindowEvent, 0, len(remaining))
-		for _, event := range remaining {
-			if _, ok := adopted[event.EventID]; !ok {
-				next = append(next, event)
+			researchJobs := make([]developmentTitleEraResearchJob, 0)
+			researchDecision := map[int]llm.BBSTitleDecision{}
+			jobID := 1
+			for _, d := range candidates {
+				switch eraStatus[d.Subject] {
+				case "ok":
+					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+				case "research":
+					researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: jobID, title: d.Subject})
+					researchDecision[jobID] = d
+					jobID++
+				}
 			}
+			if len(researchJobs) > 0 {
+				// Historical verification is an adoption gate, not a reason to
+				// freeze the BBS UI. If uncached research cannot finish inside
+				// this small foreground budget, leave the candidate unverified
+				// and try the next already-generated candidate instead.
+				researchCtx, cancel := context.WithTimeout(ctx, sharedTitleResearchBudget)
+				outcomes := p.repo.developmentResearchTitleEraBatch(researchCtx, req.Host, req.Board, worldDate, researchJobs)
+				cancel()
+				for id, outcome := range outcomes {
+					if outcome.status != "verified" {
+						continue
+					}
+					d := researchDecision[id]
+					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+				}
+			}
+
+			nextAvailable := make([]string, 0, len(available))
+			for _, title := range available {
+				if !consumed[title] {
+					nextAvailable = append(nextAvailable, title)
+				}
+			}
+			available = nextAvailable
+
+			nextRemaining := make([]llm.BBSWorldWindowEvent, 0, len(remaining))
+			for _, event := range remaining {
+				if _, ok := adopted[event.EventID]; !ok {
+					nextRemaining = append(nextRemaining, event)
+				}
+			}
+			remaining = nextRemaining
 		}
-		remaining = next
 	}
 
 	// World-selected roots survive wording difficulty. If Jev/OpenAI could not
