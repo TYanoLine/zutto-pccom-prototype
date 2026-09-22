@@ -49,8 +49,6 @@ type BatchRequest struct {
 type PlannedPost struct {
 	SlotIndex        int
 	Subject          string
-	ConcreteMatter   string
-	SubjectAnchor    string
 	Topic            string
 	Motivation       string
 	Stance           string
@@ -204,7 +202,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		if slot.ReplyToPostID != 0 {
 			subject = "Re: " + strings.TrimSpace(slot.ReplyToSubject)
 		}
-		if subject == "" || strings.TrimSpace(draft.SituationSummary) == "" || strings.TrimSpace(draft.ConcreteMatter) == "" {
+		if subject == "" || strings.TrimSpace(draft.SituationSummary) == "" {
 			return fmt.Errorf("bbs article batch slot %d is incomplete", slot.Index)
 		}
 		e.Store.AddPost(host.ID, world.Post{
@@ -219,11 +217,13 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 				CauseKind:        "board_activity_window",
 				DiscourseMode:    func() string { if slot.ReplyToPostID != 0 { return "reply" }; return "thread_start" }(),
 				SourcePostID:     slot.ReplyToPostID,
-				SituationKind:    "bbs_activity",
+				SituationKind:    "title_first",
 				SituationSummary: draft.SituationSummary,
 				SituationFacts: []string{
-					"concrete_matter=" + strings.TrimSpace(draft.ConcreteMatter),
-					"subject_anchor=" + strings.TrimSpace(draft.SubjectAnchor),
+					"title_first_subject=" + subject,
+					"world_adoption=title_candidate",
+					"world_adopted_summary=" + draft.SituationSummary,
+					"subject_contract=Keep the adopted title verbatim. Do not replace it with a different topic.",
 				},
 				Topic:            draft.Topic,
 				Motivation:       draft.Motivation,
