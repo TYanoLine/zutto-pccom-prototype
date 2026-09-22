@@ -247,8 +247,10 @@ Do not send all historical logs. Retrieve only relevant facts and summarize old 
 While the shared BBS article generator is being evaluated, the fixed experiment
 station `0920000196` has **no article seed at all**. The former hand-authored
 sample posts and the generated 40-root-per-board baseline have been removed.
-Only a small station-resident identity cast is code-owned; those identities are
-not content templates.
+The station keeps a sparse membership population matching the code-defined
+`Host.Members` count (currently 326). These records are cheap identity/activity
+skeletons rather than article/content templates; expensive biography and life
+facts remain lazy.
 
 On process startup, any older persisted HAKATA article snapshot is cleared. On
 every successful CONNECT the server clears the station's entire article state
