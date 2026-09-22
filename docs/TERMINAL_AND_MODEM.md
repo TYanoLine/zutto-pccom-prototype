@@ -19,6 +19,34 @@ Long-term terminal implementation should favor a controlled Canvas 2D cell buffe
 
 Canonical stored text is UTF-8. The future terminal/serial wire boundary should use CP932/Shift_JIS-compatible bytes where historically appropriate.
 
+## Mobile browser presentation
+
+The mobile shell is a modern accessibility adaptation, not a claim about a
+historical communications program. It keeps the same 80×25 cell buffer, ANSI
+colors, full-width continuation cells, cursor positions, and host commands.
+
+- At widths up to 680px or on coarse-pointer devices, default to a minimum
+  640px-wide canvas (16px Japanese glyphs) inside a horizontal viewport.
+- `文字拡大` / `全体表示` switches between readable size and fitting all 80 columns.
+  No host output is rewrapped or replaced with a common host menu.
+- Horizontal dragging pans the enlarged screen; vertical dragging reads the
+  existing receive scrollback. History buttons and `最新` provide explicit
+  navigation back to live output without sending host commands.
+- Tapping the mobile screen does not summon the keyboard. A visible, sticky
+  command field and Enter button use the same command routing and composition
+  guard as physical Enter. The field uses 16px text and disables autocorrection
+  and capitalization. Empty Enter remains a valid host input.
+- The center directory retains its own six navigation/call keys. The command
+  field is read-only while selecting a center; Enter calls the selected center.
+  Esc is an offline client-menu operation, not a fabricated shared BBS command.
+- Desktop keeps its fitted canvas and click-to-type interaction. Mobile controls
+  have at least 44px height; device safe areas and browser zoom remain enabled.
+
+Validation should cover 320/390px portrait and desktop widths, panning versus
+page overflow, fit/readable switching, soft and physical Enter, IME composition,
+center selection, history/latest, and reading without unintended keyboard focus.
+Real iOS/Android software-keyboard behavior still requires device testing.
+
 ## Modem interaction
 
 Hayes-style interaction is first-class UX:

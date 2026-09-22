@@ -4,7 +4,11 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .shell { width: min(980px, 100%); margin: 0 auto; padding: 18px; }
 .titlebar, .statusbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 7px 10px; background: #bdbdbd; color: #111; font-size: 13px; border: 2px solid #eee; border-right-color: #555; border-bottom-color: #555; }
 .screen-wrap { position: relative; display: grid; place-items: center; background: #050505; padding: 12px; border-left: 4px solid #555; border-right: 4px solid #333; }
-.terminal-canvas { width: min(100%, 800px); height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: none; }
+.terminal-display { width: 100%; min-width: 0; max-width: 800px; }
+.terminal-viewport { width: 100%; overflow-x: auto; background: #000; }
+.terminal-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
+.terminal-tools, .terminal-hint, .command-prompt, .command-enter, .command-escape { display: none; }
+.command-dock { margin: 0; }
 .keyboard-capture { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
 .statusbar { flex-wrap: wrap; }
 .statusbar label { display: flex; gap: 6px; align-items: center; }
@@ -21,12 +25,29 @@ code { color: #ddd; }
 .audition-btn { font-family: inherit; font-size: 12px; padding: 5px 10px; background: #2a2a2a; color: #bbb; border: 1px solid #555; cursor: pointer; }
 .audition-meta { margin-top: 7px; padding: 4px 7px; width: fit-content; max-width: 100%; color: #8f8; background: #101810; border: 1px solid #294229; font-size: 11px; }
 @media (max-width: 680px), (pointer: coarse) {
-  .shell { padding: 0; }
-  .titlebar, .statusbar { border-left: 0; border-right: 0; }
-  .screen-wrap { padding: 2px; }
-  .quick-help { padding: 0 10px 12px; }
+  .shell { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  .titlebar, .statusbar { border-left: 0; border-right: 0; gap: 6px 10px; overflow-wrap: anywhere; }
+  .titlebar { font-size: 11px; flex-wrap: wrap; }
+  .statusbar { font-size: 11px; }
+  .statusbar label { min-height: 44px; }
+  .screen-wrap { display: block; padding: 0; border: 0; }
+  .terminal-display { max-width: none; }
+  .terminal-display--readable .terminal-canvas { width: max(100%, 640px); max-width: none; }
+  .terminal-tools { display: flex; gap: 4px; padding: 6px; background: #111; }
+  .terminal-tools button, .command-dock button { min-height: 44px; min-width: 0; padding: 6px 8px; border: 1px solid #666; border-radius: 0; font: inherit; font-size: 12px; color: #ddd; background: #292929; touch-action: manipulation; }
+  .terminal-tools button { flex: 1; }
+  .terminal-tools button[aria-pressed="true"] { color: #cfc; background: #163616; border-color: #7a7; }
+  .terminal-tools button:disabled, .command-dock button:disabled { color: #777; }
+  .terminal-hint { display: block; margin: 0; padding: 6px 8px; font-size: 11px; line-height: 1.5; color: #aaa; background: #111; }
+  .command-dock { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 6px 8px max(6px, env(safe-area-inset-bottom)); background: #121812; border-block: 1px solid #526452; }
+  .command-prompt, .command-enter, .command-escape { display: block; }
+  .command-prompt { color: #8f8; }
+  .command-dock .keyboard-capture { position: static; opacity: 1; pointer-events: auto; flex: 1; min-width: 0; width: 0; height: 44px; border: 1px solid #657565; border-radius: 0; padding: 8px; font: 16px/1.4 ui-monospace, monospace; color: #dfd; background: #000; }
+  .command-dock .command-enter { color: #cfc; background: #163616; }
+  .command-dock input:focus-visible, .terminal-tools button:focus-visible, .command-dock button:focus-visible { outline: 2px solid #bfb; outline-offset: -2px; }
+  .quick-help { padding: 0 10px 12px; overflow-wrap: anywhere; }
   .settings-grid { grid-template-columns: 1fr; }
-  .settings-grid select { min-height: 38px; }
+  .settings-grid select { min-height: 44px; font-size: 16px; }
   .directory-softkeys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; padding: 4px 2px; background: #111; border-top: 1px solid #555; border-bottom: 1px solid #333; }
   .directory-softkeys button { min-width: 0; min-height: 54px; padding: 4px 1px; touch-action: manipulation; user-select: none; -webkit-user-select: none; font: 700 13px ui-monospace, monospace; color: #ddd; background: #303030; border: 1px solid #666; border-right-color: #222; border-bottom-color: #222; border-radius: 0; }
   .directory-softkeys button:active { background: #777; color: #000; border-color: #222 #aaa #aaa #222; }
