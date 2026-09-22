@@ -309,8 +309,10 @@ func validateBoardPostDraft(d BoardPostDraft) error {
 		return errors.New("board post author length is invalid")
 	}
 	for _, r := range a {
-		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9') {
-			return errors.New("board post author must be ASCII alphanumeric")
+		// Station handles may use half-width ASCII punctuation as well as
+		// alphanumerics. Space/control/non-ASCII remain invalid.
+		if r < 0x21 || r > 0x7e {
+			return errors.New("board post author must use visible half-width ASCII")
 		}
 	}
 	if s == "" || len([]rune(s)) > 36 {

@@ -119,7 +119,7 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 		"recent_bbs_state": recent,
 		"policy": map[string]any{
 			"era": "Classify only whether an external historical lookup is needed. Named products, works, services, standards or time-dependent real-world claims are not safe without research merely because they seem familiar. Only explicit contradictions derivable from world_date alone are logically impossible.",
-			"fit": "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect author role, cause, discourse mode, recent BBS state, and SYSOP role competence.",
+			"fit": "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Board name/id are a hard placement constraint: a title that would normally belong to another board/category should receive low fit even if its era and author are plausible. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect board scope, author role, cause, discourse mode, recent BBS state, and SYSOP role competence.",
 			"authority": "Probabilities are advisory only. Deterministic World code performs matching and persistence. Historical verification remains separate.",
 		},
 	}

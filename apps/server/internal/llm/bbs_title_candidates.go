@@ -61,9 +61,11 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 この段階では候補を自由に広めに出し、後段のWorld/Jevが人物・投稿枠・時代に合うものだけを採用します。候補そのものをcanonical factだと思わないでください。
 
 重要:
+- BoardNameは候補の話題範囲を決める強い境界です。各候補は「この件名だけをその板に置いたとき、通常の利用者が板違いだと感じない」ものにしてください。supplied historical facts に別分野の語が含まれていても、板と自然な関係がなければ使わないこと。
 - 掲示板名を言い換えただけの抽象題を量産しないこと。
 - 「この面」「クリア後」「最近のこと」「何かおすすめ」「どうですか？」のように、何の話か消えた件名へ偏らないこと。
 - 20件のうち十分な数は、具体的な作品・製品・ソフト・機種・場所・イベント・症状・操作・用件など、読者が話題の芯を識別できる対象を含めること。
+- supplied historical facts にBoardNameと自然に合う実在名が複数ある場合、候補段階ではそれらを積極的に試してください。目安として20件の半分程度は具体名を含む候補にして構いません。これは採用ノルマではなく候補プールの多様化です。後段のJev/史料検証が不適切な候補を落とします。
 - supplied historical facts に自然に使える実在名がある場合は、必要以上に総称へぼかさず使ってよい。ただし無関係な時代小道具として挿入しない。
 - supplied historical facts にない新しい実在固有名詞は、era_rulesが明示的に許可しない限り導入しない。
 - RecentBBSState / RecentSubjects / AvoidSubjects と同じ題材・同じ言い回し・同じ疑問形を避けること。
