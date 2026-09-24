@@ -79,6 +79,10 @@ func (r *Runtime) beginBoardPrefetch(boards []world.Board) {
 	if len(boards) == 0 {
 		return
 	}
+	if prefetcher, ok := r.Store.(world.HostPrefetchStore); ok {
+		prefetcher.BeginHostPrefetch(r.Host, boards)
+		return
+	}
 	if observer, ok := r.Store.(world.HostObservationStore); ok {
 		observer.BeginHostObservation(r.Host, boards)
 	}
