@@ -243,6 +243,95 @@ func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnver
 	}
 }
 
+type noSafeTitleTestEngine struct{}
+
+func (noSafeTitleTestEngine) ResolveEvidence(_ context.Context, req worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	if strings.HasPrefix(req.Subject, "bbs-title-era:") {
+		return worldengine.EvidenceDecision{Knowledge: historicalkb.KnowledgeResult{CanUse: false}}, nil
+	}
+	return worldengine.EvidenceDecision{}, nil
+}
+
+func (noSafeTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	out := worldengine.TitleCandidateAdviceDecision{
+		Era: map[int]worldengine.TitleEraProbabilities{},
+		Fit: map[string]float64{},
+	}
+	for i := range req.Titles {
+		candidate := i + 1
+		out.Era[candidate] = worldengine.TitleEraProbabilities{
+			SafeWithoutResearch: .05,
+			LogicallyImpossible: .00,
+		}
+		for _, event := range req.Events {
+			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = .95
+		}
+	}
+	return out, nil
+}
+
+func TestSharedBBSPlannerPreservesRootsWithGenericLocalFallbackAfterPoolExhaustion(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := make([]string, 0, 20)
+	for i := 1; i <= 20; i++ {
+		titles = append(titles, fmt.Sprintf("要調査候補%02d", i))
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles}
+	repo := New(base, noSafeTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+
+	slots := make([]bbsengine.Slot, 0, 7)
+	for i := 0; i < 7; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index:     i + 1,
+			Author:    fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "70/1", Name: "ＰＣ－９８"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots:    slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 7 {
+		t.Fatalf("planned=%d, want 7 preserved roots", len(planned))
+	}
+	seen := map[string]bool{}
+	for _, post := range planned {
+		if !strings.HasPrefix(post.Subject, "ＰＣ－９８") {
+			t.Fatalf("fallback subject=%q, want board-local generic title", post.Subject)
+		}
+		if strings.Contains(post.Subject, "要調査候補") {
+			t.Fatalf("unverified historical candidate leaked into fallback: %q", post.Subject)
+		}
+		if seen[post.Subject] {
+			t.Fatalf("duplicate generic fallback subject: %q", post.Subject)
+		}
+		seen[post.Subject] = true
+		if post.SituationSummary == "" {
+			t.Fatalf("fallback post missing situation summary: %+v", post)
+		}
+	}
+}
+
+func TestSharedBBSGenericFallbackSubjectsRemainDistinctAcrossCycles(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 24; i++ {
+		subject := sharedBBSGenericFallbackSubject("ＰＣ－９８", i)
+		if seen[subject] {
+			t.Fatalf("duplicate fallback subject at %d: %q", i, subject)
+		}
+		seen[subject] = true
+	}
+}
+
 type suppliedFactTitleTestEngine struct {
 	evidenceCalls atomic.Int32
 	sawSaturnFact atomic.Bool
