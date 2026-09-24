@@ -253,6 +253,10 @@ func bbsTimelineIntentSchema() map[string]any {
 }
 
 func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context, prompt, verbosity string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaReasoning(ctx, prompt, verbosity, "", maxOutputTokens, schemaName, schema)
+}
+
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
 	if p.APIKey == "" {
 		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
 	}
@@ -276,6 +280,9 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 			},
 		},
 		"max_output_tokens": maxOutputTokens,
+	}
+	if reasoningEffort = strings.TrimSpace(reasoningEffort); reasoningEffort != "" {
+		payload["reasoning"] = map[string]any{"effort": reasoningEffort}
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

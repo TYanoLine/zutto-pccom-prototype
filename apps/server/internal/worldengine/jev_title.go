@@ -34,6 +34,7 @@ type TitleCandidateAdviceRequest struct {
 	Titles         []string               `json:"titles"`
 	Events         []TitleEvaluationEvent `json:"events"`
 	RecentBBSState string                 `json:"recent_bbs_state,omitempty"`
+	HistoricalFacts []string              `json:"historical_facts,omitempty"`
 }
 
 type TitleEraProbabilities struct {
@@ -117,8 +118,9 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 		"titles": titleState,
 		"events": eventState,
 		"recent_bbs_state": recent,
+		"historical_facts": append([]string(nil), req.HistoricalFacts...),
 		"policy": map[string]any{
-			"era": "Classify only whether an external historical lookup is needed. Named products, works, services, standards or time-dependent real-world claims are not safe without research merely because they seem familiar. Only explicit contradictions derivable from world_date alone are logically impossible.",
+			"era": "Classify only whether an external historical lookup is needed. A named product, work, service or standard may be safe_without_research when the time-sensitive identity/existence needed by the title is explicitly supported by state.historical_facts and the title adds no other unsupported time-dependent real-world claim. Familiarity alone is never enough; unsupported named or time-dependent claims require research. Only explicit contradictions derivable from world_date or supplied facts are logically impossible.",
 			"fit": "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Board name/id are a hard placement constraint: a title that would normally belong to another board/category should receive low fit even if its era and author are plausible. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect board scope, author role, cause, discourse mode, recent BBS state, and SYSOP role competence.",
 			"authority": "Probabilities are advisory only. Deterministic World code performs matching and persistence. Historical verification remains separate.",
 		},

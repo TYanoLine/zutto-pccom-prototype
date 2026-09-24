@@ -185,7 +185,8 @@ func (r *Repository) developmentPlanTitleFirstWithState(host world.Host, window 
 		boardPlanner := planner
 		boardEraValidator := eraValidator
 		jevStarted := time.Now()
-		jevAdvice, jevAttempted, jevErr := r.developmentJevTitleAdvice(ctx, host, board, asOf, pool.Titles, events[board.ID], recentBBSState)
+		jevFacts := m.withPeriodReferents(asOf).HistoricalTexture
+		jevAdvice, jevAttempted, jevErr := r.developmentJevTitleAdvice(ctx, host, board, asOf, pool.Titles, events[board.ID], recentBBSState, jevFacts)
 		if jevAttempted {
 			state.timing.JevTitleEvaluationMS += time.Since(jevStarted).Milliseconds()
 			state.timing.JevTitleEvaluationCalls++

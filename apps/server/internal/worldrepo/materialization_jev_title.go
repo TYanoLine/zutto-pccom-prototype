@@ -197,6 +197,7 @@ func (r *Repository) developmentJevTitleAdvice(
 	titles []string,
 	events []llm.BBSWorldWindowEvent,
 	recentBBSState string,
+	historicalFacts []string,
 ) (worldengine.TitleCandidateAdviceDecision, bool, error) {
 	advisor, ok := r.Engine.(developmentTitleCandidateAdvisor)
 	if !ok {
@@ -224,6 +225,7 @@ func (r *Repository) developmentJevTitleAdvice(
 		Titles: append([]string(nil), titles...),
 		Events: adviceEvents,
 		RecentBBSState: recentBBSState,
+		HistoricalFacts: append([]string(nil), historicalFacts...),
 	})
 	if err != nil {
 		return decision, true, err

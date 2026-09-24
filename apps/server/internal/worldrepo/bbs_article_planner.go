@@ -21,6 +21,17 @@ const (
 	sharedTitleResearchBudget = 6 * time.Second
 )
 
+func sharedTitleResearchRemaining(deadline *time.Time, now time.Time) time.Duration {
+	if deadline.IsZero() {
+		*deadline = now.Add(sharedTitleResearchBudget)
+	}
+	remaining := deadline.Sub(now)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
 type repositoryBBSBatchPlanner struct {
 	repo *Repository
 }
@@ -172,6 +183,8 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	adopted := map[string]bbsengine.PlannedPost{}
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	eraFallback, hasEraFallback := materializer.Renderer.(llm.BBSTitleEraValidator)
+	historicalFacts := materializer.historicalFacts(decision)
+	var researchDeadline time.Time
 
 	for attempt := 0; attempt < sharedTitlePoolAttempts && len(remaining) > 0; attempt++ {
 		var pool llm.BBSTitleCandidates
@@ -184,7 +197,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				RecentBBSState:  recentState,
 				RecentSubjects:  recentSubjects,
 				AvoidSubjects:   avoid,
-				HistoricalFacts: materializer.historicalFacts(decision),
+				HistoricalFacts: historicalFacts,
 				EraRules:        materializer.eraRules(),
 			})
 		} else {
@@ -206,7 +219,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 
 		jevStarted := time.Now()
 		jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleAdvice(
-			ctx, req.Host, req.Board, worldDate, pool.Titles, remaining, recentState,
+			ctx, req.Host, req.Board, worldDate, pool.Titles, remaining, recentState, historicalFacts,
 		)
 		log.Printf("BBS timing: host=%s board=%s phase=jev attempt=%d duration=%s used=%t err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil)
 		if jevErr != nil {
@@ -334,20 +347,26 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			}
 			if len(researchJobs) > 0 {
 				// Historical verification is an adoption gate, not a reason to
-				// freeze the BBS UI. If uncached research cannot finish inside
-				// this small foreground budget, leave the candidate unverified
-				// and try the next already-generated candidate instead.
-				researchStarted := time.Now()
-				researchCtx, cancel := context.WithTimeout(ctx, sharedTitleResearchBudget)
-				outcomes := p.repo.developmentResearchTitleEraBatch(researchCtx, req.Host, req.Board, worldDate, researchJobs)
-				cancel()
-				log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(researchJobs))
-				for id, outcome := range outcomes {
-					if outcome.status != "verified" {
-						continue
+				// freeze the BBS UI. The foreground research allowance is one
+				// board-wide wall-clock budget, not a fresh timeout per fallback
+				// round. Cached/supplied facts should normally keep known
+				// period referents out of this path entirely.
+				remainingResearch := sharedTitleResearchRemaining(&researchDeadline, time.Now())
+				if remainingResearch > 0 {
+					researchStarted := time.Now()
+					researchCtx, cancel := context.WithTimeout(ctx, remainingResearch)
+					outcomes := p.repo.developmentResearchTitleEraBatch(researchCtx, req.Host, req.Board, worldDate, researchJobs)
+					cancel()
+					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d remaining_budget=%s", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(researchJobs), time.Until(researchDeadline))
+					for id, outcome := range outcomes {
+						if outcome.status != "verified" {
+							continue
+						}
+						d := researchDecision[id]
+						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
 					}
-					d := researchDecision[id]
-					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+				} else {
+					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=0s jobs=%d skipped=budget_exhausted", req.Host.ID, req.Board.ID, attempt+1, len(researchJobs))
 				}
 			}
 

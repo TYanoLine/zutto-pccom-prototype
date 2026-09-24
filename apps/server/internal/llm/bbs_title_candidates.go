@@ -66,8 +66,9 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 「この面」「クリア後」「最近のこと」「何かおすすめ」「どうですか？」のように、何の話か消えた件名へ偏らないこと。
 - 20件のうち十分な数は、具体的な作品・製品・ソフト・機種・場所・イベント・症状・操作・用件など、読者が話題の芯を識別できる対象を含めること。
 - supplied historical facts にBoardNameと自然に合う実在名が複数ある場合、候補段階ではそれらを積極的に試してください。目安として20件の半分程度は具体名を含む候補にして構いません。これは採用ノルマではなく候補プールの多様化です。後段のJev/史料検証が不適切な候補を落とします。
-- supplied historical facts に自然に使える実在名がある場合は、必要以上に総称へぼかさず使ってよい。ただし無関係な時代小道具として挿入しない。
-- supplied historical facts にない新しい実在固有名詞は、era_rulesが明示的に許可しない限り導入しない。
+- supplied historical facts に自然に使える実在名がある場合は、必要以上に総称へぼかさず優先してよい。ただし無関係な時代小道具として挿入しない。
+- この出力はまだ未確定の候補なので、supplied historical facts にない実在固有名詞も、world dateまでに日本で存在・認知されていたと高い確度で思えるものは候補として出してよい。後段の史料検証で確認できなければcanonicalには採用されない。
+- 未供給の実在固有名詞を使う場合、件名では名称と日常的な会話の焦点だけにとどめ、発売日・価格・仕様・売上・対応状況など追加の歴史事実を断定しない。
 - RecentBBSState / RecentSubjects / AvoidSubjects と同じ題材・同じ言い回し・同じ疑問形を避けること。
 - 同じ固有名詞を20件へ繰り返さないこと。
 - 当時のBBS subject欄らしく短い一言、報告、呼びかけ、疑問、名詞句などを混ぜること。現代的なSEO見出し・説明見出しにしないこと。
@@ -88,7 +89,7 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" {
 		prompt = contextualTitleCandidatePrompt(req)
 	}
-	result, err := p.responseTextWithJSONSchema(ctx, prompt, "low", 3200, "bbs_title_candidates", schema)
+	result, err := p.responseTextWithJSONSchemaReasoning(ctx, prompt, "low", "low", 3200, "bbs_title_candidates", schema)
 	if err != nil {
 		return BBSTitleCandidates{}, err
 	}

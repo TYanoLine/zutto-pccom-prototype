@@ -1,6 +1,10 @@
 package llm
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -100,5 +104,74 @@ func TestTitleReviewDuplicateSlotRejectsOnlyLaterCandidateDeterministically(t *t
 	}
 	if err := ValidateBBSTitleReview(req, draft); err != nil {
 		t.Fatalf("sanitized review should validate: %v / %+v", err, draft)
+	}
+}
+
+
+func TestContextualTitleCandidatesAllowUncommittedNamesAndUseLowReasoning(t *testing.T) {
+	titles := []string{
+		"バーチャファイター２の対戦", "セガサターンのソフト選び", "パンツァードラグーンの感想", "PlayStationのゲーム",
+		"候補05", "候補06", "候補07", "候補08", "候補09", "候補10",
+		"候補11", "候補12", "候補13", "候補14", "候補15", "候補16",
+		"候補17", "候補18", "候補19", "候補20",
+	}
+	payloadText, err := json.Marshal(map[string]any{"titles": titles})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var captured map[string]any
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if err := json.NewDecoder(req.Body).Decode(&captured); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			response, _ := json.Marshal(map[string]any{
+				"model": "gpt-test",
+				"output": []any{map[string]any{"content": []any{map[string]any{"type": "output_text", "text": string(payloadText)}}}},
+				"usage": map[string]any{
+					"input_tokens": 10,
+					"input_tokens_details": map[string]any{"cached_tokens": 0},
+					"output_tokens": 20,
+					"output_tokens_details": map[string]any{"reasoning_tokens": 2},
+					"total_tokens": 30,
+				},
+			})
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(string(response))),
+			}, nil
+		})},
+	}}
+
+	got, err := provider.GenerateContextualBBSTitleCandidates(context.Background(), BBSContextualTitleCandidateRequest{
+		WorldDate:       "1996-08-26",
+		BoardName:       "ＧＡＭＥ",
+		HistoricalFacts: []string{"セガサターンは家庭用ゲーム機として存在する。"},
+		EraRules:        "世界時刻より未来の事実は採用しない。",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Titles) != 20 {
+		t.Fatalf("titles=%d, want 20", len(got.Titles))
+	}
+	reasoning, ok := captured["reasoning"].(map[string]any)
+	if !ok || reasoning["effort"] != "low" {
+		t.Fatalf("reasoning=%#v, want effort=low", captured["reasoning"])
+	}
+	prompt, _ := captured["input"].(string)
+	for _, want := range []string{
+		"まだ未確定の候補",
+		"supplied historical facts にない実在固有名詞も",
+		"後段の史料検証で確認できなければcanonicalには採用されない",
+		"発売日・価格・仕様・売上・対応状況など追加の歴史事実を断定しない",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("candidate prompt missing %q:\n%s", want, prompt)
+		}
 	}
 }
