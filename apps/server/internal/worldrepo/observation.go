@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -14,8 +15,11 @@ import (
 // the waiter primitive out of world state prevents transport timing from becoming
 // part of the simulated world.
 type observationJob struct {
-	done chan struct{}
-	err  error
+	done     chan struct{}
+	err      error
+	cancel   context.CancelFunc
+	prefetch bool
+	started  time.Time
 }
 
 func observationBoardKey(hostID, boardID string) string {
@@ -27,6 +31,17 @@ func observationBoardKey(hostID, boardID string) string {
 // may call it at login or during navigation to prefetch a narrowly-scoped board.
 // A later board read waits only for its own board job, never for unrelated boards.
 func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board) {
+	r.beginHostObservation(host, boards, false)
+}
+
+// BeginHostPrefetch starts speculative low-priority work. If the user later
+// demands another board, Repository cancels unrelated unfinished prefetch jobs
+// before starting/joining the demanded board.
+func (r *Repository) BeginHostPrefetch(host world.Host, boards []world.Board) {
+	r.beginHostObservation(host, boards, true)
+}
+
+func (r *Repository) beginHostObservation(host world.Host, boards []world.Board, prefetch bool) {
 	if strings.TrimSpace(host.ID) == "" {
 		return
 	}
@@ -36,15 +51,21 @@ func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board)
 			continue
 		}
 		seen[board.ID] = true
-		r.beginBoardObservation(host, board)
+		r.beginBoardObservation(host, board, prefetch)
 	}
 }
 
-func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *observationJob {
+func (r *Repository) beginBoardObservation(host world.Host, board world.Board, prefetch bool) *observationJob {
 	key := observationBoardKey(host.ID, board.ID)
 
 	r.observationMu.Lock()
+	if !prefetch {
+		r.cancelUnrelatedPrefetchLocked(host.ID, board.ID)
+	}
 	if existing := r.observationBoardJobs[key]; existing != nil {
+		if !prefetch {
+			existing.prefetch = false
+		}
 		select {
 		case <-existing.done:
 			if existing.err == nil {
@@ -59,15 +80,33 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 			return existing
 		}
 	}
-	job := &observationJob{done: make(chan struct{})}
+	ctx, cancel := context.WithCancel(context.Background())
+	job := &observationJob{
+		done:     make(chan struct{}),
+		cancel:   cancel,
+		prefetch: prefetch,
+		started:  time.Now(),
+	}
 	r.observationBoardJobs[key] = job
 	r.observationMu.Unlock()
 
 	go func() {
-		job.err = r.materializeObservedBoardHeaders(host, board)
-		if job.err != nil {
-			log.Printf("BBS header observation failed: host=%s board=%s err=%v", host.ID, board.ID, job.err)
+		mode := "demand"
+		if job.prefetch {
+			mode = "prefetch"
 		}
+		job.err = r.materializeObservedBoardHeaders(ctx, host, board, mode)
+		elapsed := time.Since(job.started)
+		if job.err != nil {
+			if ctx.Err() != nil && prefetch {
+				log.Printf("BBS header prefetch canceled: host=%s board=%s elapsed=%s", host.ID, board.ID, elapsed)
+			} else {
+				log.Printf("BBS header observation failed: host=%s board=%s mode=%s elapsed=%s err=%v", host.ID, board.ID, mode, elapsed, job.err)
+			}
+		} else {
+			log.Printf("BBS timing: host=%s board=%s mode=%s phase=header_total duration=%s", host.ID, board.ID, mode, elapsed)
+		}
+		cancel()
 		// Keep a failed job addressable until current waiters see its error. A
 		// later CONNECT/read may then replace the failed lease and retry.
 		close(job.done)
@@ -75,7 +114,23 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 	return job
 }
 
-func (r *Repository) materializeObservedBoardHeaders(host world.Host, board world.Board) error {
+func (r *Repository) cancelUnrelatedPrefetchLocked(hostID, demandedBoardID string) {
+	prefix := hostID + "|"
+	for key, job := range r.observationBoardJobs {
+		if job == nil || !job.prefetch || key == observationBoardKey(hostID, demandedBoardID) || !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		select {
+		case <-job.done:
+		default:
+			if job.cancel != nil {
+				job.cancel()
+			}
+		}
+	}
+}
+
+func (r *Repository) materializeObservedBoardHeaders(ctx context.Context, host world.Host, board world.Board, mode string) error {
 	// The isolated materialization-demo host remains a diagnostic harness for the
 	// older title-first experiments. Real host runtimes all use the same shared
 	// BBS article engine below; host software only controls how canonical posts
@@ -95,14 +150,20 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		// Board jobs remain distinct: callers still wait only for their requested
 		// board, but its worker may queue briefly behind the host's current prefetch.
 		lock := r.sharedBBSHostMaterializationLock(host.ID)
+		queueStarted := time.Now()
 		lock.Lock()
+		queueWait := time.Since(queueStarted)
 		defer lock.Unlock()
+		log.Printf("BBS timing: host=%s board=%s mode=%s phase=queue_wait duration=%s", host.ID, board.ID, mode, queueWait)
 
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		var err error
 		if r.debugImmediateBBSHost(host.ID) {
-			err = r.bbsArticles.CatchUpInitial(context.Background(), host, board)
+			err = r.bbsArticles.CatchUpInitial(ctx, host, board)
 		} else {
-			err = r.bbsArticles.CatchUp(context.Background(), host, board)
+			err = r.bbsArticles.CatchUp(ctx, host, board)
 		}
 		if err != nil {
 			return fmt.Errorf("shared BBS catch-up host %s board %s: %w", host.ID, board.ID, err)
@@ -138,7 +199,7 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
 			return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
 		}
-		job = r.beginBoardObservation(host, board)
+		job = r.beginBoardObservation(host, board, false)
 	}
 	if job != nil {
 		select {
