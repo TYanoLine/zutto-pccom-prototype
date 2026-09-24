@@ -191,24 +191,88 @@ func (r *Repository) developmentResearchLegacyTitleEra(ctx context.Context, host
 	return developmentTitleEraOutcomeFromEvidence(decision)
 }
 
+func (r *Repository) developmentLookupTitleEra(ctx context.Context, asOf, title string, claims []llm.BBSTitleHistoricalClaim) developmentTitleEraOutcome {
+	lookup, ok := r.Engine.(EvidenceLookupResolver)
+	if !ok {
+		return developmentTitleEraOutcome{status: "unverified", reason: "Historical KB lookup未対応"}
+	}
+	if len(claims) == 0 {
+		decision, err := lookup.LookupEvidence(ctx, worldengine.EvidenceRequest{
+			Kind:            historicalkb.KnowledgeGeneral,
+			Subject:         "bbs-title-era:" + asOf + ":" + strings.TrimSpace(title),
+			WorldDate:       asOf,
+			Region:          "JP",
+			Audience:        []string{"Japanese PC communication users"},
+			Persistence:     true,
+			Importance:      .85,
+			Specificity:     .98,
+			HasExactDate:    true,
+			HasProductModel: true,
+		})
+		if err != nil {
+			return developmentTitleEraOutcome{status: "unverified", reason: "Historical KB lookup失敗: " + compactTitleEraError(err)}
+		}
+		return developmentTitleEraOutcomeFromEvidence(decision)
+	}
+
+	evidence := make([]string, 0, len(claims))
+	for _, claim := range claims {
+		req, ok := developmentHistoricalClaimEvidenceRequest(asOf, title, claim)
+		if !ok {
+			return developmentTitleEraOutcome{status: "unverified", reason: "Historical claim metadataが不完全"}
+		}
+		decision, err := lookup.LookupEvidence(ctx, req)
+		if err != nil {
+			return developmentTitleEraOutcome{status: "unverified", reason: "Historical KB lookup失敗: " + compactTitleEraError(err)}
+		}
+		outcome := developmentHistoricalClaimOutcomeFromEvidence(decision)
+		if outcome.status == "ng" {
+			return outcome
+		}
+		if outcome.status != "verified" {
+			return outcome
+		}
+		if strings.TrimSpace(outcome.evidence) != "" {
+			evidence = append(evidence, strings.TrimSpace(outcome.evidence))
+		}
+	}
+	return developmentTitleEraOutcome{
+		status:   "verified",
+		reason:   "Historical KB cache hit",
+		evidence: strings.Join(evidence, " / "),
+	}
+}
+
 func (r *Repository) developmentResearchHistoricalClaim(ctx context.Context, asOf, title string, claim llm.BBSTitleHistoricalClaim) developmentTitleEraOutcome {
+	req, ok := developmentHistoricalClaimEvidenceRequest(asOf, title, claim)
+	if !ok {
+		return developmentTitleEraOutcome{status: "unverified", reason: "Historical claim metadataが不完全"}
+	}
+	decision, err := r.Engine.ResolveEvidence(ctx, req)
+	if err != nil {
+		return developmentTitleEraOutcome{status: "unverified", reason: "Web史料確認失敗: " + compactTitleEraError(err)}
+	}
+	return developmentHistoricalClaimOutcomeFromEvidence(decision)
+}
+
+func developmentHistoricalClaimEvidenceRequest(asOf, title string, claim llm.BBSTitleHistoricalClaim) (worldengine.EvidenceRequest, bool) {
 	subject := strings.TrimSpace(claim.Subject)
 	needText := strings.TrimSpace(claim.Need)
 	if subject == "" || needText == "" {
-		return developmentTitleEraOutcome{status: "unverified", reason: "Historical claim metadataが不完全"}
+		return worldengine.EvidenceRequest{}, false
 	}
 	kind := developmentHistoricalClaimKind(claim.Kind)
 	need := fmt.Sprintf("Web検索で、BBS件名候補に必要な次の現実世界claimだけを検証してください。claim subject=%q。確認内容=%s。基準日は%s、日本でその日までに成立していたことだけを確認してください。元の候補タイトル=%q。投稿者の所有・購入・利用・嗜好は検証対象外です。ProvisionalAnswerは先頭を ERA_OK: または ERA_NG: にしてください。ERA_OKはこのclaimが基準日までに信頼できる資料で成立すると確認できた場合だけ。史料不足・同名曖昧・版や機種を特定できない場合はERA_NGとしてください。", subject, needText, asOf, title)
 	req := worldengine.EvidenceRequest{
-		Kind:        kind,
-		Subject:     subject,
-		WorldDate:   asOf,
-		Region:      "JP",
-		Audience:    []string{"Japanese PC communication users"},
-		Need:        need,
-		Persistence: true,
-		Importance:  .85,
-		Specificity: .98,
+		Kind:         kind,
+		Subject:      subject,
+		WorldDate:    asOf,
+		Region:       "JP",
+		Audience:     []string{"Japanese PC communication users"},
+		Need:         need,
+		Persistence:  true,
+		Importance:   .85,
+		Specificity:  .98,
 		HasExactDate: true,
 	}
 	switch kind {
@@ -218,11 +282,7 @@ func (r *Repository) developmentResearchHistoricalClaim(ctx context.Context, asO
 		req.HasProductModel = true
 		req.HasTechnicalSpec = true
 	}
-	decision, err := r.Engine.ResolveEvidence(ctx, req)
-	if err != nil {
-		return developmentTitleEraOutcome{status: "unverified", reason: "Web史料確認失敗: " + compactTitleEraError(err)}
-	}
-	return developmentHistoricalClaimOutcomeFromEvidence(decision)
+	return req, true
 }
 
 func developmentHistoricalClaimKind(kind string) historicalkb.KnowledgeKind {
