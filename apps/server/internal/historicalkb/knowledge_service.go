@@ -69,7 +69,7 @@ func (s KnowledgeService) Resolve(ctx context.Context, q KnowledgeQuery) (Knowle
 	f:=HistoricalFact{ID:"fact-"+rid,KnowledgeKey:key,Kind:q.Kind,Subject:q.Subject,Claim:r.ProvisionalAnswer,ValidFrom:q.WorldDate,Region:q.Region,Audience:q.Audience,Confidence:r.Confidence,Status:factStatus,Sources:r.Sources,ResearchID:rid,CreatedAt:now,UpdatedAt:now}
 	if err:=s.Store.UpsertFact(ctx,f);err!=nil{return current,err}
 
-	facts,err=s.Store.FindFacts(ctx,key,q.WorldDate);if err!=nil{return KnowledgeResult{},err}
+	facts,err:=s.Store.FindFacts(ctx,key,q.WorldDate);if err!=nil{return KnowledgeResult{},err}
 	out:=summarizeKnowledge(q,facts);out.Researched=true;out.ResearchID=rid;out.CanUse=Sufficient(out,q.RequiredEvidence)
 	if !out.CanUse { out.Missing=append(out.Missing,KnowledgeGap{Description:"自動調査は完了したが、Verified世界事実としては運営レビューまたは追加資料が必要"}) }
 	return out,nil
