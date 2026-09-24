@@ -10,9 +10,19 @@ import (
 )
 
 // Candidates are uncommitted wording, not world events or historical evidence.
+// HistoricalClaims are likewise only research hints: they identify reusable
+// real-world claims that must be resolved by the Historical KB before adoption.
+type BBSTitleHistoricalClaim struct {
+	Candidate int    `json:"candidate"`
+	Subject   string `json:"subject"`
+	Kind      string `json:"kind"`
+	Need      string `json:"need"`
+}
+
 type BBSTitleCandidates struct {
-	Titles []string   `json:"titles"`
-	Usage  TokenUsage `json:"-"`
+	Titles           []string                  `json:"titles"`
+	HistoricalClaims []BBSTitleHistoricalClaim `json:"historical_claims,omitempty"`
+	Usage            TokenUsage                `json:"-"`
 }
 type BBSTitleReviewRequest struct {
 	BoardName      string
@@ -69,6 +79,11 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - supplied historical facts に自然に使える実在名がある場合は、必要以上に総称へぼかさず優先してよい。ただし無関係な時代小道具として挿入しない。
 - この出力はまだ未確定の候補なので、supplied historical facts にない実在固有名詞も、world dateまでに日本で存在・認知されていたと高い確度で思えるものは候補として出してよい。後段の史料検証で確認できなければcanonicalには採用されない。
 - 未供給の実在固有名詞を使う場合、件名では名称と日常的な会話の焦点だけにとどめ、発売日・価格・仕様・売上・対応状況など追加の歴史事実を断定しない。
+- historical_claims には、各候補がcanonicalになる前に確認すべき現実世界の時点依存claimを列挙すること。候補番号は1始まり。
+- 作品・製品・機種・サービス等の名称を日常的な話題として使うだけなら、subjectはタイトル全文ではなく再利用可能な正式名称、kindは product_availability、needは「world dateまでに日本で存在・利用可能だったか」のような最小確認にすること。
+- 複数の実在対象を含む候補は対象ごとにclaimを分けること。互換性・仕様・能力そのものを断定する候補だけ technical_capability を使い、subjectは再利用可能な関係名にすること。
+- 実在対象も時点依存claimもない一般的な候補にはhistorical_claimsを付けないこと。
+- historical_claimsは史実そのものではなく後段Historical KBへの調査ヒントであり、モデル記憶を根拠として採用判定してはいけない。
 - RecentBBSState / RecentSubjects / AvoidSubjects と同じ題材・同じ言い回し・同じ疑問形を避けること。
 - 同じ固有名詞を20件へ繰り返さないこと。
 - 当時のBBS subject欄らしく短い一言、報告、呼びかけ、疑問、名詞句などを混ぜること。現代的なSEO見出し・説明見出しにしないこと。
@@ -84,7 +99,26 @@ func (p StructuredOpenAIProvider) GenerateBBSTitleCandidates(ctx context.Context
 }
 
 func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx context.Context, req BBSContextualTitleCandidateRequest) (BBSTitleCandidates, error) {
-	schema := map[string]any{"type": "object", "properties": map[string]any{"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 20, "maxItems": 20}}, "required": []string{"titles"}, "additionalProperties": false}
+	claimItem := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"candidate": map[string]any{"type": "integer", "minimum": 1, "maximum": 20},
+			"subject": map[string]any{"type": "string"},
+			"kind": map[string]any{"type": "string", "enum": []string{"product_availability", "technical_capability", "terminology", "historical_event", "general"}},
+			"need": map[string]any{"type": "string"},
+		},
+		"required": []string{"candidate", "subject", "kind", "need"},
+		"additionalProperties": false,
+	}
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": 20, "maxItems": 20},
+			"historical_claims": map[string]any{"type": "array", "items": claimItem, "minItems": 0, "maxItems": 60},
+		},
+		"required": []string{"titles", "historical_claims"},
+		"additionalProperties": false,
+	}
 	prompt := titleCandidatePrompt(req.WorldDate, req.BoardName)
 	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" {
 		prompt = contextualTitleCandidatePrompt(req)
@@ -103,6 +137,21 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	for _, title := range draft.Titles {
 		if strings.TrimSpace(title) == "" {
 			return draft, fmt.Errorf("empty title candidate")
+		}
+	}
+	allowedKinds := map[string]bool{
+		"product_availability": true,
+		"technical_capability": true,
+		"terminology": true,
+		"historical_event": true,
+		"general": true,
+	}
+	for _, claim := range draft.HistoricalClaims {
+		if claim.Candidate < 1 || claim.Candidate > len(draft.Titles) {
+			return draft, fmt.Errorf("historical claim references invalid candidate %d", claim.Candidate)
+		}
+		if strings.TrimSpace(claim.Subject) == "" || strings.TrimSpace(claim.Need) == "" || !allowedKinds[claim.Kind] {
+			return draft, fmt.Errorf("invalid historical claim for candidate %d", claim.Candidate)
 		}
 	}
 	draft.Usage = result.Usage
