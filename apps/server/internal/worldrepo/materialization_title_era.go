@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
@@ -27,6 +28,7 @@ type developmentTitleEraOutcome struct {
 type developmentTitleEraResearchJob struct {
 	candidate int
 	title     string
+	claims    []llm.BBSTitleHistoricalClaim
 }
 
 func developmentTitleEraResearchAllowance(used, boardsRemaining int) int {
@@ -118,7 +120,7 @@ func (r *Repository) developmentResearchTitleEraBatch(ctx context.Context, host 
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			result := r.developmentResearchTitleEra(ctx, host, board, asOf, job.title)
+			result := r.developmentResearchTitleEra(ctx, host, board, asOf, job.title, job.claims)
 			mu.Lock()
 			out[job.candidate] = result
 			mu.Unlock()
@@ -128,10 +130,47 @@ func (r *Repository) developmentResearchTitleEraBatch(ctx context.Context, host 
 	return out
 }
 
-func (r *Repository) developmentResearchTitleEra(ctx context.Context, host world.Host, board world.Board, asOf, title string) developmentTitleEraOutcome {
+func (r *Repository) developmentResearchTitleEraBatchDetached(host world.Host, board world.Board, asOf string, jobs []developmentTitleEraResearchJob) <-chan map[int]developmentTitleEraOutcome {
+	ch := make(chan map[int]developmentTitleEraOutcome, 1)
+	copied := append([]developmentTitleEraResearchJob(nil), jobs...)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+		defer cancel()
+		ch <- r.developmentResearchTitleEraBatch(ctx, host, board, asOf, copied)
+		close(ch)
+	}()
+	return ch
+}
+
+func (r *Repository) developmentResearchTitleEra(ctx context.Context, host world.Host, board world.Board, asOf, title string, claims []llm.BBSTitleHistoricalClaim) developmentTitleEraOutcome {
 	if r.Engine == nil {
 		return developmentTitleEraOutcome{status: "unverified", reason: "Historical Knowledge Engineが利用できない"}
 	}
+	if len(claims) == 0 {
+		return r.developmentResearchLegacyTitleEra(ctx, host, board, asOf, title)
+	}
+
+	evidence := make([]string, 0, len(claims))
+	for _, claim := range claims {
+		outcome := r.developmentResearchHistoricalClaim(ctx, asOf, title, claim)
+		if outcome.status == "ng" {
+			return outcome
+		}
+		if outcome.status != "verified" {
+			return outcome
+		}
+		if strings.TrimSpace(outcome.evidence) != "" {
+			evidence = append(evidence, strings.TrimSpace(outcome.evidence))
+		}
+	}
+	return developmentTitleEraOutcome{
+		status:   "verified",
+		reason:   "再利用可能なHistorical KB claimを検証済み",
+		evidence: strings.Join(evidence, " / "),
+	}
+}
+
+func (r *Repository) developmentResearchLegacyTitleEra(ctx context.Context, host world.Host, board world.Board, asOf, title string) developmentTitleEraOutcome {
 	need := fmt.Sprintf("Web検索で、次のBBS記事タイトルに含まれる現実世界の年代事実だけを検証してください。投稿者が実際に購入・所有・利用・視聴・プレイしたかは架空世界側の別判定なので検証対象外です。タイトル=%q。基準日は%s、日本のパソコン通信利用者がその日までに自然に知り得る内容かを確認してください。製品・作品・サービス・規格・機種・人物・番組・曲・イベント等について、発売、発表、サービス開始、利用可能時期が基準日より後なら不適合です。ProvisionalAnswerは必ず先頭を ERA_OK: または ERA_NG: のどちらかにしてください。ERA_OKはタイトル内の時点依存する現実世界の要素がすべて基準日までに成立すると信頼できる史料で確認できた場合だけ。史料不足・同名曖昧・版や機種を確認できない場合も保守的にERA_NGとしてください。理由は短く、確認した時期を含めてください。", title, asOf)
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 		Kind:            historicalkb.KnowledgeGeneral,
@@ -150,6 +189,146 @@ func (r *Repository) developmentResearchTitleEra(ctx context.Context, host world
 		return developmentTitleEraOutcome{status: "unverified", reason: "Web史料確認失敗: " + compactTitleEraError(err)}
 	}
 	return developmentTitleEraOutcomeFromEvidence(decision)
+}
+
+func (r *Repository) developmentLookupTitleEra(ctx context.Context, asOf, title string, claims []llm.BBSTitleHistoricalClaim) developmentTitleEraOutcome {
+	lookup, ok := r.Engine.(EvidenceLookupResolver)
+	if !ok {
+		return developmentTitleEraOutcome{status: "unverified", reason: "Historical KB lookup未対応"}
+	}
+	if len(claims) == 0 {
+		decision, err := lookup.LookupEvidence(ctx, worldengine.EvidenceRequest{
+			Kind:            historicalkb.KnowledgeGeneral,
+			Subject:         "bbs-title-era:" + asOf + ":" + strings.TrimSpace(title),
+			WorldDate:       asOf,
+			Region:          "JP",
+			Audience:        []string{"Japanese PC communication users"},
+			Persistence:     true,
+			Importance:      .85,
+			Specificity:     .98,
+			HasExactDate:    true,
+			HasProductModel: true,
+		})
+		if err != nil {
+			return developmentTitleEraOutcome{status: "unverified", reason: "Historical KB lookup失敗: " + compactTitleEraError(err)}
+		}
+		return developmentTitleEraOutcomeFromEvidence(decision)
+	}
+
+	evidence := make([]string, 0, len(claims))
+	for _, claim := range claims {
+		req, ok := developmentHistoricalClaimEvidenceRequest(asOf, title, claim)
+		if !ok {
+			return developmentTitleEraOutcome{status: "unverified", reason: "Historical claim metadataが不完全"}
+		}
+		decision, err := lookup.LookupEvidence(ctx, req)
+		if err != nil {
+			return developmentTitleEraOutcome{status: "unverified", reason: "Historical KB lookup失敗: " + compactTitleEraError(err)}
+		}
+		outcome := developmentHistoricalClaimOutcomeFromEvidence(decision)
+		if outcome.status == "ng" {
+			return outcome
+		}
+		if outcome.status != "verified" {
+			return outcome
+		}
+		if strings.TrimSpace(outcome.evidence) != "" {
+			evidence = append(evidence, strings.TrimSpace(outcome.evidence))
+		}
+	}
+	return developmentTitleEraOutcome{
+		status:   "verified",
+		reason:   "Historical KB cache hit",
+		evidence: strings.Join(evidence, " / "),
+	}
+}
+
+func (r *Repository) developmentResearchHistoricalClaim(ctx context.Context, asOf, title string, claim llm.BBSTitleHistoricalClaim) developmentTitleEraOutcome {
+	req, ok := developmentHistoricalClaimEvidenceRequest(asOf, title, claim)
+	if !ok {
+		return developmentTitleEraOutcome{status: "unverified", reason: "Historical claim metadataが不完全"}
+	}
+	decision, err := r.Engine.ResolveEvidence(ctx, req)
+	if err != nil {
+		return developmentTitleEraOutcome{status: "unverified", reason: "Web史料確認失敗: " + compactTitleEraError(err)}
+	}
+	return developmentHistoricalClaimOutcomeFromEvidence(decision)
+}
+
+func developmentHistoricalClaimEvidenceRequest(asOf, title string, claim llm.BBSTitleHistoricalClaim) (worldengine.EvidenceRequest, bool) {
+	subject := strings.TrimSpace(claim.Subject)
+	needText := strings.TrimSpace(claim.Need)
+	if subject == "" || needText == "" {
+		return worldengine.EvidenceRequest{}, false
+	}
+	kind := developmentHistoricalClaimKind(claim.Kind)
+	need := fmt.Sprintf("Web検索で、BBS件名候補に必要な次の現実世界claimだけを検証してください。claim subject=%q。確認内容=%s。基準日は%s、日本でその日までに成立していたことだけを確認してください。元の候補タイトル=%q。投稿者の所有・購入・利用・嗜好は検証対象外です。ProvisionalAnswerは先頭を ERA_OK: または ERA_NG: にしてください。ERA_OKはこのclaimが基準日までに信頼できる資料で成立すると確認できた場合だけ。史料不足・同名曖昧・版や機種を特定できない場合はERA_NGとしてください。", subject, needText, asOf, title)
+	req := worldengine.EvidenceRequest{
+		Kind:         kind,
+		Subject:      subject,
+		WorldDate:    asOf,
+		Region:       "JP",
+		Audience:     []string{"Japanese PC communication users"},
+		Need:         need,
+		Persistence:  true,
+		Importance:   .85,
+		Specificity:  .98,
+		HasExactDate: true,
+	}
+	switch kind {
+	case historicalkb.KnowledgeProductAvailability:
+		req.HasProductModel = true
+	case historicalkb.KnowledgeTechnicalCapability:
+		req.HasProductModel = true
+		req.HasTechnicalSpec = true
+	}
+	return req, true
+}
+
+func developmentHistoricalClaimKind(kind string) historicalkb.KnowledgeKind {
+	switch strings.TrimSpace(kind) {
+	case "product_availability":
+		return historicalkb.KnowledgeProductAvailability
+	case "technical_capability":
+		return historicalkb.KnowledgeTechnicalCapability
+	case "terminology":
+		return historicalkb.KnowledgeTerminology
+	case "historical_event":
+		return historicalkb.KnowledgeHistoricalEvent
+	default:
+		return historicalkb.KnowledgeGeneral
+	}
+}
+
+func developmentHistoricalClaimOutcomeFromEvidence(decision worldengine.EvidenceDecision) developmentTitleEraOutcome {
+	if !decision.Knowledge.CanUse {
+		reason := "検証済みHistorical Factが不足"
+		if decision.Knowledge.ResearchPending {
+			reason = "同一史料調査が実行中のため未検証"
+		}
+		return developmentTitleEraOutcome{status: "unverified", reason: reason}
+	}
+	var verifiedEvidence string
+	for _, fact := range decision.Knowledge.Facts {
+		if fact.Status != historicalkb.FactVerified && fact.Status != historicalkb.FactOperatorVerified && fact.Status != historicalkb.FactCanonical {
+			continue
+		}
+		claim := strings.TrimSpace(fact.Claim)
+		upper := strings.ToUpper(claim)
+		if strings.Contains(upper, "ERA_NG:") {
+			return developmentTitleEraOutcome{status: "ng", reason: stripTitleEraPrefix(claim, "ERA_NG:"), evidence: claim}
+		}
+		if strings.Contains(upper, "ERA_OK:") {
+			return developmentTitleEraOutcome{status: "verified", reason: stripTitleEraPrefix(claim, "ERA_OK:"), evidence: claim}
+		}
+		if verifiedEvidence == "" {
+			verifiedEvidence = claim
+		}
+	}
+	if verifiedEvidence != "" {
+		return developmentTitleEraOutcome{status: "verified", reason: "既存の検証済みHistorical Factを再利用", evidence: verifiedEvidence}
+	}
+	return developmentTitleEraOutcome{status: "unverified", reason: "Historical Factに検証済みclaimがない"}
 }
 
 func developmentTitleEraOutcomeFromEvidence(decision worldengine.EvidenceDecision) developmentTitleEraOutcome {

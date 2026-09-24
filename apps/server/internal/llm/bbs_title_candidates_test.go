@@ -115,7 +115,13 @@ func TestContextualTitleCandidatesAllowUncommittedNamesAndUseLowReasoning(t *tes
 		"候補11", "候補12", "候補13", "候補14", "候補15", "候補16",
 		"候補17", "候補18", "候補19", "候補20",
 	}
-	payloadText, err := json.Marshal(map[string]any{"titles": titles})
+	payloadText, err := json.Marshal(map[string]any{
+		"titles": titles,
+		"historical_claims": []map[string]any{
+			{"candidate": 1, "subject": "バーチャファイター２", "kind": "product_availability", "need": "1996-08-26までに日本で存在・利用可能だったか"},
+			{"candidate": 2, "subject": "セガサターン", "kind": "product_availability", "need": "1996-08-26までに日本で存在・利用可能だったか"},
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,6 +165,12 @@ func TestContextualTitleCandidatesAllowUncommittedNamesAndUseLowReasoning(t *tes
 	if len(got.Titles) != 20 {
 		t.Fatalf("titles=%d, want 20", len(got.Titles))
 	}
+	if len(got.HistoricalClaims) != 2 {
+		t.Fatalf("historical claims=%d, want 2", len(got.HistoricalClaims))
+	}
+	if got.HistoricalClaims[0].Subject != "バーチャファイター２" || got.HistoricalClaims[0].Candidate != 1 {
+		t.Fatalf("historical claim did not preserve reusable subject: %+v", got.HistoricalClaims[0])
+	}
 	reasoning, ok := captured["reasoning"].(map[string]any)
 	if !ok || reasoning["effort"] != "low" {
 		t.Fatalf("reasoning=%#v, want effort=low", captured["reasoning"])
@@ -169,6 +181,8 @@ func TestContextualTitleCandidatesAllowUncommittedNamesAndUseLowReasoning(t *tes
 		"supplied historical facts にない実在固有名詞も",
 		"後段の史料検証で確認できなければcanonicalには採用されない",
 		"発売日・価格・仕様・売上・対応状況など追加の歴史事実を断定しない",
+		"subjectはタイトル全文ではなく再利用可能な正式名称",
+		"historical_claimsは史実そのものではなく",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("candidate prompt missing %q:\n%s", want, prompt)

@@ -19,8 +19,9 @@ import (
 const (
 	sharedTitlePoolMinAttempts = 3
 	sharedTitlePoolMaxAttempts = 6
-	sharedTitlePoolTargetSize  = 20
-	sharedTitleResearchBudget  = 6 * time.Second
+	sharedTitlePoolTargetSize          = 20
+	sharedTitleResearchBudget          = 6 * time.Second
+	sharedTitleBackgroundResearchJobs  = 12
 )
 
 func sharedTitlePoolAttemptLimit(rootCount int) int {
@@ -206,6 +207,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	eraFallback, hasEraFallback := materializer.Renderer.(llm.BBSTitleEraValidator)
 	historicalFacts := materializer.historicalFacts(decision)
 	var researchDeadline time.Time
+	backgroundResearchQueued := 0
 	maxPoolAttempts := sharedTitlePoolAttemptLimit(len(rootSlots))
 
 	for attempt := 0; attempt < maxPoolAttempts && len(remaining) > 0; attempt++ {
@@ -369,33 +371,87 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				case "ok":
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
 				case "research":
-					researchJobs = append(researchJobs, developmentTitleEraResearchJob{candidate: jobID, title: d.Subject})
+					researchJobs = append(researchJobs, developmentTitleEraResearchJob{
+						candidate: jobID,
+						title:     d.Subject,
+						claims:    historicalClaimsForTitle(pool, d.Subject),
+					})
 					researchDecision[jobID] = d
 					jobID++
 				}
 			}
 			if len(researchJobs) > 0 {
-				// Historical verification is an adoption gate, not a reason to
-				// freeze the BBS UI. The foreground research allowance is one
-				// board-wide wall-clock budget, not a fresh timeout per fallback
-				// round. Cached/supplied facts should normally keep known
-				// period referents out of this path entirely.
+				// Always check the persistent KB first. Cache hits are local DB
+				// reads and must not consume the foreground Web-research budget.
+				cacheStarted := time.Now()
+				misses := make([]developmentTitleEraResearchJob, 0, len(researchJobs))
+				cacheHits := 0
+				cacheNG := 0
+				for _, job := range researchJobs {
+					outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, job.title, job.claims)
+					switch outcome.status {
+					case "verified":
+						d := researchDecision[job.candidate]
+						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+						cacheHits++
+					case "ng":
+						cacheNG++
+					default:
+						misses = append(misses, job)
+					}
+				}
+				log.Printf("BBS timing: host=%s board=%s phase=title_kb_lookup attempt=%d duration=%s jobs=%d hits=%d ng=%d misses=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheStarted), len(researchJobs), cacheHits, cacheNG, len(misses))
+				researchJobs = misses
+			}
+
+			if len(researchJobs) > 0 {
+				// Research is persistent world infrastructure, not a disposable
+				// request-time check. Start a bounded detached batch so a slow Web
+				// lookup can still populate Historical KB after the UI wait ends.
+				queueAllowance := sharedTitleBackgroundResearchJobs - backgroundResearchQueued
+				queuedJobs := researchJobs
+				if queueAllowance <= 0 {
+					queuedJobs = nil
+				} else if len(queuedJobs) > queueAllowance {
+					queuedJobs = queuedJobs[:queueAllowance]
+				}
+				var researchCh <-chan map[int]developmentTitleEraOutcome
+				if len(queuedJobs) > 0 {
+					researchCh = p.repo.developmentResearchTitleEraBatchDetached(req.Host, req.Board, worldDate, queuedJobs)
+					backgroundResearchQueued += len(queuedJobs)
+				}
+
+				// Foreground waiting is still capped once per board. Expiring this
+				// budget only stops waiting; it no longer cancels detached research.
 				remainingResearch := sharedTitleResearchRemaining(&researchDeadline, time.Now())
-				if remainingResearch > 0 {
+				if remainingResearch > 0 && researchCh != nil {
 					researchStarted := time.Now()
-					researchCtx, cancel := context.WithTimeout(ctx, remainingResearch)
-					outcomes := p.repo.developmentResearchTitleEraBatch(researchCtx, req.Host, req.Board, worldDate, researchJobs)
-					cancel()
-					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d remaining_budget=%s", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(researchJobs), time.Until(researchDeadline))
+					timer := time.NewTimer(remainingResearch)
+					var outcomes map[int]developmentTitleEraOutcome
+					select {
+					case outcomes = <-researchCh:
+						if !timer.Stop() {
+							select {
+							case <-timer.C:
+							default:
+							}
+						}
+						log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d completed=true remaining_budget=%s", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(queuedJobs), time.Until(researchDeadline))
+					case <-timer.C:
+						log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d completed=false background_continues=true", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(queuedJobs))
+					}
 					for id, outcome := range outcomes {
 						if outcome.status != "verified" {
 							continue
 						}
-						d := researchDecision[id]
+						d, ok := researchDecision[id]
+						if !ok {
+							continue
+						}
 						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
 					}
 				} else {
-					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=0s jobs=%d skipped=budget_exhausted", req.Host.ID, req.Board.ID, attempt+1, len(researchJobs))
+					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=0s jobs=%d queued_background=%d skipped_wait=%t", req.Host.ID, req.Board.ID, attempt+1, len(researchJobs), len(queuedJobs), remainingResearch <= 0)
 				}
 			}
 
@@ -500,6 +556,26 @@ func sharedBBSGenericFallbackSubject(boardName string, ordinal int) string {
 		subject = string(runes[:36])
 	}
 	return subject
+}
+
+func historicalClaimsForTitle(pool llm.BBSTitleCandidates, title string) []llm.BBSTitleHistoricalClaim {
+	candidate := 0
+	for i, item := range pool.Titles {
+		if item == title {
+			candidate = i + 1
+			break
+		}
+	}
+	if candidate == 0 {
+		return nil
+	}
+	out := make([]llm.BBSTitleHistoricalClaim, 0)
+	for _, claim := range pool.HistoricalClaims {
+		if claim.Candidate == candidate {
+			out = append(out, claim)
+		}
+	}
+	return out
 }
 
 func sourcedTitleSpecificityBonus(titles []string, worldDate string) map[int]float64 {

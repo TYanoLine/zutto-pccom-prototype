@@ -12,12 +12,28 @@
 
 ## 変更
 
-- historicalkb.PeriodReferentsは名称・使用可能日・限定的なclaim・出典URLを持つ小さなカタログ。通常の配線で有効化し、検索APIやモデル記憶を無制限に許可する設定とは分ける。
+- historicalkb.PeriodReferentsは名称・使用可能日・限定的なclaim・出典URLを持つ**bootstrap seed**。実在名の許可リストではない。通常の配線では候補生成の既知参照として使うが、未収録の実在名も未確定候補として提案でき、後段Historical KBで検証する。
 - 日付不正は追加供給なし。複数記事の計画には世界日付と全記事日付の最古日を使う。窓途中の発売を遅い記事にも供給しない保守的な初期実装。
 - 本文とevidenceの日時は観測日ではなく記事日。永続化済み記事や人物の事実は書き換えない。
 - 状況・Producer・timeline・本文へ同じ根拠を供給する。世界側の投稿者・日時・board・root/reply・原因選択は維持する。
 - 名称は話題のノルマではない。既に選ばれた原因・board・人物の関心に合う対象の名称を、世界事実の提案段階で確定してよい。本文workerは確定済み対象を保持する。
 - 実在名称の存在は、人物の所有・購入・経験・互換性や作品の詳細を証明しない。詳細は別の根拠が必要。
+
+## オンデマンド調査で育つHistorical KB
+
+通常のタイトル生成では、PeriodReferents未収録の実在名を候補段階で禁止しない。候補はまだworld factではなく、OpenAIは各候補と同時に `historical_claims` を返す。claimはタイトル全文ではなく、`PC-9821Xa` のような再利用可能なsubjectと、`product_availability` / `technical_capability` 等のknowledge kind、最小限の確認事項を持つ。
+
+採用候補の流れは次の順序に固定する。
+
+1. Historical KBをsubject/kind/region/audience単位で**DB lookupのみ**実行する。ここではWeb検索を開始しない。
+2. Verified / operator_verified / canonical の既存Factで足りれば、そのFactを再利用する。
+3. missしたclaimだけをWeb調査へ送る。調査結果はResearchCaseとHistoricalFactとしてPostgresへ保存する。
+4. 対話UIが待つ同期時間はboard全体で6秒まで。ただし6秒経過は**待機の打切り**であり、開始済みWeb調査のキャンセル理由にはしない。調査はbounded background jobとして継続し、完了すれば次回以降のKB hitになる。
+5. 1回のboard materializationで新規background researchへ送るselected title job数には上限を置き、候補20件すべてを無差別に検索しない。
+
+この構造では、たとえば `PC-9821Xa使ってる人います？` の確認結果を、後日の `PC-9821Xaのメモリについて` でも再利用できる。タイトル全文＋日付をKnowledgeKeyにする旧方式は、claim metadataを持たないlegacy/test rendererの互換フォールバックに限定する。
+
+historical_claims自体はモデルが出した**調査ヒント**であって証拠ではない。metadataに書かれた名称・分類・needだけでcanonical採用してはいけない。最終採用には既存の検証済みHistorical Fact、またはHistorical Knowledge Engineによる調査成功が必要。
 
 ## 出典と証拠範囲
 
