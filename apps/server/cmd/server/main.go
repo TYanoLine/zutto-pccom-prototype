@@ -11,6 +11,7 @@ import (
 
 	"zutto-pccom/apps/server/internal/config"
 	"zutto-pccom/apps/server/internal/historicalkb"
+	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/telephone"
 	"zutto-pccom/apps/server/internal/worldcatalog"
@@ -326,11 +327,13 @@ func main() {
 				break
 			}
 		}
-		// Erika-K's board tree belongs to the host program rather than the shared
-		// world BoardStore. The current evaluation probe intentionally targets its
-		// GAME leaf directly.
-		if board.ID == "" && host.SoftwareID == "erika-k" && boardID == "20/1" {
-			board = world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+		// Erika-K owns its own board tree rather than storing that catalog in
+		// the shared World BoardStore. Ask the host program for the canonical
+		// board path instead of duplicating one debug-only GAME special case.
+		if board.ID == "" && host.SoftwareID == "erika-k" {
+			if resolved, ok := erikak.BoardByPath(boardID); ok {
+				board = resolved
+			}
 		}
 		if board.ID == "" {
 			w.WriteHeader(http.StatusBadRequest)

@@ -55,6 +55,16 @@ var unreadBoard = map[string]bool{
 	"1": true, "4": true, "10/2": true, "60/1": true, "60/3": true,
 }
 
+// BoardByPath exposes the canonical Erika-K board catalog to shared debug/
+// observation tooling without duplicating the host program's private board tree.
+func BoardByPath(path string) (world.Board, bool) {
+	node, ok := findNode(strings.TrimSpace(path))
+	if !ok || node.Hidden {
+		return world.Board{}, false
+	}
+	return world.Board{ID: node.Path, Name: node.Name}, true
+}
+
 type Runtime struct {
 	Host      world.Host
 	Store     world.Store
