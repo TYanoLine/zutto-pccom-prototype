@@ -170,12 +170,12 @@ func TestStructuredOpenAIQuota429DoesNotRetry(t *testing.T) {
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			attempts++
+			header := make(http.Header)
+			header.Set("x-request-id", "req_quota_test")
 			return &http.Response{
 				StatusCode: http.StatusTooManyRequests,
 				Status:     "429 Too Many Requests",
-				Header: http.Header{
-					"x-request-id": []string{"req_quota_test"},
-				},
+				Header:     header,
 				Body: io.NopCloser(strings.NewReader(`{"error":{"message":"quota exhausted","type":"insufficient_quota","code":"credit_balance_exhausted"}}`)),
 			}, nil
 		})},
@@ -209,13 +209,13 @@ func TestStructuredOpenAIRate429HonorsResetHeaderAndRetries(t *testing.T) {
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
 			attempts++
 			if attempts == 1 {
+				header := make(http.Header)
+				header.Set("x-ratelimit-reset-requests", "600ms")
+				header.Set("x-ratelimit-remaining-requests", "0")
 				return &http.Response{
 					StatusCode: http.StatusTooManyRequests,
 					Status:     "429 Too Many Requests",
-					Header: http.Header{
-						"x-ratelimit-reset-requests": []string{"600ms"},
-						"x-ratelimit-remaining-requests": []string{"0"},
-					},
+					Header:     header,
 					Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited","type":"rate_limit_exceeded","code":"rate_limit_exceeded"}}`)),
 				}, nil
 			}
