@@ -381,6 +381,30 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				}
 			}
 			if len(researchJobs) > 0 {
+				// Always check the persistent KB first. Cache hits are local DB
+				// reads and must not consume the foreground Web-research budget.
+				cacheStarted := time.Now()
+				misses := make([]developmentTitleEraResearchJob, 0, len(researchJobs))
+				cacheHits := 0
+				cacheNG := 0
+				for _, job := range researchJobs {
+					outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, job.title, job.claims)
+					switch outcome.status {
+					case "verified":
+						d := researchDecision[job.candidate]
+						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+						cacheHits++
+					case "ng":
+						cacheNG++
+					default:
+						misses = append(misses, job)
+					}
+				}
+				log.Printf("BBS timing: host=%s board=%s phase=title_kb_lookup attempt=%d duration=%s jobs=%d hits=%d ng=%d misses=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheStarted), len(researchJobs), cacheHits, cacheNG, len(misses))
+				researchJobs = misses
+			}
+
+			if len(researchJobs) > 0 {
 				// Research is persistent world infrastructure, not a disposable
 				// request-time check. Start a bounded detached batch so a slow Web
 				// lookup can still populate Historical KB after the UI wait ends.
