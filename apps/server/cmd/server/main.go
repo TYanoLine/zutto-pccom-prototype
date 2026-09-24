@@ -16,6 +16,7 @@ import (
 	"zutto-pccom/apps/server/internal/worldcatalog"
 	"zutto-pccom/apps/server/internal/worldclock"
 	"zutto-pccom/apps/server/internal/worldengine"
+	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldrepo"
 	wsserver "zutto-pccom/apps/server/internal/ws"
 )
@@ -286,6 +287,119 @@ func main() {
 		})
 	}
 
+	bbsSample := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if !labEnabled() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "development BBS sample is disabled"})
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			w.Header().Set("Allow", "GET, POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+		if phone == "" {
+			phone = erikaKExperimentPhone
+		}
+		if phone != erikaKExperimentPhone {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug sample currently allows only 0920000196"})
+			return
+		}
+		host, err := runtimeStore.HostByPhone(phone)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "host not found"})
+			return
+		}
+		boardID := strings.TrimSpace(r.URL.Query().Get("board"))
+		if boardID == "" {
+			boardID = "20/1"
+		}
+		var board world.Board
+		for _, candidate := range store.ListBoards(host.ID) {
+			if candidate.ID == boardID {
+				board = candidate
+				break
+			}
+		}
+		if board.ID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "unknown board"})
+			return
+		}
+
+		action := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action")))
+		if action == "start" {
+			if runtimeStore.MaterializationObservationRunning(host.ID) {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "BBS observation/generation is already running"})
+				return
+			}
+			removed, kept, ok := runtimeStore.PrepareDebugBBSConnection(host)
+			if !ok {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug BBS sample reset unavailable"})
+				return
+			}
+			runtimeStore.BeginHostObservation(host, []world.Board{board})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "started",
+				"phone": phone,
+				"host_id": host.ID,
+				"board_id": board.ID,
+				"board_name": board.Name,
+				"removed_posts": removed,
+				"kept_posts": kept,
+			})
+			return
+		}
+		if action != "" && action != "status" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "action must be start or status"})
+			return
+		}
+
+		type samplePost struct {
+			ID int64 `json:"id"`
+			Author string `json:"author"`
+			Subject string `json:"subject"`
+			ParentID int64 `json:"parent_id,omitempty"`
+			CreatedAt time.Time `json:"created_at"`
+		}
+		posts := make([]samplePost, 0)
+		rootCount := 0
+		for _, post := range runtimeStore.ListPosts(host.ID) {
+			if post.BoardID != board.ID {
+				continue
+			}
+			if post.ParentID == 0 {
+				rootCount++
+			}
+			posts = append(posts, samplePost{ID: post.ID, Author: post.Author, Subject: post.Subject, ParentID: post.ParentID, CreatedAt: post.CreatedAt})
+		}
+		running := runtimeStore.MaterializationObservationRunning(host.ID)
+		status := "idle"
+		if running {
+			status = "running"
+		} else if len(posts) > 0 {
+			status = "completed"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": status,
+			"phone": phone,
+			"host_id": host.ID,
+			"board_id": board.ID,
+			"board_name": board.Name,
+			"post_count": len(posts),
+			"root_count": rootCount,
+			"posts": posts,
+		})
+	}
+
 	listResearch := func(w http.ResponseWriter, r *http.Request) {
 		if !adminGuard(w, r) {
 			return
@@ -459,6 +573,7 @@ func main() {
 	mux.HandleFunc("/api/debug/world/reset", resetWorld)
 	mux.HandleFunc("/api/debug/host/reset", resetHost)
 	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
+	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
 	mux.HandleFunc("/api/admin/research", listResearch)
 	mux.HandleFunc("/api/admin/research/case", getResearch)
 	mux.HandleFunc("/api/admin/research/new", createResearch)
