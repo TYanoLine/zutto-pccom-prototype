@@ -17,6 +17,10 @@ type EvidenceResolver interface {
 	ResolveEvidence(context.Context, worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error)
 }
 
+type EvidenceLookupResolver interface {
+	LookupEvidence(context.Context, worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error)
+}
+
 type Materializer interface {
 	GenerateBoardPosts(context.Context, BoardMaterializationRequest, worldengine.EvidenceDecision) ([]world.Post, error)
 }
