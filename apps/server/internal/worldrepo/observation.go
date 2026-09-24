@@ -14,6 +14,8 @@ import (
 // results are the posts/bodies committed to the underlying world store. Keeping
 // the waiter primitive out of world state prevents transport timing from becoming
 // part of the simulated world.
+const debugInitialBBSArticleCount = 40
+
 type observationJob struct {
 	done chan struct{}
 	err  error
@@ -172,7 +174,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		// observation single-flight still prevents duplicate generation of one board.
 		var err error
 		if r.debugImmediateBBSHost(host.ID) {
-			err = r.bbsArticles.CatchUpInitial(context.Background(), host, board)
+			err = r.bbsArticles.CatchUpInitialCount(context.Background(), host, board, debugInitialBBSArticleCount)
 		} else {
 			err = r.bbsArticles.CatchUp(context.Background(), host, board)
 		}

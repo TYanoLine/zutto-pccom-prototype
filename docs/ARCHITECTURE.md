@@ -273,7 +273,11 @@ a leaf-board index, that command joins/starts exactly that board's shared job an
 placeholder that later requires BX/refresh to reveal completed generation.
 
 The initial board batch materializes canonical headers + semantic state only.
-Article bodies remain empty until BR/read observation, where the existing
+For the HAKATA generator-evaluation station, that first batch is explicitly
+overridden to **40 article headers per observed leaf board** so title diversity
+and period texture can be judged from a useful sample. This does not change the
+normal shared-world cadence or the ordinary 3..7-post batch size used by other
+hosts. Article bodies remain empty until BR/read observation, where the existing
 thread-body barrier materializes only the requested thread. This is the intended
 minimum-scope execution pattern even while HAKATA's reset-on-call behavior itself
 remains a temporary generator-quality evaluation override.

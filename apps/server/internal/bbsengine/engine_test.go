@@ -227,6 +227,47 @@ func TestCatchUpInitialIgnoresCadenceOnlyUntilFirstGeneratedBatch(t *testing.T) 
 	}
 }
 
+func TestCatchUpInitialCountCanMaterializeLargeDebugBatchWithoutChangingNormalBatchSize(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+	planner := &fakeBatchPlanner{}
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	engine := New(store, planner, func() time.Time { return now })
+
+	if got := batchSize(host, time.Time{}, now, engine.cadence()); got != 5 {
+		t.Fatalf("normal HAKATA batch=%d, want 5", got)
+	}
+	if err := engine.CatchUpInitialCount(context.Background(), host, board, 40); err != nil {
+		t.Fatal(err)
+	}
+	if planner.calls != 1 {
+		t.Fatalf("planner calls=%d, want 1", planner.calls)
+	}
+	if got := len(planner.requests[0].Slots); got != 40 {
+		t.Fatalf("debug initial slots=%d, want 40", got)
+	}
+	posts := filterBoard(store.ListPosts(host.ID), board.ID)
+	if got := len(posts); got != 40 {
+		t.Fatalf("debug initial posts=%d, want 40", got)
+	}
+
+	// The override is first-materialization-only. Reopening the board must not
+	// append another 40-post batch.
+	if err := engine.CatchUpInitialCount(context.Background(), host, board, 40); err != nil {
+		t.Fatal(err)
+	}
+	if planner.calls != 1 {
+		t.Fatalf("debug board regenerated on reopen: calls=%d", planner.calls)
+	}
+	if got := len(filterBoard(store.ListPosts(host.ID), board.ID)); got != 40 {
+		t.Fatalf("debug board changed on reopen: posts=%d", got)
+	}
+}
+
 func TestActiveActorTargetScalesWithMembershipWithoutUsingWholePopulation(t *testing.T) {
 	if got := activeActorTarget(326, 326); got < 45 || got > 65 {
 		t.Fatalf("HAKATA active actor window=%d, want realistic bounded subset around 18%%", got)

@@ -217,9 +217,16 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		}
 		avoid = append(avoid, titles...)
 
+		// One title pool cannot assign more events than it has titles. Bound Jev
+		// pair evaluation to that many chronological remaining slots; later slots
+		// are handled by the next pool instead of generating useless pair scores.
+		jevEvents := remaining
+		if len(jevEvents) > len(pool.Titles) {
+			jevEvents = jevEvents[:len(pool.Titles)]
+		}
 		jevStarted := time.Now()
 		jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleAdvice(
-			ctx, req.Host, req.Board, worldDate, pool.Titles, remaining, recentState, historicalFacts,
+			ctx, req.Host, req.Board, worldDate, pool.Titles, jevEvents, recentState, historicalFacts,
 		)
 		log.Printf("BBS timing: host=%s board=%s phase=jev attempt=%d duration=%s used=%t err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil)
 		if jevErr != nil {

@@ -389,3 +389,90 @@ func TestSharedTitleResearchBudgetIsBoardWide(t *testing.T) {
 		t.Fatalf("expired remaining=%s, want 0", got)
 	}
 }
+
+
+type fortyTitleRenderer struct {
+	calls int
+}
+
+func (f *fortyTitleRenderer) GenerateBoardPost(context.Context, llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+	return llm.BoardPostDraft{Author: "X", Subject: "X", Body: "body"}, nil
+}
+
+func (f *fortyTitleRenderer) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
+	return llm.BBSTitleCandidates{}, fmt.Errorf("legacy title path should not be used")
+}
+
+func (f *fortyTitleRenderer) GenerateContextualBBSTitleCandidates(_ context.Context, _ llm.BBSContextualTitleCandidateRequest) (llm.BBSTitleCandidates, error) {
+	f.calls++
+	start := (f.calls-1)*20 + 1
+	titles := make([]string, 0, 20)
+	for i := 0; i < 20; i++ {
+		titles = append(titles, fmt.Sprintf("評価用タイトル%02d", start+i))
+	}
+	return llm.BBSTitleCandidates{Titles: titles}, nil
+}
+
+func (f *fortyTitleRenderer) ReviewBBSTitleCandidates(_ context.Context, req llm.BBSTitleReviewRequest) (llm.BBSTitleReview, error) {
+	decisions := make([]llm.BBSTitleDecision, 0, len(req.Titles))
+	for i, title := range req.Titles {
+		d := llm.BBSTitleDecision{Candidate: i + 1, Reason: "not selected"}
+		if i < len(req.Events) {
+			d.EventID = req.Events[i].EventID
+			d.Subject = title
+			d.Summary = "「" + title + "」を話題にする"
+			d.Details = []string{}
+			d.Reason = "fits selected world slot"
+		}
+		decisions = append(decisions, d)
+	}
+	return llm.BBSTitleReview{Decisions: decisions}, nil
+}
+
+func (f *fortyTitleRenderer) ValidateBBSTitleEra(_ context.Context, req llm.BBSTitleEraRequest) (llm.BBSTitleEraReview, error) {
+	decisions := make([]llm.BBSTitleEraDecision, 0, len(req.Titles))
+	for i := range req.Titles {
+		decisions = append(decisions, llm.BBSTitleEraDecision{Candidate: i + 1, Status: llm.BBSTitleEraOK, Reason: "test-safe"})
+	}
+	return llm.BBSTitleEraReview{Decisions: decisions}, nil
+}
+
+func TestSharedBBSPlannerFillsFortyDebugHeadersAcrossTwoPools(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer := &fortyTitleRenderer{}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	slots := make([]bbsengine.Slot, 0, 40)
+	for i := 0; i < 40; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index: i + 1,
+			Author: fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host: host,
+		Board: world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 40 {
+		t.Fatalf("planned=%d, want 40", len(planned))
+	}
+	if renderer.calls != 2 {
+		t.Fatalf("candidate pools=%d, want 2 for 40 headers", renderer.calls)
+	}
+	seen := map[string]bool{}
+	for _, post := range planned {
+		if post.Subject == "" || seen[post.Subject] {
+			t.Fatalf("missing/duplicate subject in 40-header plan: %+v", post)
+		}
+		seen[post.Subject] = true
+	}
+}
