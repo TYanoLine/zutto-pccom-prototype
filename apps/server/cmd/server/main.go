@@ -320,7 +320,7 @@ func main() {
 			boardID = "20/1"
 		}
 		var board world.Board
-		for _, candidate := range runtimeStore.ListBoards(host.ID) {
+		for _, candidate := range store.ListBoards(host.ID) {
 			if candidate.ID == boardID {
 				board = candidate
 				break
