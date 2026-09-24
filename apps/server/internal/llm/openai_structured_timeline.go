@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,107 @@ import (
 // must not turn persona background into new world actions.
 type StructuredOpenAIProvider struct {
 	OpenAIProvider
+}
+
+type structuredOpenAIAPIError struct {
+	StatusCode        int
+	Status            string
+	Type              string
+	Code              string
+	Message           string
+	RequestID         string
+	RetryAfter        string
+	LimitRequests     string
+	RemainingRequests string
+	ResetRequests     string
+	LimitTokens       string
+	RemainingTokens   string
+	ResetTokens       string
+}
+
+func (e *structuredOpenAIAPIError) Error() string {
+	if e == nil {
+		return "openai structured API error"
+	}
+	parts := []string{fmt.Sprintf("openai structured responses API returned %s", e.Status)}
+	if e.Type != "" {
+		parts = append(parts, "type="+e.Type)
+	}
+	if e.Code != "" {
+		parts = append(parts, "code="+e.Code)
+	}
+	if e.Message != "" {
+		parts = append(parts, "message="+e.Message)
+	}
+	if e.RequestID != "" {
+		parts = append(parts, "request_id="+e.RequestID)
+	}
+	if e.RetryAfter != "" {
+		parts = append(parts, "retry_after="+e.RetryAfter)
+	}
+	if e.RemainingRequests != "" || e.ResetRequests != "" {
+		parts = append(parts, "requests_remaining="+e.RemainingRequests, "requests_reset="+e.ResetRequests)
+	}
+	if e.RemainingTokens != "" || e.ResetTokens != "" {
+		parts = append(parts, "tokens_remaining="+e.RemainingTokens, "tokens_reset="+e.ResetTokens)
+	}
+	return strings.Join(parts, " ")
+}
+
+func (e *structuredOpenAIAPIError) retryable() bool {
+	if e == nil {
+		return false
+	}
+	if e.StatusCode >= 500 && e.StatusCode <= 599 {
+		return true
+	}
+	if e.StatusCode != http.StatusTooManyRequests {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(e.Code)) {
+	case "credit_balance_exhausted", "organization_usage_limit_exceeded", "organization_spend_limit_exceeded", "project_spend_limit_exceeded":
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(e.Type), "insufficient_quota") {
+		return false
+	}
+	return true
+}
+
+type structuredOpenAIGate struct {
+	mu      sync.Mutex
+	notBefore time.Time
+}
+
+var sharedStructuredOpenAIGate structuredOpenAIGate
+
+func (g *structuredOpenAIGate) wait(ctx context.Context) error {
+	g.mu.Lock()
+	until := g.notBefore
+	g.mu.Unlock()
+	delay := time.Until(until)
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (g *structuredOpenAIGate) deferUntil(until time.Time) {
+	if until.IsZero() {
+		return
+	}
+	g.mu.Lock()
+	if until.After(g.notBefore) {
+		g.notBefore = until
+	}
+	g.mu.Unlock()
 }
 
 var _ BoardPostRenderer = StructuredOpenAIProvider{}
@@ -191,7 +293,8 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return responseTextResult{}, fmt.Errorf("openai structured responses API returned %s", resp.Status)
+		apiErr := readStructuredOpenAIAPIError(resp)
+		return responseTextResult{}, apiErr
 	}
 	var decoded struct {
 		Model  string `json:"model"`
@@ -241,6 +344,10 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 func doStructuredOpenAIRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
 	const maxAttempts = 3
 	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if err := sharedStructuredOpenAIGate.wait(ctx); err != nil {
+			return nil, err
+		}
+
 		current := req
 		if attempt > 0 {
 			current = req.Clone(ctx)
@@ -256,35 +363,98 @@ func doStructuredOpenAIRequest(ctx context.Context, client *http.Client, req *ht
 		if err != nil {
 			return nil, err
 		}
-		transient := resp.StatusCode == http.StatusTooManyRequests || (resp.StatusCode >= 500 && resp.StatusCode <= 599)
-		if !transient || attempt+1 >= maxAttempts {
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			return resp, nil
 		}
+		apiErr := readStructuredOpenAIAPIError(resp)
+		if !apiErr.retryable() || attempt+1 >= maxAttempts {
+			return nil, apiErr
+		}
 
-		delay := time.Duration(1<<attempt) * time.Second
-		if raw := strings.TrimSpace(resp.Header.Get("Retry-After")); raw != "" {
-			if d, err := time.ParseDuration(raw + "s"); err == nil && d >= 0 {
-				delay = d
-			} else if when, err := http.ParseTime(raw); err == nil {
-				if d := time.Until(when); d > 0 {
-					delay = d
-				}
-			}
-		}
-		if delay < 250*time.Millisecond {
-			delay = 250 * time.Millisecond
-		}
-		if delay > 8*time.Second {
-			delay = 8 * time.Second
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-
-		select {
-		case <-time.After(delay):
-		case <-ctx.Done():
-			return nil, ctx.Err()
+		delay := structuredOpenAIRetryDelay(resp.Header, attempt)
+		sharedStructuredOpenAIGate.deferUntil(time.Now().Add(delay))
+		if err := sharedStructuredOpenAIGate.wait(ctx); err != nil {
+			return nil, err
 		}
 	}
 	return nil, errors.New("openai structured responses retry loop exhausted")
+}
+
+func readStructuredOpenAIAPIError(resp *http.Response) *structuredOpenAIAPIError {
+	if resp == nil {
+		return &structuredOpenAIAPIError{Status: "unknown"}
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
+	var decoded struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &decoded)
+	return &structuredOpenAIAPIError{
+		StatusCode:        resp.StatusCode,
+		Status:            resp.Status,
+		Type:              strings.TrimSpace(decoded.Error.Type),
+		Code:              strings.TrimSpace(decoded.Error.Code),
+		Message:           compactOpenAIErrorMessage(decoded.Error.Message),
+		RequestID:         strings.TrimSpace(resp.Header.Get("x-request-id")),
+		RetryAfter:        strings.TrimSpace(resp.Header.Get("Retry-After")),
+		LimitRequests:     strings.TrimSpace(resp.Header.Get("x-ratelimit-limit-requests")),
+		RemainingRequests: strings.TrimSpace(resp.Header.Get("x-ratelimit-remaining-requests")),
+		ResetRequests:     strings.TrimSpace(resp.Header.Get("x-ratelimit-reset-requests")),
+		LimitTokens:       strings.TrimSpace(resp.Header.Get("x-ratelimit-limit-tokens")),
+		RemainingTokens:   strings.TrimSpace(resp.Header.Get("x-ratelimit-remaining-tokens")),
+		ResetTokens:       strings.TrimSpace(resp.Header.Get("x-ratelimit-reset-tokens")),
+	}
+}
+
+func compactOpenAIErrorMessage(message string) string {
+	message = strings.Join(strings.Fields(strings.TrimSpace(message)), " ")
+	const max = 300
+	if len(message) > max {
+		return message[:max] + "…"
+	}
+	return message
+}
+
+func structuredOpenAIRetryDelay(header http.Header, attempt int) time.Duration {
+	delay := time.Duration(1<<attempt) * time.Second
+	if raw := strings.TrimSpace(header.Get("Retry-After")); raw != "" {
+		if d, err := time.ParseDuration(raw + "s"); err == nil && d >= 0 {
+			delay = d
+		} else if when, err := http.ParseTime(raw); err == nil {
+			if d := time.Until(when); d > 0 {
+				delay = d
+			}
+		}
+	}
+	for _, key := range []string{"x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"} {
+		if d, ok := parseOpenAIRateReset(header.Get(key)); ok && d > delay {
+			delay = d
+		}
+	}
+	if delay < 500*time.Millisecond {
+		delay = 500 * time.Millisecond
+	}
+	if delay > 60*time.Second {
+		delay = 60 * time.Second
+	}
+	return delay
+}
+
+func parseOpenAIRateReset(raw string) (time.Duration, bool) {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return 0, false
+	}
+	// OpenAI rate-limit reset headers commonly use compact values such as 1s,
+	// 200ms, 1m30s. time.ParseDuration supports these forms directly.
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < 0 {
+		return 0, false
+	}
+	return d, true
 }
