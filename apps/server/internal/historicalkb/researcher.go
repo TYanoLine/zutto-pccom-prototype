@@ -46,16 +46,7 @@ func (r Researcher) Research(ctx context.Context, topic, question, worldDate, pr
 	if client == nil {
 		client = &http.Client{Timeout: b.Timeout}
 	}
-	prompt := fmt.Sprintf(`You are the bounded historical-research sub-agent for a simulation of Japanese PC communications.
-World date: %s
-Topic: %s
-Question: %s
-Previous case context, if any:
-%s
-
-Research only the concrete fact needed by the caller; do not expand into a general essay. Use web search only when evidence is needed. Prefer contemporary primary sources, manuals, magazines, archives, advertisements and contemporary records, then later retrospective sources. Never use later knowledge as if people on the world date already knew it. Distinguish announcement, release, availability and later retrospective claims. Explicitly report what could not be verified. Do not fabricate missing evidence. Stop when the requested fact is adequately supported or the tool budget is exhausted.
-
-Populate the requested structured result. confidence must be 0..1.`, worldDate, topic, question, priorContext)
+	prompt := historicalResearchPrompt(topic, question, worldDate, priorContext)
 	payload := map[string]any{
 		"model":             r.Model,
 		"input":             prompt,
@@ -137,6 +128,26 @@ Populate the requested structured result. confidence must be 0..1.`, worldDate, 
 	}
 	result.Sources = sources
 	return result, nil
+}
+
+func historicalResearchPrompt(topic, question, worldDate, priorContext string) string {
+	return fmt.Sprintf(`You are the bounded historical-research sub-agent for a simulation of Japanese PC communications.
+World date: %s
+Topic: %s
+Question: %s
+Previous case context, if any:
+%s
+
+Research only the concrete fact needed by the caller; do not expand into a general essay. Use web search only when evidence is needed. Prefer contemporary primary sources, manuals, magazines, archives, advertisements and contemporary records, then later retrospective sources. Never use later knowledge as if people on the world date already knew it. Distinguish announcement, release, availability and later retrospective claims. Do not fabricate missing evidence. Stop when the requested fact is adequately supported or the tool budget is exhausted.
+
+The scope of missingInfo is strict:
+- missingInfo contains only unresolved evidence that is necessary to answer the exact Question above.
+- Do not put intentionally out-of-scope details in missingInfo. This includes other implications of a BBS title, a person's ownership/use/preferences, unrelated specifications, compatibility details, or adjacent facts that the Question did not ask you to verify.
+- If the exact requested fact is adequately supported by the available sources, missingInfo must be an empty array even when broader facts about the Topic remain unknown.
+- If the exact requested fact cannot be established, put only the specific blocking uncertainty in missingInfo.
+- summary and provisionalAnswer must stay within the same requested scope. Preserve any answer-prefix contract explicitly requested by Question, such as ERA_OK: or ERA_NG:.
+
+Populate the requested structured result. confidence must be 0..1.`, worldDate, topic, question, priorContext)
 }
 
 func researchResultTextConfig() map[string]any {
