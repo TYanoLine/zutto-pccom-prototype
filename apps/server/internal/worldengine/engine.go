@@ -10,6 +10,10 @@ type KnowledgeResolver interface {
 	Resolve(context.Context, historicalkb.KnowledgeQuery) (historicalkb.KnowledgeResult, error)
 }
 
+type KnowledgeLookupResolver interface {
+	Lookup(context.Context, historicalkb.KnowledgeQuery) (historicalkb.KnowledgeResult, error)
+}
+
 type Engine struct {
 	Knowledge        KnowledgeResolver
 	WriteAdvisor     WritePropensityAdvisor
@@ -37,6 +41,44 @@ type EvidenceDecision struct {
 	Level     historicalkb.EvidenceLevel `json:"level"`
 	Knowledge historicalkb.KnowledgeResult `json:"knowledge"`
 	ModelFirst bool `json:"modelFirst"`
+}
+
+// LookupEvidence checks only the persistent Historical KB. It never starts Web
+// research. Callers can therefore use it on latency-sensitive paths before
+// deciding whether a cache miss should be queued for research.
+func (e Engine) LookupEvidence(ctx context.Context, r EvidenceRequest) (EvidenceDecision, error) {
+	level := historicalkb.RequiredEvidence(historicalkb.DecisionContext{
+		Persistence: r.Persistence,
+		Importance: r.Importance,
+		Specificity: r.Specificity,
+		HasExactDate: r.HasExactDate,
+		HasExactNumber: r.HasExactNumber,
+		HasProductModel: r.HasProductModel,
+		HasTechnicalSpec: r.HasTechnicalSpec,
+	})
+	if level == historicalkb.EvidenceAtmospheric {
+		return EvidenceDecision{Level: level, ModelFirst: true, Knowledge: historicalkb.KnowledgeResult{CanUse: true}}, nil
+	}
+	if e.Knowledge == nil {
+		return EvidenceDecision{Level: level}, nil
+	}
+	lookup, ok := e.Knowledge.(KnowledgeLookupResolver)
+	if !ok {
+		return EvidenceDecision{Level: level}, nil
+	}
+	k, err := lookup.Lookup(ctx, historicalkb.KnowledgeQuery{
+		Kind: r.Kind,
+		Subject: r.Subject,
+		WorldDate: r.WorldDate,
+		Region: r.Region,
+		Audience: r.Audience,
+		Need: r.Need,
+		RequiredEvidence: level,
+	})
+	if err != nil {
+		return EvidenceDecision{Level: level, Knowledge: k}, err
+	}
+	return EvidenceDecision{Level: level, Knowledge: k}, nil
 }
 
 // ResolveEvidence is the WorldEngine boundary. It decides whether a decision is
