@@ -417,11 +417,43 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		}
 	}
 
-	// World-selected roots survive wording difficulty. If Jev/OpenAI could not
-	// fill every slot after bounded pools, adopt unused era-safe candidates from
-	// the last generated pools is preferable to erasing the world action.
+	// World-selected roots survive wording difficulty. Candidate generation and
+	// historical verification are wording gates, not permission to erase a World
+	// Engine event. After bounded pools are exhausted, preserve any still-unfilled
+	// root with an explicitly generic, board-local, date-safe title that makes no
+	// external historical claim. This mirrors the interactive title-first path.
 	if len(remaining) > 0 {
-		return nil, fmt.Errorf("title-first pools exhausted with %d unfilled root slots", len(remaining))
+		used := map[string]bool{}
+		for _, post := range adopted {
+			used[normalizeTitleForSimilarity(post.Subject)] = true
+		}
+		fallbackOrdinal := 0
+		fallbackCount := 0
+		for _, event := range remaining {
+			var subject string
+			for {
+				subject = sharedBBSGenericFallbackSubject(req.Board.Name, fallbackOrdinal)
+				fallbackOrdinal++
+				key := normalizeTitleForSimilarity(subject)
+				if key != "" && !used[key] {
+					used[key] = true
+					break
+				}
+			}
+			slot := slotByEvent[event.EventID]
+			summary := fmt.Sprintf("%s が「%s」を話題にする", slot.Author, subject)
+			adopted[event.EventID] = bbsengine.PlannedPost{
+				SlotIndex:        slot.Index,
+				Subject:          subject,
+				Topic:            subject,
+				Motivation:       "world_selected_board_activity",
+				Goal:             "open a generic board-local thread without adding external historical claims",
+				SituationSummary: summary,
+			}
+			fallbackCount++
+		}
+		log.Printf("BBS title fallback: host=%s board=%s generic_local=%d", req.Host.ID, req.Board.ID, fallbackCount)
+		remaining = nil
 	}
 
 	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
@@ -430,6 +462,44 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		out = append(out, adopted[eventID])
 	}
 	return out, nil
+}
+
+func sharedBBSGenericFallbackSubject(boardName string, ordinal int) string {
+	board := strings.TrimSpace(boardName)
+	if board == "" {
+		board = "この話題"
+	}
+	boardRunes := []rune(board)
+	if len(boardRunes) > 24 {
+		board = string(boardRunes[:24])
+	}
+
+	suffixes := []string{
+		"について",
+		"の話",
+		"あれこれ",
+		"の情報交換",
+		"のこと",
+		"の話題",
+		"で雑談",
+		"、ちょっと質問",
+		"について一言",
+		"の雑談など",
+		"の話でも",
+		"について少し",
+	}
+	if ordinal < 0 {
+		ordinal = 0
+	}
+	subject := board + suffixes[ordinal%len(suffixes)]
+	if cycle := ordinal / len(suffixes); cycle > 0 {
+		subject += fmt.Sprintf(" その%d", cycle+1)
+	}
+	runes := []rune(subject)
+	if len(runes) > 36 {
+		subject = string(runes[:36])
+	}
+	return subject
 }
 
 func sourcedTitleSpecificityBonus(titles []string, worldDate string) map[int]float64 {
