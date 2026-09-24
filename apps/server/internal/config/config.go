@@ -28,7 +28,7 @@ func Load() Config {
 	return Config{
 		Addr:                        env("ADDR", ":8080"),
 		OpenAIKey:                   os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:                 env("OPENAI_MODEL", "gpt-5.6-luna"),
+		OpenAIModel:                 env("OPENAI_MODEL", "gpt-6-luna"),
 		GeminiKey:                   os.Getenv("GEMINI_API_KEY"),
 		GeminiModel:                 env("GEMINI_MODEL", "gemini-3.8-flash"),
 		JevKey:                      jevKey,
