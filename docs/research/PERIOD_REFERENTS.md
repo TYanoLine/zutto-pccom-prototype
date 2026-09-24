@@ -28,13 +28,27 @@
 |PC-9801|1983-01-01|NECのパソコン、1982年発売|https://jpn.nec.com/profile/corp/history.html|
 |NIFTY-Serve|1987-04-15|パソコン通信サービスの開始|https://www.nifty.co.jp/company/history/|
 |SC-55|1992-01-01|1991年のSOUND CANVAS音源|https://www.roland.com/jp/company/history/|
+|スーパーメトロイド|1994-03-19|スーパーファミコン用ソフト発売|https://www.nintendo.co.jp/corporate/release/2017/170627.html|
+|ファイナルファンタジーVI|1994-04-02|スーパーファミコン版発売|https://support.jp.square-enix.com/faqarticle.php?id=195&kid=45701&la=0&ret=main|
+|スーパーストリートファイターII|1994-06-25|スーパーファミコン用ソフト発売|https://www.nintendo.co.jp/corporate/release/2017/170627.html|
 |セガサターン|1994-11-22|家庭用ゲーム機の発売|https://www.sega.jp/history/hard/column/column_05.html|
+|スーパードンキーコング|1994-11-26|スーパーファミコン用ソフト発売|https://www.nintendo.co.jp/corporate/release/2017/170627.html|
 |PlayStation|1994-12-03|日本での家庭用ゲーム機発売|https://www.playstation.com/ja-jp/playstation-history/1994-ps-one/|
+|ときめきメモリアル|1995-01-01|1994年にPCエンジン向け第1作が登場。年のみの資料なので翌年1月から使用|https://www.konami.com/games/corporate/ja/news/topics/20250203/|
 |一太郎Ver.6|1995-02-01|1995年1月のWindows向けワープロ|https://www.ichitaro.com/history/tw06.html|
 |パンツァードラグーン|1995-03-10|サターン向けシューティング|https://www.sega.jp/history/hard/segasaturn/software.html|
+|クロノ・トリガー|1995-03-11|スーパーファミコン用RPG発売|https://www.nintendo.co.jp/wii/vc/vc_chr/vc_chr_01.html|
+|スーパーマリオ ヨッシーアイランド|1995-08-05|スーパーファミコン用ソフト発売|https://www.nintendo.co.jp/corporate/release/2017/170627.html|
+|パネルでポン|1995-10-27|スーパーファミコン用ソフト発売|https://www.nintendo.co.jp/corporate/release/2017/170627.html|
 |Windows 95|1995-11-23|日本語版OSの発売|https://news.microsoft.com/source/1998/06/17/windows-98-available-in-japanese/|
 |バーチャファイター２|1995-12-01|サターン向けアクションゲーム|https://www.sega.jp/history/hard/segasaturn/software.html|
+|ドラゴンクエストVI 幻の大地|1996-01-01|1995年12月にスーパーファミコン版発売。月のみの資料なので翌月1日から使用|https://www.jp.square-enix.com/game/detail/dq6/|
+|Jリーグ実況ウイニングイレブン|1996-01-01|1995年のPlayStation向けタイトル。年のみの資料なので翌年1月から使用|https://www.konami.com/corporate/ja/history/product.html|
+|幻想水滸伝|1996-01-01|1995年に日本でリリース。年のみの資料なので翌年1月から使用|https://www.konami.com/games/suikoden/ja/cp/suki|
 |ポケットモンスター 赤・緑|1996-02-27|ゲームボーイ向けソフト発売|https://www.nintendo.co.jp/ds/interview/ipkj/vol1/index.html|
+|スーパーマリオRPG|1996-03-09|スーパーファミコン用RPG発売|https://www.nintendo.co.jp/clvs/soft/mario_rpg.html|
+|星のカービィ スーパーデラックス|1996-03-21|スーパーファミコン用ソフト発売|https://www.nintendo.co.jp/corporate/release/2017/170627.html|
+|バイオハザード|1996-03-22|PlayStation版発売|https://www.capcom.co.jp/ir/news/html/200612b.html|
 
 人物の出来事・好みはサービス独自の架空設定であり、上記史実とは区別する。
 
