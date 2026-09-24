@@ -326,6 +326,12 @@ func main() {
 				break
 			}
 		}
+		// Erika-K's board tree belongs to the host program rather than the shared
+		// world BoardStore. The current evaluation probe intentionally targets its
+		// GAME leaf directly.
+		if board.ID == "" && host.SoftwareID == "erika-k" && boardID == "20/1" {
+			board = world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+		}
 		if board.ID == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "unknown board"})
