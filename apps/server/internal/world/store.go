@@ -34,6 +34,13 @@ type HostObservationStore interface {
 	WaitForArticleBody(ctx context.Context, host Host, board Board, postID int64) (Post, bool, error)
 }
 
+// HostPrefetchStore is an optional observation capability for speculative,
+// low-priority work. A later demanded board read may cancel unrelated prefetch
+// without changing canonical world semantics.
+type HostPrefetchStore interface {
+	BeginHostPrefetch(host Host, boards []Board)
+}
+
 // The following writer capabilities are intentionally optional. WorldRepository
 // uses them to persist materialized state without making every Store implementation
 // support the development materialization demo.
