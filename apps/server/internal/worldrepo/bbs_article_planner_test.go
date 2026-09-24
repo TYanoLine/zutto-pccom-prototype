@@ -294,3 +294,18 @@ func TestSharedBBSHeaderMaterializationAllowsDemandAlongsideBackgroundPrefetch(t
 		t.Fatal(err)
 	}
 }
+
+
+func TestSharedTitleResearchBudgetIsBoardWide(t *testing.T) {
+	var deadline time.Time
+	start := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	if got := sharedTitleResearchRemaining(&deadline, start); got != 6*time.Second {
+		t.Fatalf("initial remaining=%s, want 6s", got)
+	}
+	if got := sharedTitleResearchRemaining(&deadline, start.Add(2*time.Second)); got != 4*time.Second {
+		t.Fatalf("second round remaining=%s, want 4s from original board budget", got)
+	}
+	if got := sharedTitleResearchRemaining(&deadline, start.Add(7*time.Second)); got != 0 {
+		t.Fatalf("expired remaining=%s, want 0", got)
+	}
+}
