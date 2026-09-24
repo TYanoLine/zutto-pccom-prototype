@@ -111,6 +111,42 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 	}
 }
 
+func TestStructuredOpenAIReasoningEffortIsOptionalAndExplicit(t *testing.T) {
+	var gotReasoning any
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			var payload map[string]any
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			gotReasoning = payload["reasoning"]
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"model":"gpt-test",
+					"output":[{"content":[{"type":"output_text","text":"{}"}]}],
+					"usage":{"input_tokens":1,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":2}
+				}`)),
+			}, nil
+		})},
+	}}
+
+	_, err := provider.responseTextWithJSONSchemaReasoning(context.Background(), "test", "low", "low", 100, "test_schema", map[string]any{
+		"type": "object", "properties": map[string]any{}, "additionalProperties": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reasoning, ok := gotReasoning.(map[string]any)
+	if !ok || reasoning["effort"] != "low" {
+		t.Fatalf("reasoning=%#v, want effort=low", gotReasoning)
+	}
+}
+
 func TestStructuredOpenAIRetriesTransient429(t *testing.T) {
 	attempts := 0
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
