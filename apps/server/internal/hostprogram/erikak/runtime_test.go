@@ -288,3 +288,20 @@ func TestBare99IsNotAResetCommand(t *testing.T) {
 		t.Fatalf("BJ 99 hidden board navigation should remain available: %q", out)
 	}
 }
+
+
+func TestBoardByPathResolvesCanonicalLeaf(t *testing.T) {
+	board, ok := BoardByPath("70/1")
+	if !ok {
+		t.Fatal("70/1 was not resolved")
+	}
+	if board.ID != "70/1" || board.Name != "ＰＣ－９８" {
+		t.Fatalf("board=%+v", board)
+	}
+	if _, ok := BoardByPath("99"); ok {
+		t.Fatal("hidden board must not be exposed through debug lookup")
+	}
+	if _, ok := BoardByPath("missing"); ok {
+		t.Fatal("unknown board unexpectedly resolved")
+	}
+}
