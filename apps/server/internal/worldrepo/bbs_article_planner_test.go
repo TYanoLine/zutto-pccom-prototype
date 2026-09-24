@@ -243,6 +243,86 @@ func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnver
 	}
 }
 
+type suppliedFactTitleTestEngine struct {
+	evidenceCalls atomic.Int32
+	sawSaturnFact atomic.Bool
+}
+
+func (e *suppliedFactTitleTestEngine) ResolveEvidence(_ context.Context, req worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	if strings.HasPrefix(req.Subject, "bbs-title-era:") {
+		e.evidenceCalls.Add(1)
+	}
+	return worldengine.EvidenceDecision{Knowledge: historicalkb.KnowledgeResult{CanUse: true}}, nil
+}
+
+func (e *suppliedFactTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	for _, fact := range req.HistoricalFacts {
+		if strings.Contains(fact, "セガサターン") {
+			e.sawSaturnFact.Store(true)
+			break
+		}
+	}
+	out := worldengine.TitleCandidateAdviceDecision{
+		Era: map[int]worldengine.TitleEraProbabilities{},
+		Fit: map[string]float64{},
+	}
+	for i := range req.Titles {
+		candidate := i + 1
+		safe := .95
+		fit := .20
+		if candidate == 1 {
+			fit = .90
+		}
+		out.Era[candidate] = worldengine.TitleEraProbabilities{
+			SafeWithoutResearch: safe,
+			LogicallyImpossible: .00,
+		}
+		for _, event := range req.Events {
+			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = fit
+		}
+	}
+	return out, nil
+}
+
+func TestSharedBBSPlannerReusesSuppliedPeriodFactWithoutWebResearch(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := []string{"セガサターンについて", "ゲームの話"}
+	for i := 3; i <= 20; i++ {
+		titles = append(titles, fmt.Sprintf("低適合候補%02d", i))
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles}
+	engine := &suppliedFactTitleTestEngine{}
+	repo := New(base, engine, LLMMaterializer{
+		Renderer:                    renderer,
+		CuratedHistoricalReferences: true,
+	}, "1996-08-26")
+	req := bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: []bbsengine.Slot{
+			{Index: 1, Author: "MARI", AuthorPersonaID: "hakata-mari", CreatedAt: time.Date(1996, 8, 26, 22, 0, 0, 0, time.Local)},
+		},
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !engine.sawSaturnFact.Load() {
+		t.Fatal("Jev title routing did not receive the supplied セガサターン period fact")
+	}
+	if got := engine.evidenceCalls.Load(); got != 0 {
+		t.Fatalf("historical Web research calls=%d, want 0 for Jev-safe supplied fact", got)
+	}
+	if len(planned) != 1 || planned[0].Subject != "セガサターンについて" {
+		t.Fatalf("planned=%+v, want sourced concrete title", planned)
+	}
+}
+
 func TestSharedBBSHeaderMaterializationAllowsDemandAlongsideBackgroundPrefetch(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
