@@ -17,9 +17,30 @@ import (
 )
 
 const (
-	sharedTitlePoolAttempts   = 3
-	sharedTitleResearchBudget = 6 * time.Second
+	sharedTitlePoolMinAttempts = 3
+	sharedTitlePoolMaxAttempts = 6
+	sharedTitlePoolTargetSize  = 20
+	sharedTitleResearchBudget  = 6 * time.Second
 )
+
+func sharedTitlePoolAttemptLimit(rootCount int) int {
+	// A 20-title pool can theoretically fill at most 20 roots, but era/fit/
+	// duplicate gates deliberately reject some candidates. Keep two surplus
+	// pools above the theoretical minimum while retaining the historical
+	// three-pool floor for ordinary small batches.
+	required := 0
+	if rootCount > 0 {
+		required = (rootCount + sharedTitlePoolTargetSize - 1) / sharedTitlePoolTargetSize
+	}
+	attempts := required + 2
+	if attempts < sharedTitlePoolMinAttempts {
+		attempts = sharedTitlePoolMinAttempts
+	}
+	if attempts > sharedTitlePoolMaxAttempts {
+		attempts = sharedTitlePoolMaxAttempts
+	}
+	return attempts
+}
 
 func sharedTitleResearchRemaining(deadline *time.Time, now time.Time) time.Duration {
 	if deadline.IsZero() {
@@ -185,8 +206,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	eraFallback, hasEraFallback := materializer.Renderer.(llm.BBSTitleEraValidator)
 	historicalFacts := materializer.historicalFacts(decision)
 	var researchDeadline time.Time
+	maxPoolAttempts := sharedTitlePoolAttemptLimit(len(rootSlots))
 
-	for attempt := 0; attempt < sharedTitlePoolAttempts && len(remaining) > 0; attempt++ {
+	for attempt := 0; attempt < maxPoolAttempts && len(remaining) > 0; attempt++ {
 		var pool llm.BBSTitleCandidates
 		var err error
 		poolStarted := time.Now()
@@ -289,7 +311,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				titles:           append([]string(nil), pool.Titles...),
 				advice:           jevAdvice,
 				fitFloor:         developmentJevTitleFitThreshold,
-				rankingOnly:      attempt == sharedTitlePoolAttempts-1,
+				rankingOnly:      attempt == maxPoolAttempts-1,
 				specificityBonus: sourcedTitleSpecificityBonus(pool.Titles, worldDate),
 			}
 		}
@@ -305,7 +327,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
 			log.Printf("BBS timing: host=%s board=%s phase=title_review attempt=%d duration=%s titles=%d events=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(reviewStarted), len(available), len(remaining), err != nil)
 			if err != nil {
-				if attempt+1 < sharedTitlePoolAttempts {
+				if attempt+1 < maxPoolAttempts {
 					break
 				}
 				return nil, fmt.Errorf("review title-first candidates: %w", err)
