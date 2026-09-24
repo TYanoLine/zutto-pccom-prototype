@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
@@ -127,6 +128,18 @@ func (r *Repository) developmentResearchTitleEraBatch(ctx context.Context, host 
 	}
 	wg.Wait()
 	return out
+}
+
+func (r *Repository) developmentResearchTitleEraBatchDetached(host world.Host, board world.Board, asOf string, jobs []developmentTitleEraResearchJob) <-chan map[int]developmentTitleEraOutcome {
+	ch := make(chan map[int]developmentTitleEraOutcome, 1)
+	copied := append([]developmentTitleEraResearchJob(nil), jobs...)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
+		defer cancel()
+		ch <- r.developmentResearchTitleEraBatch(ctx, host, board, asOf, copied)
+		close(ch)
+	}()
+	return ch
 }
 
 func (r *Repository) developmentResearchTitleEra(ctx context.Context, host world.Host, board world.Board, asOf, title string, claims []llm.BBSTitleHistoricalClaim) developmentTitleEraOutcome {
