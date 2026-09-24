@@ -127,7 +127,7 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUp(ctx, host, board, false)
+	return e.catchUp(ctx, host, board, false, 0)
 }
 
 // CatchUpInitial materializes one batch immediately when this board has no
@@ -135,19 +135,30 @@ func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board
 // reset flows so testers can inspect the current generator without waiting for the
 // normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
 func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
+	return e.catchUpInitial(ctx, host, board, 0)
+}
+
+// CatchUpInitialCount is the explicit-development variant of CatchUpInitial.
+// It lets generator-evaluation fixtures request a larger first materialization
+// without changing normal world cadence or MaxBatchSize.
+func (e *Engine) CatchUpInitialCount(ctx context.Context, host world.Host, board world.Board, count int) error {
+	return e.catchUpInitial(ctx, host, board, count)
+}
+
+func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
 		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
-			return e.catchUp(ctx, host, board, false)
+			return e.catchUp(ctx, host, board, false, 0)
 		}
 	}
-	return e.catchUp(ctx, host, board, true)
+	return e.catchUp(ctx, host, board, true, count)
 }
 
-func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool) error {
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int) error {
 	if e == nil || e.Store == nil || e.Planner == nil {
 		return nil
 	}
@@ -162,6 +173,9 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 
 	recent := recentPosts(boardPosts, e.recentLimit())
 	count := batchSize(host, cursor, now, e.cadence())
+	if ignoreCadence && initialCount > 0 {
+		count = initialCount
+	}
 	slots := e.planSlots(host, board, recent, cursor, now, count)
 	if len(slots) == 0 {
 		return nil
