@@ -1,6 +1,9 @@
 package historicalkb
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestResearchResultTextConfigUsesStrictJSONSchema(t *testing.T) {
 	text := researchResultTextConfig()
@@ -28,6 +31,34 @@ func TestResearchResultTextConfigUsesStrictJSONSchema(t *testing.T) {
 	for _, key := range []string{"summary", "provisionalAnswer", "missingInfo", "confidence"} {
 		if _, ok := properties[key]; !ok {
 			t.Fatalf("missing schema property %q", key)
+		}
+	}
+}
+
+
+func TestHistoricalResearchPromptKeepsMissingInfoInsideRequestedClaim(t *testing.T) {
+	prompt := historicalResearchPrompt(
+		"PC-9801",
+		"PC-9801が1996-08-26までに日本で存在・利用可能だったか。ProvisionalAnswerはERA_OK:またはERA_NG:で始めること。",
+		"1996-08-26",
+		"candidate title: PC-9801の起動画面",
+	)
+	for _, want := range []string{
+		"missingInfo contains only unresolved evidence that is necessary to answer the exact Question",
+		"Do not put intentionally out-of-scope details in missingInfo",
+		"a person's ownership/use/preferences",
+		"missingInfo must be an empty array",
+		"ERA_OK: or ERA_NG:",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+	for _, bad := range []string{
+		"Explicitly report what could not be verified",
+	} {
+		if strings.Contains(prompt, bad) {
+			t.Fatalf("prompt retains over-broad missing-info instruction %q:\n%s", bad, prompt)
 		}
 	}
 }
