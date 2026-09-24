@@ -13,6 +13,7 @@ func TestJevAdvisorTitleCandidatesParsesEraAndFitProbabilities(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload struct {
 			Model string `json:"model"`
+			State map[string]any `json:"state"`
 			Questions map[string]any `json:"questions"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -20,6 +21,14 @@ func TestJevAdvisorTitleCandidatesParsesEraAndFitProbabilities(t *testing.T) {
 		}
 		if payload.Model != "jev-test" {
 			t.Fatalf("unexpected model %q", payload.Model)
+		}
+		facts, ok := payload.State["historical_facts"].([]any)
+		if !ok || len(facts) != 1 || facts[0] != "セガサターンは1994-11-22までに日本で発売済み。" {
+			t.Fatalf("historical facts not forwarded to Jev state: %#v", payload.State["historical_facts"])
+		}
+		policy, ok := payload.State["policy"].(map[string]any)
+		if !ok || !strings.Contains(policy["era"].(string), "explicitly supported by state.historical_facts") {
+			t.Fatalf("era policy does not permit supplied evidence reuse: %#v", payload.State["policy"])
 		}
 		answers := map[string]any{}
 		for key := range payload.Questions {
@@ -56,6 +65,7 @@ func TestJevAdvisorTitleCandidatesParsesEraAndFitProbabilities(t *testing.T) {
 		BoardName: "ゲーム",
 		Titles: []string{"セガサターンについて"},
 		Events: []TitleEvaluationEvent{{EventID: "event:1", AuthorHandle: "NORI", DiscourseMode: "share"}},
+		HistoricalFacts: []string{"セガサターンは1994-11-22までに日本で発売済み。"},
 	})
 	if err != nil {
 		t.Fatal(err)
