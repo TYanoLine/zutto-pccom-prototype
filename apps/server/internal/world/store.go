@@ -34,6 +34,14 @@ type HostObservationStore interface {
 	WaitForArticleBody(ctx context.Context, host Host, board Board, postID int64) (Post, bool, error)
 }
 
+// HostPrefetchStore is an optional low-priority observation queue. Prefetch work
+// is serialized in queue order, while an explicit board demand may remove a
+// queued board and start/join it immediately in parallel with the current
+// background item.
+type HostPrefetchStore interface {
+	BeginHostPrefetch(host Host, boards []Board)
+}
+
 // The following writer capabilities are intentionally optional. WorldRepository
 // uses them to persist materialized state without making every Store implementation
 // support the development materialization demo.

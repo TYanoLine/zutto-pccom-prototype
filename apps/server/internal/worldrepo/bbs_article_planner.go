@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -50,6 +51,10 @@ func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
 // World: adopts the winning title/summary as canonical.
 // Body prose: remains lazy until the article is read.
 func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengine.BatchRequest) ([]bbsengine.PlannedPost, error) {
+	totalStarted := time.Now()
+	defer func() {
+		log.Printf("BBS timing: host=%s board=%s phase=planner_total duration=%s slots=%d", req.Host.ID, req.Board.ID, time.Since(totalStarted), len(req.Slots))
+	}()
 	if p.repo == nil {
 		return nil, fmt.Errorf("bbs batch planner repository is nil")
 	}
@@ -71,6 +76,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	materializer = materializer.withPeriodReferents(worldDate)
 	decision := worldengine.EvidenceDecision{}
 	if p.repo.Engine != nil {
+		evidenceStarted := time.Now()
 		var err error
 		decision, err = p.repo.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 			Kind:        historicalkb.KnowledgeCulturalSignal,
@@ -83,6 +89,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 			Importance:  .3,
 			Specificity: .3,
 		})
+		log.Printf("BBS timing: host=%s board=%s phase=evidence duration=%s model_first=%t facts=%d", req.Host.ID, req.Board.ID, time.Since(evidenceStarted), decision.ModelFirst, len(decision.Knowledge.Facts))
 		if err != nil {
 			return nil, fmt.Errorf("resolve BBS title historical context: %w", err)
 		}
@@ -169,6 +176,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	for attempt := 0; attempt < sharedTitlePoolAttempts && len(remaining) > 0; attempt++ {
 		var pool llm.BBSTitleCandidates
 		var err error
+		poolStarted := time.Now()
 		if hasContextual {
 			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
 				WorldDate:       worldDate,
@@ -182,6 +190,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		} else {
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
 		}
+		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), err != nil)
 		if err != nil {
 			// The structured provider already retries transient transport/rate
 			// failures with backoff. A pool attempt means a new semantic pool,
@@ -195,9 +204,11 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		}
 		avoid = append(avoid, titles...)
 
+		jevStarted := time.Now()
 		jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleAdvice(
 			ctx, req.Host, req.Board, worldDate, pool.Titles, remaining, recentState,
 		)
+		log.Printf("BBS timing: host=%s board=%s phase=jev attempt=%d duration=%s used=%t err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil)
 		if jevErr != nil {
 			jevAttempted = false
 		}
@@ -216,8 +227,10 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				}
 			}
 		} else if hasEraFallback {
+			eraStarted := time.Now()
 			eraReq := llm.BBSTitleEraRequest{WorldDate: worldDate, BoardName: req.Board.Name, Titles: pool.Titles}
 			eraReview, eraErr := eraFallback.ValidateBBSTitleEra(ctx, eraReq)
+			log.Printf("BBS timing: host=%s board=%s phase=era_fallback attempt=%d duration=%s err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(eraStarted), eraErr != nil)
 			if eraErr == nil {
 				for _, d := range eraReview.Decisions {
 					if d.Candidate < 1 || d.Candidate > len(pool.Titles) {
@@ -268,7 +281,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				Events:         remaining,
 				RecentBBSState: recentState,
 			}
+			reviewStarted := time.Now()
 			review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
+			log.Printf("BBS timing: host=%s board=%s phase=title_review attempt=%d duration=%s titles=%d events=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(reviewStarted), len(available), len(remaining), err != nil)
 			if err != nil {
 				if attempt+1 < sharedTitlePoolAttempts {
 					break
@@ -322,9 +337,11 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				// freeze the BBS UI. If uncached research cannot finish inside
 				// this small foreground budget, leave the candidate unverified
 				// and try the next already-generated candidate instead.
+				researchStarted := time.Now()
 				researchCtx, cancel := context.WithTimeout(ctx, sharedTitleResearchBudget)
 				outcomes := p.repo.developmentResearchTitleEraBatch(researchCtx, req.Host, req.Board, worldDate, researchJobs)
 				cancel()
+				log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(researchJobs))
 				for id, outcome := range outcomes {
 					if outcome.status != "verified" {
 						continue

@@ -336,3 +336,121 @@ func TestResetRefusesWhileBoardObservationIsRunning(t *testing.T) {
 	}
 }
 
+
+func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &perBoardObservationMaterializer{
+		started: make(chan string, 8),
+		release: map[string]chan struct{}{
+			"a": make(chan struct{}),
+			"b": make(chan struct{}),
+			"c": make(chan struct{}),
+			"d": make(chan struct{}),
+		},
+	}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	boardA := world.Board{ID: "a", Name: "A"}
+	boardB := world.Board{ID: "b", Name: "B"}
+	boardC := world.Board{ID: "c", Name: "C"}
+	boardD := world.Board{ID: "d", Name: "D"}
+	repo.BeginHostPrefetch(host, []world.Board{boardA, boardB, boardC, boardD})
+
+	select {
+	case got := <-materializer.started:
+		if got != "a" {
+			t.Fatalf("first background board=%q, want a", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background queue did not start board a")
+	}
+
+	// C is waiting behind A/B. Demand should remove C from that waiting queue
+	// and start it immediately without canceling A.
+	repo.BeginHostObservation(host, []world.Board{boardC})
+	select {
+	case got := <-materializer.started:
+		if got != "c" {
+			t.Fatalf("demanded board start=%q, want c", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("demanded board c did not start in parallel with background a")
+	}
+
+	close(materializer.release["c"])
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := repo.WaitForBoardHeaders(ctx, host, boardC); err != nil {
+		t.Fatal(err)
+	}
+
+	// A is still the background item. Releasing it should advance the background
+	// queue to B, then D; C must not reappear because demand promoted it out.
+	close(materializer.release["a"])
+	select {
+	case got := <-materializer.started:
+		if got != "b" {
+			t.Fatalf("background after a=%q, want b", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background queue did not advance to b")
+	}
+
+	close(materializer.release["b"])
+	select {
+	case got := <-materializer.started:
+		if got != "d" {
+			t.Fatalf("background after b=%q, want d (c should be removed)", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background queue did not advance to d")
+	}
+	close(materializer.release["d"])
+
+	select {
+	case got := <-materializer.started:
+		t.Fatalf("unexpected extra board generation after queue drain: %q", got)
+	case <-time.After(80 * time.Millisecond):
+	}
+}
+
+func TestDemandJoinsSameBoardAlreadyRunningInPrefetch(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &perBoardObservationMaterializer{
+		started: make(chan string, 4),
+		release: map[string]chan struct{}{"c": make(chan struct{})},
+	}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boardC := world.Board{ID: "c", Name: "C"}
+	repo.BeginHostPrefetch(host, []world.Board{boardC})
+	select {
+	case got := <-materializer.started:
+		if got != "c" {
+			t.Fatalf("prefetch started %q, want c", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("prefetch c did not start")
+	}
+
+	repo.BeginHostObservation(host, []world.Board{boardC})
+	select {
+	case got := <-materializer.started:
+		t.Fatalf("same demanded board started duplicate job: %q", got)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	close(materializer.release["c"])
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := repo.WaitForBoardHeaders(ctx, host, boardC); err != nil {
+		t.Fatal(err)
+	}
+}

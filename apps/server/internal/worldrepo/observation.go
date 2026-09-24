@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -22,10 +23,10 @@ func observationBoardKey(hostID, boardID string) string {
 	return hostID + "|" + boardID
 }
 
-// BeginHostObservation is valid only after a successful CONNECT observation
-// boundary, never from HostByPhone or directory/catalog reads. A connected runtime
-// may call it at login or during navigation to prefetch a narrowly-scoped board.
-// A later board read waits only for its own board job, never for unrelated boards.
+// BeginHostObservation starts demanded work. If the same board is still waiting
+// in the low-priority prefetch queue, demand promotion removes it from that queue
+// and starts/joins it immediately. A different background board already running
+// is allowed to continue in parallel.
 func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board) {
 	if strings.TrimSpace(host.ID) == "" {
 		return
@@ -36,8 +37,81 @@ func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board)
 			continue
 		}
 		seen[board.ID] = true
+		r.promoteBoardFromPrefetch(host.ID, board.ID)
 		r.beginBoardObservation(host, board)
 	}
+}
+
+// BeginHostPrefetch appends speculative work to one ordered background queue per
+// host. The background lane is serial (A -> B -> C -> D), while an explicit
+// demand may promote C out of the waiting queue and run it in parallel with the
+// currently executing background item A.
+func (r *Repository) BeginHostPrefetch(host world.Host, boards []world.Board) {
+	if strings.TrimSpace(host.ID) == "" || len(boards) == 0 {
+		return
+	}
+
+	r.prefetchMu.Lock()
+	queue := r.prefetchQueues[host.ID]
+	queued := make(map[string]bool, len(queue))
+	for _, board := range queue {
+		queued[board.ID] = true
+	}
+	for _, board := range boards {
+		if strings.TrimSpace(board.ID) == "" || queued[board.ID] {
+			continue
+		}
+		queue = append(queue, board)
+		queued[board.ID] = true
+	}
+	r.prefetchQueues[host.ID] = queue
+	if r.prefetchRunning[host.ID] || len(queue) == 0 {
+		r.prefetchMu.Unlock()
+		return
+	}
+	r.prefetchRunning[host.ID] = true
+	r.prefetchMu.Unlock()
+
+	go r.runHostPrefetchQueue(host)
+}
+
+func (r *Repository) runHostPrefetchQueue(host world.Host) {
+	for {
+		r.prefetchMu.Lock()
+		queue := r.prefetchQueues[host.ID]
+		if len(queue) == 0 {
+			r.prefetchRunning[host.ID] = false
+			r.prefetchMu.Unlock()
+			return
+		}
+		board := queue[0]
+		r.prefetchQueues[host.ID] = append([]world.Board(nil), queue[1:]...)
+		r.prefetchMu.Unlock()
+
+		started := time.Now()
+		job := r.beginBoardObservation(host, board)
+		if job != nil {
+			<-job.done
+		}
+		log.Printf("BBS timing: host=%s board=%s mode=prefetch phase=queue_item_total duration=%s", host.ID, board.ID, time.Since(started))
+	}
+}
+
+func (r *Repository) promoteBoardFromPrefetch(hostID, boardID string) {
+	r.prefetchMu.Lock()
+	defer r.prefetchMu.Unlock()
+	queue := r.prefetchQueues[hostID]
+	if len(queue) == 0 {
+		return
+	}
+	out := queue[:0]
+	for _, board := range queue {
+		if board.ID == boardID {
+			continue
+		}
+		out = append(out, board)
+	}
+	r.prefetchQueues[hostID] = append([]world.Board(nil), out...)
 }
 
 func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *observationJob {
@@ -76,6 +150,10 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 }
 
 func (r *Repository) materializeObservedBoardHeaders(host world.Host, board world.Board) error {
+	started := time.Now()
+	defer func() {
+		log.Printf("BBS timing: host=%s board=%s phase=header_materialize_total duration=%s", host.ID, board.ID, time.Since(started))
+	}()
 	// The isolated materialization-demo host remains a diagnostic harness for the
 	// older title-first experiments. Real host runtimes all use the same shared
 	// BBS article engine below; host software only controls how canonical posts
@@ -89,15 +167,9 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	}
 
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
-		// Predictive prefetch and a user's demanded board may overlap in wall-clock
-		// time. Keep only one expensive header-materialization pipeline active per
-		// host so the "minimal range" policy cannot turn into parallel LLM bursts.
-		// Board jobs remain distinct: callers still wait only for their requested
-		// board, but its worker may queue briefly behind the host's current prefetch.
-		lock := r.sharedBBSHostMaterializationLock(host.ID)
-		lock.Lock()
-		defer lock.Unlock()
-
+		// The prefetch scheduler keeps speculative work serial, but demanded boards
+		// may run in parallel with the currently executing background item. Per-board
+		// observation single-flight still prevents duplicate generation of one board.
 		var err error
 		if r.debugImmediateBBSHost(host.ID) {
 			err = r.bbsArticles.CatchUpInitial(context.Background(), host, board)

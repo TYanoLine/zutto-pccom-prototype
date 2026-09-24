@@ -50,8 +50,9 @@ type Repository struct {
 	observationBoardJobs map[string]*observationJob
 	observationBodyJobs  map[string]*observationJob
 
-	bbsMaterializationMu    sync.Mutex
-	bbsMaterializationLocks map[string]*sync.Mutex
+	prefetchMu      sync.Mutex
+	prefetchQueues  map[string][]world.Board
+	prefetchRunning map[string]bool
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -66,23 +67,13 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		hostMaterialized:       map[string]bool{},
 		populationMaterialized: map[string]bool{},
 		debugImmediateBBS:      map[string]bool{},
-		observationBoardJobs:     map[string]*observationJob{},
-		observationBodyJobs:      map[string]*observationJob{},
-		bbsMaterializationLocks:  map[string]*sync.Mutex{},
+		observationBoardJobs: map[string]*observationJob{},
+		observationBodyJobs:  map[string]*observationJob{},
+		prefetchQueues:       map[string][]world.Board{},
+		prefetchRunning:      map[string]bool{},
 	}
 	r.bbsArticles = bbsengine.New(base, repositoryBBSBatchPlanner{repo: r}, r.currentWorldTime)
 	return r
-}
-
-func (r *Repository) sharedBBSHostMaterializationLock(hostID string) *sync.Mutex {
-	r.bbsMaterializationMu.Lock()
-	defer r.bbsMaterializationMu.Unlock()
-	lock := r.bbsMaterializationLocks[hostID]
-	if lock == nil {
-		lock = &sync.Mutex{}
-		r.bbsMaterializationLocks[hostID] = lock
-	}
-	return lock
 }
 
 // SetWorldNow supplies the mapped 1996 world clock used by background

@@ -243,7 +243,7 @@ func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnver
 	}
 }
 
-func TestSharedBBSHeaderMaterializationSerializesBoardsPerHost(t *testing.T) {
+func TestSharedBBSHeaderMaterializationAllowsDemandAlongsideBackgroundPrefetch(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -261,21 +261,27 @@ func TestSharedBBSHeaderMaterializationSerializesBoardsPerHost(t *testing.T) {
 
 	boardA := world.Board{ID: "4", Name: "ふり～と～く"}
 	boardB := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
-	repo.BeginHostObservation(host, []world.Board{boardA})
+	repo.BeginHostPrefetch(host, []world.Board{boardA})
 	select {
-	case <-renderer.started:
+	case got := <-renderer.started:
+		if got != boardA.Name {
+			t.Fatalf("prefetch started %q, want %q", got, boardA.Name)
+		}
 	case <-time.After(time.Second):
-		t.Fatal("first shared BBS board did not start")
+		t.Fatal("background board did not start")
 	}
-	repo.BeginHostObservation(host, []world.Board{boardB})
 
+	repo.BeginHostObservation(host, []world.Board{boardB})
 	select {
-	case second := <-renderer.started:
-		t.Fatalf("second board entered title generation concurrently: %s", second)
-	case <-time.After(80 * time.Millisecond):
+	case got := <-renderer.started:
+		if got != boardB.Name {
+			t.Fatalf("demand started %q, want %q", got, boardB.Name)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("demanded board did not start alongside background prefetch")
 	}
-	if got := renderer.maxActive.Load(); got != 1 {
-		t.Fatalf("max concurrent title generators=%d, want 1", got)
+	if got := renderer.maxActive.Load(); got != 2 {
+		t.Fatalf("max concurrent title generators=%d, want 2 (background + demand)", got)
 	}
 
 	close(release)
@@ -286,8 +292,5 @@ func TestSharedBBSHeaderMaterializationSerializesBoardsPerHost(t *testing.T) {
 	}
 	if _, err := repo.WaitForBoardHeaders(ctx, host, boardB); err != nil {
 		t.Fatal(err)
-	}
-	if got := renderer.maxActive.Load(); got != 1 {
-		t.Fatalf("max concurrent title generators after completion=%d, want 1", got)
 	}
 }
