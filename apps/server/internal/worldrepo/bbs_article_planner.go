@@ -21,6 +21,17 @@ const (
 	sharedTitleResearchBudget = 6 * time.Second
 )
 
+func sharedTitleResearchRemaining(deadline *time.Time, now time.Time) time.Duration {
+	if deadline.IsZero() {
+		*deadline = now.Add(sharedTitleResearchBudget)
+	}
+	remaining := deadline.Sub(now)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
 type repositoryBBSBatchPlanner struct {
 	repo *Repository
 }
@@ -340,10 +351,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				// board-wide wall-clock budget, not a fresh timeout per fallback
 				// round. Cached/supplied facts should normally keep known
 				// period referents out of this path entirely.
-				if researchDeadline.IsZero() {
-					researchDeadline = time.Now().Add(sharedTitleResearchBudget)
-				}
-				remainingResearch := time.Until(researchDeadline)
+				remainingResearch := sharedTitleResearchRemaining(&researchDeadline, time.Now())
 				if remainingResearch > 0 {
 					researchStarted := time.Now()
 					researchCtx, cancel := context.WithTimeout(ctx, remainingResearch)
