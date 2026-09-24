@@ -29,3 +29,25 @@ func TestPeriodReferentsCannotMutateCatalog(t *testing.T) {
 	got[0].Claim = "corrupted"
 	if PeriodReferents("1996-08-29")[0].Claim == "corrupted" { t.Fatal("shared catalog mutated") }
 }
+
+
+func TestPeriodReferentsIncludeBroaderGameVocabularyByAugust1996(t *testing.T) {
+	got := map[string]bool{}
+	for _, item := range PeriodReferents("1996-08-26") {
+		got[item.Name] = true
+	}
+	for _, name := range []string{
+		"ファイナルファンタジーVI",
+		"クロノ・トリガー",
+		"ドラゴンクエストVI 幻の大地",
+		"ときめきメモリアル",
+		"幻想水滸伝",
+		"スーパーマリオRPG",
+		"星のカービィ スーパーデラックス",
+		"バイオハザード",
+	} {
+		if !got[name] {
+			t.Fatalf("1996-08-26 missing sourced game referent %q", name)
+		}
+	}
+}
