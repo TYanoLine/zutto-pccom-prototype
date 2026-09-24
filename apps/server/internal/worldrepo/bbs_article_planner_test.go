@@ -476,3 +476,88 @@ func TestSharedBBSPlannerFillsFortyDebugHeadersAcrossTwoPools(t *testing.T) {
 		seen[post.Subject] = true
 	}
 }
+
+
+func TestSharedTitlePoolAttemptLimitScalesForLargeDebugBatch(t *testing.T) {
+	tests := []struct {
+		roots int
+		want  int
+	}{
+		{roots: 1, want: 3},
+		{roots: 5, want: 3},
+		{roots: 20, want: 3},
+		{roots: 40, want: 4},
+		{roots: 60, want: 5},
+		{roots: 100, want: 6},
+	}
+	for _, tc := range tests {
+		if got := sharedTitlePoolAttemptLimit(tc.roots); got != tc.want {
+			t.Fatalf("roots=%d attempts=%d, want %d", tc.roots, got, tc.want)
+		}
+	}
+}
+
+type attritionTitleTestEngine struct{}
+
+func (attritionTitleTestEngine) ResolveEvidence(_ context.Context, req worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	if strings.HasPrefix(req.Subject, "bbs-title-era:") {
+		return worldengine.EvidenceDecision{Knowledge: historicalkb.KnowledgeResult{CanUse: false}}, nil
+	}
+	return worldengine.EvidenceDecision{}, nil
+}
+
+func (attritionTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	out := worldengine.TitleCandidateAdviceDecision{
+		Era: map[int]worldengine.TitleEraProbabilities{},
+		Fit: map[string]float64{},
+	}
+	for i := range req.Titles {
+		candidate := i + 1
+		safe := .10
+		if candidate <= 12 {
+			safe = .95
+		}
+		out.Era[candidate] = worldengine.TitleEraProbabilities{
+			SafeWithoutResearch: safe,
+			LogicallyImpossible: .00,
+		}
+		for _, event := range req.Events {
+			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = .90 - float64(candidate)*.001
+		}
+	}
+	return out, nil
+}
+
+func TestSharedBBSPlannerUsesFourthPoolAfterEraAttritionForFortyRoots(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer := &fortyTitleRenderer{}
+	repo := New(base, attritionTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+
+	slots := make([]bbsengine.Slot, 0, 40)
+	for i := 0; i < 40; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index:     i + 1,
+			Author:    fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots:    slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 40 {
+		t.Fatalf("planned=%d, want 40", len(planned))
+	}
+	if renderer.calls != 4 {
+		t.Fatalf("candidate pools=%d, want 4 after 12-safe-per-pool attrition", renderer.calls)
+	}
+}
