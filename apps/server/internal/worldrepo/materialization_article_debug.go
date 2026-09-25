@@ -94,6 +94,14 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		}
 	}
 
+	topicLabel := strings.TrimSpace(selected.Subject)
+	if topicLabel == "" {
+		topicLabel = strings.TrimSpace(selected.Intent.Topic)
+	}
+	if topicLabel == "" {
+		topicLabel = board.Name
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
@@ -102,7 +110,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		WorldDate:   selected.CreatedAt.Format("2006-01-02"),
 		Region:      host.Region,
 		Audience:    []string{host.SoftwareID},
-		Need:        fmt.Sprintf("%s の %s ボード、%sによる件名『%s』の記事本文を、確定済みの投稿意図を変えず1996年の自然なパソコン通信文体で補完する", host.Name, board.Name, selected.Author, selected.Subject),
+		Need:        fmt.Sprintf("%s の %s ボード、%sによる話題『%s』の記事本文を、確定済みの投稿意図を変えず1996年の自然なパソコン通信文体で補完する", host.Name, board.Name, selected.Author, topicLabel),
 		Persistence: true,
 		Importance:  .30,
 		Specificity: .30,
@@ -111,7 +119,10 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("evidence", err), contextStats.String())
 	}
 
-	boardTopic := selected.Subject
+	// Subject is host-native surface data and may legitimately be empty on a
+	// response (Erika-K append). Intent.Topic carries the semantic conversation
+	// topic for prose generation without manufacturing a host-visible subject.
+	boardTopic := topicLabel
 	canonicalSubject := selected.Subject
 	if developmentConversationViewPoCEnabled(r) {
 		boardTopic = board.Name
