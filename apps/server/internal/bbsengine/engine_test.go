@@ -268,6 +268,49 @@ func TestCatchUpInitialCountCanMaterializeLargeDebugBatchWithoutChangingNormalBa
 	}
 }
 
+func TestPlanSlotsUsesStableNonUniformTimestamps(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	start := now.Add(-28 * 24 * time.Hour)
+	engine := New(store, &fakeBatchPlanner{}, func() time.Time { return now })
+
+	a := engine.planSlots(host, board, nil, time.Time{}, now, 20, start)
+	b := engine.planSlots(host, board, nil, time.Time{}, now, 20, start)
+	if len(a) != 20 || len(b) != 20 {
+		t.Fatalf("slot counts=%d/%d, want 20", len(a), len(b))
+	}
+	var firstGap time.Duration
+	allEqual := true
+	for i := range a {
+		if !a[i].CreatedAt.Equal(b[i].CreatedAt) {
+			t.Fatalf("slot %d timestamp is not deterministic: %s vs %s", i+1, a[i].CreatedAt, b[i].CreatedAt)
+		}
+		if !a[i].CreatedAt.After(start) || !a[i].CreatedAt.Before(now) {
+			t.Fatalf("slot %d timestamp %s outside history window", i+1, a[i].CreatedAt)
+		}
+		if i == 0 {
+			continue
+		}
+		if !a[i].CreatedAt.After(a[i-1].CreatedAt) {
+			t.Fatalf("slot timestamps not increasing at %d: %s <= %s", i+1, a[i].CreatedAt, a[i-1].CreatedAt)
+		}
+		gap := a[i].CreatedAt.Sub(a[i-1].CreatedAt)
+		if i == 1 {
+			firstGap = gap
+		} else if gap != firstGap {
+			allEqual = false
+		}
+	}
+	if allEqual {
+		t.Fatal("simulated history timestamps remained mechanically evenly spaced")
+	}
+}
+
 func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testing.T) {
 	store := world.NewMemoryStore()
 	host, err := store.HostByPhone("0920000196")
