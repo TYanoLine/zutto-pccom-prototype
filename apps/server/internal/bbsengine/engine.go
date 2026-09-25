@@ -609,7 +609,7 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 	}
 	targets := make([]replyTarget, 0)
 	for _, post := range recent {
-		if semanticResponseTargetID(post) == 0 {
+		if world.IsSemanticRoot(post) {
 			targets = append(targets, replyTarget{postID: post.ID, subject: post.Subject, author: post.Author})
 		}
 	}
@@ -672,20 +672,6 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 		}
 	}
 	return slots
-}
-
-// semanticResponseTargetID returns the world-level causal response target.
-// ParentID is only a host-native article-topology projection and may be zero for
-// flat-message hosts. Legacy/manual posts without Intent still fall back to
-// ParentID so existing stored conversations remain understandable.
-func semanticResponseTargetID(post world.Post) int64 {
-	if post.Intent.RespondsToPostID != 0 {
-		return post.Intent.RespondsToPostID
-	}
-	if post.Intent.SourcePostID != 0 && strings.EqualFold(strings.TrimSpace(post.Intent.DiscourseMode), "reply") {
-		return post.Intent.SourcePostID
-	}
-	return post.ParentID
 }
 
 func stableHash(s string) uint64 {
