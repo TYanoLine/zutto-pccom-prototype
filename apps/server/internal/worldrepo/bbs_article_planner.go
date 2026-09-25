@@ -107,7 +107,20 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	}
 
 	worldDate := req.WorldNow.Format(time.DateOnly)
-	materializer = materializer.withPeriodReferents(worldDate)
+	titleAsOf := worldDate
+	for _, slot := range req.Slots {
+		if slot.CreatedAt.IsZero() {
+			continue
+		}
+		date := slot.CreatedAt.Format(time.DateOnly)
+		if date < titleAsOf {
+			titleAsOf = date
+		}
+	}
+	// A catch-up batch may represent several weeks of history. Calibrate shared
+	// title vocabulary and historical verification to the earliest event date so
+	// no later release can leak backward into an earlier article.
+	materializer = materializer.withPeriodReferents(worldDate, titleAsOf)
 	decision := worldengine.EvidenceDecision{}
 	if p.repo.Engine != nil {
 		evidenceStarted := time.Now()
@@ -115,7 +128,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		decision, err = p.repo.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 			Kind:        historicalkb.KnowledgeCulturalSignal,
 			Subject:     req.Board.Name,
-			WorldDate:   worldDate,
+			WorldDate:   titleAsOf,
 			Region:      req.Host.Region,
 			Audience:    []string{"Japanese dial-up BBS users"},
 			Need:        fmt.Sprintf("%s の「%s」で、その時点のBBS件名候補に使ってよい時代背景・参照対象", req.Host.Name, req.Board.Name),
@@ -150,7 +163,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	}
 
 	if len(rootSlots) > 0 {
-		roots, err := p.planRootTitles(ctx, materializer, decision, titlePlanner, req, rootSlots, worldDate)
+		roots, err := p.planRootTitles(ctx, materializer, decision, titlePlanner, req, rootSlots, titleAsOf)
 		if err != nil {
 			return nil, err
 		}
