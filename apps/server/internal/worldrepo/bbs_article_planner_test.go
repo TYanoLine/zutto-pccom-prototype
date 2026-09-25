@@ -19,6 +19,7 @@ type fakeSharedTitleRenderer struct {
 	contextCalls int
 	lastContext  llm.BBSContextualTitleCandidateRequest
 	titles       []string
+	refillTitles []string
 	started      chan string
 	release      <-chan struct{}
 	active       atomic.Int32
@@ -55,6 +56,9 @@ func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx conte
 		}
 	}
 	titles := append([]string(nil), f.titles...)
+	if req.PreferEraSafe && len(f.refillTitles) > 0 {
+		titles = append([]string(nil), f.refillTitles...)
+	}
 	if len(titles) == 0 {
 		titles = []string{
 			"バーチャ2のパイ", "ポケモン赤と緑", "サターンのパッド", "メモリーカード不足",
@@ -270,7 +274,84 @@ func (noSafeTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worlde
 	return out, nil
 }
 
-func TestSharedBBSPlannerPreservesRootsWithGenericLocalFallbackAfterPoolExhaustion(t *testing.T) {
+type refillTitleTestEngine struct{ noSafeTitleTestEngine }
+
+func (refillTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	out := worldengine.TitleCandidateAdviceDecision{
+		Era: map[int]worldengine.TitleEraProbabilities{},
+		Fit: map[string]float64{},
+	}
+	for i, title := range req.Titles {
+		candidate := i + 1
+		safe := .05
+		if strings.HasPrefix(title, "補充:") {
+			safe = .95
+		}
+		out.Era[candidate] = worldengine.TitleEraProbabilities{
+			SafeWithoutResearch: safe,
+			LogicallyImpossible: .00,
+		}
+		for _, event := range req.Events {
+			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = .95
+		}
+	}
+	return out, nil
+}
+
+func TestSharedBBSPlannerGeneratesEraSafeRefillInsteadOfCannedSubjects(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	researchTitles := make([]string, 0, 20)
+	for i := 1; i <= 20; i++ {
+		researchTitles = append(researchTitles, fmt.Sprintf("要調査候補%02d", i))
+	}
+	refillTitles := []string{
+		"補充:パッドの調子", "補充:セーブが消えた", "補充:昨日の続き", "補充:説明書なくした",
+		"補充:二人で遊ぶなら", "補充:夜中までやってた", "補充:対戦ありがとう", "補充:貸したソフト",
+		"補充:このボス強い", "補充:名前入力で悩む", "補充:攻略本なしで", "補充:中古で見かけた",
+		"補充:ロード待ちの間", "補充:弟と対戦中", "補充:クリアしたので", "補充:雑誌の付録",
+		"補充:コントローラ故障", "補充:週末の一本", "補充:また最初から", "補充:対戦相手募集",
+	}
+	renderer := &fakeSharedTitleRenderer{titles: researchTitles, refillTitles: refillTitles}
+	repo := New(base, refillTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+
+	slots := make([]bbsengine.Slot, 0, 7)
+	for i := 0; i < 7; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index:     i + 1,
+			Author:    fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots:    slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 7 {
+		t.Fatalf("planned=%d, want 7 generated roots", len(planned))
+	}
+	if !renderer.lastContext.PreferEraSafe {
+		t.Fatal("final candidate request did not enter era-safe refill mode")
+	}
+	for _, post := range planned {
+		if !strings.HasPrefix(post.Subject, "補充:") {
+			t.Fatalf("subject=%q, want generated refill candidate rather than canned board-name fallback", post.Subject)
+		}
+	}
+	if renderer.contextCalls != sharedTitlePoolAttemptLimit(len(slots))+1 {
+		t.Fatalf("candidate pools=%d, want normal pools plus one generated refill", renderer.contextCalls)
+	}
+}
+
+func TestSharedBBSPlannerFailsCleanlyWhenGeneratedRefillsAreExhausted(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -291,44 +372,20 @@ func TestSharedBBSPlannerPreservesRootsWithGenericLocalFallbackAfterPoolExhausti
 			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
 		})
 	}
-	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+	_, err = (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
 		Host:     host,
 		Board:    world.Board{ID: "70/1", Name: "ＰＣ－９８"},
 		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
 		Slots:    slots,
 	})
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("expected generation failure after all generated refill pools are exhausted")
 	}
-	if len(planned) != 7 {
-		t.Fatalf("planned=%d, want 7 preserved roots", len(planned))
+	if !strings.Contains(err.Error(), "canned title fallback is disabled") {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	seen := map[string]bool{}
-	for _, post := range planned {
-		if !strings.HasPrefix(post.Subject, "ＰＣ－９８") {
-			t.Fatalf("fallback subject=%q, want board-local generic title", post.Subject)
-		}
-		if strings.Contains(post.Subject, "要調査候補") {
-			t.Fatalf("unverified historical candidate leaked into fallback: %q", post.Subject)
-		}
-		if seen[post.Subject] {
-			t.Fatalf("duplicate generic fallback subject: %q", post.Subject)
-		}
-		seen[post.Subject] = true
-		if post.SituationSummary == "" {
-			t.Fatalf("fallback post missing situation summary: %+v", post)
-		}
-	}
-}
-
-func TestSharedBBSGenericFallbackSubjectsRemainDistinctAcrossCycles(t *testing.T) {
-	seen := map[string]bool{}
-	for i := 0; i < 24; i++ {
-		subject := sharedBBSGenericFallbackSubject("ＰＣ－９８", i)
-		if seen[subject] {
-			t.Fatalf("duplicate fallback subject at %d: %q", i, subject)
-		}
-		seen[subject] = true
+	if renderer.contextCalls != sharedTitlePoolAttemptLimit(len(slots))+sharedTitleEraSafeRefillAttempts {
+		t.Fatalf("candidate pools=%d, want all normal + refill pools", renderer.contextCalls)
 	}
 }
 
