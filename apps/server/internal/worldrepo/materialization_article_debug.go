@@ -156,7 +156,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=no post returned", contextStats.String())
 	}
 	if developmentConversationViewPoCEnabled(r) {
-		if target := topicTargetFact(selected.Intent.SituationFacts); selected.ParentID == 0 && target != "" && !TopicTargetInSubject(posts[0].Subject, target) {
+		if target := topicTargetFact(selected.Intent.SituationFacts); world.IsSemanticRoot(selected) && target != "" && !TopicTargetInSubject(posts[0].Subject, target) {
 			if usage.TotalTokens > 0 || usage.Model != "" {
 				developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
 			}
@@ -190,7 +190,7 @@ func (r *Repository) findMaterializationPost(hostID, boardID string, postID int6
 }
 
 func (r *Repository) materializationThreadPredecessors(hostID, boardID string, selected world.Post) []world.Post {
-	if selected.ParentID == 0 {
+	if world.IsSemanticRoot(selected) {
 		return nil
 	}
 	all := r.Base.ListPosts(hostID)
