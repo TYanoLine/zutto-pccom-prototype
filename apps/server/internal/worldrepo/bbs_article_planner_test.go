@@ -97,6 +97,31 @@ func (f *fakeSharedTitleRenderer) ValidateBBSTitleEra(_ context.Context, req llm
 	return llm.BBSTitleEraReview{Decisions: out}, nil
 }
 
+func TestSharedBBSPlannerUsesEarliestSlotDateForHistoricalTitlePool(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer := &fakeSharedTitleRenderer{}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer, CuratedHistoricalReferences: true}, "1996-08-26")
+	req := bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: []bbsengine.Slot{
+			{Index: 1, Author: "MARI", CreatedAt: time.Date(1996, 7, 30, 21, 0, 0, 0, time.Local)},
+			{Index: 2, Author: "KAZU", CreatedAt: time.Date(1996, 8, 20, 22, 0, 0, 0, time.Local)},
+		},
+	}
+	if _, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if renderer.lastContext.WorldDate != "1996-07-30" {
+		t.Fatalf("title as-of=%q, want earliest event date", renderer.lastContext.WorldDate)
+	}
+}
+
 func TestSharedBBSPlannerPlansReplyToRootFromSameWindow(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
