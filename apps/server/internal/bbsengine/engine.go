@@ -62,6 +62,27 @@ type BatchPlanner interface {
 	PlanBBSBatch(context.Context, BatchRequest) ([]PlannedPost, error)
 }
 
+// ReplyRepresentation is the host-program projection of a semantic response.
+// RespondsToPostID remains canonical world causality; ParentID/Subject describe
+// only how that host software stores or exposes the response as an article.
+type ReplyRepresentation struct {
+	ParentID int64
+	Subject  string
+}
+
+// ReplyProjector keeps host-specific article/reply semantics out of the shared
+// world engine. Implementations may model append-without-subject, Re:-style
+// threaded replies, flat response messages with their own subject, etc.
+type ReplyProjector interface {
+	ProjectReply(host world.Host, source world.Post, proposedSubject string) (ReplyRepresentation, error)
+}
+
+type ReplyProjectorFunc func(host world.Host, source world.Post, proposedSubject string) (ReplyRepresentation, error)
+
+func (f ReplyProjectorFunc) ProjectReply(host world.Host, source world.Post, proposedSubject string) (ReplyRepresentation, error) {
+	return f(host, source, proposedSubject)
+}
+
 type postReplacer interface {
 	ReplaceHostPosts(hostID string, posts []world.Post) int
 }
@@ -71,11 +92,12 @@ type personaSource interface {
 }
 
 type Engine struct {
-	Store       world.Store
-	Planner     BatchPlanner
-	Now         func() time.Time
-	Cadence     time.Duration
-	RecentLimit int
+	Store          world.Store
+	Planner        BatchPlanner
+	ReplyProjector ReplyProjector
+	Now            func() time.Time
+	Cadence        time.Duration
+	RecentLimit    int
 }
 
 func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine {
@@ -263,23 +285,65 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		if !ok {
 			return fmt.Errorf("bbs article batch omitted slot %d", slot.Index)
 		}
-		parentID := slot.ReplyToPostID
-		replySubject := slot.ReplyToSubject
+		responseToID := slot.ReplyToPostID
+		responseSource := world.Post{
+			ID:      slot.ReplyToPostID,
+			BoardID: board.ID,
+			Author:  slot.ReplyToAuthor,
+			Subject: slot.ReplyToSubject,
+		}
 		if slot.ReplyToSlotIndex != 0 {
 			target, ok := persistedBySlot[slot.ReplyToSlotIndex]
 			if !ok {
 				return fmt.Errorf("bbs article batch slot %d target %d was not persisted first", slot.Index, slot.ReplyToSlotIndex)
 			}
-			parentID = target.ID
-			replySubject = target.Subject
+			responseToID = target.ID
+			responseSource = target
+		} else if responseToID != 0 {
+			for _, existing := range e.Store.ListPosts(host.ID) {
+				if existing.ID == responseToID {
+					responseSource = existing
+					break
+				}
+			}
 		}
+
 		subject := strings.TrimSpace(draft.Subject)
-		if parentID != 0 {
-			subject = "Re: " + strings.TrimSpace(replySubject)
+		parentID := int64(0)
+		isReply := responseToID != 0
+		if isReply {
+			if e.ReplyProjector != nil {
+				projected, err := e.ReplyProjector.ProjectReply(host, responseSource, subject)
+				if err != nil {
+					return fmt.Errorf("bbs article batch slot %d reply projection: %w", slot.Index, err)
+				}
+				parentID = projected.ParentID
+				subject = strings.TrimSpace(projected.Subject)
+			} else {
+				// Low-level/test compatibility: preserve the semantic relationship
+				// without inventing a textual Re: convention. Production repositories
+				// install a host-program projector.
+				parentID = responseToID
+			}
 		}
-		if subject == "" || strings.TrimSpace(draft.SituationSummary) == "" {
+		if (!isReply && subject == "") || strings.TrimSpace(draft.SituationSummary) == "" {
 			return fmt.Errorf("bbs article batch slot %d is incomplete", slot.Index)
 		}
+
+		situationFacts := []string{
+			"world_adoption=title_candidate",
+			"world_adopted_summary=" + draft.SituationSummary,
+		}
+		if subject != "" {
+			situationFacts = append(situationFacts,
+				"title_first_subject="+subject,
+				"subject_contract=Keep the adopted title verbatim. Do not replace it with a different topic.",
+			)
+		}
+		if isReply {
+			situationFacts = append(situationFacts, fmt.Sprintf("responds_to_post_id=%d", responseToID))
+		}
+
 		saved := e.Store.AddPost(host.ID, world.Post{
 			BoardID:         board.ID,
 			ParentID:        parentID,
@@ -290,22 +354,17 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			Intent: world.PostIntent{
 				Action:           ActionWorldCatchup,
 				CauseKind:        "board_activity_window",
-				DiscourseMode:    func() string { if parentID != 0 { return "reply" }; return "thread_start" }(),
-				SourcePostID:     parentID,
+				DiscourseMode:    func() string { if isReply { return "reply" }; return "thread_start" }(),
+				SourcePostID:     responseToID,
 				SituationKind:    "title_first",
 				SituationSummary: draft.SituationSummary,
-				SituationFacts: []string{
-					"title_first_subject=" + subject,
-					"world_adoption=title_candidate",
-					"world_adopted_summary=" + draft.SituationSummary,
-					"subject_contract=Keep the adopted title verbatim. Do not replace it with a different topic.",
-				},
+				SituationFacts:   situationFacts,
 				Topic:            draft.Topic,
 				Motivation:       draft.Motivation,
 				Stance:           draft.Stance,
 				Goal:             draft.Goal,
 				Claims:           append([]string(nil), draft.Claims...),
-				RespondsToPostID: parentID,
+				RespondsToPostID: responseToID,
 			},
 			CreatedAt: slot.CreatedAt,
 		})
