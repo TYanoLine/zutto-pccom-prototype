@@ -577,11 +577,19 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 	for i := 0; i < count; i++ {
 		actorIndex := int((seed + uint64(i*3+1)) % uint64(len(actors)))
 		a := actors[actorIndex]
+		nominal := start.Add(step * time.Duration(i+1))
+		// An even spacing is useful for allocating a bounded window but looks
+		// artificial when exposed as historical timestamps. Apply deterministic
+		// bounded jitter inside each interval. +/-30% still leaves at least 40%
+		// of one step between adjacent slots, so chronological ordering is stable.
+		maxJitter := step * 3 / 10
+		jitterUnit := int64(stableHash(fmt.Sprintf("%s|%s|%d|slot-time-v1", host.ID, board.ID, i+1))%2001) - 1000
+		createdAt := nominal.Add(time.Duration(int64(maxJitter) * jitterUnit / 1000))
 		slot := Slot{
 			Index:           i + 1,
 			Author:          a.handle,
 			AuthorPersonaID: a.personaID,
-			CreatedAt:       start.Add(step * time.Duration(i+1)),
+			CreatedAt:       createdAt,
 		}
 		// Keep most events as new roots, but let the shared world engine create
 		// ordinary resident-to-resident replies as canonical topology too. Earlier
