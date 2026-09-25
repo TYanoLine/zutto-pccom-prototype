@@ -42,8 +42,7 @@ code { color: #ddd; }
   .terminal-hint { display: block; margin: 0; padding: 6px 8px; font-size: 11px; line-height: 1.5; color: #aaa; background: #111; }
   .terminal-live-return { position: absolute; right: 8px; bottom: 8px; z-index: 4; min-height: 44px; padding: 6px 10px; border: 1px solid #7a7; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #cfc; background: #163616; touch-action: manipulation; }
   .command-dock { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 6px 8px max(6px, env(safe-area-inset-bottom)); background: #121812; border-block: 1px solid #526452; }
-  .shell--command-focus .command-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; }
-  .shell--command-focus .terminal-viewport { overscroll-behavior: contain; }
+  .terminal-viewport { overscroll-behavior: contain; }
   .command-prompt, .command-enter, .command-escape { display: block; }
   .command-prompt { color: #8f8; }
   .command-dock .keyboard-capture { position: static; opacity: 1; pointer-events: auto; flex: 1; min-width: 0; width: 0; height: 44px; border: 1px solid #657565; border-radius: 0; padding: 8px; font: 16px/1.4 ui-monospace, monospace; color: #dfd; background: #000; }
