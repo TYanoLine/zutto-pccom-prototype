@@ -67,7 +67,9 @@ func (r *Repository) materializationBBSRenderContext(host world.Host, board worl
 		if selected.Intent.Topic != "" && strings.EqualFold(strings.TrimSpace(post.Intent.Topic), strings.TrimSpace(selected.Intent.Topic)) {
 			score += 1.0
 		}
-		if normalizeDemoSubject(post.Subject) == normalizeDemoSubject(selected.Subject) {
+		postSubject := semanticContextSubject(post)
+		selectedSubject := semanticContextSubject(selected)
+		if postSubject != "" && selectedSubject != "" && normalizeDemoSubject(postSubject) == normalizeDemoSubject(selectedSubject) {
 			score += .35
 		}
 		age := selected.CreatedAt.Sub(post.CreatedAt)
@@ -116,7 +118,7 @@ func (r *Repository) materializationBBSRenderContext(host world.Host, board worl
 	}
 	for _, candidate := range related {
 		post := candidate.post
-		fmt.Fprintf(&b, "- MSG %04d %s %s: %s", post.ID, post.CreatedAt.Format("01/02"), post.Author, post.Subject)
+		fmt.Fprintf(&b, "- MSG %04d %s %s: %s", post.ID, post.CreatedAt.Format("01/02"), post.Author, semanticContextSubject(post))
 		if post.Intent.Topic != "" {
 			fmt.Fprintf(&b, " — topic: %s", truncateDemoContext(post.Intent.Topic, 120))
 		}
@@ -139,8 +141,12 @@ func threadRootID(postsByID map[int64]world.Post, post world.Post) int64 {
 	rootID := post.ID
 	current := post
 	seen := map[int64]bool{post.ID: true}
-	for current.ParentID != 0 {
-		rootID = current.ParentID
+	for {
+		targetID := world.ResponseTargetID(current)
+		if targetID == 0 {
+			return rootID
+		}
+		rootID = targetID
 		if seen[rootID] {
 			return rootID
 		}
@@ -151,7 +157,6 @@ func threadRootID(postsByID map[int64]world.Post, post world.Post) int64 {
 		seen[rootID] = true
 		current = parent
 	}
-	return rootID
 }
 
 func boundedThreadContext(posts []world.Post, limit int) []world.Post {
@@ -189,6 +194,13 @@ func demoPostSemanticSummary(post world.Post) string {
 		return "(no additional semantic detail)"
 	}
 	return strings.Join(parts, "; ")
+}
+
+func semanticContextSubject(post world.Post) string {
+	if subject := strings.TrimSpace(post.Subject); subject != "" {
+		return subject
+	}
+	return strings.TrimSpace(post.Intent.Topic)
 }
 
 func normalizeDemoSubject(subject string) string {

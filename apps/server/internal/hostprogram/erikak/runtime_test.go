@@ -98,8 +98,8 @@ func TestBoardHierarchyAndBJPrompt(t *testing.T) {
 func TestThreadRendersAppendsTogether(t *testing.T) {
 	runtime, store := sampleRuntime(t)
 	root := store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "テスト記事", Body: "本文"})
-	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "MARI", Subject: "Re: テスト記事", Body: "その1"})
-	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "KAZU", Subject: "Re: テスト記事", Body: "その2"})
+	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "MARI", Subject: "", Body: "その1"})
+	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "KAZU", Subject: "", Body: "その2"})
 
 	loginGuest(t, runtime)
 	runtime.HandleLine("1")
@@ -140,6 +140,9 @@ func TestAppendCreatesChildPost(t *testing.T) {
 	for _, post := range store.ListPosts(runtime.Host.ID) {
 		if post.ParentID == root.ID && post.Author == "TESTER" && post.Body == "追加テストです(^^;" {
 			found = true
+			if post.Subject != "" {
+				t.Fatalf("Erika-K append stored synthetic subject %q", post.Subject)
+			}
 			break
 		}
 	}

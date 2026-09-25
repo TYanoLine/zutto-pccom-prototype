@@ -268,10 +268,11 @@ func (r *Repository) WaitForArticleBody(ctx context.Context, host world.Host, bo
 			return selected, true, nil
 		}
 
-		rootID := selected.ID
-		if selected.ParentID != 0 {
-			rootID = selected.ParentID
+		postsByID := map[int64]world.Post{}
+		for _, post := range r.Base.ListPosts(host.ID) {
+			postsByID[post.ID] = post
 		}
+		rootID := threadRootID(postsByID, selected)
 		key := fmt.Sprintf("%s|%s|%d", host.ID, board.ID, rootID)
 		job, _ := r.getOrStartBodyObservationJob(key, host, board, postID)
 

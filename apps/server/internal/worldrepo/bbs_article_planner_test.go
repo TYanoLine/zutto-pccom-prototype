@@ -151,14 +151,34 @@ func TestSharedBBSPlannerPlansReplyToRootFromSameWindow(t *testing.T) {
 	if strings.TrimSpace(root.Subject) == "" {
 		t.Fatal("same-window root has no generated subject")
 	}
-	if reply.Subject != "" {
-		t.Fatalf("reply planner should leave display Re: subject to commit layer, got %q", reply.Subject)
+	if reply.Subject != root.Subject {
+		t.Fatalf("reply planner proposed subject=%q, want semantic root topic %q before host projection", reply.Subject, root.Subject)
 	}
 	if reply.Topic != root.Subject {
 		t.Fatalf("reply topic=%q, want adopted root subject %q", reply.Topic, root.Subject)
 	}
 	if !strings.Contains(reply.SituationSummary, root.Subject) || !strings.Contains(reply.SituationSummary, "MARI") {
 		t.Fatalf("reply summary does not reference same-window root: %q", reply.SituationSummary)
+	}
+}
+
+func TestRepositoryWiresErikaReplyProjectionWithoutSyntheticSubject(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := New(base, nil, LLMMaterializer{}, "1996-08-26")
+	if repo.bbsArticles == nil || repo.bbsArticles.ReplyProjector == nil {
+		t.Fatal("repository did not install host-program reply projector")
+	}
+	source := world.Post{ID: 77, BoardID: "20/1", Subject: "元記事"}
+	projected, err := repo.bbsArticles.ReplyProjector.ProjectReply(host, source, "提案件名")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projected.ParentID != source.ID || projected.Subject != "" {
+		t.Fatalf("Erika projection=%+v, want append child with no independent subject", projected)
 	}
 }
 

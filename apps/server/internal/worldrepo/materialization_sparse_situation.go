@@ -147,7 +147,7 @@ func developmentSituationNovelty(kind, boardID, personaID string, at time.Time, 
 	blocked := false
 	for i := len(prior) - 1; i >= 0; i-- {
 		post := prior[i]
-		if post.ParentID != 0 || post.BoardID != boardID || post.Intent.SituationKind != kind {
+		if !world.IsSemanticRoot(post) || post.BoardID != boardID || post.Intent.SituationKind != kind {
 			continue
 		}
 		age := at.Sub(post.CreatedAt)

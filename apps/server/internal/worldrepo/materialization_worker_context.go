@@ -8,7 +8,8 @@ import (
 )
 
 func (r *Repository) materializationArticleWorkerContext(host world.Host, board world.Board, selected world.Post) string {
-	if selected.ParentID == 0 && selected.Intent.SourcePostID == 0 {
+	responseToID := world.ResponseTargetID(selected)
+	if responseToID == 0 {
 		return ""
 	}
 	all := r.Base.ListPosts(host.ID)
@@ -20,7 +21,7 @@ func (r *Repository) materializationArticleWorkerContext(host world.Host, board 
 			return
 		}
 		seen[post.ID] = true
-		fmt.Fprintf(&b, "[%s] %s\n", post.Author, strings.TrimSpace(post.Subject))
+		fmt.Fprintf(&b, "[%s] %s\n", post.Author, semanticContextSubject(post))
 		if body := strings.TrimSpace(post.Body); body != "" {
 			b.WriteString(truncateDemoContext(body, 420))
 			b.WriteString("\n")
@@ -29,15 +30,11 @@ func (r *Repository) materializationArticleWorkerContext(host world.Host, board 
 			b.WriteString("\n")
 		}
 	}
-	if selected.Intent.SourcePostID != 0 {
-		if source, ok := developmentConversationFindPost(all, selected.Intent.SourcePostID); ok {
-			add(source)
-		}
+	if source, ok := developmentConversationFindPost(all, responseToID); ok {
+		add(source)
 	}
-	if selected.ParentID != 0 {
-		for _, prior := range r.materializationThreadPredecessors(host.ID, board.ID, selected) {
-			add(prior)
-		}
+	for _, prior := range r.materializationThreadPredecessors(host.ID, board.ID, selected) {
+		add(prior)
 	}
 	return strings.TrimSpace(b.String())
 }

@@ -152,6 +152,9 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		case slot.ReplyToPostID != 0:
 			planned[slot.Index] = bbsengine.PlannedPost{
 				SlotIndex:        slot.Index,
+				// This is a host-neutral proposed response subject. Host-program
+				// projection may keep it, transform it, or discard it entirely.
+				Subject:          strings.TrimSpace(slot.ReplyToSubject),
 				Topic:            strings.TrimSpace(slot.ReplyToSubject),
 				Motivation:       "reply_to_existing_thread",
 				Goal:             "respond to the existing thread",
@@ -178,6 +181,9 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		}
 		planned[slot.Index] = bbsengine.PlannedPost{
 			SlotIndex:        slot.Index,
+			// Keep semantic topic available even for hosts (such as Erika-K)
+			// whose native append representation has no independent subject.
+			Subject:          target.Subject,
 			Topic:            target.Subject,
 			Motivation:       "reply_to_same_window_thread",
 			Goal:             "respond to the earlier thread in this board history",
@@ -599,7 +605,7 @@ func (p repositoryBBSBatchPlanner) personaTitleContext(personaID string) (string
 func rootSubjects(posts []world.Post) []string {
 	out := make([]string, 0, len(posts))
 	for _, post := range posts {
-		if post.ParentID == 0 && strings.TrimSpace(post.Subject) != "" {
+		if world.IsSemanticRoot(post) && strings.TrimSpace(post.Subject) != "" {
 			out = append(out, strings.TrimSpace(post.Subject))
 		}
 	}

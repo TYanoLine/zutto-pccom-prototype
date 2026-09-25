@@ -202,7 +202,9 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			BoardID:   root.BoardID,
 			ParentID:  root.ID,
 			Author:    r.handle,
-			Subject:   "Re: " + root.Subject,
+			// Erika-K's append is represented by the parent/root relationship;
+			// the append itself has no independently displayed subject.
+			Subject:   "",
 			Body:      line,
 			CreatedAt: time.Now(),
 		})
