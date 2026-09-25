@@ -33,6 +33,7 @@ type Slot struct {
 	AuthorPersonaID   string
 	CreatedAt         time.Time
 	ReplyToPostID     int64
+	ReplyToSlotIndex  int
 	ReplyToSubject    string
 	ReplyToAuthor     string
 }
@@ -127,7 +128,7 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUp(ctx, host, board, false, 0)
+	return e.catchUp(ctx, host, board, false, 0, 0)
 }
 
 // CatchUpInitial materializes one batch immediately when this board has no
@@ -135,30 +136,57 @@ func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board
 // reset flows so testers can inspect the current generator without waiting for the
 // normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
 func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUpInitial(ctx, host, board, 0)
+	return e.catchUpInitial(ctx, host, board, 0, 0)
 }
 
 // CatchUpInitialCount is the explicit-development variant of CatchUpInitial.
 // It lets generator-evaluation fixtures request a larger first materialization
 // without changing normal world cadence or MaxBatchSize.
 func (e *Engine) CatchUpInitialCount(ctx context.Context, host world.Host, board world.Board, count int) error {
-	return e.catchUpInitial(ctx, host, board, count)
+	return e.catchUpInitial(ctx, host, board, count, 0)
 }
 
-func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int) error {
+// CatchUpInitialRootHistoryCount is the explicit-development history variant.
+// rootCount is the number of board-index roots to materialize; reply events are
+// added on top of that target. lookback spreads the simulated activity through
+// the recent past instead of compressing a large evaluation sample into one
+// six-hour cadence window.
+func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.Host, board world.Board, rootCount int, lookback time.Duration) error {
+	if rootCount <= 0 {
+		return nil
+	}
+	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback)
+}
+
+func slotCountForRootTarget(rootCount int) int {
+	if rootCount <= 0 {
+		return 0
+	}
+	slots, roots := 0, 0
+	for roots < rootCount {
+		slots++
+		// planSlots uses every fourth event as a reply once an earlier root exists.
+		if slots%4 != 0 {
+			roots++
+		}
+	}
+	return slots
+}
+
+func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
 		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
-			return e.catchUp(ctx, host, board, false, 0)
+			return e.catchUp(ctx, host, board, false, 0, 0)
 		}
 	}
-	return e.catchUp(ctx, host, board, true, count)
+	return e.catchUp(ctx, host, board, true, count, initialLookback)
 }
 
-func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int) error {
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration) error {
 	if e == nil || e.Store == nil || e.Planner == nil {
 		return nil
 	}
@@ -176,16 +204,24 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 	if ignoreCadence && initialCount > 0 {
 		count = initialCount
 	}
-	slots := e.planSlots(host, board, recent, cursor, now, count)
+	var initialStart time.Time
+	if ignoreCadence && cursor.IsZero() && initialLookback > 0 {
+		initialStart = now.Add(-initialLookback)
+	}
+	slots := e.planSlots(host, board, recent, cursor, now, count, initialStart)
 	if len(slots) == 0 {
 		return nil
+	}
+	since := cursor
+	if since.IsZero() && !initialStart.IsZero() {
+		since = initialStart
 	}
 
 	planned, err := e.Planner.PlanBBSBatch(ctx, BatchRequest{
 		Host:        host,
 		Board:       board,
 		WorldNow:    now,
-		Since:       cursor,
+		Since:       since,
 		RecentPosts: recent,
 		Slots:       slots,
 	})
@@ -207,21 +243,46 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		bySlot[post.SlotIndex] = post
 	}
 
+	slotDefs := make(map[int]Slot, len(slots))
+	for _, slot := range slots {
+		slotDefs[slot.Index] = slot
+	}
+	for _, slot := range slots {
+		if slot.ReplyToSlotIndex == 0 {
+			continue
+		}
+		target, ok := slotDefs[slot.ReplyToSlotIndex]
+		if !ok || target.Index >= slot.Index || target.ReplyToPostID != 0 || target.ReplyToSlotIndex != 0 {
+			return fmt.Errorf("bbs article batch slot %d has invalid in-batch reply target %d", slot.Index, slot.ReplyToSlotIndex)
+		}
+	}
+
+	persistedBySlot := make(map[int]world.Post, len(slots))
 	for _, slot := range slots {
 		draft, ok := bySlot[slot.Index]
 		if !ok {
 			return fmt.Errorf("bbs article batch omitted slot %d", slot.Index)
 		}
+		parentID := slot.ReplyToPostID
+		replySubject := slot.ReplyToSubject
+		if slot.ReplyToSlotIndex != 0 {
+			target, ok := persistedBySlot[slot.ReplyToSlotIndex]
+			if !ok {
+				return fmt.Errorf("bbs article batch slot %d target %d was not persisted first", slot.Index, slot.ReplyToSlotIndex)
+			}
+			parentID = target.ID
+			replySubject = target.Subject
+		}
 		subject := strings.TrimSpace(draft.Subject)
-		if slot.ReplyToPostID != 0 {
-			subject = "Re: " + strings.TrimSpace(slot.ReplyToSubject)
+		if parentID != 0 {
+			subject = "Re: " + strings.TrimSpace(replySubject)
 		}
 		if subject == "" || strings.TrimSpace(draft.SituationSummary) == "" {
 			return fmt.Errorf("bbs article batch slot %d is incomplete", slot.Index)
 		}
-		e.Store.AddPost(host.ID, world.Post{
+		saved := e.Store.AddPost(host.ID, world.Post{
 			BoardID:         board.ID,
-			ParentID:        slot.ReplyToPostID,
+			ParentID:        parentID,
 			Author:          slot.Author,
 			AuthorPersonaID: slot.AuthorPersonaID,
 			Subject:         subject,
@@ -229,8 +290,8 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			Intent: world.PostIntent{
 				Action:           ActionWorldCatchup,
 				CauseKind:        "board_activity_window",
-				DiscourseMode:    func() string { if slot.ReplyToPostID != 0 { return "reply" }; return "thread_start" }(),
-				SourcePostID:     slot.ReplyToPostID,
+				DiscourseMode:    func() string { if parentID != 0 { return "reply" }; return "thread_start" }(),
+				SourcePostID:     parentID,
 				SituationKind:    "title_first",
 				SituationSummary: draft.SituationSummary,
 				SituationFacts: []string{
@@ -244,10 +305,11 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 				Stance:           draft.Stance,
 				Goal:             draft.Goal,
 				Claims:           append([]string(nil), draft.Claims...),
-				RespondsToPostID: slot.ReplyToPostID,
+				RespondsToPostID: parentID,
 			},
 			CreatedAt: slot.CreatedAt,
 		})
+		persistedBySlot[slot.Index] = saved
 	}
 	return nil
 }
@@ -475,19 +537,28 @@ func personaActivityWeight(pattern string, lurker float64) float64 {
 	return base
 }
 
-func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Post, cursor, now time.Time, count int) []Slot {
+func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Post, cursor, now time.Time, count int, initialStart time.Time) []Slot {
 	if count <= 0 {
 		return nil
 	}
 	actors := e.actorRoster(host, board, recent, now)
-	roots := make([]world.Post, 0)
+	type replyTarget struct {
+		postID    int64
+		slotIndex int
+		subject   string
+		author    string
+	}
+	targets := make([]replyTarget, 0)
 	for _, post := range recent {
 		if post.ParentID == 0 {
-			roots = append(roots, post)
+			targets = append(targets, replyTarget{postID: post.ID, subject: post.Subject, author: post.Author})
 		}
 	}
 
 	start := cursor
+	if cursor.IsZero() && !initialStart.IsZero() {
+		start = initialStart
+	}
 	if start.IsZero() || !start.Before(now) {
 		start = now.Add(-e.cadence())
 	}
@@ -513,19 +584,25 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 			CreatedAt:       start.Add(step * time.Duration(i+1)),
 		}
 		// Keep most events as new roots, but let the shared world engine create
-		// ordinary resident-to-resident replies as canonical topology too.
-		if len(roots) > 0 && (i+1)%4 == 0 {
-			target := roots[int((seed+uint64(i))%uint64(len(roots)))]
-			slot.ReplyToPostID = target.ID
-			slot.ReplyToSubject = target.Subject
-			slot.ReplyToAuthor = target.Author
-			if strings.EqualFold(slot.Author, target.Author) && len(actors) > 1 {
+		// ordinary resident-to-resident replies as canonical topology too. Earlier
+		// roots in this same simulated window are valid reply targets even though
+		// their database IDs are assigned only during chronological commit.
+		if len(targets) > 0 && (i+1)%4 == 0 {
+			target := targets[int((seed+uint64(i))%uint64(len(targets)))]
+			slot.ReplyToPostID = target.postID
+			slot.ReplyToSlotIndex = target.slotIndex
+			slot.ReplyToSubject = target.subject
+			slot.ReplyToAuthor = target.author
+			if strings.EqualFold(slot.Author, target.author) && len(actors) > 1 {
 				a = actors[(actorIndex+1)%len(actors)]
 				slot.Author = a.handle
 				slot.AuthorPersonaID = a.personaID
 			}
 		}
 		slots = append(slots, slot)
+		if slot.ReplyToPostID == 0 && slot.ReplyToSlotIndex == 0 {
+			targets = append(targets, replyTarget{slotIndex: slot.Index, author: slot.Author})
+		}
 	}
 	return slots
 }
