@@ -605,7 +605,7 @@ func (p repositoryBBSBatchPlanner) personaTitleContext(personaID string) (string
 func rootSubjects(posts []world.Post) []string {
 	out := make([]string, 0, len(posts))
 	for _, post := range posts {
-		if post.ParentID == 0 && strings.TrimSpace(post.Subject) != "" {
+		if world.IsSemanticRoot(post) && strings.TrimSpace(post.Subject) != "" {
 			out = append(out, strings.TrimSpace(post.Subject))
 		}
 	}
