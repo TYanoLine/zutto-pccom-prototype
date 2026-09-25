@@ -371,9 +371,53 @@ func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testin
 		if !parent.CreatedAt.Before(post.CreatedAt) {
 			t.Fatalf("reply %d precedes parent %d", post.ID, parent.ID)
 		}
-		if post.Subject != "Re: "+parent.Subject {
-			t.Fatalf("reply subject=%q parent=%q", post.Subject, parent.Subject)
+		if post.Subject != "" {
+			t.Fatalf("low-level engine invented reply subject=%q; host projector owns surface convention", post.Subject)
 		}
+		if post.Intent.RespondsToPostID != parent.ID || post.Intent.SourcePostID != parent.ID {
+			t.Fatalf("reply %d lost semantic response link: %+v", post.ID, post.Intent)
+		}
+	}
+}
+
+func TestReplyProjectorCanDecoupleSemanticResponseFromNativeTopology(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0470001080")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "8", Name: "LOCAL TALK"}
+	planner := &fakeBatchPlanner{}
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	engine := New(store, planner, func() time.Time { return now })
+	engine.ReplyProjector = ReplyProjectorFunc(func(_ world.Host, source world.Post, proposed string) (ReplyRepresentation, error) {
+		// Simulate a flat-message host: it can semantically answer source while
+		// exposing no parent/child article topology.
+		return ReplyRepresentation{ParentID: 0, Subject: "flat:" + proposed}, nil
+	})
+
+	if err := engine.CatchUpInitialCount(context.Background(), host, board, 8); err != nil {
+		t.Fatal(err)
+	}
+	posts := filterBoard(store.ListPosts(host.ID), board.ID)
+	var response world.Post
+	for _, post := range posts {
+		if post.Intent.RespondsToPostID != 0 {
+			response = post
+			break
+		}
+	}
+	if response.ID == 0 {
+		t.Fatal("no semantic response generated")
+	}
+	if response.ParentID != 0 {
+		t.Fatalf("flat host response unexpectedly got native parent %d", response.ParentID)
+	}
+	if response.Intent.DiscourseMode != "reply" || response.Intent.SourcePostID == 0 {
+		t.Fatalf("semantic response metadata lost: %+v", response.Intent)
+	}
+	if response.Subject != "flat:" {
+		t.Fatalf("projected subject=%q, want projector result", response.Subject)
 	}
 }
 
