@@ -173,7 +173,7 @@ Rules for each event:
 - For cause_kind=continuation_progress, there must be materially new progress/change/observation compared with the referenced earlier event. Do not merely restate the old preference, baseline condition, habit, or question in new words.
 - For cause_kind=observed_thread, respond to the supplied parent/source thread. Do not start an unrelated root topic inside a reply, and do not add a new world event merely to make the reply interesting.
 - For a root post, follow the subject-line calibration above. The subject must be the exact text this actor would type now, not a polished summary or generic headline.
-- For a reply, the application may canonicalize the subject to Re: <root subject>; the semantic content must still be a genuine response to the selected thread.
+- For a reply, the host program owns whether an independent reply subject exists and how it is represented. The semantic content must still be a genuine response to the selected parent/source thread.
 - topic is a short free-form human-readable description of the already-selected causal content. It is not a new topic selection step and should describe the concrete matter, not merely repeat anchor_key.
 - motivation, stance, and goal describe this exact event. Motivation must follow cause_summary; do not fabricate a different reason for posting.
 - facts contains zero or one durable FICTIONAL PERSONAL fact only when the realized post genuinely requires a new long-lived fact for consistency. Most ordinary reactions/observations should have zero facts.
