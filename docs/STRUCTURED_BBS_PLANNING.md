@@ -149,6 +149,13 @@ subjects. That pool should be concrete and diverse: specific works/products,
 operations, symptoms, places, events or ordinary concrete questions may appear
 when supported, while vague board-category paraphrases are discouraged.
 
+If ordinary candidate pools still leave world-selected roots unresolved, the
+shared planner requests additional **era-safe generated refill pools**. Those
+refill requests avoid unsupported named/time-dependent external claims but still
+ask for concrete ordinary situations rather than board-name paraphrases. Canned
+subjects such as `ＰＣ－９８について` are not permitted. Exhausting all bounded
+generated refills fails the batch atomically so it can be retried later.
+
 Jev evaluates each candidate against the already-selected world slots and its era
 plausibility. Code performs deterministic one-title/one-slot matching. Candidates
 with ambiguous named real-world references are historically researched only
@@ -186,3 +193,12 @@ responds_to_post_id
 ```
 
 The article body remains lazily materialized. Body rendering receives these canonical causal fields and the persona's baseline context and is not allowed to change them or reinterpret them from a later historical viewpoint.
+
+Body formatting is also calibrated separately from subject generation. Explicit
+newlines should represent author-intentional structure such as paragraphs,
+quotes, dialogue, short reactions or signature-like layout; the prose worker
+must not default to modern smartphone-style 10-20-character line breaks or one
+sentence per line. Ordinary long logical lines may instead wrap on the emulated
+80-column-class terminal surface. Historical evidence, caveats and the
+intentional-newline/display-wrap distinction are recorded in
+`docs/research/BBS_BODY_CORPUS.md`.
