@@ -487,6 +487,17 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		return nil, fmt.Errorf("title-first batch left %d of %d root subjects unresolved after %d candidate pools; canned title fallback is disabled", len(remaining), len(rootSlots), maxPoolAttempts)
 	}
 
+	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
+	for _, slot := range rootSlots {
+		eventID := fmt.Sprintf("slot-%d", slot.Index)
+		post, ok := adopted[eventID]
+		if !ok {
+			return nil, fmt.Errorf("title-first batch omitted root slot %d", slot.Index)
+		}
+		out = append(out, post)
+	}
+	return out, nil
+}
 
 func historicalClaimsForTitle(pool llm.BBSTitleCandidates, title string) []llm.BBSTitleHistoricalClaim {
 	candidate := 0
