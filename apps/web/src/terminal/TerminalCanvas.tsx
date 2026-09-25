@@ -1,10 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import type { TerminalCore } from './TerminalCore';
+import { terminalCursorScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
-export function TerminalCanvas({ terminal, onKeyboardRequest }: { terminal: TerminalCore; onKeyboardRequest?: () => void }) {
+export type TerminalCanvasHandle = {
+  returnToLive: () => void;
+  ensureCursorVisible: () => void;
+};
+
+type TerminalCanvasProps = {
+  terminal: TerminalCore;
+  onKeyboardRequest?: () => void;
+  keyboardActive?: boolean;
+};
+
+export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
+  { terminal, onKeyboardRequest, keyboardActive = false },
+  forwardedRef,
+) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [display, setDisplay] = useState<'readable' | 'fit'>('readable');
@@ -32,7 +47,8 @@ export function TerminalCanvas({ terminal, onKeyboardRequest }: { terminal: Term
     previousScrollbackLengthRef.current = nextLength;
     setHistoryOffset(scrollOffsetRef.current);
     draw();
-  }), [terminal]);
+    if (keyboardActive) window.requestAnimationFrame(ensureCursorVisible);
+  }), [terminal, keyboardActive]);
   useEffect(() => { draw(); });
 
   function setScrollOffset(next: number) {
@@ -42,6 +58,78 @@ export function TerminalCanvas({ terminal, onKeyboardRequest }: { terminal: Term
     setHistoryOffset(clamped);
     draw();
   }
+
+  function isMobilePresentation() {
+    return window.matchMedia('(max-width: 680px), (pointer: coarse)').matches;
+  }
+
+  function resetKeyboardViewport() {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.style.maxHeight = '';
+    viewport.style.overflowY = '';
+    viewport.scrollTop = 0;
+  }
+
+  function ensureCursorVisible() {
+    if (!keyboardActive || !isMobilePresentation()) return;
+    const viewport = viewportRef.current;
+    const canvas = ref.current;
+    if (!viewport || !canvas) return;
+
+    const visualViewport = window.visualViewport;
+    const visualBottom = visualViewport
+      ? visualViewport.offsetTop + visualViewport.height
+      : window.innerHeight;
+    const dock = document.querySelector<HTMLElement>('.command-dock');
+    const hint = viewport.parentElement?.nextElementSibling as HTMLElement | null;
+    const viewportTop = viewport.getBoundingClientRect().top;
+    const dockTop = Math.min(dock?.getBoundingClientRect().top ?? visualBottom, visualBottom);
+    const hintHeight = hint?.getBoundingClientRect().height ?? 0;
+    const nextHeight = terminalViewportHeight(canvas.clientHeight, viewportTop, dockTop, hintHeight);
+
+    viewport.style.maxHeight = `${nextHeight}px`;
+    viewport.style.overflowY = nextHeight < canvas.clientHeight ? 'auto' : 'hidden';
+
+    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const cursorTop = terminal.cursorY * rowHeight;
+    viewport.scrollTop = terminalCursorScrollTop(
+      viewport.scrollTop,
+      viewport.clientHeight,
+      cursorTop,
+      rowHeight,
+    );
+  }
+
+  function returnToLive() {
+    setScrollOffset(0);
+    window.requestAnimationFrame(ensureCursorVisible);
+  }
+
+  useImperativeHandle(forwardedRef, () => ({ returnToLive, ensureCursorVisible }));
+
+  useEffect(() => {
+    if (!keyboardActive || !isMobilePresentation()) {
+      resetKeyboardViewport();
+      return;
+    }
+
+    returnToLive();
+    const visualViewport = window.visualViewport;
+    const update = () => window.requestAnimationFrame(ensureCursorVisible);
+    window.addEventListener('resize', update);
+    visualViewport?.addEventListener('resize', update);
+    visualViewport?.addEventListener('scroll', update);
+    update();
+
+    return () => {
+      window.removeEventListener('resize', update);
+      visualViewport?.removeEventListener('resize', update);
+      visualViewport?.removeEventListener('scroll', update);
+    };
+    // The functions intentionally read the current refs/cursor on every viewport event.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [keyboardActive]);
 
   function draw() {
     const canvas = ref.current;
@@ -151,22 +239,25 @@ export function TerminalCanvas({ terminal, onKeyboardRequest }: { terminal: Term
         <button type="button" onClick={() => setScrollOffset(scrollOffsetRef.current - 12)}>履歴↓</button>
         <button type="button" onClick={() => setScrollOffset(0)} disabled={historyOffset === 0}>最新</button>
       </nav>
-      <div ref={viewportRef} className="terminal-viewport" tabIndex={0} aria-label="端末画面。左右にスクロールできます">
-        <canvas
-          ref={ref}
-          width={640}
-          height={400}
-          className="terminal-canvas"
-          aria-label="80桁25行の通信端末"
-          onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) onKeyboardRequest?.(); }}
-          onWheel={wheel}
-          onPointerDown={pointerDown}
-          onPointerMove={pointerMove}
-          onPointerUp={pointerEnd}
-          onPointerCancel={pointerEnd}
-        />
+      <div className="terminal-viewport-shell">
+        <div ref={viewportRef} className="terminal-viewport" tabIndex={0} aria-label="端末画面。左右にスクロールできます">
+          <canvas
+            ref={ref}
+            width={640}
+            height={400}
+            className="terminal-canvas"
+            aria-label="80桁25行の通信端末"
+            onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) onKeyboardRequest?.(); }}
+            onWheel={wheel}
+            onPointerDown={pointerDown}
+            onPointerMove={pointerMove}
+            onPointerUp={pointerEnd}
+            onPointerCancel={pointerEnd}
+          />
+        </div>
+        {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
       </div>
       <p className="terminal-hint">{historyOffset > 0 ? `履歴表示中（${historyOffset}行前） /「最新」で受信画面へ` : display === 'readable' ? '左右にスワイプで移動・上下で受信履歴' : '80桁全体表示・上下スワイプで受信履歴'}</p>
     </div>
   );
-}
+});
