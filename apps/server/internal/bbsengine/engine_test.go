@@ -20,7 +20,7 @@ func (p *fakeBatchPlanner) PlanBBSBatch(_ context.Context, req BatchRequest) ([]
 	out := make([]PlannedPost, 0, len(req.Slots))
 	for _, slot := range req.Slots {
 		subject := fmt.Sprintf("batch title %02d", slot.Index)
-		if slot.ReplyToPostID != 0 {
+		if slot.ReplyToPostID != 0 || slot.ReplyToSlotIndex != 0 {
 			subject = ""
 		}
 		out = append(out, PlannedPost{
@@ -265,6 +265,72 @@ func TestCatchUpInitialCountCanMaterializeLargeDebugBatchWithoutChangingNormalBa
 	}
 	if got := len(filterBoard(store.ListPosts(host.ID), board.ID)); got != 40 {
 		t.Fatalf("debug board changed on reopen: posts=%d", got)
+	}
+}
+
+func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
+	planner := &fakeBatchPlanner{}
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	engine := New(store, planner, func() time.Time { return now })
+	lookback := 28 * 24 * time.Hour
+
+	if err := engine.CatchUpInitialRootHistoryCount(context.Background(), host, board, 40, lookback); err != nil {
+		t.Fatal(err)
+	}
+	if planner.calls != 1 {
+		t.Fatalf("planner calls=%d, want 1", planner.calls)
+	}
+	req := planner.requests[0]
+	if got := len(req.Slots); got != 53 {
+		t.Fatalf("history slots=%d, want 53 for 40 roots + 13 replies", got)
+	}
+	if req.Since != now.Add(-lookback) {
+		t.Fatalf("history since=%s, want %s", req.Since, now.Add(-lookback))
+	}
+
+	posts := filterBoard(store.ListPosts(host.ID), board.ID)
+	roots, replies := 0, 0
+	byID := map[int64]world.Post{}
+	for _, post := range posts {
+		byID[post.ID] = post
+		if post.ParentID == 0 {
+			roots++
+		} else {
+			replies++
+		}
+	}
+	if roots != 40 || replies != 13 {
+		t.Fatalf("roots=%d replies=%d, want 40/13", roots, replies)
+	}
+	if len(posts) != 53 {
+		t.Fatalf("posts=%d, want 53", len(posts))
+	}
+	if posts[0].CreatedAt.Sub(now.Add(-lookback)) <= 0 {
+		t.Fatalf("first post did not land inside historical lookback: %s", posts[0].CreatedAt)
+	}
+	if !posts[len(posts)-1].CreatedAt.Before(now) {
+		t.Fatalf("last post=%s, want before world now %s", posts[len(posts)-1].CreatedAt, now)
+	}
+	for _, post := range posts {
+		if post.ParentID == 0 {
+			continue
+		}
+		parent, ok := byID[post.ParentID]
+		if !ok || parent.ParentID != 0 {
+			t.Fatalf("reply %d has invalid same-window parent %d", post.ID, post.ParentID)
+		}
+		if !parent.CreatedAt.Before(post.CreatedAt) {
+			t.Fatalf("reply %d precedes parent %d", post.ID, parent.ID)
+		}
+		if post.Subject != "Re: "+parent.Subject {
+			t.Fatalf("reply subject=%q parent=%q", post.Subject, parent.Subject)
+		}
 	}
 }
 
