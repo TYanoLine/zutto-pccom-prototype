@@ -126,11 +126,11 @@ func TestRepairInteractiveArticleDetailFactsDropsEntireMetadataTaintedSet(t *tes
 }
 
 
-func TestInteractiveTitleFirstNeverDropsWorldSelectedRoots(t *testing.T) {
+func TestInteractiveTitleFirstDoesNotInventCannedSubjectsWhenPoolsRejectEverything(t *testing.T) {
 	base := world.NewMemoryStore()
-	// Force the normal title reviewer to reject every generated candidate. The
-	// interactive path must replenish pools and ultimately use its explicit safe
-	// fallback rather than erase World-selected root events.
+	// Force every generated candidate to be rejected. The diagnostic path must
+	// report the failed realization rather than converting selected roots into
+	// synthetic "<board>について" subjects.
 	renderer := &interactiveTitleFirstTestRenderer{titleFirstTestRenderer: titleFirstTestRenderer{
 		reject: true,
 		fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "本文です。"}},
@@ -150,30 +150,19 @@ func TestInteractiveTitleFirstNeverDropsWorldSelectedRoots(t *testing.T) {
 		t.Fatal("missing selection telemetry")
 	}
 	stats := value.(developmentSelectionStats)
-	materializedRoots := 0
-	independentRoots := 0
-	for _, post := range posts {
-		if post.Intent.Action != "thread_start" {
-			continue
+	if stats.Roots == 0 {
+		t.Fatalf("test world selected no roots: %+v", stats)
+	}
+	if len(posts) != 0 {
+		t.Fatalf("failed title realization committed %d posts instead of failing atomically", len(posts))
+	}
+	diagnostic := repo.MaterializationPlanningDiagnostic(host.ID, board.ID)
+	if !strings.Contains(diagnostic, "planning_error=") || !strings.Contains(diagnostic, "canned title fallback is disabled") {
+		t.Fatalf("missing explicit no-canned-fallback planning error: %s", diagnostic)
+	}
+	for _, post := range base.ListPosts(host.ID) {
+		if strings.Contains(post.Subject, board.Name+"について") || strings.Contains(post.Subject, board.Name+"の情報交換") {
+			t.Fatalf("canned board-name fallback leaked into canonical history: %+v", post)
 		}
-		materializedRoots++
-		// Continuation/progress roots have an explicit canonical source and are
-		// not independent title-first slots. They must survive, but they reuse
-		// the source situation rather than requiring a fresh title candidate.
-		if post.ParentID == 0 && post.Intent.SourcePostID == 0 {
-			independentRoots++
-			if titleFirstSubject(post.Intent.SituationFacts) == "" {
-				t.Fatalf("preserved independent root has no canonical title-first subject: %+v", post)
-			}
-		}
-	}
-	if stats.Roots == 0 || independentRoots == 0 {
-		t.Fatalf("test world selected no usable roots: %+v", stats)
-	}
-	if materializedRoots != stats.Roots {
-		t.Fatalf("title-first dropped world-selected thread starts: selected=%d materialized=%d posts=%d", stats.Roots, materializedRoots, len(posts))
-	}
-	if stats.MaterializedRoots != stats.Roots {
-		t.Fatalf("materialized root telemetry disagrees with world selection: %+v", stats)
 	}
 }
