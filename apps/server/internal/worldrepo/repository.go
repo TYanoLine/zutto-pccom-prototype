@@ -9,6 +9,7 @@ import (
 
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
+	"zutto-pccom/apps/server/internal/hostprogram"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
 )
@@ -77,6 +78,13 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		prefetchRunning:      map[string]bool{},
 	}
 	r.bbsArticles = bbsengine.New(base, repositoryBBSBatchPlanner{repo: r}, r.currentWorldTime)
+	r.bbsArticles.ReplyProjector = bbsengine.ReplyProjectorFunc(func(host world.Host, source world.Post, proposedSubject string) (bbsengine.ReplyRepresentation, error) {
+		projected, err := hostprogram.ProjectReply(host, source, proposedSubject)
+		if err != nil {
+			return bbsengine.ReplyRepresentation{}, err
+		}
+		return bbsengine.ReplyRepresentation{ParentID: projected.ParentID, Subject: projected.Subject}, nil
+	})
 	return r
 }
 
