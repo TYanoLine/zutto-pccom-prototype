@@ -17,11 +17,12 @@ import (
 )
 
 const (
-	sharedTitlePoolMinAttempts = 3
-	sharedTitlePoolMaxAttempts = 6
-	sharedTitlePoolTargetSize          = 20
-	sharedTitleResearchBudget          = 6 * time.Second
-	sharedTitleBackgroundResearchJobs  = 12
+	sharedTitlePoolMinAttempts          = 3
+	sharedTitlePoolMaxAttempts          = 6
+	sharedTitleEraSafeRefillAttempts    = 4
+	sharedTitlePoolTargetSize           = 20
+	sharedTitleResearchBudget           = 6 * time.Second
+	sharedTitleBackgroundResearchJobs   = 12
 )
 
 func sharedTitlePoolAttemptLimit(rootCount int) int {
@@ -208,9 +209,11 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	historicalFacts := materializer.historicalFacts(decision)
 	var researchDeadline time.Time
 	backgroundResearchQueued := 0
-	maxPoolAttempts := sharedTitlePoolAttemptLimit(len(rootSlots))
+	normalPoolAttempts := sharedTitlePoolAttemptLimit(len(rootSlots))
+	maxPoolAttempts := normalPoolAttempts + sharedTitleEraSafeRefillAttempts
 
 	for attempt := 0; attempt < maxPoolAttempts && len(remaining) > 0; attempt++ {
+		preferEraSafe := attempt >= normalPoolAttempts
 		var pool llm.BBSTitleCandidates
 		var err error
 		poolStarted := time.Now()
@@ -223,11 +226,13 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				AvoidSubjects:   avoid,
 				HistoricalFacts: historicalFacts,
 				EraRules:        materializer.eraRules(),
+				RemainingNeeded: len(remaining),
+				PreferEraSafe:   preferEraSafe,
 			})
 		} else {
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
 		}
-		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), err != nil)
+		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d era_safe_refill=%t remaining=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), preferEraSafe, len(remaining), err != nil)
 		if err != nil {
 			// The structured provider already retries transient transport/rate
 			// failures with backoff. A pool attempt means a new semantic pool,
@@ -473,90 +478,15 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		}
 	}
 
-	// World-selected roots survive wording difficulty. Candidate generation and
-	// historical verification are wording gates, not permission to erase a World
-	// Engine event. After bounded pools are exhausted, preserve any still-unfilled
-	// root with an explicitly generic, board-local, date-safe title that makes no
-	// external historical claim. This mirrors the interactive title-first path.
+	// Do not synthesize board-name paraphrases such as "ＰＣ－９８について".
+	// If bounded normal pools did not fill the world-selected roots, the final
+	// refill pools deliberately request historically safe but still concrete
+	// candidate wording. If those also fail, abort this batch without committing
+	// partial/canned subjects so a later observation can retry cleanly.
 	if len(remaining) > 0 {
-		used := map[string]bool{}
-		for _, post := range adopted {
-			used[normalizeTitleForSimilarity(post.Subject)] = true
-		}
-		fallbackOrdinal := 0
-		fallbackCount := 0
-		for _, event := range remaining {
-			var subject string
-			for {
-				subject = sharedBBSGenericFallbackSubject(req.Board.Name, fallbackOrdinal)
-				fallbackOrdinal++
-				key := normalizeTitleForSimilarity(subject)
-				if key != "" && !used[key] {
-					used[key] = true
-					break
-				}
-			}
-			slot := slotByEvent[event.EventID]
-			summary := fmt.Sprintf("%s が「%s」を話題にする", slot.Author, subject)
-			adopted[event.EventID] = bbsengine.PlannedPost{
-				SlotIndex:        slot.Index,
-				Subject:          subject,
-				Topic:            subject,
-				Motivation:       "world_selected_board_activity",
-				Goal:             "open a generic board-local thread without adding external historical claims",
-				SituationSummary: summary,
-			}
-			fallbackCount++
-		}
-		log.Printf("BBS title fallback: host=%s board=%s generic_local=%d", req.Host.ID, req.Board.ID, fallbackCount)
-		remaining = nil
+		return nil, fmt.Errorf("title-first batch left %d of %d root subjects unresolved after %d candidate pools; canned title fallback is disabled", len(remaining), len(rootSlots), maxPoolAttempts)
 	}
 
-	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
-	for _, slot := range rootSlots {
-		eventID := fmt.Sprintf("slot-%d", slot.Index)
-		out = append(out, adopted[eventID])
-	}
-	return out, nil
-}
-
-func sharedBBSGenericFallbackSubject(boardName string, ordinal int) string {
-	board := strings.TrimSpace(boardName)
-	if board == "" {
-		board = "この話題"
-	}
-	boardRunes := []rune(board)
-	if len(boardRunes) > 24 {
-		board = string(boardRunes[:24])
-	}
-
-	suffixes := []string{
-		"について",
-		"の話",
-		"あれこれ",
-		"の情報交換",
-		"のこと",
-		"の話題",
-		"で雑談",
-		"、ちょっと質問",
-		"について一言",
-		"の雑談など",
-		"の話でも",
-		"について少し",
-	}
-	if ordinal < 0 {
-		ordinal = 0
-	}
-	subject := board + suffixes[ordinal%len(suffixes)]
-	if cycle := ordinal / len(suffixes); cycle > 0 {
-		subject += fmt.Sprintf(" その%d", cycle+1)
-	}
-	runes := []rune(subject)
-	if len(runes) > 36 {
-		subject = string(runes[:36])
-	}
-	return subject
-}
 
 func historicalClaimsForTitle(pool llm.BBSTitleCandidates, title string) []llm.BBSTitleHistoricalClaim {
 	candidate := 0
