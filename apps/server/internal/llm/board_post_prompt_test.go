@@ -37,6 +37,8 @@ func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
 		"utterance_attention",
 		"元記事を要約してから返事を始めない",
 		"完全な解説記事やチュートリアルへ仕上げない",
+		"10〜20文字程度ごと",
+		"端末側の80桁級表示",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("missing conversational guidance %q", want)

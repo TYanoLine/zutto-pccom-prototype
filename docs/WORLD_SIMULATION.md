@@ -191,7 +191,7 @@ Advisory responses are transient operational inputs, not canonical world state. 
 
 ### World-selected roots are not optional prose candidates
 
-Once the World Engine selects a root-post slot (actor, board, timestamp, action/cause), title-first realization may choose or regenerate wording but must not erase that event merely because a candidate pool or semantic fit pass was poor. Interactive materialization ranks candidate titles, replenishes bounded 20-title pools when necessary, and uses an explicitly generic/date-safe local fallback only after those pools are exhausted. Reply survival therefore depends on canonical topology, not on whether an unrelated title candidate happened to score above a semantic threshold.
+Once the World Engine selects a root-post slot (actor, board, timestamp, action/cause), title-first realization may choose or regenerate wording but must not silently replace that event with a canned board-name paraphrase merely because a candidate pool or semantic fit pass was poor. The shared production path replenishes bounded 20-title pools and, when ordinary pools still leave roots unresolved, switches to additional era-safe generated pools that avoid unsupported external historical claims while remaining concrete. If bounded generated refills are still exhausted, the batch fails atomically and may be retried later; it does **not** commit subjects such as "ＰＣ－９８について". Interactive title-first diagnostics follow the same no-canned-fallback rule. Reply survival therefore depends on canonical topology, not on whether an unrelated title candidate happened to score above a semantic threshold.
 
 ### Title-first semantic advisor
 
