@@ -55,6 +55,8 @@ type BBSContextualTitleCandidateRequest struct {
 	AvoidSubjects   []string
 	HistoricalFacts []string
 	EraRules         string
+	RemainingNeeded int
+	PreferEraSafe   bool
 }
 
 type BBSContextualTitleCandidatePlanner interface {
@@ -84,6 +86,8 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 複数の実在対象を含む候補は対象ごとにclaimを分けること。互換性・仕様・能力そのものを断定する候補だけ technical_capability を使い、subjectは再利用可能な関係名にすること。
 - 実在対象も時点依存claimもない一般的な候補にはhistorical_claimsを付けないこと。
 - historical_claimsは史実そのものではなく後段Historical KBへの調査ヒントであり、モデル記憶を根拠として採用判定してはいけない。
+- RemainingNeeded が正なら、まだその件数のworld-selected rootが件名待ちで残っている。候補の質を落とさず、既出候補と重ならない別案を十分に出すこと。
+- PreferEraSafe=true の場合は補充プール。実在固有名詞、発売時期、互換性、仕様、ニュース、店舗名など外部史実の追加確認が必要になる要素を避けること。ただし抽象的な板名言い換えへ逃げず、その板で日常的に起こる具体的な相談・失敗・工夫・感想・募集・雑談を短い件名にすること。このモードの候補は原則 historical_claims を持たない形を優先する。
 - RecentBBSState / RecentSubjects / AvoidSubjects と同じ題材・同じ言い回し・同じ疑問形を避けること。
 - 同じ固有名詞を20件へ繰り返さないこと。
 - 当時のBBS subject欄らしく短い一言、報告、呼びかけ、疑問、名詞句などを混ぜること。現代的なSEO見出し・説明見出しにしないこと。
@@ -120,7 +124,7 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 		"additionalProperties": false,
 	}
 	prompt := titleCandidatePrompt(req.WorldDate, req.BoardName)
-	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" {
+	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" || req.RemainingNeeded > 0 || req.PreferEraSafe {
 		prompt = contextualTitleCandidatePrompt(req)
 	}
 	result, err := p.responseTextWithJSONSchemaReasoning(ctx, prompt, "low", "low", 3200, "bbs_title_candidates", schema)
