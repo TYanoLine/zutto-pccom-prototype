@@ -5,9 +5,10 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .titlebar, .statusbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 7px 10px; background: #bdbdbd; color: #111; font-size: 13px; border: 2px solid #eee; border-right-color: #555; border-bottom-color: #555; }
 .screen-wrap { position: relative; display: grid; place-items: center; background: #050505; padding: 12px; border-left: 4px solid #555; border-right: 4px solid #333; }
 .terminal-display { width: 100%; min-width: 0; max-width: 800px; }
+.terminal-viewport-shell { position: relative; }
 .terminal-viewport { width: 100%; overflow-x: auto; background: #000; }
 .terminal-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
-.terminal-tools, .terminal-hint, .command-prompt, .command-enter, .command-escape { display: none; }
+.terminal-tools, .terminal-hint, .command-prompt, .command-enter, .command-escape, .terminal-live-return { display: none; }
 .command-dock { margin: 0; }
 .keyboard-capture { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
 .statusbar { flex-wrap: wrap; }
@@ -39,7 +40,10 @@ code { color: #ddd; }
   .terminal-tools button[aria-pressed="true"] { color: #cfc; background: #163616; border-color: #7a7; }
   .terminal-tools button:disabled, .command-dock button:disabled { color: #777; }
   .terminal-hint { display: block; margin: 0; padding: 6px 8px; font-size: 11px; line-height: 1.5; color: #aaa; background: #111; }
+  .terminal-live-return { position: absolute; right: 8px; bottom: 8px; z-index: 4; min-height: 44px; padding: 6px 10px; border: 1px solid #7a7; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #cfc; background: #163616; touch-action: manipulation; }
   .command-dock { position: sticky; bottom: 0; z-index: 5; display: flex; align-items: center; gap: 6px; padding: 6px 8px max(6px, env(safe-area-inset-bottom)); background: #121812; border-block: 1px solid #526452; }
+  .shell--command-focus .command-dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; }
+  .shell--command-focus .terminal-viewport { overscroll-behavior: contain; }
   .command-prompt, .command-enter, .command-escape { display: block; }
   .command-prompt { color: #8f8; }
   .command-dock .keyboard-capture { position: static; opacity: 1; pointer-events: auto; flex: 1; min-width: 0; width: 0; height: 44px; border: 1px solid #657565; border-radius: 0; padding: 8px; font: 16px/1.4 ui-monospace, monospace; color: #dfd; background: #000; }

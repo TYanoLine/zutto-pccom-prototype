@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TerminalCore } from './terminal/TerminalCore';
-import { TerminalCanvas } from './terminal/TerminalCanvas';
+import { TerminalCanvas, type TerminalCanvasHandle } from './terminal/TerminalCanvas';
 import { VirtualModem } from './modem/VirtualModem';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
 import { fetchWorldCenters, loadCenters } from './modem/CenterDirectory';
@@ -16,7 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
-const APP_VERSION = '0.08';
+const APP_VERSION = '0.09';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -41,6 +41,7 @@ function loadCommSettings(): CommSettings {
 
 export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
+  const terminalCanvasRef = useRef<TerminalCanvasHandle | null>(null);
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
   const tariff = useMemo(() => new PseudoTariffService(pseudoTariffTable, telehodaiNumbers), []);
   const modemRef = useRef<VirtualModem | null>(null);
@@ -68,6 +69,7 @@ export default function App() {
   const [directoryCount, setDirectoryCount] = useState(0);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('センター情報読込中...');
+  const [commandFocused, setCommandFocused] = useState(false);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => { try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ } }, [commSettings]);
@@ -144,9 +146,15 @@ export default function App() {
     terminal.write(' ESCキーでメイン・メニューに戻ってください。');
   }
   function syncTerminalInput(next: string) { const p = Array.from(echoedInputRef.current), n = Array.from(next); let c = 0; while (c < p.length && c < n.length && p[c] === n[c]) c++; for (let i = p.length; i > c; i--) terminal.backspace(); if (c < n.length) terminal.write(n.slice(c).join('')); echoedInputRef.current = next; }
-  function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
-  function compositionStart() { composingRef.current = true; }
-  function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
+  function followLiveInput() { terminalCanvasRef.current?.returnToLive(); }
+  function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
+  function compositionStart() { composingRef.current = true; followLiveInput(); }
+  function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
+  function commandPointerDown(e: React.PointerEvent<HTMLInputElement>) {
+    if (e.pointerType === 'mouse' || document.activeElement === e.currentTarget) return;
+    e.preventDefault();
+    e.currentTarget.focus({ preventScroll: true });
+  }
   function routeCommand(raw: string) { const upper = raw.trim().toUpperCase(), station = localStationRef.current; if (station?.isConnected()) { station.submitLine(raw); return; } if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; } let localMode: DialMode | null = null; if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode; if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; } if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; } if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false; modemRef.current?.submitLine(raw); }
   function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; }
@@ -163,6 +171,7 @@ export default function App() {
   }
   function submitInput() {
     // A soft Enter and a physical Enter share the same IME guard and routing.
+    followLiveInput();
     if (composingRef.current || suppressEnterRef.current) return;
     if (directoryRef.current?.isOpen()) { softKey('Enter'); return; }
     terminal.write('\r\n');
@@ -192,9 +201,12 @@ export default function App() {
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
-  return <main className="shell">
+  return <main className={`shell${commandFocused ? ' shell--command-focus' : ''}`}>
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
-    <section className="screen-wrap"><TerminalCanvas terminal={terminal} onKeyboardRequest={() => document.getElementById('kbd')?.focus()} /></section>
+    <section className="screen-wrap"><TerminalCanvas ref={terminalCanvasRef} terminal={terminal} keyboardActive={commandFocused} onKeyboardRequest={() => {
+      const field = document.getElementById('kbd') as HTMLInputElement | null;
+      field?.focus({ preventScroll: true });
+    }} /></section>
     {directoryOpen && <nav className="directory-softkeys" aria-label="センターリスト操作">
       <button type="button" onClick={() => softKey('ArrowUp')}>▲<small>上</small></button><button type="button" onClick={() => softKey('ArrowDown')}>▼<small>下</small></button>
       <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
@@ -202,7 +214,7 @@ export default function App() {
     </nav>}
     <form className="command-dock" onSubmit={e => { e.preventDefault(); submitInput(); }}>
       <label className="command-prompt" htmlFor="kbd">&gt;</label>
-      <input id="kbd" className="keyboard-capture" aria-label="コマンド入力" placeholder={directoryOpen ? 'センターは上下キーで選択' : 'コマンドを入力'} readOnly={directoryOpen} value={input} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" autoComplete="off" enterKeyHint="send" spellCheck={false} />
+      <input id="kbd" className="keyboard-capture" aria-label="コマンド入力" placeholder={directoryOpen ? 'センターは上下キーで選択' : 'コマンドを入力'} readOnly={directoryOpen} value={input} onPointerDown={commandPointerDown} onFocus={() => { setCommandFocused(true); followLiveInput(); }} onBlur={() => setCommandFocused(false)} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" autoComplete="off" enterKeyHint="send" spellCheck={false} />
       <button className="command-enter" type="submit">Enter</button>
       <button className="command-escape" type="button" disabled={!!activeCall || localTestConnected} onClick={() => { if (directoryRef.current?.isOpen()) softKey('Escape'); else { openDirectoryWhenReadyRef.current = false; showMainMenu(); } }}>Esc</button>
     </form>
