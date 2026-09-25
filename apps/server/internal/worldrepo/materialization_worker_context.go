@@ -21,7 +21,7 @@ func (r *Repository) materializationArticleWorkerContext(host world.Host, board 
 			return
 		}
 		seen[post.ID] = true
-		fmt.Fprintf(&b, "[%s] %s\n", post.Author, strings.TrimSpace(post.Subject))
+		fmt.Fprintf(&b, "[%s] %s\n", post.Author, semanticContextSubject(post))
 		if body := strings.TrimSpace(post.Body); body != "" {
 			b.WriteString(truncateDemoContext(body, 420))
 			b.WriteString("\n")
