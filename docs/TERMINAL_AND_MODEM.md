@@ -35,15 +35,15 @@ colors, full-width continuation cells, cursor positions, and host commands.
   is visible, a floating `最新へ` control remains available over the terminal,
   and the first command-field input automatically returns the display to live
   output before echoing the new character.
-- Tapping the mobile screen does not summon the keyboard. A visible command
-  field and Enter button use the same command routing and composition guard as
-  physical Enter. On touch focus the command dock is fixed to the bottom of the
-  resized browser viewport and focus is requested without browser auto-scroll.
-  If the software keyboard leaves less than the full 25-row canvas visible, the
-  client pans only the terminal viewport enough to keep the live terminal cursor
-  row above the command dock instead of sliding the whole page. The field uses
-  16px text and disables autocorrection and capitalization. Empty Enter remains
-  a valid host input.
+- Tapping the mobile screen does not summon the keyboard. A visible sticky
+  command field and Enter button use the same command routing and composition
+  guard as physical Enter. The command field keeps native browser focus
+  semantics so iOS/Android software keyboards are not dismissed by intercepted
+  touch events or focus-time position changes. If the software keyboard leaves
+  less than the full 25-row canvas visible, the client pans only the terminal
+  viewport enough to keep the live terminal cursor row above the command dock.
+  The field uses 16px text and disables autocorrection and capitalization. Empty
+  Enter remains a valid host input.
 - The center directory retains its own six navigation/call keys. The command
   field is read-only while selecting a center; Enter calls the selected center.
   Esc is an offline client-menu operation, not a fabricated shared BBS command.
