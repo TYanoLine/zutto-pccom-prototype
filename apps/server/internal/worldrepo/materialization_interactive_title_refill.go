@@ -3,7 +3,6 @@ package worldrepo
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -75,13 +74,13 @@ func (r *Repository) developmentPlanInteractiveTitleFirst(host world.Host, windo
 			remaining = next
 		}
 
-		// This path should be rare: multiple 20-title pools produced no safe title
-		// for a world-selected root. Preserve the event with an explicitly generic,
-		// date-safe local title rather than deleting canonical world activity.
-		for _, item := range remaining {
-			situation := developmentInteractiveRootFallback(item)
-			merged[item.eventID] = situation
-			history = appendInteractivePlannedRootHistory(history, item, situation)
+		if len(remaining) > 0 {
+			err := fmt.Errorf("interactive title-first left %d roots unresolved after %d generated pools; canned title fallback is disabled", len(remaining), developmentInteractiveTitlePoolRetries)
+			developmentTitleFirst.Store(r, &developmentTitleFirstState{
+				history: append([]world.Post(nil), history...), preserveWorldRoots: true, attempted: true,
+				result: merged, err: err, rows: allRows, eraResearchUsed: researchUsed,
+			})
+			return nil, err
 		}
 	}
 
@@ -115,42 +114,4 @@ func appendInteractivePlannedRootHistory(history []world.Post, item developmentW
 			Motivation:       item.shell.causeSummary,
 		},
 	})
-}
-
-func developmentInteractiveRootFallback(item developmentWindowShell) developmentSparseSituation {
-	board := strings.TrimSpace(item.board.Name)
-	if board == "" {
-		board = "この話題"
-	}
-	var subject string
-	switch item.shell.discourseMode {
-	case "ask_peers":
-		subject = board + "について教えてください"
-	case "share_tip":
-		subject = board + "の情報交換"
-	case "share_observation":
-		subject = board + "について"
-	case "announce":
-		subject = board + "のお知らせ"
-	default:
-		subject = board + "について"
-	}
-	runes := []rune(subject)
-	if len(runes) > 36 {
-		subject = string(runes[:36])
-	}
-	summary := fmt.Sprintf("この人物が「%s」を話題にする", subject)
-	return developmentSparseSituation{
-		kind:    "title_first",
-		summary: summary,
-		facts: []string{
-			"title_first_subject=" + subject,
-			"title_first_original=" + subject,
-			"title_first_review=World-selected root preservation fallback after candidate pools were exhausted",
-			"world_adoption=title_fallback",
-			"world_adopted_summary=" + summary,
-			"historical_check=generic_no_external_claim",
-			"subject_contract=Keep the accepted title verbatim. The accepted title and world_adopted_summary are canonical world facts for this post. Article-local specifics will be added only by the post-adoption Article Detail Materializer.",
-		},
-	}
 }
