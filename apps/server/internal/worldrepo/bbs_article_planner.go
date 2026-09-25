@@ -131,17 +131,21 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 
 	planned := make(map[int]bbsengine.PlannedPost, len(req.Slots))
 	rootSlots := make([]bbsengine.Slot, 0, len(req.Slots))
+	batchReplySlots := make([]bbsengine.Slot, 0)
 	for _, slot := range req.Slots {
-		if slot.ReplyToPostID == 0 {
+		switch {
+		case slot.ReplyToPostID == 0 && slot.ReplyToSlotIndex == 0:
 			rootSlots = append(rootSlots, slot)
-			continue
-		}
-		planned[slot.Index] = bbsengine.PlannedPost{
-			SlotIndex:        slot.Index,
-			Topic:            strings.TrimSpace(slot.ReplyToSubject),
-			Motivation:       "reply_to_existing_thread",
-			Goal:             "respond to the existing thread",
-			SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の既存記事へ返信する", slot.Author, slot.ReplyToAuthor, slot.ReplyToSubject),
+		case slot.ReplyToPostID != 0:
+			planned[slot.Index] = bbsengine.PlannedPost{
+				SlotIndex:        slot.Index,
+				Topic:            strings.TrimSpace(slot.ReplyToSubject),
+				Motivation:       "reply_to_existing_thread",
+				Goal:             "respond to the existing thread",
+				SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の既存記事へ返信する", slot.Author, slot.ReplyToAuthor, slot.ReplyToSubject),
+			}
+		default:
+			batchReplySlots = append(batchReplySlots, slot)
 		}
 	}
 
@@ -152,6 +156,19 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		}
 		for _, root := range roots {
 			planned[root.SlotIndex] = root
+		}
+	}
+	for _, slot := range batchReplySlots {
+		target, ok := planned[slot.ReplyToSlotIndex]
+		if !ok || strings.TrimSpace(target.Subject) == "" {
+			return nil, fmt.Errorf("same-window reply slot %d cannot resolve root slot %d", slot.Index, slot.ReplyToSlotIndex)
+		}
+		planned[slot.Index] = bbsengine.PlannedPost{
+			SlotIndex:        slot.Index,
+			Topic:            target.Subject,
+			Motivation:       "reply_to_same_window_thread",
+			Goal:             "respond to the earlier thread in this board history",
+			SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の少し前の記事へ返信する", slot.Author, slot.ReplyToAuthor, target.Subject),
 		}
 	}
 
