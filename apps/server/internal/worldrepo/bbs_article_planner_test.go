@@ -97,6 +97,71 @@ func (f *fakeSharedTitleRenderer) ValidateBBSTitleEra(_ context.Context, req llm
 	return llm.BBSTitleEraReview{Decisions: out}, nil
 }
 
+func TestSharedBBSPlannerUsesEarliestSlotDateForHistoricalTitlePool(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer := &fakeSharedTitleRenderer{}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer, CuratedHistoricalReferences: true}, "1996-08-26")
+	req := bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: []bbsengine.Slot{
+			{Index: 1, Author: "MARI", CreatedAt: time.Date(1996, 7, 30, 21, 0, 0, 0, time.Local)},
+			{Index: 2, Author: "KAZU", CreatedAt: time.Date(1996, 8, 20, 22, 0, 0, 0, time.Local)},
+		},
+	}
+	if _, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	if renderer.lastContext.WorldDate != "1996-07-30" {
+		t.Fatalf("title as-of=%q, want earliest event date", renderer.lastContext.WorldDate)
+	}
+}
+
+func TestSharedBBSPlannerPlansReplyToRootFromSameWindow(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer := &fakeSharedTitleRenderer{}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	req := bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: []bbsengine.Slot{
+			{Index: 1, Author: "MARI", AuthorPersonaID: "hakata-mari", CreatedAt: time.Date(1996, 8, 20, 21, 0, 0, 0, time.Local)},
+			{Index: 2, Author: "KAZU", AuthorPersonaID: "hakata-kazu", CreatedAt: time.Date(1996, 8, 20, 22, 0, 0, 0, time.Local), ReplyToSlotIndex: 1, ReplyToAuthor: "MARI"},
+		},
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 2 {
+		t.Fatalf("planned=%d, want root + reply", len(planned))
+	}
+	root := planned[0]
+	reply := planned[1]
+	if strings.TrimSpace(root.Subject) == "" {
+		t.Fatal("same-window root has no generated subject")
+	}
+	if reply.Subject != "" {
+		t.Fatalf("reply planner should leave display Re: subject to commit layer, got %q", reply.Subject)
+	}
+	if reply.Topic != root.Subject {
+		t.Fatalf("reply topic=%q, want adopted root subject %q", reply.Topic, root.Subject)
+	}
+	if !strings.Contains(reply.SituationSummary, root.Subject) || !strings.Contains(reply.SituationSummary, "MARI") {
+		t.Fatalf("reply summary does not reference same-window root: %q", reply.SituationSummary)
+	}
+}
+
 func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")

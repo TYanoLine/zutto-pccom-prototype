@@ -107,7 +107,20 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	}
 
 	worldDate := req.WorldNow.Format(time.DateOnly)
-	materializer = materializer.withPeriodReferents(worldDate)
+	titleAsOf := worldDate
+	for _, slot := range req.Slots {
+		if slot.CreatedAt.IsZero() {
+			continue
+		}
+		date := slot.CreatedAt.Format(time.DateOnly)
+		if date < titleAsOf {
+			titleAsOf = date
+		}
+	}
+	// A catch-up batch may represent several weeks of history. Calibrate shared
+	// title vocabulary and historical verification to the earliest event date so
+	// no later release can leak backward into an earlier article.
+	materializer = materializer.withPeriodReferents(worldDate, titleAsOf)
 	decision := worldengine.EvidenceDecision{}
 	if p.repo.Engine != nil {
 		evidenceStarted := time.Now()
@@ -115,7 +128,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		decision, err = p.repo.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 			Kind:        historicalkb.KnowledgeCulturalSignal,
 			Subject:     req.Board.Name,
-			WorldDate:   worldDate,
+			WorldDate:   titleAsOf,
 			Region:      req.Host.Region,
 			Audience:    []string{"Japanese dial-up BBS users"},
 			Need:        fmt.Sprintf("%s の「%s」で、その時点のBBS件名候補に使ってよい時代背景・参照対象", req.Host.Name, req.Board.Name),
@@ -131,27 +144,44 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 
 	planned := make(map[int]bbsengine.PlannedPost, len(req.Slots))
 	rootSlots := make([]bbsengine.Slot, 0, len(req.Slots))
+	batchReplySlots := make([]bbsengine.Slot, 0)
 	for _, slot := range req.Slots {
-		if slot.ReplyToPostID == 0 {
+		switch {
+		case slot.ReplyToPostID == 0 && slot.ReplyToSlotIndex == 0:
 			rootSlots = append(rootSlots, slot)
-			continue
-		}
-		planned[slot.Index] = bbsengine.PlannedPost{
-			SlotIndex:        slot.Index,
-			Topic:            strings.TrimSpace(slot.ReplyToSubject),
-			Motivation:       "reply_to_existing_thread",
-			Goal:             "respond to the existing thread",
-			SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の既存記事へ返信する", slot.Author, slot.ReplyToAuthor, slot.ReplyToSubject),
+		case slot.ReplyToPostID != 0:
+			planned[slot.Index] = bbsengine.PlannedPost{
+				SlotIndex:        slot.Index,
+				Topic:            strings.TrimSpace(slot.ReplyToSubject),
+				Motivation:       "reply_to_existing_thread",
+				Goal:             "respond to the existing thread",
+				SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の既存記事へ返信する", slot.Author, slot.ReplyToAuthor, slot.ReplyToSubject),
+			}
+		default:
+			batchReplySlots = append(batchReplySlots, slot)
 		}
 	}
 
 	if len(rootSlots) > 0 {
-		roots, err := p.planRootTitles(ctx, materializer, decision, titlePlanner, req, rootSlots, worldDate)
+		roots, err := p.planRootTitles(ctx, materializer, decision, titlePlanner, req, rootSlots, titleAsOf)
 		if err != nil {
 			return nil, err
 		}
 		for _, root := range roots {
 			planned[root.SlotIndex] = root
+		}
+	}
+	for _, slot := range batchReplySlots {
+		target, ok := planned[slot.ReplyToSlotIndex]
+		if !ok || strings.TrimSpace(target.Subject) == "" {
+			return nil, fmt.Errorf("same-window reply slot %d cannot resolve root slot %d", slot.Index, slot.ReplyToSlotIndex)
+		}
+		planned[slot.Index] = bbsengine.PlannedPost{
+			SlotIndex:        slot.Index,
+			Topic:            target.Subject,
+			Motivation:       "reply_to_same_window_thread",
+			Goal:             "respond to the earlier thread in this board history",
+			SituationSummary: fmt.Sprintf("%s が %s の件名「%s」の少し前の記事へ返信する", slot.Author, slot.ReplyToAuthor, target.Subject),
 		}
 	}
 
