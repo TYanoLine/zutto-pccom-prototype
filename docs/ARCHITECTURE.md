@@ -273,11 +273,17 @@ a leaf-board index, that command joins/starts exactly that board's shared job an
 placeholder that later requires BX/refresh to reveal completed generation.
 
 The initial board batch materializes canonical headers + semantic state only.
-For the HAKATA generator-evaluation station, that first batch is explicitly
-overridden to **40 article headers per observed leaf board** so title diversity
-and period texture can be judged from a useful sample. This does not change the
-normal shared-world cadence or the ordinary 3..7-post batch size used by other
-hosts. Article bodies remain empty until BR/read observation, where the existing
+For the HAKATA generator-evaluation station, the first observed leaf board is
+materialized as a **28-day accumulated history with 40 visible root articles**.
+Reply events are added on top of those roots and may target roots selected earlier
+in the same simulated window, so the index can show APE activity instead of
+forty unrelated threads compressed into one six-hour cadence. This is an
+evaluation fixture, not a historical claim about a universal posting rate, and
+does not change the ordinary 3..7-event catch-up batch size used by other hosts.
+Title vocabulary and historical verification for a multi-date catch-up window
+are conservatively gated by its earliest event date so a later release cannot
+leak backward into an older article. Article bodies remain empty until BR/read
+observation, where the existing
 thread-body barrier materializes only the requested thread. This is the intended
 minimum-scope execution pattern even while HAKATA's reset-on-call behavior itself
 remains a temporary generator-quality evaluation override.
