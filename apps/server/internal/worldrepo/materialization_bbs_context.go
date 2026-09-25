@@ -139,8 +139,12 @@ func threadRootID(postsByID map[int64]world.Post, post world.Post) int64 {
 	rootID := post.ID
 	current := post
 	seen := map[int64]bool{post.ID: true}
-	for current.ParentID != 0 {
-		rootID = current.ParentID
+	for {
+		targetID := world.ResponseTargetID(current)
+		if targetID == 0 {
+			return rootID
+		}
+		rootID = targetID
 		if seen[rootID] {
 			return rootID
 		}
@@ -151,7 +155,6 @@ func threadRootID(postsByID map[int64]world.Post, post world.Post) int64 {
 		seen[rootID] = true
 		current = parent
 	}
-	return rootID
 }
 
 func boundedThreadContext(posts []world.Post, limit int) []world.Post {
