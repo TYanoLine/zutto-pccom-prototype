@@ -143,6 +143,30 @@ algorithm. Host-program-specific code may supply topology or representation
 constraints only. The isolated materialization-demo host remains a diagnostic
 harness and is not a production host-program exception to this rule.
 
+
+### Semantic response vs host-native reply representation
+
+The shared world layer must not equate "responds to another post" with any one
+host's visible reply syntax.
+
+Canonical response causality lives in `PostIntent.RespondsToPostID`
+(and legacy `SourcePostID` where applicable). Host-native article representation
+is a separate projection:
+
+- `ParentID` is non-zero only when that host software exposes/stores native
+  parent/child or append topology;
+- `Subject` is the host-native subject for that article and may be empty for a
+  response that has no independent subject;
+- a flat-message host may therefore have `ParentID == 0` while
+  `RespondsToPostID != 0`;
+- an append-style host may have `ParentID != 0` and an empty response subject.
+
+The shared engine must never synthesize `Re:` as a universal convention.
+Each concrete HostProgram projects the already-selected semantic response into
+its own article model. Unknown historical host programs should fail closed until
+their reply representation is researched or explicitly marked provisional,
+rather than inheriting another program's syntax by default.
+
 Debug resets must likewise operate at the shared engine boundary. They may remove
 engine-generated history for an experiment host while retaining seed history,
 human/user posts, boards, personas, and host-program configuration.
