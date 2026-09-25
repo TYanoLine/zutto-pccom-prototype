@@ -105,7 +105,7 @@ WORLD-SELECTED EVENTS ACROSS ALL BOARDS (JSON):
 Return briefs as ONE JSON object keyed by the exact supplied event_id strings. Every supplied event_id is a required object key, and no other key is allowed. Do NOT repeat event_id inside a brief; the application owns identity and will attach it from the object key.
 
 Brief fields:
-- subject: exact subject this actor would type. Replies may still be canonicalized by the application to Re: root subject.
+- subject: exact subject this actor would type when the host exposes an independent reply subject. Reply article representation is host-program-specific: the application may transform or discard this field while preserving the explicit parent/source semantic relationship.
 - episode: one concise description of the concrete contemporaneous occurrence/state difference that makes this exact post worth writing now.
 - referents: concrete referents that the worker must keep stable. Public identities supplied below may recur independently; private incidents must remain inside their explicit event component. Do not invent unsupported named real-world entities.
 - actor_knowledge: facts this actor is entitled to know when writing this article. Do not include omniscient producer knowledge.
