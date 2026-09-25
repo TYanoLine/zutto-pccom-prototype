@@ -32,6 +32,15 @@ The implementation should not assume every item above behaved identically in eve
 
 The Erika family is also documented as using a parent-message + appended-response model: replies (`アペ`) are appended under a root message and can be read together with the root. Preserve this semantic difference rather than flattening it into a modern forum reply UI.
 
+
+Current evidence does **not** establish a generic `Re: <root subject>` reply
+subject convention for Erika-K. The reconstruction therefore stores an append as
+a child/append relation with **no independent append subject**, and the Erika-K
+runtime renders it as `アペ 1`, `アペ 2`, etc. under the root. This is a
+conservative reconstruction choice: if stronger primary evidence later shows a
+separate append subject field in the target version, update this rule from that
+evidence rather than borrowing syntax from another BBS package.
+
 NMODEM support is documented in secondary protocol references and may be exposed where appropriate. Actual binary-transfer protocol implementation is a separate task.
 
 ## Account ID / handle research
