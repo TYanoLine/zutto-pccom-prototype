@@ -14,7 +14,10 @@ import (
 // results are the posts/bodies committed to the underlying world store. Keeping
 // the waiter primitive out of world state prevents transport timing from becoming
 // part of the simulated world.
-const debugInitialBBSArticleCount = 40
+const (
+	debugInitialBBSRootCount = 40
+	debugInitialBBSLookback  = 28 * 24 * time.Hour
+)
 
 type observationJob struct {
 	done chan struct{}
@@ -174,7 +177,10 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		// observation single-flight still prevents duplicate generation of one board.
 		var err error
 		if r.debugImmediateBBSHost(host.ID) {
-			err = r.bbsArticles.CatchUpInitialCount(context.Background(), host, board, debugInitialBBSArticleCount)
+			// The evaluation index represents a small accumulated history, not
+			// forty unrelated threads created inside one six-hour cadence window.
+			// Keep forty visible roots while adding reply events between them.
+			err = r.bbsArticles.CatchUpInitialRootHistoryCount(context.Background(), host, board, debugInitialBBSRootCount, debugInitialBBSLookback)
 		} else {
 			err = r.bbsArticles.CatchUp(context.Background(), host, board)
 		}
