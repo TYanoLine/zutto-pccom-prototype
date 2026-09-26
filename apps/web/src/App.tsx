@@ -16,7 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
-const APP_VERSION = '0.18';
+const APP_VERSION = '0.19';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -37,6 +37,14 @@ function loadCommSettings(): CommSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_COMM_SETTINGS };
   try { const raw = window.localStorage.getItem(SETTINGS_KEY); return raw ? normalizeCommSettings(JSON.parse(raw) as Partial<CommSettings>) : { ...DEFAULT_COMM_SETTINGS }; }
   catch { return { ...DEFAULT_COMM_SETTINGS }; }
+}
+function formatElapsed(startedAt: Date | null, now: Date) {
+  if (!startedAt) return '00:00:00';
+  const totalSeconds = Math.max(0, Math.floor((now.getTime() - startedAt.getTime()) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds].map(value => String(value).padStart(2, '0')).join(':');
 }
 
 export default function App() {
@@ -62,6 +70,7 @@ export default function App() {
   const [worldNow, setWorldNow] = useState(() => clock.now());
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
   const [localTestConnected, setLocalTestConnected] = useState(false);
+  const [localTestConnectedAt, setLocalTestConnectedAt] = useState<Date | null>(null);
   const [completedCost, setCompletedCost] = useState(0);
   const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
   const [audioStatus, setAudioStatus] = useState('READY');
@@ -100,7 +109,10 @@ export default function App() {
     modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now } : null; }); };
     modem.setAutoRedial(autoRedial); modemRef.current = modem;
     const localStation = new LocalTestStation(terminal, { audio: { dial: playDialSequence, handshake: playHandshake } });
-    localStation.onStatus = setStatus; localStation.onConnectionChange = connected => setLocalTestConnected(connected); localStationRef.current = localStation;
+    localStation.onStatus = setStatus; localStation.onConnectionChange = connected => {
+      setLocalTestConnected(connected);
+      setLocalTestConnectedAt(connected ? clock.now() : null);
+    }; localStationRef.current = localStation;
     directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { setDirectoryOpen(false); dialCenter(center); }, () => { setDirectoryOpen(false); showMainMenu(); });
     return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,8 +208,17 @@ export default function App() {
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
+  const activeCenter = activeCall ? centersRef.current.find(center => center.phone === activeCall.phone) : undefined;
+  const mobileConnectionName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : 'OFFLINE';
+  const mobileConnectedAt = localTestConnected ? localTestConnectedAt : activeCall?.connectedAt ?? null;
+  const mobileElapsed = formatElapsed(mobileConnectedAt, worldNow);
+  const mobileSessionCost = localTestConnected ? 0 : runningCost;
   return <main className="shell">
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
+    <div className="mobile-statusbar" role="status" aria-label="接続状態">
+      <span className="mobile-statusbar__name">{mobileConnectionName}</span>
+      <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
+    </div>
     <section className="screen-wrap"><TerminalCanvas
       ref={terminalCanvasRef}
       terminal={terminal}
