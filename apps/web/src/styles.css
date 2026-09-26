@@ -9,7 +9,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .terminal-viewport { position: relative; width: 100%; overflow-x: auto; background: #000; }
 .terminal-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
 .terminal-tools, .terminal-hint, .terminal-live-return { display: none; }
-.terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow: hidden; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; touch-action: manipulation; }
+.terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent; background: rgba(0, 0, 0, 0.001); box-shadow: none; appearance: none; -webkit-appearance: none; touch-action: pinch-zoom; }
 .statusbar { flex-wrap: wrap; }
 .statusbar label { display: flex; gap: 6px; align-items: center; }
 .directory-softkeys { display: none; }
@@ -33,6 +33,7 @@ code { color: #ddd; }
   .screen-wrap { display: block; padding: 0; border: 0; }
   .terminal-display { max-width: none; }
   .terminal-display--readable .terminal-canvas { width: max(100%, 640px); max-width: none; }
+  .terminal-input-proxy { inset: 0; width: 100%; height: 100%; min-width: 0; min-height: 0; pointer-events: auto; opacity: 1; }
   .terminal-tools, .terminal-hint { display: none; }
   .terminal-live-return { display: block; position: absolute; right: 8px; bottom: 8px; z-index: 4; min-height: 44px; padding: 6px 10px; border: 1px solid #7a7; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #cfc; background: #163616; touch-action: manipulation; }
   .terminal-viewport { overscroll-behavior: contain; }
