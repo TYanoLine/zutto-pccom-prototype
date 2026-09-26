@@ -858,3 +858,85 @@ func TestSharedBBSPlannerIgnoresJevEraAttritionForFortyRoots(t *testing.T) {
 		t.Fatalf("candidate pools=%d, want Jev era scores to have no pool-attrition effect", renderer.calls)
 	}
 }
+
+
+func TestTitleTemporalCompatibleBlocksObviousSeasonMismatch(t *testing.T) {
+	december := time.Date(1995, 12, 7, 12, 0, 0, 0, time.Local)
+	july := time.Date(1996, 7, 7, 12, 0, 0, 0, time.Local)
+	if titleTemporalCompatible("福岡で夏物の上着を買いたい", december) {
+		t.Fatal("summer-goods title should not fit a December slot")
+	}
+	if !titleTemporalCompatible("福岡で夏物の上着を買いたい", july) {
+		t.Fatal("summer-goods title should fit a July slot")
+	}
+	if !titleTemporalCompatible("天神で写真を焼き増ししたい", december) {
+		t.Fatal("non-seasonal title should remain date-agnostic")
+	}
+}
+
+func TestHistoricalClaimsForTitleInfersNamedStation(t *testing.T) {
+	pool := llm.BBSTitleCandidates{Titles: []string{
+		"博多駅近くで時間をつぶすなら",
+		"駅前で待ち合わせ",
+	}}
+	got := historicalClaimsForTitle(pool, pool.Titles[0])
+	if len(got) != 1 {
+		t.Fatalf("named station claims=%+v, want one inferred claim", got)
+	}
+	if got[0].Subject != "博多駅" {
+		t.Fatalf("inferred station subject=%q, want 博多駅", got[0].Subject)
+	}
+	if got := historicalClaimsForTitle(pool, pool.Titles[1]); len(got) != 0 {
+		t.Fatalf("generic station wording unexpectedly inferred a historical claim: %+v", got)
+	}
+}
+
+func TestOrderTitleCandidatesForQualityInterleavesDominantAndClaims(t *testing.T) {
+	pool := llm.BBSTitleCandidates{
+		Titles: []string{
+			"福岡で昼ごはん", "福岡の買い物", "博多で待ち合わせ", "博多の道",
+			"天神で雨宿り", "天神の写真屋", "鍵を落としました", "傘をなくしました",
+		},
+		HistoricalClaims: []llm.BBSTitleHistoricalClaim{
+			{Candidate: 2, Subject: "実在対象A", Kind: "general", Need: "存在確認"},
+			{Candidate: 4, Subject: "実在対象B", Kind: "general", Need: "存在確認"},
+			{Candidate: 8, Subject: "実在対象C", Kind: "general", Need: "存在確認"},
+		},
+	}
+	dominant := map[string]bool{"福岡": true, "博多": true, "天神": true}
+	got := orderTitleCandidatesForQuality(pool, append([]string(nil), pool.Titles...), dominant)
+	if len(got) != len(pool.Titles) {
+		t.Fatalf("ordered titles=%d, want %d", len(got), len(pool.Titles))
+	}
+	firstFour := got[:4]
+	dominantCount, claimCount := 0, 0
+	for _, title := range firstFour {
+		if titleHasDominantLead(title, dominant) {
+			dominantCount++
+		}
+		if len(historicalClaimsForTitle(pool, title)) > 0 {
+			claimCount++
+		}
+	}
+	if dominantCount == 0 || dominantCount == len(firstFour) {
+		t.Fatalf("first chunk did not mix dominant/non-dominant frames: %v", firstFour)
+	}
+	if claimCount == 0 {
+		t.Fatalf("first chunk did not carry any claim-bearing texture: %v", firstFour)
+	}
+}
+
+func TestTitleBatchNaturalnessCapsDominantOpeningFrames(t *testing.T) {
+	dominant := map[string]bool{"福岡": true, "博多": true, "天神": true}
+	adopted := map[string]bbsengine.PlannedPost{}
+	// For 20 roots, <80%% permits at most 15 dominant-lead titles.
+	for i := 0; i < 15; i++ {
+		adopted[fmt.Sprintf("e%d", i)] = bbsengine.PlannedPost{Subject: fmt.Sprintf("福岡で用事%d", i)}
+	}
+	if titleBatchNaturalnessAllows("博多の買い物", adopted, dominant, 20) {
+		t.Fatal("16th dominant-lead title should be blocked for a 20-root batch")
+	}
+	if !titleBatchNaturalnessAllows("傘をなくしました", adopted, dominant, 20) {
+		t.Fatal("non-dominant title should remain available")
+	}
+}
