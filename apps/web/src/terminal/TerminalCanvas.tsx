@@ -43,6 +43,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const keyboardProxyRef = useRef<HTMLInputElement>(null);
   const [display, setDisplay] = useState<'readable' | 'fit'>('readable');
   const [historyOffset, setHistoryOffset] = useState(0);
+  const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
   const activePointerIdRef = useRef<number | null>(null);
@@ -344,7 +345,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           onKeyDown={keyboardInput.onKeyDown}
           onCompositionStart={keyboardInput.onCompositionStart}
           onCompositionEnd={keyboardInput.onCompositionEnd}
-          onFocus={keyboardInput.onFocus}
+          onFocus={event => { setFunctionMenuOpen(false); keyboardInput.onFocus(event); }}
           onBlur={keyboardInput.onBlur}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
@@ -357,6 +358,23 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           enterKeyHint="send"
           spellCheck={false}
         />
+        <button
+          type="button"
+          className="terminal-function-toggle"
+          aria-expanded={functionMenuOpen}
+          aria-controls="terminal-function-menu"
+          onClick={() => setFunctionMenuOpen(open => !open)}
+        >
+          機能
+        </button>
+        <nav id="terminal-function-menu" className="terminal-function-menu" aria-label="端末機能" hidden={!functionMenuOpen}>
+          <button type="button" aria-pressed={display === 'readable'} onClick={() => { setDisplay('readable'); setFunctionMenuOpen(false); }}>文字拡大</button>
+          <button type="button" aria-pressed={display === 'fit'} onClick={() => { setDisplay('fit'); setFunctionMenuOpen(false); }}>全体表示</button>
+          <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>
+          <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current - 12); setFunctionMenuOpen(false); }}>履歴↓</button>
+          <button type="button" onClick={() => { setScrollOffset(0); setFunctionMenuOpen(false); }} disabled={historyOffset === 0}>最新</button>
+          <button type="button" onClick={() => setFunctionMenuOpen(false)}>閉じる</button>
+        </nav>
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
       </div>
       <p className="terminal-hint">{historyOffset > 0 ? `履歴表示中（${historyOffset}行前） /「最新」で受信画面へ` : display === 'readable' ? '左右にスワイプで移動・上下で受信履歴' : '80桁全体表示・上下スワイプで受信履歴'}</p>
