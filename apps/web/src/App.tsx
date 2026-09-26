@@ -52,7 +52,7 @@ export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const terminalCanvasRef = useRef<TerminalCanvasHandle | null>(null);
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
-  const callerLocation = useMemo(loadCallerLocation, []);
+  const [callerLocation] = useState(loadCallerLocation);
   const tariff = useMemo(() => new PseudoTariffService(ntt1996TariffTable, telehodaiNumbers, callerLocation), [callerLocation]);
   const modemRef = useRef<VirtualModem | null>(null);
   const localStationRef = useRef<LocalTestStation | null>(null);
