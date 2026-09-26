@@ -10,6 +10,48 @@ const WIDTH = 80;
 const HEIGHT = 25;
 const MAX_SCROLLBACK = 2000;
 
+// Unicode's East Asian Width=Ambiguous characters are commonly rendered as
+// double-cell glyphs in Japanese terminals. The service intentionally follows
+// that Japanese legacy convention for symbols that occur in JIS-era BBS text.
+// This includes the exact families seen in period-style host screens: ruled
+// lines, geometric blocks, arrows, stars, circled numbers and math symbols.
+const JAPANESE_DOUBLE_CELL_SYMBOL_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x2010, 0x203b], // dashes, quotes, ellipsis, ※
+  [0x2103, 0x2103], // ℃
+  [0x212b, 0x212b], // Ångström sign
+  [0x2190, 0x2193], // arrows
+  [0x21d2, 0x21d2],
+  [0x21d4, 0x21d4],
+  [0x2200, 0x22bf], // common mathematical symbols
+  [0x2312, 0x2312],
+  [0x2460, 0x24ff], // enclosed/circled numbers and letters
+  [0x2500, 0x257f], // box drawing
+  [0x25a0, 0x25ff], // ■ □ ◆ ◇ ○ etc.
+  [0x2605, 0x2606], // ★ ☆
+  [0x2640, 0x2642],
+  [0x266a, 0x266f], // music / accidental marks
+  [0x0391, 0x03c9], // Greek used by JIS X 0208
+  [0x0401, 0x0451], // Cyrillic used by JIS X 0208
+];
+
+function inRanges(cp: number, ranges: ReadonlyArray<readonly [number, number]>) {
+  return ranges.some(([start, end]) => cp >= start && cp <= end);
+}
+
+function isVariationSelector(cp: number) {
+  return (cp >= 0xfe00 && cp <= 0xfe0f) || (cp >= 0xe0100 && cp <= 0xe01ef);
+}
+
+function isCombiningMark(cp: number) {
+  return (cp >= 0x0300 && cp <= 0x036f)
+    || (cp >= 0x1ab0 && cp <= 0x1aff)
+    || (cp >= 0x1dc0 && cp <= 0x1dff)
+    || (cp >= 0x20d0 && cp <= 0x20ff)
+    || (cp >= 0xfe20 && cp <= 0xfe2f)
+    || cp === 0x3099
+    || cp === 0x309a;
+}
+
 function blankRow(): Cell[] {
   return Array.from({ length: WIDTH }, () => ({ ch: ' ', fg: 7, bg: 0, bold: false }));
 }
@@ -28,6 +70,7 @@ export class TerminalCore {
   private fg = 7;
   private bg = 0;
   private bold = false;
+  private autoWrapped = false;
   private listeners = new Set<() => void>();
 
   constructor() { this.clear(); }
@@ -71,6 +114,7 @@ export class TerminalCore {
     this.scrollback = [];
     this.cursorX = 0;
     this.cursorY = 0;
+    this.autoWrapped = false;
     this.emit();
   }
 
@@ -106,16 +150,43 @@ export class TerminalCore {
 
   private put(ch: string) {
     if (ch === '\r') { this.cursorX = 0; return; }
-    if (ch === '\n') { this.newline(); return; }
-    if (ch === '\b') { this.backspace(); return; }
-    const w = isFullWidth(ch) ? 2 : 1;
+    if (ch === '\n') {
+      // Filling column 80 already performed the visual wrap. A following CR/LF
+      // belongs to that same physical line and must not create a blank row.
+      if (this.autoWrapped) { this.autoWrapped = false; return; }
+      this.newline();
+      return;
+    }
+    if (ch === '\b') { this.autoWrapped = false; this.backspace(); return; }
+
+    const cp = ch.codePointAt(0) ?? 0;
+    const w = terminalCellWidth(ch);
+    if (w === 0) {
+      // Presentation selectors (notably VS16 in "▫️") must not consume a
+      // terminal column. Ignore them so period text symbols stay text glyphs.
+      if (isVariationSelector(cp) || cp === 0x200d) return;
+
+      // Preserve decomposed accents/dakuten on the previous leading cell while
+      // still treating the mark itself as zero columns.
+      if (isCombiningMark(cp)) {
+        let x = this.cursorX - 1;
+        if (x >= 0 && this.cells[this.cursorY][x]?.continuation) x--;
+        if (x >= 0) this.cells[this.cursorY][x].ch += ch;
+      }
+      return;
+    }
+
+    this.autoWrapped = false;
     if (this.cursorX + w > WIDTH) this.newline();
     this.cells[this.cursorY][this.cursorX] = { ch, fg: this.fg, bg: this.bg, bold: this.bold };
     if (w === 2 && this.cursorX + 1 < WIDTH) {
       this.cells[this.cursorY][this.cursorX + 1] = { ch: '', fg: this.fg, bg: this.bg, bold: this.bold, continuation: true };
     }
     this.cursorX += w;
-    if (this.cursorX >= WIDTH) this.newline();
+    if (this.cursorX >= WIDTH) {
+      this.newline();
+      this.autoWrapped = true;
+    }
   }
 
   private newline() {
@@ -163,12 +234,27 @@ export class TerminalCore {
   }
 }
 
-export function isFullWidth(ch: string) {
+export function terminalCellWidth(ch: string): 0 | 1 | 2 {
   const cp = ch.codePointAt(0) ?? 0;
-  return cp >= 0x1100 && (
+
+  if (isVariationSelector(cp) || cp === 0x200d || isCombiningMark(cp)) return 0;
+
+  // Explicitly retain the Japanese ideographic space as two cells. This is
+  // redundant with the broad CJK range below but documents a key invariant.
+  if (cp === 0x3000) return 2;
+
+  if (cp >= 0x1100 && (
     cp <= 0x115f || cp === 0x2329 || cp === 0x232a ||
     (cp >= 0x2e80 && cp <= 0xa4cf) || (cp >= 0xac00 && cp <= 0xd7a3) ||
     (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0xfe10 && cp <= 0xfe19) ||
     (cp >= 0xff01 && cp <= 0xff60) || (cp >= 0xffe0 && cp <= 0xffe6)
-  );
+  )) return 2;
+
+  if (inRanges(cp, JAPANESE_DOUBLE_CELL_SYMBOL_RANGES)) return 2;
+
+  return 1;
+}
+
+export function isFullWidth(ch: string) {
+  return terminalCellWidth(ch) === 2;
 }

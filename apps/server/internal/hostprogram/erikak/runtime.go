@@ -930,8 +930,53 @@ func trimRunes(s string, n int) string {
 }
 
 func padRunes(s string, width int) string {
-	if n := len([]rune(s)); n < width {
+	if n := displayCellWidth(s); n < width {
 		return s + strings.Repeat(" ", width-n)
 	}
 	return s
+}
+
+func displayCellWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		width += runeCellWidth(r)
+	}
+	return width
+}
+
+func runeCellWidth(r rune) int {
+	cp := int(r)
+	if (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xE0100 && cp <= 0xE01EF) || cp == 0x200D {
+		return 0
+	}
+	if cp == 0x3000 {
+		return 2
+	}
+	if cp >= 0x1100 && (cp <= 0x115F || cp == 0x2329 || cp == 0x232A ||
+		(cp >= 0x2E80 && cp <= 0xA4CF) || (cp >= 0xAC00 && cp <= 0xD7A3) ||
+		(cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE10 && cp <= 0xFE19) ||
+		(cp >= 0xFF01 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6)) {
+		return 2
+	}
+	if japaneseDoubleCellSymbol(cp) {
+		return 2
+	}
+	return 1
+}
+
+func japaneseDoubleCellSymbol(cp int) bool {
+	ranges := [][2]int{
+		{0x2010, 0x203B}, {0x2103, 0x2103}, {0x212B, 0x212B},
+		{0x2190, 0x2193}, {0x21D2, 0x21D2}, {0x21D4, 0x21D4},
+		{0x2200, 0x22BF}, {0x2312, 0x2312}, {0x2460, 0x24FF},
+		{0x2500, 0x257F}, {0x25A0, 0x25FF}, {0x2605, 0x2606},
+		{0x2640, 0x2642}, {0x266A, 0x266F}, {0x0391, 0x03C9},
+		{0x0401, 0x0451},
+	}
+	for _, pair := range ranges {
+		if cp >= pair[0] && cp <= pair[1] {
+			return true
+		}
+	}
+	return false
 }
