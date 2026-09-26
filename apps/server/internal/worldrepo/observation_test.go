@@ -51,6 +51,25 @@ func (m *blockingObservationMaterializer) GenerateBoardPosts(ctx context.Context
 	}}, nil
 }
 
+type flakyObservationMaterializer struct {
+	calls    atomic.Int32
+	failures int32
+}
+
+func (m *flakyObservationMaterializer) GenerateBoardPosts(_ context.Context, req BoardMaterializationRequest, _ worldengine.EvidenceDecision) ([]world.Post, error) {
+	call := m.calls.Add(1)
+	if call <= m.failures {
+		return nil, fmt.Errorf("transient observation failure %d", call)
+	}
+	return []world.Post{{
+		BoardID:   req.BoardID,
+		Author:    "NPC",
+		Subject:   "retry succeeded",
+		Body:      "materialized body",
+		CreatedAt: time.Date(1996, 8, 26, 20, 0, 0, 0, time.Local),
+	}}, nil
+}
+
 func TestHostLookupDoesNotObserveOrGenerate(t *testing.T) {
 	base := world.NewMemoryStore()
 	materializer := &blockingObservationMaterializer{}
@@ -122,6 +141,48 @@ func TestHostObservationStartsInBackgroundAndBoardReadWaits(t *testing.T) {
 	}
 	if got := materializer.calls.Load(); got != 1 {
 		t.Fatalf("observation was not single-flighted: calls=%d", got)
+	}
+}
+
+func TestDemandedBoardReadRetriesOneFailedObservation(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &flakyObservationMaterializer{failures: 1}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "main", Name: "フリートーク"}
+
+	repo.BeginHostObservation(host, []world.Board{board})
+	posts, err := repo.WaitForBoardHeaders(context.Background(), host, board)
+	if err != nil {
+		t.Fatalf("demanded board read should retry once: %v", err)
+	}
+	if len(posts) != 1 || posts[0].Subject != "retry succeeded" {
+		t.Fatalf("unexpected posts after retry: %+v", posts)
+	}
+	if got := materializer.calls.Load(); got != 2 {
+		t.Fatalf("materializer calls=%d, want 2", got)
+	}
+}
+
+func TestDemandedBoardReadRetryIsBounded(t *testing.T) {
+	base := world.NewMemoryStore()
+	materializer := &flakyObservationMaterializer{failures: 3}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone("0450000001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "main", Name: "フリートーク"}
+
+	repo.BeginHostObservation(host, []world.Board{board})
+	if _, err := repo.WaitForBoardHeaders(context.Background(), host, board); err == nil {
+		t.Fatal("persistent observation failure should still be returned")
+	}
+	if got := materializer.calls.Load(); got != 2 {
+		t.Fatalf("materializer calls=%d, want bounded retry count 2", got)
 	}
 }
 
