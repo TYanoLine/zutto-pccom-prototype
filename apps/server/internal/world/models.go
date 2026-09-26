@@ -36,7 +36,9 @@ type BoardActivityState struct {
 	AsOfDate         string    `json:"as_of_date"`
 	OpenedOn         string    `json:"opened_on"`
 	CurrentMembers   int       `json:"current_members"`
+	InitialMembers   int       `json:"initial_members"`
 	AverageMembers   float64   `json:"average_members"`
+	GrowthExponent   float64   `json:"growth_exponent"`
 	TotalRoots       int       `json:"total_roots"`
 	TotalReplies     int       `json:"total_replies"`
 	RetainedRoots    int       `json:"retained_roots"`
