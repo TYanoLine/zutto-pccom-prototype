@@ -14,10 +14,6 @@ import (
 // results are the posts/bodies committed to the underlying world store. Keeping
 // the waiter primitive out of world state prevents transport timing from becoming
 // part of the simulated world.
-const (
-	debugInitialBBSRootCount = 40
-	debugInitialBBSLookback  = 28 * 24 * time.Hour
-)
 
 type observationJob struct {
 	done chan struct{}
@@ -172,15 +168,17 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	}
 
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
-		// The prefetch scheduler keeps speculative work serial, but demanded boards
-		// may run in parallel with the currently executing background item. Per-board
-		// observation single-flight still prevents duplicate generation of one board.
+		// If this board has never been materialized, realize the prose-free
+		// activity state that already existed before the user opened the board.
+		// This replaces the old HAKATA-only fixed 40-root evaluation batch.
 		var err error
-		if r.debugImmediateBBSHost(host.ID) {
-			// The evaluation index represents a small accumulated history, not
-			// forty unrelated threads created inside one six-hour cadence window.
-			// Keep forty visible roots while adding reply events between them.
-			err = r.bbsArticles.CatchUpInitialRootHistoryCount(context.Background(), host, board, debugInitialBBSRootCount, debugInitialBBSLookback)
+		existing := filterBoard(r.Base.ListPosts(host.ID), board.ID)
+		if len(existing) == 0 {
+			if state, ok := r.BoardActivity(host, board); ok && state.RetainedRoots > 0 {
+				err = r.bbsArticles.CatchUpInitialBoardActivity(context.Background(), host, board, state)
+			} else {
+				err = r.bbsArticles.CatchUp(context.Background(), host, board)
+			}
 		} else {
 			err = r.bbsArticles.CatchUp(context.Background(), host, board)
 		}
