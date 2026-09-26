@@ -703,7 +703,8 @@ func (f *fortyTitleRenderer) GenerateContextualBBSTitleCandidates(_ context.Cont
 	start := (f.calls-1)*count + 1
 	titles := make([]string, 0, count)
 	for i := 0; i < count; i++ {
-		titles = append(titles, fmt.Sprintf("評価用タイトル%03d", start+i))
+		index := start + i
+		titles = append(titles, fmt.Sprintf("%c-%03d", rune(0x4e00+(index%2000)), index))
 	}
 	return llm.BBSTitleCandidates{Titles: titles}, nil
 }
