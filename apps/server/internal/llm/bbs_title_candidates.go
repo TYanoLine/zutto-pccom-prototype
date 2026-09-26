@@ -136,29 +136,90 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	if candidateCount < 1 || candidateCount > 200 {
 		return BBSTitleCandidates{}, fmt.Errorf("title pool candidate count %d outside 1..200", candidateCount)
 	}
-	claimItem := map[string]any{
+
+	allowedKinds := map[string]bool{
+		"product_availability": true,
+		"technical_capability": true,
+		"terminology": true,
+		"historical_event": true,
+		"general": true,
+	}
+	claimFields := map[string]any{
+		"subject": map[string]any{"type": "string"},
+		"kind":    map[string]any{"type": "string", "enum": []string{"product_availability", "technical_capability", "terminology", "historical_event", "general"}},
+		"need":    map[string]any{"type": "string"},
+	}
+	claimWithoutIndex := map[string]any{
 		"type": "object",
-		"properties": map[string]any{
-			"candidate": map[string]any{"type": "integer", "minimum": 1, "maximum": candidateCount},
-			"subject": map[string]any{"type": "string"},
-			"kind": map[string]any{"type": "string", "enum": []string{"product_availability", "technical_capability", "terminology", "historical_event", "general"}},
-			"need": map[string]any{"type": "string"},
-		},
-		"required": []string{"candidate", "subject", "kind", "need"},
+		"properties": claimFields,
+		"required": []string{"subject", "kind", "need"},
 		"additionalProperties": false,
 	}
-	schema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": candidateCount, "maxItems": candidateCount},
-			"historical_claims": map[string]any{"type": "array", "items": claimItem, "minItems": 0, "maxItems": candidateCount * 3},
-		},
-		"required": []string{"titles", "historical_claims"},
-		"additionalProperties": false,
+
+	// Large PoC pools keep each title and its claims in the same schema object.
+	// With 100 independent titles, a second top-level array of 1-based candidate
+	// indexes proved easy for the model to misalign even when both arrays were
+	// individually schema-valid. Production 20-title calls retain the established
+	// wire shape until this experiment is evaluated.
+	largePool := candidateCount > 20
+	var schema map[string]any
+	if largePool {
+		candidateItem := map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"title": map[string]any{"type": "string"},
+				"historical_claims": map[string]any{
+					"type": "array",
+					"items": claimWithoutIndex,
+					"minItems": 0,
+					"maxItems": 3,
+				},
+			},
+			"required": []string{"title", "historical_claims"},
+			"additionalProperties": false,
+		}
+		schema = map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"candidates": map[string]any{
+					"type": "array",
+					"items": candidateItem,
+					"minItems": candidateCount,
+					"maxItems": candidateCount,
+				},
+			},
+			"required": []string{"candidates"},
+			"additionalProperties": false,
+		}
+	} else {
+		claimItem := map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"candidate": map[string]any{"type": "integer", "minimum": 1, "maximum": candidateCount},
+				"subject": claimFields["subject"],
+				"kind": claimFields["kind"],
+				"need": claimFields["need"],
+			},
+			"required": []string{"candidate", "subject", "kind", "need"},
+			"additionalProperties": false,
+		}
+		schema = map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": candidateCount, "maxItems": candidateCount},
+				"historical_claims": map[string]any{"type": "array", "items": claimItem, "minItems": 0, "maxItems": candidateCount * 3},
+			},
+			"required": []string{"titles", "historical_claims"},
+			"additionalProperties": false,
+		}
 	}
+
 	prompt := titleCandidatePrompt(req.WorldDate, req.BoardName)
 	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" || req.RemainingNeeded > 0 || req.PreferEraSafe || req.CandidateCount > 0 {
 		prompt = contextualTitleCandidatePrompt(req)
+	}
+	if largePool {
+		prompt += "\n- このPoCの出力では、各candidateのtitleとhistorical_claimsは同じオブジェクト内にあります。claimを別候補へずらしたり、候補番号で参照したりしないでください。\n"
 	}
 	maxOutputTokens := 3200
 	if candidateCount > 20 {
@@ -168,8 +229,37 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	if err != nil {
 		return BBSTitleCandidates{}, err
 	}
+
 	var draft BBSTitleCandidates
-	if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
+	if largePool {
+		var nested struct {
+			Candidates []struct {
+				Title string `json:"title"`
+				HistoricalClaims []struct {
+					Subject string `json:"subject"`
+					Kind string `json:"kind"`
+					Need string `json:"need"`
+				} `json:"historical_claims"`
+			} `json:"candidates"`
+		}
+		if err := json.Unmarshal([]byte(result.Text), &nested); err != nil {
+			return draft, err
+		}
+		if len(nested.Candidates) != candidateCount {
+			return draft, fmt.Errorf("title pool: got %d candidates, want %d", len(nested.Candidates), candidateCount)
+		}
+		for i, item := range nested.Candidates {
+			draft.Titles = append(draft.Titles, item.Title)
+			for _, claim := range item.HistoricalClaims {
+				draft.HistoricalClaims = append(draft.HistoricalClaims, BBSTitleHistoricalClaim{
+					Candidate: i + 1,
+					Subject: claim.Subject,
+					Kind: claim.Kind,
+					Need: claim.Need,
+				})
+			}
+		}
+	} else if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
 		return draft, err
 	}
 	if len(draft.Titles) != candidateCount {
@@ -179,13 +269,6 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 		if strings.TrimSpace(title) == "" {
 			return draft, fmt.Errorf("empty title candidate")
 		}
-	}
-	allowedKinds := map[string]bool{
-		"product_availability": true,
-		"technical_capability": true,
-		"terminology": true,
-		"historical_event": true,
-		"general": true,
 	}
 	for _, claim := range draft.HistoricalClaims {
 		if claim.Candidate < 1 || claim.Candidate > len(draft.Titles) {
