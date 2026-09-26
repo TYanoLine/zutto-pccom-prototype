@@ -15,6 +15,26 @@ type noWaitObservationStore struct {
 	waited []world.Board
 }
 
+type flakyBoardObservationStore struct {
+	*world.MemoryStore
+	waitCalls int
+	failures  int
+}
+
+func (s *flakyBoardObservationStore) BeginHostObservation(world.Host, []world.Board) {}
+
+func (s *flakyBoardObservationStore) WaitForBoardHeaders(_ context.Context, host world.Host, board world.Board) ([]world.Post, error) {
+	s.waitCalls++
+	if s.waitCalls <= s.failures {
+		return nil, fmt.Errorf("transient board header failure %d", s.waitCalls)
+	}
+	return s.ListBoardPosts(host, board.ID, board.Name), nil
+}
+
+func (s *flakyBoardObservationStore) WaitForArticleBody(context.Context, world.Host, world.Board, int64) (world.Post, bool, error) {
+	panic("article body wait is not expected in a board-index retry test")
+}
+
 func (s *noWaitObservationStore) BeginHostObservation(_ world.Host, boards []world.Board) {
 	s.begun = append(s.begun, boards...)
 }
@@ -272,6 +292,53 @@ func TestLeafBoardVisitJoinsBackgroundCatchupAndWaitsForHeaders(t *testing.T) {
 	}
 	if len(store.waited) == 0 || store.waited[len(store.waited)-1].ID != "60/1" {
 		t.Fatalf("leaf board did not wait for its own headers: %+v", store.waited)
+	}
+}
+
+func TestLeafBoardReadRetriesOneTransientHeaderFailure(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	base.AddPost(host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "お知らせ", Body: "本文"})
+	store := &flakyBoardObservationStore{MemoryStore: base, failures: 1}
+	runtime := New(host, store)
+	loginGuest(t, runtime)
+
+	runtime.HandleLine("BM")
+	out, disconnect := runtime.HandleLine("1")
+	if disconnect {
+		t.Fatal("board read disconnected after a transient header failure")
+	}
+	if strings.Contains(out, "? BOARD READ ERROR") || !strings.Contains(out, "お知らせ") {
+		t.Fatalf("transient header failure leaked into Erika-K UI: %q", out)
+	}
+	if store.waitCalls != 2 {
+		t.Fatalf("WaitForBoardHeaders calls=%d, want 2", store.waitCalls)
+	}
+}
+
+func TestLeafBoardReadRetryRemainsBounded(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &flakyBoardObservationStore{MemoryStore: base, failures: 3}
+	runtime := New(host, store)
+	loginGuest(t, runtime)
+
+	runtime.HandleLine("BM")
+	out, disconnect := runtime.HandleLine("1")
+	if disconnect {
+		t.Fatal("board read error should not disconnect")
+	}
+	if !strings.Contains(out, "? BOARD READ ERROR") {
+		t.Fatalf("persistent failure should remain visible after one retry: %q", out)
+	}
+	if store.waitCalls != 2 {
+		t.Fatalf("WaitForBoardHeaders calls=%d, want bounded retry count 2", store.waitCalls)
 	}
 }
 

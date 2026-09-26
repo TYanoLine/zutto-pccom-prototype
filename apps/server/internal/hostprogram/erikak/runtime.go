@@ -571,11 +571,22 @@ func (r *Runtime) renderBoardIndex() string {
 		// Predictive work may already be running from login/forum navigation. If
 		// this exact board is not ready, join/start only its shared job and wait;
 		// never expose an empty placeholder that requires the user to refresh.
-		observer.BeginHostObservation(r.Host, []world.Board{board})
-		if ready, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board); err == nil {
-			posts = ready
-		} else {
-			return "\r\n? BOARD READ ERROR\r\n" + r.boardPrompt()
+		//
+		// Title/header materialization can depend on external model/research
+		// services. Repository observation deliberately forgets a failed lease so
+		// a later read can retry. Do that retry here once for an explicit Erika-K
+		// board read instead of immediately leaking a transient backend failure as
+		// a host-program error. Persistent failures remain visible after attempt 2.
+		for attempt := 0; attempt < 2; attempt++ {
+			observer.BeginHostObservation(r.Host, []world.Board{board})
+			ready, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board)
+			if err == nil {
+				posts = ready
+				break
+			}
+			if attempt == 1 {
+				return "\r\n? BOARD READ ERROR\r\n" + r.boardPrompt()
+			}
 		}
 	}
 	var b strings.Builder
