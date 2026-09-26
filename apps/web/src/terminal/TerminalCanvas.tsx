@@ -345,7 +345,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           onKeyDown={keyboardInput.onKeyDown}
           onCompositionStart={keyboardInput.onCompositionStart}
           onCompositionEnd={keyboardInput.onCompositionEnd}
-          onFocus={keyboardInput.onFocus}
+          onFocus={event => { setFunctionMenuOpen(false); keyboardInput.onFocus(event); }}
           onBlur={keyboardInput.onBlur}
           onPointerDown={pointerDown}
           onPointerMove={pointerMove}
