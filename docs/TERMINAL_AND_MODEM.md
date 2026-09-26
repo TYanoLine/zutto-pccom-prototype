@@ -83,6 +83,7 @@ colors, full-width continuation cells, cursor positions, and host commands.
   enabled.
 
 Production deployment retries should not change modem behavior or mobile layout.
+A successful retry may be used solely to advance the production alias to the already-merged client version.
 
 Validation should cover 320/390px portrait and desktop widths, direct native
 input focus on iOS/Android, tap-to-type versus drag gestures, horizontal
