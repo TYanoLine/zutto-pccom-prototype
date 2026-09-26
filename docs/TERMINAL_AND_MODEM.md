@@ -87,7 +87,7 @@ input focus on iOS/Android, tap-to-type versus drag gestures, horizontal
 panning, receive scrollback, software-keyboard resize, repeated typing without
 vertical drift, physical/soft Enter, IME composition, center selection,
 history/latest, and reading without unintended keyboard focus. Real iOS/Android software-keyboard behavior still requires
-device testing.
+device testing. Production validation should also confirm the displayed client version matches current `main`, because a rate-limited Vercel build can leave an older READY deployment on the production alias.
 
 ## Modem interaction
 
