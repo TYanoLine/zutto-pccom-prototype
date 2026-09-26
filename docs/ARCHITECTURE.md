@@ -94,6 +94,23 @@ Host-program reads are synchronization barriers over the narrowest required scop
 
 For long elapsed intervals, catch-up should be time-compressed: select durable important transitions first, then materialize only the detailed posts/events required by the current observation.
 
+### Preplanned board activity
+
+A board may have world history before any article wording has been observed.
+For hosts with a known founding date, membership count, world time, and
+station-specific board activity metadata, World computes a prose-free
+`BoardActivityState` first. It includes cumulative/retained root and reply
+counts plus the retained-history window.
+
+A HostProgram may render those counts in its own native board menu before any
+subjects/bodies exist. Opening the board then materializes the already-decided
+retained root/reply slots; reading an article still materializes only its body.
+
+This prevents an observer from causing a previously empty board to acquire
+history merely by entering it. The current numeric model is experimental
+fictional reconstruction rather than measured 1996 traffic statistics. See
+`docs/BOARD_ACTIVITY_PLANNING.md`.
+
 ## Shared BBS article engine
 
 BBS article generation is a world service, not a host-program feature. Historical
