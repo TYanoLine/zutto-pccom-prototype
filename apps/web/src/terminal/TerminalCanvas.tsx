@@ -100,8 +100,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }
 
   function returnToLive() {
-    setScrollOffset(0);
-    window.requestAnimationFrame(ensureCursorVisible);
+    if (scrollOffsetRef.current !== 0) setScrollOffset(0);
   }
 
   useImperativeHandle(forwardedRef, () => ({ returnToLive, ensureCursorVisible }));
