@@ -25,10 +25,14 @@ The mobile shell is a modern accessibility adaptation, not a claim about a
 historical communications program. It keeps the same 80×25 cell buffer, ANSI
 colors, full-width continuation cells, cursor positions, and host commands.
 
-- At widths up to 680px or on coarse-pointer devices, default to a minimum
-  640px-wide canvas (16px Japanese glyphs) inside a horizontal viewport.
-- Mobile defaults to the readable 640px-wide terminal without permanently
-  visible application chrome. The desktop title bar, modem/call status strip,
+- At widths up to 680px or on coarse-pointer devices, the terminal keeps its
+  logical 640×400 / 80×25 buffer but defaults to `全体表示`. The 640-pixel
+  logical width is fitted to the device width so all 80 columns remain visible.
+  Mobile presentation is allowed to scale the vertical axis independently and
+  use the available dynamic viewport height instead of preserving the 640:400
+  display aspect ratio.
+- Mobile uses the full dynamic viewport height without permanently visible
+  application chrome. The desktop title bar, modem/call status strip,
   help text and debug/settings panels are hidden on coarse-pointer/small-screen
   presentation so the terminal owns the vertical viewport. A single compact
   `機能` button opens display controls on demand (`文字拡大`, `全体表示`,
@@ -59,10 +63,13 @@ colors, full-width continuation cells, cursor positions, and host commands.
 - The center directory retains its own six navigation/call keys. The command
   field is read-only while selecting a center; Enter calls the selected center.
   Esc is an offline client-menu operation, not a fabricated shared BBS command.
-- Desktop keeps its fitted canvas and click-to-type interaction. The mobile
-  center directory retains its six explicit navigation/call keys, and the
-  floating `最新へ` action remains at least 44px high. Device safe areas and
-  browser zoom remain enabled.
+- `文字拡大` remains available as an explicit mobile fallback to the previous
+  640px-wide readable presentation with horizontal panning. Desktop keeps its
+  existing canvas behavior and click-to-type interaction. The mobile center
+  directory is overlaid at the bottom rather than consuming terminal height,
+  retains its six explicit navigation/call keys, and the floating `最新へ`
+  action remains at least 44px high. Device safe areas and browser zoom remain
+  enabled.
 
 Validation should cover 320/390px portrait and desktop widths, direct native
 input focus on iOS/Android, tap-to-type versus drag gestures, horizontal
