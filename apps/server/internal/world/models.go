@@ -22,6 +22,7 @@ type Host struct {
 type Board struct {
 	ID              string  `json:"id"`
 	Name            string  `json:"name"`
+	SemanticScope   string  `json:"semantic_scope,omitempty"`
 	ActivityWeight  float64 `json:"activity_weight,omitempty"`
 	ReplyRate       float64 `json:"reply_rate,omitempty"`
 	RetainedRootCap int     `json:"retained_root_cap,omitempty"`
