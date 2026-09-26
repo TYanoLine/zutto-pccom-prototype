@@ -25,12 +25,14 @@ The mobile shell is a modern accessibility adaptation, not a claim about a
 historical communications program. It keeps the same 80×25 cell buffer, ANSI
 colors, full-width continuation cells, cursor positions, and host commands.
 
-- At widths up to 680px or on coarse-pointer devices, the terminal keeps its
-  logical 640×400 / 80×25 buffer but defaults to `全体表示`. The 640-pixel
-  logical width is fitted to the device width so all 80 columns remain visible.
-  Mobile presentation is allowed to scale the vertical axis independently and
-  use the available dynamic viewport height instead of preserving the 640:400
-  display aspect ratio.
+- At widths up to 680px or on coarse-pointer devices, the terminal defaults to
+  `全体表示` with 80 columns. The logical width remains 640px (8px × 80 cells)
+  and is fitted uniformly to the device width. Cell aspect ratio is preserved:
+  the client never stretches the 400px/25-row screen vertically. Instead the
+  terminal row count is computed as
+  `floor((available viewport height - bottom control region) / displayed row height)`,
+  with a 25-row minimum. The backing canvas becomes 640×(rows×16), so a taller
+  phone displays more real terminal rows rather than taller glyphs.
 - Mobile uses the full dynamic viewport height without permanently visible
   application chrome. The desktop title bar, modem/call status strip,
   help text and debug/settings panels are hidden on coarse-pointer/small-screen
@@ -63,8 +65,8 @@ colors, full-width continuation cells, cursor positions, and host commands.
 - The center directory retains its own six navigation/call keys. The command
   field is read-only while selecting a center; Enter calls the selected center.
   Esc is an offline client-menu operation, not a fabricated shared BBS command.
-- `文字拡大` remains available as an explicit mobile fallback to the previous
-  640px-wide readable presentation with horizontal panning. Desktop keeps its
+- `文字拡大` remains available as an explicit mobile fallback to the classic
+  80×25 / 640×400 readable presentation with horizontal panning. Desktop keeps its
   existing canvas behavior and click-to-type interaction. The mobile center
   directory is overlaid at the bottom rather than consuming terminal height,
   retains its six explicit navigation/call keys, and the floating `最新へ`
