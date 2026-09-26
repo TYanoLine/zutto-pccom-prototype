@@ -33,10 +33,12 @@ colors, full-width continuation cells, cursor positions, and host commands.
   `floor((available viewport height - bottom control region) / displayed row height)`,
   with a 25-row minimum. The backing canvas becomes 640×(rows×16), so a taller
   phone displays more actual terminal rows instead of vertically stretching glyphs.
-- Mobile uses the full dynamic viewport height without permanently visible
-  application chrome. The desktop title bar, modem/call status strip,
-  help text and debug/settings panels are hidden on coarse-pointer/small-screen
-  presentation so the terminal owns the vertical viewport. A single compact
+- Mobile uses the full dynamic viewport height with one compact connection
+  status row at the top. The row shows the connected network name (or OFFLINE),
+  current session elapsed time and current-session pseudo telephone charge. The
+  network name may ellipsize, while elapsed time and charge remain visible. The
+  old desktop title bar, modem/call status strip, help text and debug/settings
+  panels remain hidden on coarse-pointer/small-screen presentation. A single compact
   `機能` button opens display controls on demand (`文字拡大`, `全体表示`,
   history up/down and `最新`) and closes again after a selection or when
   typing resumes. Host output is never rewrapped or replaced with a common host
