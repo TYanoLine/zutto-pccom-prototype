@@ -54,12 +54,14 @@ colors, full-width continuation cells, cursor positions, and host commands.
   text layout. Half-width and full-width glyphs use separate font sizes chosen
   to fit the historical 8px / 16px cell grid naturally; they are centered in
   their cells rather than horizontally squeezed with Canvas `maxWidth`.
-  Japanese legacy/JIS symbols that Unicode classifies as East-Asian ambiguous
-  (for example ■ □ ★ ☆ → ― ①) are deliberately treated as two cells. U+3000
-  IDEOGRAPHIC SPACE is always two cells, while variation selectors such as the
-  VS16 in `▫️` consume zero cells. The server-side 絵理香K layout helper uses
-  the same display-cell convention instead of counting Unicode runes, so mixed
-  Japanese/ASCII columns align with the terminal core.
+  Cell width follows a PC-9801 / Shift_JIS model rather than Unicode East Asian
+  Width: ASCII and JIS X 0201 half-width kana are one cell; Shift_JIS double-byte
+  Japanese characters and symbols are two cells. Terminal output is filtered to
+  the Shift_JIS repertoire at the server boundary. Unicode-only presentation
+  controls are removed, `▫`/ `▪` are mapped to the PC-98-safe `□`/ `■`,
+  and unsupported Unicode characters fall back to `?`. The server-side 絵理香K
+  layout helper uses the same cell convention instead of counting Unicode
+  runes, so mixed Japanese/ASCII columns align with the terminal core.
   Login banners and the main-menu three-column layout are also generated from
   display-cell widths instead of hand-counted spaces: decorative/banner rows are
   exactly 80 cells and main-menu columns begin at cells 0, 22 and 44. The Canvas uses a
@@ -217,3 +219,13 @@ When generation itself is slow, avoid double-counting delay: generation wait plu
 ## Real hardware target
 
 The same logical host/session layer should eventually support a real PC-98 over RS-232C through a bridge that emulates sufficient Hayes modem behavior. WebSocket and Serial are transports into the same BBS/world model, not separate worlds.
+
+
+### PC-9801 character policy
+
+Terminal-visible host text targets the PC-9801-era Shift_JIS/JIS repertoire.
+Do not use emoji, variation-selector forms, or Unicode-only enclosed/symbol
+characters in BBS source strings. Prefer period-appropriate JIS glyphs such as
+`□ ■ ＊ ※ ○ ◎ ◇ ◆ ★ ☆ → ―`. Host output is validated at the WebSocket
+terminal boundary so generated article/body text cannot introduce unsupported
+modern Unicode into the emulated terminal.

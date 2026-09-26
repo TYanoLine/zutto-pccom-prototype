@@ -3,6 +3,8 @@ package erikak
 import (
 	"strings"
 	"testing"
+
+	"zutto-pccom/apps/server/internal/world"
 )
 
 func TestDisplayCellWidthJapaneseTerminal(t *testing.T) {
@@ -14,7 +16,9 @@ func TestDisplayCellWidthJapaneseTerminal(t *testing.T) {
 		"★":  2,
 		"→":  2,
 		"―":  2,
-		"①":  2,
+		"＊":  2,
+		"※":  2,
+		"○":  2,
 		"ｱ":  1,
 	}
 	for value, want := range cases {
@@ -102,5 +106,17 @@ func TestMainMenuColumnStartsAreStable(t *testing.T) {
 		if got := displayCellWidth(line[:thirdByte]); got != 44 {
 			t.Fatalf("%s starts at cell %d, want 44: %q", row.third, got, line)
 		}
+	}
+}
+
+
+func TestWelcomeUsesPC98ShiftJISDecoration(t *testing.T) {
+	r := &Runtime{Host: world.Host{Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Lines: 3, MaxBaud: 14400}}
+	out := r.Welcome()
+	if strings.Contains(out, "ж") {
+		t.Fatalf("welcome still contains Cyrillic decoration: %q", out)
+	}
+	if !strings.Contains(out, strings.Repeat("＊", 40)) {
+		t.Fatalf("welcome does not contain 40 full-width PC-98 stars: %q", out)
 	}
 }
