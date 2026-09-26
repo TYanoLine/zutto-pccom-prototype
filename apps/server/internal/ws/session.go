@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 	"zutto-pccom/apps/server/internal/hostprogram"
 	"zutto-pccom/apps/server/internal/telephone"
 	"zutto-pccom/apps/server/internal/world"
@@ -215,6 +217,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
+	if msg, ok := v.(serverMessage); ok && msg.Type == "terminal" {
+		msg.Text = pc98ShiftJISText(msg.Text)
+		v = msg
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -230,4 +236,35 @@ func digitsOnly(s string) string {
 		}
 	}
 	return b.String()
+}
+
+
+func pc98ShiftJISText(s string) string {
+	var out strings.Builder
+	out.Grow(len(s))
+	encoder := japanese.ShiftJIS.NewEncoder()
+
+	for _, r := range s {
+		// Unicode presentation controls have no meaning on a PC-98 Shift_JIS
+		// terminal. Drop them instead of allowing emoji-style glyph selection.
+		if (r >= 0xFE00 && r <= 0xFE0F) || (r >= 0xE0100 && r <= 0xE01EF) || r == 0x200D {
+			continue
+		}
+
+		// Preserve the visual intent of a few modern Unicode source glyphs with
+		// explicit PC-98-safe JIS equivalents.
+		switch r {
+		case '▫':
+			r = '□'
+		case '▪':
+			r = '■'
+		}
+
+		if _, _, err := transform.String(encoder, string(r)); err != nil {
+			out.WriteByte('?')
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
 }
