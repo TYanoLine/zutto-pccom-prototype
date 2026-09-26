@@ -29,6 +29,9 @@ type developmentTitleEraResearchJob struct {
 	candidate int
 	title     string
 	claims    []llm.BBSTitleHistoricalClaim
+	// asOf is the already-selected post slot date. Empty keeps compatibility
+	// with legacy callers that pass one batch-wide fallback date.
+	asOf      string
 }
 
 func developmentTitleEraResearchAllowance(used, boardsRemaining int) int {
@@ -120,7 +123,11 @@ func (r *Repository) developmentResearchTitleEraBatch(ctx context.Context, host 
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			result := r.developmentResearchTitleEra(ctx, host, board, asOf, job.title, job.claims)
+			jobAsOf := strings.TrimSpace(job.asOf)
+			if jobAsOf == "" {
+				jobAsOf = asOf
+			}
+			result := r.developmentResearchTitleEra(ctx, host, board, jobAsOf, job.title, job.claims)
 			mu.Lock()
 			out[job.candidate] = result
 			mu.Unlock()
