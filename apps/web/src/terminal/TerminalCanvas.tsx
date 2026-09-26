@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
 import type { TerminalCore } from './TerminalCore';
-import { terminalCursorScrollTop, terminalViewportHeight } from './terminalViewport';
+import { terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
@@ -30,6 +30,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const pointerLastYRef = useRef(0);
   const pointerLastXRef = useRef(0);
   const pointerRemainderRef = useRef(0);
+  const pointerTravelRef = useRef(0);
 
   useEffect(() => terminal.subscribe(() => {
     const previousLength = previousScrollbackLengthRef.current;
@@ -81,24 +82,21 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     const visualBottom = visualViewport
       ? visualViewport.offsetTop + visualViewport.height
       : window.innerHeight;
-    const dock = document.querySelector<HTMLElement>('.command-dock');
-    const hint = viewport.parentElement?.nextElementSibling as HTMLElement | null;
     const viewportTop = viewport.getBoundingClientRect().top;
-    const dockTop = Math.min(dock?.getBoundingClientRect().top ?? visualBottom, visualBottom);
-    const hintHeight = hint?.getBoundingClientRect().height ?? 0;
-    const nextHeight = terminalViewportHeight(canvas.clientHeight, viewportTop, dockTop, hintHeight);
+    const nextHeight = terminalViewportHeight(canvas.clientHeight, viewportTop, visualBottom);
 
     viewport.style.maxHeight = `${nextHeight}px`;
     viewport.style.overflowY = nextHeight < canvas.clientHeight ? 'auto' : 'hidden';
 
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
     const cursorTop = terminal.cursorY * rowHeight;
-    viewport.scrollTop = terminalCursorScrollTop(
-      viewport.scrollTop,
+    const targetScrollTop = terminalCursorTargetScrollTop(
+      canvas.clientHeight,
       viewport.clientHeight,
       cursorTop,
       rowHeight,
     );
+    if (Math.abs(viewport.scrollTop - targetScrollTop) > 1) viewport.scrollTop = targetScrollTop;
   }
 
   function returnToLive() {
@@ -119,13 +117,11 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     const update = () => window.requestAnimationFrame(ensureCursorVisible);
     window.addEventListener('resize', update);
     visualViewport?.addEventListener('resize', update);
-    visualViewport?.addEventListener('scroll', update);
     update();
 
     return () => {
       window.removeEventListener('resize', update);
       visualViewport?.removeEventListener('resize', update);
-      visualViewport?.removeEventListener('scroll', update);
     };
     // The functions intentionally read the current refs/cursor on every viewport event.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -194,8 +190,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     pointerLastYRef.current = e.clientY;
     pointerLastXRef.current = e.clientX;
     pointerRemainderRef.current = 0;
+    pointerTravelRef.current = 0;
     e.currentTarget.setPointerCapture(e.pointerId);
-    e.preventDefault();
   }
 
   function pointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
@@ -209,7 +205,9 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     // so the gesture feels the same on iPhone, iPad and desktop-sized canvases.
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
     const dragPixels = e.clientY - pointerLastYRef.current;
-    if (viewportRef.current) viewportRef.current.scrollLeft += pointerLastXRef.current - e.clientX;
+    const dragX = pointerLastXRef.current - e.clientX;
+    pointerTravelRef.current += Math.abs(dragPixels) + Math.abs(dragX);
+    if (viewportRef.current) viewportRef.current.scrollLeft += dragX;
     pointerLastXRef.current = e.clientX;
     pointerLastYRef.current = e.clientY;
     pointerRemainderRef.current += dragPixels;
@@ -219,15 +217,16 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       pointerRemainderRef.current -= lines * rowHeight;
       setScrollOffset(scrollOffsetRef.current + lines);
     }
-    e.preventDefault();
   }
 
   function pointerEnd(e: ReactPointerEvent<HTMLCanvasElement>) {
     if (activePointerIdRef.current !== e.pointerId) return;
+    const wasTap = e.pointerType !== 'mouse' && pointerTravelRef.current < 8;
     activePointerIdRef.current = null;
     pointerRemainderRef.current = 0;
+    pointerTravelRef.current = 0;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-    e.preventDefault();
+    if (wasTap) onKeyboardRequest?.();
   }
 
   return (
