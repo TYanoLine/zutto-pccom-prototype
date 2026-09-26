@@ -203,6 +203,14 @@ func (s *Store) SaveBoards(hostID string, boards []world.Board) {
 	}
 }
 
+
+func (s *Store) SaveBoardActivityState(hostID string, state world.BoardActivityState) {
+	s.MemoryStore.SaveBoardActivityState(hostID, state)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTarget(target)
+	}
+}
+
 func (s *Store) SavePersona(persona world.Persona) {
 	s.MemoryStore.SavePersona(persona)
 	// New personas are normally followed by AddMembership, which persists the
