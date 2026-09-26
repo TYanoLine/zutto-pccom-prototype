@@ -202,3 +202,69 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 		t.Fatalf("persisted Erika persona facts not restored: %+v", facts)
 	}
 }
+
+
+func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := world.NewMemoryStore()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before := backend.saves
+	store.BeginPostBatch(host.ID)
+	for i := 0; i < 25; i++ {
+		store.AddPost(host.ID, world.Post{
+			BoardID: "20/1",
+			Author:  "NPC",
+			Subject: "batch",
+		})
+	}
+	if backend.saves != before {
+		t.Fatalf("batch persisted early: saves=%d before=%d", backend.saves, before)
+	}
+	store.EndPostBatch(host.ID)
+	if backend.saves != before+1 {
+		t.Fatalf("batch snapshots=%d, want exactly %d", backend.saves, before+1)
+	}
+
+	fresh := world.NewMemoryStore()
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	posts := restored.ListPosts(host.ID)
+	if len(posts) != 25 {
+		t.Fatalf("restored batch posts=%d, want 25", len(posts))
+	}
+}
+
+func TestNestedPostBatchesPersistOnlyWhenOutermostBatchEnds(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := world.NewMemoryStore()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone("0920000196")
+
+	store.BeginPostBatch(host.ID)
+	store.AddPost(host.ID, world.Post{BoardID: "4", Author: "A", Subject: "one"})
+	store.BeginPostBatch(host.ID)
+	store.AddPost(host.ID, world.Post{BoardID: "20/1", Author: "B", Subject: "two"})
+	store.EndPostBatch(host.ID)
+	if backend.saves != 0 {
+		t.Fatalf("nested batch persisted before outer end: %d", backend.saves)
+	}
+	store.EndPostBatch(host.ID)
+	if backend.saves != 1 {
+		t.Fatalf("nested batch snapshots=%d, want 1", backend.saves)
+	}
+}
