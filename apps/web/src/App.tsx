@@ -25,7 +25,7 @@ import {
 import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import './styles.css';
 
-const APP_VERSION = '0.25';
+const APP_VERSION = '0.26';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
