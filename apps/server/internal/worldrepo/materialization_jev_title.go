@@ -199,6 +199,34 @@ func (r *Repository) developmentJevTitleAdvice(
 	recentBBSState string,
 	historicalFacts []string,
 ) (worldengine.TitleCandidateAdviceDecision, bool, error) {
+	return r.developmentJevTitleAdviceMode(ctx, host, board, asOf, titles, events, recentBBSState, historicalFacts, false)
+}
+
+func (r *Repository) developmentJevTitleFitAdvice(
+	ctx context.Context,
+	host world.Host,
+	board world.Board,
+	asOf string,
+	titles []string,
+	events []llm.BBSWorldWindowEvent,
+	recentBBSState string,
+	historicalFacts []string,
+) (worldengine.TitleCandidateAdviceDecision, bool, error) {
+	return r.developmentJevTitleAdviceMode(ctx, host, board, asOf, titles, events, recentBBSState, historicalFacts, true)
+}
+
+func (r *Repository) developmentJevTitleAdviceMode(
+	ctx context.Context,
+	host world.Host,
+	board world.Board,
+	asOf string,
+	titles []string,
+	events []llm.BBSWorldWindowEvent,
+	recentBBSState string,
+	historicalFacts []string,
+,
+	fitOnly bool,
+) (worldengine.TitleCandidateAdviceDecision, bool, error) {
 	advisor, ok := r.Engine.(developmentTitleCandidateAdvisor)
 	if !ok {
 		return worldengine.TitleCandidateAdviceDecision{}, false, nil
@@ -227,7 +255,7 @@ func (r *Repository) developmentJevTitleAdvice(
 		Events: adviceEvents,
 		RecentBBSState: recentBBSState,
 		HistoricalFacts: append([]string(nil), historicalFacts...),
-		FitOnly: true,
+		FitOnly: fitOnly,
 	})
 	if err != nil {
 		return decision, true, err
