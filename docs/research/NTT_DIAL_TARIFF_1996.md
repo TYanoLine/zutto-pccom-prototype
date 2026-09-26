@@ -27,10 +27,10 @@ March 1996 NTT dial-call pulse seconds implemented by the client:
 
 | Distance class | Weekday 08:00-19:00 | Weekday 19:00-23:00 | 23:00-08:00 | Sat/Sun/holiday 08:00-23:00 |
 | --- | ---: | ---: | ---: | ---: |
-| Same MA | 180 | 240 | 240 | 180 |
-| Adjacent MA / <=20 km | 90 | 120 | 120 | 90 |
-| >20-30 km | 45 | 60 | 60 | 45 |
-| >30-60 km | 36 | 60 | 60 | 36 |
+| Same MA | 180 | 180 | 240 | 180 |
+| Adjacent MA / <=20 km | 90 | 90 | 120 | 90 |
+| >20-30 km | 45 | 45 | 60 | 45 |
+| >30-60 km | 36 | 36 | 60 | 36 |
 | >60-100 km | 22.5 | 30 | 45 | 30 |
 | >100-160 km | 13 | 22.5 | 30 | 22.5 |
 | >160 km | 13 | 18 | 22.5 | 18 |
@@ -43,26 +43,25 @@ The table uses pulse accounting: a pulse or fraction thereof consumes one
 10-yen unit. Thus a 28-second same-MA weekday daytime call is 10 yen, while a
 28-second >160 km weekday daytime call spans three 13-second units and is 30 yen.
 
-## Message Areas versus area codes
+## Prototype geographic model
 
-MA means Message Area / 単位料金区域, the historical local-tariff area. It is
-not equivalent to an area code. One area code may contain more than one MA.
+The NTT source table is expressed in MA/distance terms. For the current client,
+the caller's configured area code is the geographic origin abstraction used to
+pick the local-rate bucket. This intentionally keeps the user-facing model at
+the same granularity as the dialed BBS directory.
 
 The prototype caller preset is currently:
 
 - label: 福岡
-- MA: 福岡
-- displayed area code: 092
-- known same-MA fixture: HAKATA CANAL NET, `0920000196`
+- configured area code: 092
+- all `092...` destinations: local-rate bucket
+- other destinations: distance-band resolution when geographic metadata exists;
+  otherwise the documented >160 km fallback
 
-The 092 area code also covers the 前原 MA, so the client deliberately does not
-classify every `092...` number as same-MA. Generated centers must eventually
-carry canonical historical MA metadata (or an explicitly fictional MA mapping)
-before exact inter-MA distance billing can be claimed.
-
-Until that metadata exists, unknown destinations use the >160 km fallback.
-This is an explicit simulation fallback, not a historical assertion about the
-destination.
+This is a client simulation rule, not a claim that an NTT area code and MA are
+historically interchangeable in every numbering plan. Future center geography
+may refine non-local distance bands without changing the user's simple origin
+setting.
 
 ## Telehodai
 
@@ -90,10 +89,10 @@ Day in 1996.
 ## Location configuration direction
 
 Caller origin is persisted separately from modem communication settings under
-`zutto.callerLocation.v1`. The default is the Fukuoka MA preset requested for
-the prototype.
+`zutto.callerLocation.v1`. The default is 福岡 / 092 as requested for the
+prototype.
 
-Future UI should allow selecting a caller MA/location without changing terminal
-or BBS state. The world/center catalog should eventually expose a destination MA
-identifier and/or tariff-distance class so billing can resolve both endpoints
-without prefix guesses.
+Future UI should allow selecting a caller location/area code without changing
+terminal or BBS state. The world/center catalog should eventually expose
+destination geography or a tariff-distance class so non-local calls can resolve
+intermediate historical distance bands instead of falling back to >160 km.
