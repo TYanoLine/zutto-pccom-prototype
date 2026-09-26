@@ -59,7 +59,10 @@ colors, full-width continuation cells, cursor positions, and host commands.
   IDEOGRAPHIC SPACE is always two cells, while variation selectors such as the
   VS16 in `▫️` consume zero cells. The server-side 絵理香K layout helper uses
   the same display-cell convention instead of counting Unicode runes, so mixed
-  Japanese/ASCII columns align with the terminal core. The Canvas uses a
+  Japanese/ASCII columns align with the terminal core.
+  Login banners and the main-menu three-column layout are also generated from
+  display-cell widths instead of hand-counted spaces: decorative/banner rows are
+  exactly 80 cells and main-menu columns begin at cells 0, 22 and 44. The Canvas uses a
   device-aware backing raster capped at 2x. Fit mode uses normal resampling
   instead of pixelated CSS scaling so Japanese and Latin glyphs retain their
   natural proportions when the 640px terminal is fractionally reduced on
