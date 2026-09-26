@@ -1,6 +1,6 @@
 # 1996 NTT dial-call tariff research
 
-Status: source-backed rate table with partial prototype routing metadata.
+Status: source-backed rate table with prototype geographic routing metadata.
 
 This document records the historical facts used by the web client's atmospheric
 telephone-charge display. It does **not** claim that generated fictional phone
