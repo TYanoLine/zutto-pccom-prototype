@@ -27,11 +27,14 @@ colors, full-width continuation cells, cursor positions, and host commands.
 
 - At widths up to 680px or on coarse-pointer devices, default to a minimum
   640px-wide canvas (16px Japanese glyphs) inside a horizontal viewport.
-- Mobile defaults to the readable 640px-wide terminal without a permanently
-  visible display toolbar. A single compact `機能` button opens the display
-  controls on demand (`文字拡大`, `全体表示`, history up/down and `最新`)
-  and closes again after a selection or when typing resumes. Host output is
-  never rewrapped or replaced with a common host menu.
+- Mobile defaults to the readable 640px-wide terminal without permanently
+  visible application chrome. The desktop title bar, modem/call status strip,
+  help text and debug/settings panels are hidden on coarse-pointer/small-screen
+  presentation so the terminal owns the vertical viewport. A single compact
+  `機能` button opens display controls on demand (`文字拡大`, `全体表示`,
+  history up/down and `最新`) and closes again after a selection or when
+  typing resumes. Host output is never rewrapped or replaced with a common host
+  menu.
 - Horizontal dragging pans the enlarged screen; vertical dragging reads the
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the

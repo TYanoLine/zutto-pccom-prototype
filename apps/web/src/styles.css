@@ -27,10 +27,7 @@ code { color: #ddd; }
 .audition-meta { margin-top: 7px; padding: 4px 7px; width: fit-content; max-width: 100%; color: #8f8; background: #101810; border: 1px solid #294229; font-size: 11px; }
 @media (max-width: 680px), (pointer: coarse) {
   .shell { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-  .titlebar, .statusbar { border-left: 0; border-right: 0; gap: 6px 10px; overflow-wrap: anywhere; }
-  .titlebar { font-size: 11px; flex-wrap: wrap; }
-  .statusbar { font-size: 11px; }
-  .statusbar label { min-height: 44px; }
+  .titlebar, .statusbar, .quick-help { display: none; }
   .screen-wrap { display: block; padding: 0; border: 0; }
   .terminal-display { max-width: none; }
   .terminal-display--readable .terminal-canvas { width: max(100%, 640px); max-width: none; }
@@ -45,7 +42,6 @@ code { color: #ddd; }
   .terminal-tools, .terminal-hint { display: none; }
   .terminal-live-return { display: block; position: absolute; right: 8px; bottom: 8px; z-index: 4; min-height: 44px; padding: 6px 10px; border: 1px solid #7a7; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #cfc; background: #163616; touch-action: manipulation; }
   .terminal-viewport { overscroll-behavior: contain; }
-  .quick-help { padding: 0 10px 12px; overflow-wrap: anywhere; }
   .settings-grid { grid-template-columns: 1fr; }
   .settings-grid select { min-height: 44px; font-size: 16px; }
   .directory-softkeys { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; padding: 4px 2px; background: #111; border-top: 1px solid #555; border-bottom: 1px solid #333; }
