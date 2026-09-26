@@ -341,7 +341,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     // pulling the content downward reveals older lines above, while pushing
     // upward moves back toward newer/live output. Scale by displayed row height
     // so the gesture feels the same on iPhone, iPad and desktop-sized canvases.
-    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const rowHeight = Math.max(1, canvas.clientHeight / layoutRowsRef.current);
     const dragPixels = e.clientY - pointerLastYRef.current;
     const dragX = pointerLastXRef.current - e.clientX;
     pointerTravelRef.current += Math.abs(dragPixels) + Math.abs(dragX);
