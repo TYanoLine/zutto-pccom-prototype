@@ -34,13 +34,13 @@ colors, full-width continuation cells, cursor positions, and host commands.
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
   terminal to live output before the new text is echoed.
-- A short tap on the mobile terminal focuses a native one-row textarea proxy;
-  there is no separate visible command field. The proxy is positioned at the
-  live terminal cursor cell, has a real cell-sized box and 16px font, but makes
-  its text/caret/background transparent. This keeps it as a normal in-viewport
-  editable control for iOS/Android while the user sees only the terminal cursor.
-  The proxy uses the same command routing, IME composition guard and Enter
-  handling as physical keyboard input.
+- On mobile, the visible terminal area itself is covered by a transparent native
+  single-line input. The user's tap therefore lands directly on the editable
+  control; the client does not synthesize focus from a canvas pointer event.
+  Text, caret and form chrome stay transparent so only the terminal cursor is
+  visible. The input uses a real 16px font and the same command routing, IME
+  composition guard and Enter handling as physical keyboard input. Desktop keeps
+  the cursor-sized proxy and click-to-focus behavior.
 - Focusing the textarea does not immediately resize/reposition the terminal.
   Once the software keyboard actually changes VisualViewport height, the client
   handles resize events and computes terminal scroll positions from the live
@@ -56,11 +56,11 @@ colors, full-width continuation cells, cursor positions, and host commands.
   floating `最新へ` action remains at least 44px high. Device safe areas and
   browser zoom remain enabled.
 
-Validation should cover 320/390px portrait and desktop widths, tap-to-type
-versus drag gestures, horizontal panning, receive scrollback, software-keyboard
-resize, repeated typing without vertical drift, physical/soft Enter, IME
-composition, center selection, history/latest, and reading without unintended
-keyboard focus. Real iOS/Android software-keyboard behavior still requires
+Validation should cover 320/390px portrait and desktop widths, direct native
+input focus on iOS/Android, tap-to-type versus drag gestures, horizontal
+panning, receive scrollback, software-keyboard resize, repeated typing without
+vertical drift, physical/soft Enter, IME composition, center selection,
+history/latest, and reading without unintended keyboard focus. Real iOS/Android software-keyboard behavior still requires
 device testing.
 
 ## Modem interaction

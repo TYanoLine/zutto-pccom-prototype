@@ -20,12 +20,12 @@ export type TerminalCanvasHandle = {
 export type TerminalKeyboardInput = {
   value: string;
   readOnly: boolean;
-  onChange: ChangeEventHandler<HTMLTextAreaElement>;
-  onKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
-  onCompositionStart: CompositionEventHandler<HTMLTextAreaElement>;
-  onCompositionEnd: CompositionEventHandler<HTMLTextAreaElement>;
-  onFocus: FocusEventHandler<HTMLTextAreaElement>;
-  onBlur: FocusEventHandler<HTMLTextAreaElement>;
+  onChange: ChangeEventHandler<HTMLInputElement>;
+  onKeyDown: KeyboardEventHandler<HTMLInputElement>;
+  onCompositionStart: CompositionEventHandler<HTMLInputElement>;
+  onCompositionEnd: CompositionEventHandler<HTMLInputElement>;
+  onFocus: FocusEventHandler<HTMLInputElement>;
+  onBlur: FocusEventHandler<HTMLInputElement>;
 };
 
 type TerminalCanvasProps = {
@@ -40,7 +40,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 ) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
+  const keyboardProxyRef = useRef<HTMLInputElement>(null);
   const [display, setDisplay] = useState<'readable' | 'fit'>('readable');
   const [historyOffset, setHistoryOffset] = useState(0);
   const scrollOffsetRef = useRef(0);
@@ -94,14 +94,29 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   function positionKeyboardProxy() {
     const proxy = keyboardProxyRef.current;
     const canvas = ref.current;
-    if (!proxy || !canvas) return;
+    const viewport = viewportRef.current;
+    if (!proxy || !canvas || !viewport) return;
+
+    if (isMobilePresentation()) {
+      proxy.style.left = '';
+      proxy.style.top = '';
+      proxy.style.width = '';
+      proxy.style.height = '';
+      return;
+    }
 
     const cellWidth = Math.max(1, canvas.clientWidth / terminal.width);
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
     const proxyWidth = Math.max(8, cellWidth);
     const proxyHeight = Math.max(16, rowHeight);
-    const left = Math.max(0, Math.min(canvas.clientWidth - proxyWidth, terminal.cursorX * cellWidth));
-    const top = Math.max(0, Math.min(canvas.clientHeight - proxyHeight, terminal.cursorY * rowHeight));
+    const left = Math.max(
+      0,
+      Math.min(viewport.clientWidth - proxyWidth, terminal.cursorX * cellWidth - viewport.scrollLeft),
+    );
+    const top = Math.max(
+      0,
+      Math.min(viewport.clientHeight - proxyHeight, terminal.cursorY * rowHeight - viewport.scrollTop),
+    );
 
     proxy.style.left = `${left}px`;
     proxy.style.top = `${top}px`;
@@ -237,7 +252,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     setScrollOffset(scrollOffsetRef.current + delta);
   }
 
-  function pointerDown(e: ReactPointerEvent<HTMLCanvasElement>) {
+  function pointerDown(e: ReactPointerEvent<HTMLElement>) {
     if (e.pointerType === 'mouse') return;
     if (activePointerIdRef.current !== null) return;
     activePointerIdRef.current = e.pointerId;
@@ -245,10 +260,9 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     pointerLastXRef.current = e.clientX;
     pointerRemainderRef.current = 0;
     pointerTravelRef.current = 0;
-    e.currentTarget.setPointerCapture(e.pointerId);
   }
 
-  function pointerMove(e: ReactPointerEvent<HTMLCanvasElement>) {
+  function pointerMove(e: ReactPointerEvent<HTMLElement>) {
     if (activePointerIdRef.current !== e.pointerId || e.pointerType === 'mouse') return;
     const canvas = ref.current;
     if (!canvas) return;
@@ -261,6 +275,9 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     const dragPixels = e.clientY - pointerLastYRef.current;
     const dragX = pointerLastXRef.current - e.clientX;
     pointerTravelRef.current += Math.abs(dragPixels) + Math.abs(dragX);
+    if (pointerTravelRef.current >= 8 && !e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
     if (viewportRef.current) viewportRef.current.scrollLeft += dragX;
     pointerLastXRef.current = e.clientX;
     pointerLastYRef.current = e.clientY;
@@ -271,23 +288,22 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       pointerRemainderRef.current -= lines * rowHeight;
       setScrollOffset(scrollOffsetRef.current + lines);
     }
+    if (pointerTravelRef.current >= 8) e.preventDefault();
   }
 
-  function finishPointer(e: ReactPointerEvent<HTMLCanvasElement>) {
+  function finishPointer(e: ReactPointerEvent<HTMLElement>) {
     activePointerIdRef.current = null;
     pointerRemainderRef.current = 0;
     pointerTravelRef.current = 0;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
-  function pointerEnd(e: ReactPointerEvent<HTMLCanvasElement>) {
+  function pointerEnd(e: ReactPointerEvent<HTMLElement>) {
     if (activePointerIdRef.current !== e.pointerId) return;
-    const wasTap = e.pointerType !== 'mouse' && pointerTravelRef.current < 8;
     finishPointer(e);
-    if (wasTap) focusKeyboardProxy();
   }
 
-  function pointerCancel(e: ReactPointerEvent<HTMLCanvasElement>) {
+  function pointerCancel(e: ReactPointerEvent<HTMLElement>) {
     if (activePointerIdRef.current !== e.pointerId) return;
     finishPointer(e);
   }
@@ -316,27 +332,31 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             onPointerUp={pointerEnd}
             onPointerCancel={pointerCancel}
           />
-          <textarea
-            ref={keyboardProxyRef}
-            className="terminal-input-proxy"
-            aria-label="端末入力"
-            rows={1}
-            wrap="off"
-            value={keyboardInput.value}
-            readOnly={keyboardInput.readOnly}
-            onChange={keyboardInput.onChange}
-            onKeyDown={keyboardInput.onKeyDown}
-            onCompositionStart={keyboardInput.onCompositionStart}
-            onCompositionEnd={keyboardInput.onCompositionEnd}
-            onFocus={keyboardInput.onFocus}
-            onBlur={keyboardInput.onBlur}
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="off"
-            enterKeyHint="send"
-            spellCheck={false}
-          />
         </div>
+        <input
+          ref={keyboardProxyRef}
+          className="terminal-input-proxy"
+          aria-label="端末入力"
+          type="text"
+          value={keyboardInput.value}
+          readOnly={keyboardInput.readOnly}
+          onChange={keyboardInput.onChange}
+          onKeyDown={keyboardInput.onKeyDown}
+          onCompositionStart={keyboardInput.onCompositionStart}
+          onCompositionEnd={keyboardInput.onCompositionEnd}
+          onFocus={keyboardInput.onFocus}
+          onBlur={keyboardInput.onBlur}
+          onPointerDown={pointerDown}
+          onPointerMove={pointerMove}
+          onPointerUp={pointerEnd}
+          onPointerCancel={pointerCancel}
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="off"
+          inputMode="text"
+          enterKeyHint="send"
+          spellCheck={false}
+        />
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
       </div>
       <p className="terminal-hint">{historyOffset > 0 ? `履歴表示中（${historyOffset}行前） /「最新」で受信画面へ` : display === 'readable' ? '左右にスワイプで移動・上下で受信履歴' : '80桁全体表示・上下スワイプで受信履歴'}</p>
