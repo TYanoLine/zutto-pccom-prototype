@@ -241,6 +241,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 
 	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
 	adopted := map[string]bbsengine.PlannedPost{}
+	verifiedClaimEvents := map[string]bool{}
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
 	// topic menu. Supplying the whole bootstrap catalog here strongly biases broad
@@ -289,6 +290,21 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		}
 		dominantLeads := dominantTitleLeadKeys(titles)
 		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads)
+		claimingCandidates := 0
+		dominantCandidates := 0
+		deFrameCandidates := 0
+		for _, title := range titles {
+			if len(historicalClaimsForTitle(pool, title)) > 0 {
+				claimingCandidates++
+			}
+			if titleHasDominantLead(title, dominantLeads) {
+				dominantCandidates++
+			}
+			if titleUsesDominantDeFrame(title, dominantLeads) {
+				deFrameCandidates++
+			}
+		}
+		log.Printf("BBS title quality: host=%s board=%s phase=pool attempt=%d usable=%d claim_candidates=%d dominant_lead=%d dominant_de_frame=%d", req.Host.ID, req.Board.ID, attempt+1, len(titles), claimingCandidates, dominantCandidates, deFrameCandidates)
 		avoid = append(avoid, titles...)
 
 		// Era routing is intentionally claim-driven. The generator's nested
@@ -330,7 +346,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						// A small preference keeps verified period/local texture from
 						// disappearing entirely behind the claim-free reserve. Historical
 						// verification still remains mandatory before adoption.
-						bonus += .04
+						bonus += .08
 					}
 					qualityBonus[candidate] = bonus
 					for _, event := range fitEvents {
@@ -437,6 +453,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					case "verified":
 						d := researchDecision[job.candidate]
 						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+						verifiedClaimEvents[d.EventID] = true
 						cacheHits++
 					case "ng":
 						cacheNG++
@@ -493,6 +510,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 							continue
 						}
 						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+						verifiedClaimEvents[d.EventID] = true
 					}
 				} else {
 					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=0s jobs=%d queued_background=%d skipped_wait=%t", req.Host.ID, req.Board.ID, attempt+1, len(researchJobs), len(queuedJobs), remainingResearch <= 0)
@@ -525,6 +543,42 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	if len(remaining) > 0 {
 		return nil, fmt.Errorf("title-first batch left %d of %d root subjects unresolved after %d candidate pools; canned title fallback is disabled", len(remaining), len(rootSlots), maxPoolAttempts)
 	}
+
+	dominantFinal := 0
+	deFrameFinal := 0
+	temporalFailures := 0
+	for eventID, post := range adopted {
+		if titleHasDominantLead(post.Subject, func() map[string]bool {
+			// Final adopted titles can span two candidate pools. Recompute the
+			// repeated opening families from the adopted corpus for observability.
+			all := make([]string, 0, len(adopted))
+			for _, p := range adopted {
+				all = append(all, p.Subject)
+			}
+			return dominantTitleLeadKeys(all)
+		}()) {
+			dominantFinal++
+		}
+		slot := slotByEvent[eventID]
+		if !titleTemporalCompatible(post.Subject, slot.CreatedAt) {
+			temporalFailures++
+		}
+	}
+	finalTitles := make([]string, 0, len(adopted))
+	for _, post := range adopted {
+		finalTitles = append(finalTitles, post.Subject)
+	}
+	finalDominant := dominantTitleLeadKeys(finalTitles)
+	dominantFinal = 0
+	for _, post := range adopted {
+		if titleHasDominantLead(post.Subject, finalDominant) {
+			dominantFinal++
+		}
+		if titleUsesDominantDeFrame(post.Subject, finalDominant) {
+			deFrameFinal++
+		}
+	}
+	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), dominantFinal, deFrameFinal, temporalFailures)
 
 	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
 	for _, slot := range rootSlots {
