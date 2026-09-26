@@ -1,6 +1,6 @@
 import type { RegisteredCenter } from './CenterDirectory';
 import type { TerminalCore } from '../terminal/TerminalCore';
-import { isFullWidth } from '../terminal/TerminalCore';
+import { terminalCellWidth } from '../terminal/TerminalCore';
 
 const PAGE_SIZE = 15;
 
@@ -114,7 +114,7 @@ export class TerminalCenterDirectory {
 }
 
 function cellWidth(value: string) {
-  return Array.from(value).reduce((width, ch) => width + (isFullWidth(ch) ? 2 : 1), 0);
+  return Array.from(value).reduce((width, ch) => width + terminalCellWidth(ch), 0);
 }
 
 function padCells(value: string, width: number) {
@@ -125,7 +125,7 @@ function fit(value: string, width: number) {
   let used = 0;
   let out = '';
   for (const ch of Array.from(value)) {
-    const w = isFullWidth(ch) ? 2 : 1;
+    const w = terminalCellWidth(ch);
     if (used + w > width) break;
     out += ch;
     used += w;

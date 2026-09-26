@@ -54,10 +54,16 @@ colors, full-width continuation cells, cursor positions, and host commands.
   text layout. Half-width and full-width glyphs use separate font sizes chosen
   to fit the historical 8px / 16px cell grid naturally; they are centered in
   their cells rather than horizontally squeezed with Canvas `maxWidth`.
-  The Canvas uses a device-aware backing raster capped at 2x. Fit mode uses
-  normal resampling instead of pixelated CSS scaling so Japanese and Latin
-  glyphs retain their natural proportions when the 640px terminal is
-  fractionally reduced on high-DPI phones.
+  Japanese legacy/JIS symbols that Unicode classifies as East-Asian ambiguous
+  (for example ■ □ ★ ☆ → ― ①) are deliberately treated as two cells. U+3000
+  IDEOGRAPHIC SPACE is always two cells, while variation selectors such as the
+  VS16 in `▫️` consume zero cells. The server-side 絵理香K layout helper uses
+  the same display-cell convention instead of counting Unicode runes, so mixed
+  Japanese/ASCII columns align with the terminal core. The Canvas uses a
+  device-aware backing raster capped at 2x. Fit mode uses normal resampling
+  instead of pixelated CSS scaling so Japanese and Latin glyphs retain their
+  natural proportions when the 640px terminal is fractionally reduced on
+  high-DPI phones.
 - Horizontal dragging pans the enlarged screen; vertical dragging reads the
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
