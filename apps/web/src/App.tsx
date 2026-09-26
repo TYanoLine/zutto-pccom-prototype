@@ -215,7 +215,7 @@ export default function App() {
   const mobileSessionCost = localTestConnected ? 0 : runningCost;
   return <main className="shell">
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
-    <div className="mobile-statusbar" role="status" aria-label="接続状態">
+    <div className="mobile-statusbar" aria-label="接続状態">
       <span className="mobile-statusbar__name">{mobileConnectionName}</span>
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
