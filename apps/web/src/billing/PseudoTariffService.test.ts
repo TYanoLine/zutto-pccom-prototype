@@ -26,8 +26,14 @@ describe('March 1996 NTT dial-call tariff', () => {
     expect(service.chargeYen(yokohama, at('12:00:00'), at('12:00:28'))).toBe(30);
   });
 
-  it('uses the 240-second same-MA deep-night pulse', () => {
-    expect(service.chargeYen(hakata, at('23:00:00'), at('23:03:59'))).toBe(0);
+  it('uses the 240-second same-MA deep-night pulse outside Telehodai', () => {
+    const noTelehodai = new PseudoTariffService(
+      ntt1996TariffTable,
+      [],
+      DEFAULT_CALLER_LOCATION,
+    );
+    expect(noTelehodai.chargeYen(hakata, at('23:00:00'), at('23:03:59'))).toBe(10);
+    expect(noTelehodai.chargeYen(hakata, at('23:00:00'), at('23:04:01'))).toBe(20);
   });
 
   it('uses the Saturday/Sunday/holiday discount through 23:00', () => {
