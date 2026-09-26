@@ -56,8 +56,13 @@ type Store struct {
 	backend snapshotBackend
 
 	persistMu sync.Mutex
-	statusMu  sync.RWMutex
-	status    Status
+
+	batchMu    sync.Mutex
+	batchDepth map[string]int
+	batchDirty map[string]bool
+
+	statusMu sync.RWMutex
+	status   Status
 }
 
 func Open(ctx context.Context, databaseURL string, base *world.MemoryStore, targets []HostTarget) (*Store, error) {
@@ -87,6 +92,8 @@ func newStore(ctx context.Context, base *world.MemoryStore, targets []HostTarget
 		MemoryStore: base,
 		targets:     make(map[string]persistedHost, len(targets)),
 		backend:     backend,
+		batchDepth:  make(map[string]int),
+		batchDirty:  make(map[string]bool),
 		status:      Status{Enabled: true, Backend: "postgres-jsonb"},
 	}
 	seenPhones := make(map[string]bool, len(targets))
@@ -165,9 +172,55 @@ func (s *Store) SaveHost(host world.Host) {
 func (s *Store) AddPost(hostID string, post world.Post) world.Post {
 	post = s.MemoryStore.AddPost(hostID, post)
 	if target, ok := s.targets[hostID]; ok {
-		s.persistTarget(target)
+		s.persistTargetOrMarkBatchDirty(target)
 	}
 	return post
+}
+
+// BeginPostBatch / EndPostBatch coalesce snapshot persistence for one already
+// planned canonical article batch. Calls are nestable per host because demanded
+// board work may overlap a background prefetch on the same experiment station.
+func (s *Store) BeginPostBatch(hostID string) {
+	if _, ok := s.targets[hostID]; !ok {
+		return
+	}
+	s.batchMu.Lock()
+	s.batchDepth[hostID]++
+	s.batchMu.Unlock()
+}
+
+func (s *Store) EndPostBatch(hostID string) {
+	target, targeted := s.targets[hostID]
+	if !targeted {
+		return
+	}
+
+	shouldPersist := false
+	s.batchMu.Lock()
+	depth := s.batchDepth[hostID]
+	if depth > 1 {
+		s.batchDepth[hostID] = depth - 1
+	} else if depth == 1 {
+		delete(s.batchDepth, hostID)
+		shouldPersist = s.batchDirty[hostID]
+		delete(s.batchDirty, hostID)
+	}
+	s.batchMu.Unlock()
+
+	if shouldPersist {
+		s.persistTarget(target)
+	}
+}
+
+func (s *Store) persistTargetOrMarkBatchDirty(target persistedHost) {
+	s.batchMu.Lock()
+	if s.batchDepth[target.hostID] > 0 {
+		s.batchDirty[target.hostID] = true
+		s.batchMu.Unlock()
+		return
+	}
+	s.batchMu.Unlock()
+	s.persistTarget(target)
 }
 
 func (s *Store) UpdatePost(hostID string, post world.Post) (world.Post, bool) {
