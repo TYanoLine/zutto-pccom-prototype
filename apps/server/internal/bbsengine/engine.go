@@ -302,6 +302,11 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		}
 	}
 
+	if batchStore, ok := e.Store.(world.PostBatchStore); ok {
+		batchStore.BeginPostBatch(host.ID)
+		defer batchStore.EndPostBatch(host.ID)
+	}
+
 	persistedBySlot := make(map[int]world.Post, len(slots))
 	for _, slot := range slots {
 		draft, ok := bySlot[slot.Index]
