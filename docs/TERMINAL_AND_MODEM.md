@@ -82,6 +82,8 @@ colors, full-width continuation cells, cursor positions, and host commands.
   action remains at least 44px high. Device safe areas and browser zoom remain
   enabled.
 
+Production deployment retries should not change modem behavior or mobile layout.
+
 Validation should cover 320/390px portrait and desktop widths, direct native
 input focus on iOS/Android, tap-to-type versus drag gestures, horizontal
 panning, receive scrollback, software-keyboard resize, repeated typing without
