@@ -64,6 +64,16 @@ type BoardActivityStateStore interface {
 	SaveBoardActivityState(hostID string, state BoardActivityState)
 	ListBoardActivityStates(hostID string) []BoardActivityState
 }
+// PostBatchStore is an optional persistence optimization for a canonical batch
+// whose posts have already been fully planned/validated. The in-memory world
+// mutations remain visible immediately; a snapshot-backed store may defer its
+// durable snapshot until EndPostBatch so one world batch does not cause one
+// database write per article.
+type PostBatchStore interface {
+	BeginPostBatch(hostID string)
+	EndPostBatch(hostID string)
+}
+
 type PostUpdater interface{ UpdatePost(hostID string, p Post) (Post, bool) }
 
 // PersonaStore keeps the global-persona / host-membership split explicit even in
