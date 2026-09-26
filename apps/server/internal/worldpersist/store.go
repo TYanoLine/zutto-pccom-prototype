@@ -205,10 +205,11 @@ func (s *Store) SaveBoards(hostID string, boards []world.Board) {
 
 
 func (s *Store) SaveBoardActivityState(hostID string, state world.BoardActivityState) {
+	// Activity planning must stay cheap enough for board-menu rendering. The
+	// deterministic plan is recomputable before any prose exists; once article
+	// materialization writes a post, the normal AddPost snapshot persists the
+	// activity state together with the resulting canonical history.
 	s.MemoryStore.SaveBoardActivityState(hostID, state)
-	if target, ok := s.targets[hostID]; ok {
-		s.persistTarget(target)
-	}
 }
 
 func (s *Store) SavePersona(persona world.Persona) {
