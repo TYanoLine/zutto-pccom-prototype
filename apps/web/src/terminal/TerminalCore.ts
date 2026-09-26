@@ -10,32 +10,17 @@ const WIDTH = 80;
 const HEIGHT = 25;
 const MAX_SCROLLBACK = 2000;
 
-// Unicode's East Asian Width=Ambiguous characters are commonly rendered as
-// double-cell glyphs in Japanese terminals. The service intentionally follows
-// that Japanese legacy convention for symbols that occur in JIS-era BBS text.
-// This includes the exact families seen in period-style host screens: ruled
-// lines, geometric blocks, arrows, stars, circled numbers and math symbols.
-const JAPANESE_DOUBLE_CELL_SYMBOL_RANGES: ReadonlyArray<readonly [number, number]> = [
-  [0x2010, 0x203b], // dashes, quotes, ellipsis, ※
-  [0x2103, 0x2103], // ℃
-  [0x212b, 0x212b], // Ångström sign
-  [0x2190, 0x2193], // arrows
-  [0x21d2, 0x21d2],
-  [0x21d4, 0x21d4],
-  [0x2200, 0x22bf], // common mathematical symbols
-  [0x2312, 0x2312],
-  [0x2460, 0x24ff], // enclosed/circled numbers and letters
-  [0x2500, 0x257f], // box drawing
-  [0x25a0, 0x25ff], // ■ □ ◆ ◇ ○ etc.
-  [0x2605, 0x2606], // ★ ☆
-  [0x2640, 0x2642],
-  [0x266a, 0x266f], // music / accidental marks
-  [0x0391, 0x03c9], // Greek used by JIS X 0208
-  [0x0401, 0x0451], // Cyrillic used by JIS X 0208
-];
-
-function inRanges(cp: number, ranges: ReadonlyArray<readonly [number, number]>) {
-  return ranges.some(([start, end]) => cp >= start && cp <= end);
+// PC-9801 / Shift_JIS terminal cell model.
+//
+// The BBS transport uses Unicode internally, but the emulated display follows
+// the byte-width convention of a Japanese PC-98 terminal: ASCII/JIS X 0201
+// half-width kana occupy one cell; Shift_JIS double-byte characters occupy two.
+// Unicode-only presentation controls never consume a terminal cell.
+function isSingleCellPC98CodePoint(cp: number) {
+  return cp <= 0x7f
+    || cp === 0x00a5 // JIS Roman yen sign (0x5c)
+    || cp === 0x203e // JIS Roman overline (0x7e)
+    || (cp >= 0xff61 && cp <= 0xff9f); // JIS X 0201 half-width katakana
 }
 
 function isVariationSelector(cp: number) {
@@ -162,8 +147,8 @@ export class TerminalCore {
     const cp = ch.codePointAt(0) ?? 0;
     const w = terminalCellWidth(ch);
     if (w === 0) {
-      // Presentation selectors (notably VS16 in "▫️") must not consume a
-      // terminal column. Ignore them so period text symbols stay text glyphs.
+      // Unicode presentation selectors have no PC-98/Shift_JIS representation
+      // and therefore never consume a terminal column.
       if (isVariationSelector(cp) || cp === 0x200d) return;
 
       // Preserve decomposed accents/dakuten on the previous leading cell while
@@ -239,20 +224,12 @@ export function terminalCellWidth(ch: string): 0 | 1 | 2 {
 
   if (isVariationSelector(cp) || cp === 0x200d || isCombiningMark(cp)) return 0;
 
-  // Explicitly retain the Japanese ideographic space as two cells. This is
-  // redundant with the broad CJK range below but documents a key invariant.
-  if (cp === 0x3000) return 2;
+  if (isSingleCellPC98CodePoint(cp)) return 1;
 
-  if (cp >= 0x1100 && (
-    cp <= 0x115f || cp === 0x2329 || cp === 0x232a ||
-    (cp >= 0x2e80 && cp <= 0xa4cf) || (cp >= 0xac00 && cp <= 0xd7a3) ||
-    (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0xfe10 && cp <= 0xfe19) ||
-    (cp >= 0xff01 && cp <= 0xff60) || (cp >= 0xffe0 && cp <= 0xffe6)
-  )) return 2;
-
-  if (inRanges(cp, JAPANESE_DOUBLE_CELL_SYMBOL_RANGES)) return 2;
-
-  return 1;
+  // Anything else that reaches the terminal is expected to have passed the
+  // server's Shift_JIS repertoire filter, so it represents a PC-98 double-byte
+  // glyph and occupies two cells.
+  return 2;
 }
 
 export function isFullWidth(ch: string) {
