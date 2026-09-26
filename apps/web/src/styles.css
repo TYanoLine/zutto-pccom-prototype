@@ -8,7 +8,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .terminal-viewport-shell { position: relative; }
 .terminal-viewport { position: relative; width: 100%; overflow-x: auto; background: #000; }
 .terminal-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
-.terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu { display: none; }
+.terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu, .mobile-statusbar { display: none; }
 .terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: pinch-zoom; }
 .terminal-input-proxy::selection { color: transparent; background: transparent; }
 .statusbar { flex-wrap: wrap; }
@@ -27,9 +27,12 @@ code { color: #ddd; }
 .audition-meta { margin-top: 7px; padding: 4px 7px; width: fit-content; max-width: 100%; color: #8f8; background: #101810; border: 1px solid #294229; font-size: 11px; }
 @media (max-width: 680px), (pointer: coarse) {
   body { overflow: hidden; background: #000; }
-  .shell { width: 100%; height: 100dvh; min-height: 100svh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
+  .shell { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
   .titlebar, .statusbar, .quick-help { display: none; }
-  .screen-wrap { display: block; width: 100%; height: 100%; padding: 0; border: 0; background: #000; }
+  .mobile-statusbar { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
+  .mobile-statusbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-statusbar__stats { flex: 0 0 auto; color: #ddd; font-variant-numeric: tabular-nums; }
+  .screen-wrap { display: block; flex: 1 1 auto; min-height: 0; width: 100%; height: auto; padding: 0; border: 0; background: #000; }
   .terminal-display, .terminal-viewport-shell, .terminal-viewport { width: 100%; height: 100%; max-width: none; }
   .terminal-display--fit .terminal-canvas { width: 100%; height: auto; max-width: none; }
   .terminal-display--readable .terminal-canvas { width: max(100%, 640px); height: auto; max-width: none; }
