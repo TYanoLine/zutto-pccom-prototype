@@ -101,8 +101,8 @@ colors, full-width continuation cells, cursor positions, and host commands.
   action remains at least 44px high. Device safe areas and browser zoom remain
   enabled.
 
-Production deployment retries should not change modem behavior or mobile layout.
-Ver 0.22 production retries are deployment-only and must leave the accepted PV-AF LCD appearance unchanged.
+Production deployment retries are deployment-only: they must not change modem
+behavior, the accepted PV-AF LCD appearance, or mobile terminal layout.
 
 Validation should cover 320/390px portrait and desktop widths, direct native
 input focus on iOS/Android, tap-to-type versus drag gestures, horizontal
