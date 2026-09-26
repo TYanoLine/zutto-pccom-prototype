@@ -2,7 +2,10 @@ import { playDialSequence } from '../audio/dialLineAudio';
 import type { DialMode } from '../audio/dialLineAudio';
 import { playHandshake } from '../audio/modemAudio';
 import type { HandshakeRun } from '../audio/modemAudio';
+import { DEFAULT_COMM_SETTINGS } from './CommSettings';
 import type { CommSettings } from './CommSettings';
+import { protocolStateForSettings } from './ModemTelemetry';
+import type { ModemPhase, ModemTelemetry } from './ModemTelemetry';
 import type { TerminalCore } from '../terminal/TerminalCore';
 
 export const LOCAL_TEST_NUMBER = '0312345678';
@@ -49,12 +52,19 @@ function compressionFactor(settings: CommSettings): number {
 export class LocalTestStation {
   private connected = false;
   private dialing = false;
+  private negotiating = false;
   private destroyed = false;
   private settings?: CommSettings;
+  private displaySettings: CommSettings = { ...DEFAULT_COMM_SETTINGS };
+  private currentBaud = 0;
+  private txActive = false;
+  private rxActive = false;
   private mode: DialMode = 'tone';
   private answerTimer?: Timer;
   private connectTimer?: Timer;
   private serialTimer?: Timer;
+  private txLampTimer?: Timer;
+  private rxLampTimer?: Timer;
   private txQueue = '';
   private txByteCredit = 0;
   private readonly answerDelayMs: number;
@@ -65,6 +75,7 @@ export class LocalTestStation {
 
   onStatus?: (status: string) => void;
   onConnectionChange?: (connected: boolean, baud?: number) => void;
+  onTelemetry?: (telemetry: ModemTelemetry) => void;
 
   constructor(
     private readonly terminal: TerminalCore,
@@ -83,12 +94,26 @@ export class LocalTestStation {
   isConnected(): boolean { return this.connected; }
   isDialing(): boolean { return this.dialing; }
 
+  setCommunicationSettings(settings: CommSettings): void {
+    this.displaySettings = { ...settings };
+    this.emitTelemetry();
+  }
+
+  getTelemetry(): ModemTelemetry {
+    return this.telemetrySnapshot();
+  }
+
   dial(mode: DialMode, settings: CommSettings): void {
     if (this.destroyed) return;
     this.hangup(false);
     this.mode = mode;
     this.settings = { ...settings };
+    this.displaySettings = { ...settings };
     this.dialing = true;
+    this.negotiating = false;
+    this.currentBaud = 0;
+    this.pulseActivity('tx');
+    this.emitTelemetry();
     this.terminal.write(`\r\nDIALING ${LOCAL_TEST_NUMBER} ${mode === 'pulse' ? '(PULSE)' : '(TONE)'} ...\r\n`);
     this.onStatus?.(`DIAL LOCAL TEST / ${mode.toUpperCase()}`);
 
@@ -98,6 +123,9 @@ export class LocalTestStation {
     this.answerTimer = this.schedule(() => {
       this.answerTimer = undefined;
       if (!this.dialing || this.destroyed || !this.settings) return;
+      this.negotiating = true;
+      this.currentBaud = this.settings.lineBaud;
+      this.emitTelemetry();
       this.onStatus?.(`LOCAL TEST / HANDSHAKE ${this.settings.lineBaud}`);
 
       let run: HandshakeRun | undefined;
@@ -109,6 +137,7 @@ export class LocalTestStation {
 
   submitLine(raw: string): void {
     if (!this.connected || !this.settings || this.destroyed) return;
+    if (raw.length > 0) this.pulseActivity('tx');
     const line = raw.trim();
     const upper = line.toUpperCase();
 
@@ -155,8 +184,11 @@ export class LocalTestStation {
     this.clearSerial();
     this.connected = false;
     this.dialing = false;
+    this.negotiating = false;
+    this.currentBaud = 0;
     this.settings = undefined;
     if (wasActive) this.onConnectionChange?.(false);
+    this.emitTelemetry();
     if (showResult && wasActive) this.terminal.write('\r\nNO CARRIER\r\n');
     if (wasActive) this.onStatus?.('STANDALONE / MODEM IDLE');
   }
@@ -168,17 +200,24 @@ export class LocalTestStation {
     this.clearSerial();
     this.connected = false;
     this.dialing = false;
+    this.negotiating = false;
+    this.currentBaud = 0;
     this.settings = undefined;
+    this.clearActivityTimers();
   }
 
   private finishConnect(): void {
     this.connectTimer = undefined;
     if (!this.dialing || this.destroyed || !this.settings) return;
     this.dialing = false;
+    this.negotiating = false;
     this.connected = true;
     this.txByteCredit = 0;
     const baud = this.settings.lineBaud;
+    this.currentBaud = baud;
+    this.emitTelemetry();
     this.terminal.write(`\r\nCONNECT ${baud}\r\n`);
+    this.pulseActivity('rx');
     this.onStatus?.(`LOCAL TEST ONLINE ${baud}`);
     this.onConnectionChange?.(true, baud);
     this.write(this.banner());
@@ -306,6 +345,7 @@ export class LocalTestStation {
     if (count > 0) {
       this.terminal.write(chars.slice(0, count).join(''));
       this.txQueue = chars.slice(count).join('');
+      this.pulseActivity('rx');
     }
     if (this.txQueue.length > 0) this.scheduleSerialTick();
   }
@@ -322,5 +362,68 @@ export class LocalTestStation {
     this.serialTimer = undefined;
     this.txQueue = '';
     this.txByteCredit = 0;
+  }
+
+  private phase(): ModemPhase {
+    if (this.negotiating) return 'negotiating';
+    if (this.connected) return 'online';
+    if (this.dialing) return 'dialing';
+    return 'idle';
+  }
+
+  private telemetrySnapshot(): ModemTelemetry {
+    const phase = this.phase();
+    const ready = !this.destroyed;
+    const carrier = this.connected && !this.negotiating;
+    const settings = this.settings ?? this.displaySettings;
+    return {
+      phase,
+      baud: this.currentBaud > 0 ? this.currentBaud : null,
+      mr: ready,
+      tr: ready,
+      sd: this.txActive,
+      rd: this.rxActive,
+      oh: this.dialing || this.connected,
+      cd: carrier,
+      aa: false,
+      hs: carrier && this.currentBaud >= 9600,
+      dsr: ready,
+      cts: ready,
+      protocol: protocolStateForSettings(settings, phase),
+    };
+  }
+
+  private emitTelemetry(): void {
+    this.onTelemetry?.(this.telemetrySnapshot());
+  }
+
+  private pulseActivity(direction: 'tx' | 'rx'): void {
+    if (direction === 'tx') {
+      this.txActive = true;
+      if (this.txLampTimer !== undefined) this.cancel(this.txLampTimer);
+      this.txLampTimer = this.schedule(() => {
+        this.txLampTimer = undefined;
+        this.txActive = false;
+        this.emitTelemetry();
+      }, 140);
+    } else {
+      this.rxActive = true;
+      if (this.rxLampTimer !== undefined) this.cancel(this.rxLampTimer);
+      this.rxLampTimer = this.schedule(() => {
+        this.rxLampTimer = undefined;
+        this.rxActive = false;
+        this.emitTelemetry();
+      }, 140);
+    }
+    this.emitTelemetry();
+  }
+
+  private clearActivityTimers(): void {
+    if (this.txLampTimer !== undefined) this.cancel(this.txLampTimer);
+    if (this.rxLampTimer !== undefined) this.cancel(this.rxLampTimer);
+    this.txLampTimer = undefined;
+    this.rxLampTimer = undefined;
+    this.txActive = false;
+    this.rxActive = false;
   }
 }
