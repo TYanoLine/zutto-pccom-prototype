@@ -603,6 +603,44 @@ func main() {
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
 
+	// Temporary benchmark hook for the title-quality iteration. It runs only on
+	// the public development/lab deployment and is removed after measurement.
+	if labEnabled() && cfg.OpenAIKey != "" && cfg.JevKey != "" {
+		go func() {
+			time.Sleep(2 * time.Second)
+			client := &http.Client{Timeout: 95 * time.Second}
+			base := "http://127.0.0.1" + cfg.Addr + "/api/debug/bbs/sample?phone=0920000196&board=6"
+			started := time.Now()
+			resp, err := client.Get(base + "&action=start")
+			if err != nil {
+				log.Printf("BBS title quality bench start failed: %v", err)
+				return
+			}
+			resp.Body.Close()
+			for poll := 1; poll <= 180; poll++ {
+				time.Sleep(time.Second)
+				resp, err := client.Get(base + "&action=status")
+				if err != nil {
+					log.Printf("BBS title quality bench status failed: poll=%d err=%v", poll, err)
+					continue
+				}
+				var payload map[string]any
+				decodeErr := json.NewDecoder(resp.Body).Decode(&payload)
+				resp.Body.Close()
+				if decodeErr != nil {
+					log.Printf("BBS title quality bench decode failed: poll=%d err=%v", poll, decodeErr)
+					continue
+				}
+				status, _ := payload["status"].(string)
+				if status == "completed" {
+					log.Printf("BBS title quality bench completed: elapsed=%s roots=%v posts=%v", time.Since(started), payload["root_count"], payload["post_count"])
+					return
+				}
+			}
+			log.Printf("BBS title quality bench timed out after %s", time.Since(started))
+		}()
+	}
+
 	log.Printf("zutto server listening on %s", cfg.Addr)
 	log.Fatal(srv.ListenAndServe())
 }
