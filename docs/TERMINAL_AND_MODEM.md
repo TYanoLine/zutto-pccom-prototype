@@ -32,7 +32,7 @@ colors, full-width continuation cells, cursor positions, and host commands.
   terminal row count is computed as
   `floor((available viewport height - bottom control region) / displayed row height)`,
   with a 25-row minimum. The backing canvas becomes 640×(rows×16), so a taller
-  phone displays more real terminal rows rather than taller glyphs.
+  phone displays more actual terminal rows instead of vertically stretching glyphs.
 - Mobile uses the full dynamic viewport height without permanently visible
   application chrome. The desktop title bar, modem/call status strip,
   help text and debug/settings panels are hidden on coarse-pointer/small-screen
