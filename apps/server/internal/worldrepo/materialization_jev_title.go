@@ -224,7 +224,6 @@ func (r *Repository) developmentJevTitleAdviceMode(
 	events []llm.BBSWorldWindowEvent,
 	recentBBSState string,
 	historicalFacts []string,
-,
 	fitOnly bool,
 ) (worldengine.TitleCandidateAdviceDecision, bool, error) {
 	advisor, ok := r.Engine.(developmentTitleCandidateAdvisor)
@@ -234,35 +233,39 @@ func (r *Repository) developmentJevTitleAdviceMode(
 	adviceEvents := make([]worldengine.TitleEvaluationEvent, 0, len(events))
 	for _, event := range events {
 		adviceEvents = append(adviceEvents, worldengine.TitleEvaluationEvent{
-			EventID: event.EventID,
-			AuthorHandle: event.AuthorHandle,
-			CreatedAt: event.CreatedAt,
-			CauseKind: event.CauseKind,
-			CauseSummary: event.CauseSummary,
-			DiscourseMode: event.DiscourseMode,
+			EventID:        event.EventID,
+			AuthorHandle:   event.AuthorHandle,
+			CreatedAt:      event.CreatedAt,
+			CauseKind:      event.CauseKind,
+			CauseSummary:   event.CauseSummary,
+			DiscourseMode:  event.DiscourseMode,
 			PersonaProfile: event.PersonaProfile,
-			ExistingFacts: append([]string(nil), event.ExistingFacts...),
+			ExistingFacts:  append([]string(nil), event.ExistingFacts...),
 		})
 	}
 	decision, err := advisor.AdviseTitleCandidates(ctx, worldengine.TitleCandidateAdviceRequest{
-		WorldDate: asOf,
-		HostID: host.ID,
-		HostName: host.Name,
-		BoardID: board.ID,
-		BoardName: board.Name,
-		BoardScope: board.SemanticScope,
-		Titles: append([]string(nil), titles...),
-		Events: adviceEvents,
-		RecentBBSState: recentBBSState,
+		WorldDate:       asOf,
+		HostID:          host.ID,
+		HostName:        host.Name,
+		BoardID:         board.ID,
+		BoardName:       board.Name,
+		BoardScope:      board.SemanticScope,
+		Titles:          append([]string(nil), titles...),
+		Events:          adviceEvents,
+		RecentBBSState:  recentBBSState,
 		HistoricalFacts: append([]string(nil), historicalFacts...),
-		FitOnly: fitOnly,
+		FitOnly:         fitOnly,
 	})
 	if err != nil {
 		return decision, true, err
 	}
-	wantFit := len(titles) * len(adviceEvents)
-	if len(decision.Fit) != wantFit {
-		return decision, true, fmt.Errorf("Jev title advice omitted fit pairs: got %d want %d", len(decision.Fit), wantFit)
+	if fitOnly {
+		wantFit := len(titles) * len(adviceEvents)
+		if len(decision.Fit) != wantFit {
+			return decision, true, fmt.Errorf("Jev title advice omitted fit pairs: got %d want %d", len(decision.Fit), wantFit)
+		}
+	} else if len(decision.Era) != len(titles) {
+		return decision, true, fmt.Errorf("Jev title advice omitted era candidates: got %d want %d", len(decision.Era), len(titles))
 	}
 	return decision, true, nil
 }
