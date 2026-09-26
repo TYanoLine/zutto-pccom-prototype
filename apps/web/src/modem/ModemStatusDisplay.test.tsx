@@ -20,8 +20,24 @@ describe('PV-AF-style digital modem display', () => {
     expect(html).toContain('V.42bis');
     expect(html).toContain('MNP');
     expect(html).toContain('OFH');
+    expect(html).toContain('DTR');
     expect(html).toContain('DSR');
+    expect(html).toContain('RTS');
     expect(html).toContain('CTS');
+    expect(html).toContain('AA');
+    expect(html).toContain('DCD');
+  });
+
+  it('keeps currently unmodeled RTS present but unlit', () => {
+    const html = renderToStaticMarkup(
+      <ModemStatusDisplay
+        mode="digital"
+        telemetry={createIdleModemTelemetry(DEFAULT_COMM_SETTINGS)}
+        dteBaud={38400}
+      />,
+    );
+
+    expect(html).toContain('<span data-on="false">RTS</span>');
   });
 
   it('renders lit and ghosted segments for an LCD-like fixed segment field', () => {

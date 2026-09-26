@@ -7,9 +7,9 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from 'react';
-import type { TerminalCore } from './TerminalCore';
+import { isFullWidth, type TerminalCore } from './TerminalCore';
 import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
-import { mobileTerminalRows, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import { mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
@@ -59,6 +59,9 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   );
   const [historyOffset, setHistoryOffset] = useState(0);
   const [layoutRows, setLayoutRows] = useState(terminal.height);
+  const [backingScale, setBackingScale] = useState(() =>
+    typeof window === 'undefined' ? 1 : terminalBackingScale(window.devicePixelRatio),
+  );
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
   const layoutRowsRef = useRef(terminal.height);
   const scrollOffsetRef = useRef(0);
@@ -89,6 +92,13 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     if (keyboardActive) window.requestAnimationFrame(ensureCursorVisible);
   }), [terminal, keyboardActive]);
   useEffect(() => { draw(); });
+
+  useEffect(() => {
+    const updateBackingScale = () => setBackingScale(terminalBackingScale(window.devicePixelRatio));
+    updateBackingScale();
+    window.addEventListener('resize', updateBackingScale);
+    return () => window.removeEventListener('resize', updateBackingScale);
+  }, []);
 
   useEffect(() => {
     if (!isMobilePresentation()) {
@@ -280,10 +290,18 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     if (!ctx) return;
     const displayedRows = layoutRowsRef.current;
     const rows = terminal.viewportRows(scrollOffsetRef.current, displayedRows);
+    const logicalWidth = terminal.width * 8;
+    const logicalHeight = displayedRows * 16;
+
+    // Keep the historical 8x16 logical cell grid, but rasterize it at up to
+    // 2x backing resolution. Mobile fit mode then downsamples a higher-quality
+    // source instead of magnifying a low-resolution canvas with pixelated CSS.
+    ctx.setTransform(backingScale, 0, 0, backingScale, 0, 0);
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 640, displayedRows * 16);
+    ctx.fillRect(0, 0, logicalWidth, logicalHeight);
     ctx.textBaseline = 'top';
-    ctx.font = '16px monospace';
+    ctx.textAlign = 'left';
+    ctx.font = '16px "MS Gothic", "Osaka-Mono", "Hiragino Kaku Gothic ProN", "Yu Gothic", monospace';
 
     // Paint every cell's background first, including the continuation cell of
     // a full-width character. A continuation is still a real 8x16 terminal
@@ -308,8 +326,12 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         const px = x * 8;
         const py = y * 16;
         ctx.fillStyle = PALETTE[cell.fg] ?? '#aaa';
-        ctx.fillText(cell.ch, px, py);
-        if (cell.bold && cell.ch !== ' ') ctx.fillText(cell.ch, px + 1, py);
+        const glyphWidth = isFullWidth(cell.ch) ? 16 : 8;
+        // Browser fonts do not naturally obey a PC-98-style 8/16-pixel cell
+        // width. maxWidth prevents Latin glyphs from spilling into the next
+        // fixed cell while full-width Japanese remains within two cells.
+        ctx.fillText(cell.ch, px, py, glyphWidth);
+        if (cell.bold && cell.ch !== ' ') ctx.fillText(cell.ch, px + 1, py, glyphWidth);
       }
     }
 
@@ -401,8 +423,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         <div ref={viewportRef} className="terminal-viewport" tabIndex={0} aria-label="端末画面。左右にスクロールできます">
           <canvas
             ref={ref}
-            width={640}
-            height={layoutRows * 16}
+            width={640 * backingScale}
+            height={layoutRows * 16 * backingScale}
             className="terminal-canvas"
             aria-label={`80桁${layoutRows}行の通信端末`}
             onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) focusKeyboardProxy(); }}

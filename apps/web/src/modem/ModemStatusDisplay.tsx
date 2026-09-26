@@ -126,9 +126,13 @@ export function ModemStatusDisplay({ mode, telemetry, dteBaud }: ModemStatusDisp
         <span className="modem-lcd__dot" data-on={telemetry.oh ? 'true' : 'false'} />
         <span data-on={telemetry.oh ? 'true' : 'false'}>OFH</span>
       </div>
-      <div className="modem-lcd__signals">
+      <div className="modem-lcd__signals" aria-label="モデム信号">
+        <span data-on={telemetry.tr ? 'true' : 'false'}>DTR</span>
         <span data-on={telemetry.dsr ? 'true' : 'false'}>DSR</span>
+        <span data-on="false">RTS</span>
         <span data-on={telemetry.cts ? 'true' : 'false'}>CTS</span>
+        <span data-on={telemetry.aa ? 'true' : 'false'}>AA</span>
+        <span data-on={telemetry.cd ? 'true' : 'false'}>DCD</span>
       </div>
     </div>
   );
