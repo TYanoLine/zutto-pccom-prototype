@@ -227,12 +227,14 @@ func (r *Repository) developmentJevTitleAdvice(
 		Events: adviceEvents,
 		RecentBBSState: recentBBSState,
 		HistoricalFacts: append([]string(nil), historicalFacts...),
+		FitOnly: true,
 	})
 	if err != nil {
 		return decision, true, err
 	}
-	if len(decision.Era) != len(titles) {
-		return decision, true, fmt.Errorf("Jev title advice omitted era candidates: got %d want %d", len(decision.Era), len(titles))
+	wantFit := len(titles) * len(adviceEvents)
+	if len(decision.Fit) != wantFit {
+		return decision, true, fmt.Errorf("Jev title advice omitted fit pairs: got %d want %d", len(decision.Fit), wantFit)
 	}
 	return decision, true, nil
 }
