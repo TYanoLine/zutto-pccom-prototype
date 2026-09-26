@@ -214,7 +214,7 @@ func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 	}
 	req := bbsengine.BatchRequest{
 		Host:       host,
-		Board:      world.Board{ID: "20/1", Name: "ＧＡＭＥ"},
+		Board:      world.Board{ID: "20/1", Name: "ＧＡＭＥ", SemanticScope: "ゲームについての板"},
 		WorldNow:   time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
 		RecentPosts: []world.Post{recent},
 		Slots: []bbsengine.Slot{
@@ -233,6 +233,9 @@ func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 	}
 	if renderer.lastContext.RecentBBSState == "" {
 		t.Fatal("recent BBS state was not supplied to candidate generation")
+	}
+	if renderer.lastContext.BoardScope != "ゲームについての板" {
+		t.Fatalf("board scope=%q, want hidden semantic scope", renderer.lastContext.BoardScope)
 	}
 	foundRecent := false
 	for _, subject := range renderer.lastContext.RecentSubjects {
@@ -526,7 +529,7 @@ func (e *suppliedFactTitleTestEngine) AdviseTitleCandidates(_ context.Context, r
 	return out, nil
 }
 
-func TestSharedBBSPlannerReusesSuppliedPeriodFactWithoutWebResearch(t *testing.T) {
+func TestSharedBBSPlannerDoesNotUseGlobalPeriodCatalogAsTopicInput(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -554,8 +557,13 @@ func TestSharedBBSPlannerReusesSuppliedPeriodFactWithoutWebResearch(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !engine.sawSaturnFact.Load() {
-		t.Fatal("Jev title routing did not receive the supplied セガサターン period fact")
+	if engine.sawSaturnFact.Load() {
+		t.Fatal("global PeriodReferents leaked into candidate/Jev topic input")
+	}
+	for _, fact := range renderer.lastContext.HistoricalFacts {
+		if strings.Contains(fact, "セガサターン") {
+			t.Fatalf("period seed leaked into title candidate context: %q", fact)
+		}
 	}
 	if got := engine.evidenceCalls.Load(); got != 0 {
 		t.Fatalf("historical Web research calls=%d, want 0 for Jev-safe supplied fact", got)
