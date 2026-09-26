@@ -278,12 +278,12 @@ func (r *Runtime) finishLogin() string {
 		last = "96/08/25 23:41"
 	}
 	return fmt.Sprintf("\r\n前回アクセス %s\r\n\r\n", last) +
-		"######################## WELCOME TO HAKATA CANAL NET ########################\r\n" +
-		"■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■\r\n" +
-		"■  博多から、夜更かしネットワーカーのみなさんへ。                  ■\r\n" +
-		"■  23:00以降は混み合います。長時間の席取りはほどほどに(^^;      ■\r\n" +
-		"■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■\r\n" +
-		"############################################################ ERIKA-K ####\r\n" +
+		decorativeLine("WELCOME TO HAKATA CANAL NET", "#", 80) + "\r\n" +
+		doubleCellRule("■", 80) + "\r\n" +
+		boxedLine("博多から、夜更かしネットワーカーのみなさんへ。", 80) + "\r\n" +
+		boxedLine("23:00以降は混み合います。長時間の席取りはほどほどに(^^;", 80) + "\r\n" +
+		doubleCellRule("■", 80) + "\r\n" +
+		decorativeLine("ERIKA-K", "#", 80) + "\r\n" +
 		fmt.Sprintf("\r\n深夜のアクセスご苦労様！ %sさん、いらっしゃいませ。\r\n", r.handle) +
 		r.renderMainMenu()
 }
@@ -502,14 +502,15 @@ func (r *Runtime) handleSimpleMenu(line, menu string) (string, bool) {
 }
 
 func (r *Runtime) renderMainMenu() string {
-	return "\r\n-HＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版\r\n" +
-		"――――――――――――――――――――――――――――――――――――――\r\n" +
-		"[1] ボード(BM)       [2] ファイル(FM)      [3] メール(MAIL)\r\n" +
-		"[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)\r\n" +
-		"[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録\r\n" +
-		"[A] 自動運転         [ASET] 自動運転登録    [MA] ボードマップ\r\n" +
-		"[T] 未読検索         [V] アクセス記録      [H] その他のコマンド\r\n" +
-		"――――――――――――――――――――――――――――――――――――――\r\n" +
+	const separator = "――――――――――――――――――――――――――――――――――――――――"
+	return "\r\n-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版\r\n" +
+		separator + "\r\n" +
+		menuColumns("[1] ボード(BM)", "[2] ファイル(FM)", "[3] メール(MAIL)") + "\r\n" +
+		menuColumns("[4] 電報･チャット(C)", "[5] ジャンク(JUNK)", "[6] 各種設定(MODE)") + "\r\n" +
+		menuColumns("[7] SYSOP宛メール", "[9] 接続終了(BYE)", "[0] 入会登録") + "\r\n" +
+		menuColumns("[A] 自動運転", "[ASET] 自動運転登録", "[MA] ボードマップ") + "\r\n" +
+		menuColumns("[T] 未読検索", "[V] アクセス記録", "[H] その他のコマンド") + "\r\n" +
+		separator + "\r\n" +
 		"MAIN MENU [?]=HELP --> "
 }
 
@@ -934,6 +935,37 @@ func padRunes(s string, width int) string {
 		return s + strings.Repeat(" ", width-n)
 	}
 	return s
+}
+
+func decorativeLine(label, fill string, width int) string {
+	middle := " " + label + " "
+	remaining := width - displayCellWidth(middle)
+	if remaining <= 0 {
+		return middle
+	}
+	left := remaining / 2
+	right := remaining - left
+	return strings.Repeat(fill, left) + middle + strings.Repeat(fill, right)
+}
+
+func doubleCellRule(symbol string, width int) string {
+	cellWidth := displayCellWidth(symbol)
+	if cellWidth <= 0 {
+		return ""
+	}
+	return strings.Repeat(symbol, width/cellWidth)
+}
+
+func boxedLine(body string, width int) string {
+	const prefix = "■  "
+	const suffix = "■"
+	innerWidth := width - displayCellWidth(prefix) - displayCellWidth(suffix)
+	return prefix + padRunes(body, innerWidth) + suffix
+}
+
+func menuColumns(first, second, third string) string {
+	const columnWidth = 22
+	return padRunes(first, columnWidth) + padRunes(second, columnWidth) + third
 }
 
 func displayCellWidth(s string) int {
