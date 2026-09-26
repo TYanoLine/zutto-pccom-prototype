@@ -86,12 +86,16 @@ func newRuntimeStore(databaseURL string) debugExportStore {
 	if err != nil {
 		log.Fatalf("initialize experiment host persistence: %v", err)
 	}
-	// HAKATA keeps its canonical article history across restarts. Only the
-	// code-defined fixture configuration stays authoritative; generated/user
-	// posts and persona/world state are restored from the persistent snapshot.
-	// Explicit debug reset endpoints remain available for generator evaluation.
+	// HAKATA is currently a pure generator-evaluation fixture: keep resident
+	// identities but no article baseline. Older snapshots may contain the former
+	// 40-per-board seed or prior generated/user posts, so clear them immediately
+	// on process startup and persist the empty article state.
 	if added := store.EnsureHakataExperimentPopulation(erikaKExperimentPhone); added > 0 {
 		log.Printf("HAKATA CANAL NET membership population restored: added_members=%d", added)
+	}
+	if host, hostErr := store.HostByPhone(erikaKExperimentPhone); hostErr == nil {
+		removed := store.ClearHostPosts(host.ID)
+		log.Printf("HAKATA CANAL NET article baseline cleared: removed_posts=%d", removed)
 	}
 	ensureDevelopmentBoardCatalog(store)
 	status := store.DevelopmentPersistenceStatus()
