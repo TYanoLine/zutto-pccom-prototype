@@ -20,7 +20,7 @@ function cloneRow(row: Cell[]): Cell[] {
 
 export class TerminalCore {
   readonly width = WIDTH;
-  readonly height = HEIGHT;
+  height = HEIGHT;
   cells: Cell[][] = [];
   cursorX = 0;
   cursorY = 0;
@@ -38,6 +38,21 @@ export class TerminalCore {
   get scrollbackLength() { return this.scrollback.length; }
   get maxScrollOffset() { return this.scrollback.length; }
 
+  resizeHeight(nextHeight: number) {
+    const height = Math.max(10, Math.min(120, Math.trunc(nextHeight)));
+    if (height === this.height) return;
+
+    if (height > this.height) {
+      for (let i = this.height; i < height; i++) this.cells.push(blankRow());
+    } else {
+      this.cells = this.cells.slice(0, height);
+      this.cursorY = Math.min(this.cursorY, height - 1);
+    }
+
+    this.height = height;
+    this.emit();
+  }
+
   // offset=0 is the live terminal screen. Positive offsets expose lines that
   // physically scrolled off the top of the 80x25 screen. Keeping this in the
   // terminal core (rather than scraping rendered pixels) preserves ANSI colors
@@ -46,12 +61,12 @@ export class TerminalCore {
     const clamped = Math.max(0, Math.min(this.maxScrollOffset, Math.trunc(offset)));
     if (clamped === 0) return this.cells;
     const history = [...this.scrollback, ...this.cells];
-    const start = Math.max(0, history.length - HEIGHT - clamped);
-    return history.slice(start, start + HEIGHT);
+    const start = Math.max(0, history.length - this.height - clamped);
+    return history.slice(start, start + this.height);
   }
 
   clear() {
-    this.cells = Array.from({ length: HEIGHT }, () => blankRow());
+    this.cells = Array.from({ length: this.height }, () => blankRow());
     this.scrollback = [];
     this.cursorX = 0;
     this.cursorY = 0;
@@ -105,7 +120,7 @@ export class TerminalCore {
   private newline() {
     this.cursorX = 0;
     this.cursorY++;
-    if (this.cursorY >= HEIGHT) {
+    if (this.cursorY >= this.height) {
       const scrolled = this.cells.shift();
       if (scrolled) {
         this.scrollback.push(cloneRow(scrolled));
@@ -114,7 +129,7 @@ export class TerminalCore {
         }
       }
       this.cells.push(blankRow());
-      this.cursorY = HEIGHT - 1;
+      this.cursorY = this.height - 1;
     }
   }
 
@@ -131,7 +146,7 @@ export class TerminalCore {
     const args = seq.slice(0, -1).split(';').filter(Boolean).map(Number);
     if (final === 'J' && (args[0] ?? 0) === 2) { this.clear(); return; }
     if (final === 'H' || final === 'f') {
-      this.cursorY = Math.max(0, Math.min(HEIGHT - 1, (args[0] ?? 1) - 1));
+      this.cursorY = Math.max(0, Math.min(this.height - 1, (args[0] ?? 1) - 1));
       this.cursorX = Math.max(0, Math.min(WIDTH - 1, (args[1] ?? 1) - 1));
       return;
     }
