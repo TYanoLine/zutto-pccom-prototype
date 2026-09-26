@@ -209,27 +209,40 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 			return existing, nil
 		}
 	}
-	job := r.boardObservationJob(host.ID, board.ID)
-	if job == nil {
-		// Persisted canonical data from a previous process is already complete.
-		// Only start a new observation when this board has never materialized.
-		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
-			return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
-		}
-		job = r.beginBoardObservation(host, board)
-	}
-	if job != nil {
-		select {
-		case <-job.done:
-			if job.err != nil {
-				r.forgetFailedBoardObservation(host.ID, board.ID, job)
-				return nil, job.err
+
+	// Header planning depends on external model/research services and can fail even
+	// when the canonical world state is healthy. A demanded board read gets one
+	// fresh observation attempt before surfacing an error to the historical host
+	// UI. The failed lease is discarded, so concurrent readers single-flight the
+	// retry instead of each starting their own generation.
+	for attempt := 0; attempt < 2; attempt++ {
+		job := r.boardObservationJob(host.ID, board.ID)
+		if job == nil {
+			// Persisted canonical data from a previous process is already complete.
+			// Only start a new observation when this board has never materialized.
+			if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+				return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
 			}
-		case <-ctx.Done():
-			return nil, ctx.Err()
+			job = r.beginBoardObservation(host, board)
 		}
+		if job != nil {
+			select {
+			case <-job.done:
+				if job.err != nil {
+					r.forgetFailedBoardObservation(host.ID, board.ID, job)
+					if attempt == 0 {
+						log.Printf("BBS header observation retrying: host=%s board=%s err=%v", host.ID, board.ID, job.err)
+						continue
+					}
+					return nil, job.err
+				}
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		return r.repairDevelopmentPendingReplySubjects(host.ID, filterBoard(r.Base.ListPosts(host.ID), board.ID)), nil
 	}
-	return r.repairDevelopmentPendingReplySubjects(host.ID, filterBoard(r.Base.ListPosts(host.ID), board.ID)), nil
+	return nil, fmt.Errorf("board header observation retry exhausted")
 }
 
 func (r *Repository) boardObservationJob(hostID, boardID string) *observationJob {
