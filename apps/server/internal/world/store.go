@@ -50,6 +50,20 @@ type BoardStore interface {
 	ListBoards(hostID string) []Board
 	SaveBoards(hostID string, boards []Board)
 }
+
+// BoardActivityStore exposes prose-free canonical board activity state. Host
+// runtimes may use it to display counts before article headers are materialized.
+type BoardActivityStore interface {
+	BoardActivity(host Host, board Board) (BoardActivityState, bool)
+}
+
+// BoardActivityStateStore is the persistence capability used by Repository when
+// it computes/refreshes one deterministic activity plan.
+type BoardActivityStateStore interface {
+	BoardActivityState(hostID, boardID string) (BoardActivityState, bool)
+	SaveBoardActivityState(hostID string, state BoardActivityState)
+	ListBoardActivityStates(hostID string) []BoardActivityState
+}
 type PostUpdater interface{ UpdatePost(hostID string, p Post) (Post, bool) }
 
 // PersonaStore keeps the global-persona / host-membership split explicit even in
@@ -82,6 +96,7 @@ type MemoryStore struct {
 	mu           sync.RWMutex
 	hosts        map[string]Host
 	boards       map[string][]Board
+	boardActivity map[string]map[string]BoardActivityState
 	posts        map[string][]Post
 	personas     map[string]Persona
 	personaFacts map[string][]PersonaFact
@@ -93,6 +108,7 @@ func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
 		hosts:        map[string]Host{},
 		boards:       map[string][]Board{},
+		boardActivity: map[string]map[string]BoardActivityState{},
 		posts:        map[string][]Post{},
 		personas:     map[string]Persona{},
 		personaFacts: map[string][]PersonaFact{},
@@ -212,6 +228,34 @@ func (s *MemoryStore) SaveBoards(hostID string, boards []Board) {
 	out := make([]Board, len(boards))
 	copy(out, boards)
 	s.boards[hostID] = out
+}
+
+
+func (s *MemoryStore) BoardActivityState(hostID, boardID string) (BoardActivityState, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.boardActivity[hostID][boardID]
+	return state, ok
+}
+
+func (s *MemoryStore) SaveBoardActivityState(hostID string, state BoardActivityState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.boardActivity[hostID] == nil {
+		s.boardActivity[hostID] = map[string]BoardActivityState{}
+	}
+	s.boardActivity[hostID][state.BoardID] = state
+}
+
+func (s *MemoryStore) ListBoardActivityStates(hostID string) []BoardActivityState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	states := s.boardActivity[hostID]
+	out := make([]BoardActivityState, 0, len(states))
+	for _, state := range states {
+		out = append(out, state)
+	}
+	return out
 }
 func (s *MemoryStore) SavePersona(p Persona) {
 	s.mu.Lock()
