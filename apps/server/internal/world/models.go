@@ -13,14 +13,41 @@ type Host struct {
 	Popularity     float64 `json:"popularity"`
 	MaxBaud        int     `json:"max_baud"`
 	Members        int     `json:"members"`
+	FoundedOn      string  `json:"founded_on,omitempty"`
 	ANSI           bool    `json:"ansi"`
 	GuestAllowed   bool    `json:"guest_allowed"`
 	TelehoFriendly bool    `json:"teleho_friendly"`
 }
 
 type Board struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	ActivityWeight  float64 `json:"activity_weight,omitempty"`
+	ReplyRate       float64 `json:"reply_rate,omitempty"`
+	RetainedRootCap int     `json:"retained_root_cap,omitempty"`
+	OpenedOn        string  `json:"opened_on,omitempty"`
+}
+
+// BoardActivityState is the cheap world-layer existence plan for one board.
+// It is deliberately prose-free: counts/timestamps may exist before any title
+// or article body has been materialized by an LLM.
+type BoardActivityState struct {
+	BoardID          string    `json:"board_id"`
+	AsOfDate         string    `json:"as_of_date"`
+	OpenedOn         string    `json:"opened_on"`
+	CurrentMembers   int       `json:"current_members"`
+	InitialMembers   int       `json:"initial_members"`
+	AverageMembers   float64   `json:"average_members"`
+	GrowthExponent   float64   `json:"growth_exponent"`
+	TotalRoots       int       `json:"total_roots"`
+	TotalReplies     int       `json:"total_replies"`
+	RetainedRoots    int       `json:"retained_roots"`
+	RetainedReplies  int       `json:"retained_replies"`
+	RetainedSince    time.Time `json:"retained_since"`
+	LastPostAt       time.Time `json:"last_post_at"`
+	ActivityWeight   float64   `json:"activity_weight"`
+	ReplyRate        float64   `json:"reply_rate"`
+	SimulationBasis  string    `json:"simulation_basis"`
 }
 
 // PostIntent stores canonical semantic state for an actual post. Action,

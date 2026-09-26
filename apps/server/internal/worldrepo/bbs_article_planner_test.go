@@ -68,6 +68,17 @@ func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx conte
 			"夏休みの一本", "シューティング苦手", "対戦相手募集", "エンディング後の話",
 		}
 	}
+	if f.started != nil {
+		// Concurrency tests can now exercise activity plans larger than one
+		// 20-title pool. A real provider is asked for fresh candidates on refill;
+		// make this blocking fake behave the same way instead of repeating the
+		// identical pool forever.
+		offset := len(req.AvoidSubjects)
+		titles = make([]string, 0, 20)
+		for i := 0; i < 20; i++ {
+			titles = append(titles, fmt.Sprintf("候補%03d", offset+i+1))
+		}
+	}
 	return llm.BBSTitleCandidates{Titles: titles}, nil
 }
 
@@ -562,7 +573,10 @@ func TestSharedBBSHeaderMaterializationAllowsDemandAlongsideBackgroundPrefetch(t
 	}
 	release := make(chan struct{})
 	renderer := &fakeSharedTitleRenderer{
-		started: make(chan string, 2),
+		// Initial board histories may need several 20-title pools. Keep the
+		// synchronization channel roomy so post-release refill calls do not block
+		// a concurrency test that only cares about the first call per board.
+		started: make(chan string, 16),
 		release: release,
 	}
 	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")

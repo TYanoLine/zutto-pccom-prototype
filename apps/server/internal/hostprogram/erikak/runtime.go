@@ -11,44 +11,51 @@ import (
 )
 
 type boardNode struct {
-	Path   string
-	Key    string
-	Parent string
-	Name   string
-	Hidden bool
+	Path            string
+	Key             string
+	Parent          string
+	Name            string
+	Hidden          bool
+	ActivityWeight  float64
+	ReplyRate       float64
+	RetainedRootCap int
 }
 
 var boardTree = []boardNode{
-	{Path: "1", Key: "1", Name: "事務局からのお知らせ"},
-	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎"},
-	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）"},
-	{Path: "4", Key: "4", Name: "ふり～と～く"},
-	{Path: "5", Key: "5", Name: "オフライントピックス"},
-	{Path: "6", Key: "6", Name: "街角情報スポット"},
-	{Path: "7", Key: "7", Name: "ＣＡＮＡＬ市場"},
-	{Path: "8", Key: "8", Name: "夢工房はかた"},
+	// Activity values below are HAKATA station fiction used by the world
+	// simulation. They are not claimed Erika-K defaults.
+	{Path: "1", Key: "1", Name: "事務局からのお知らせ", ActivityWeight: .10, ReplyRate: .20, RetainedRootCap: 24},
+	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎", ActivityWeight: .34, ReplyRate: 1.30, RetainedRootCap: 36},
+	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）", ActivityWeight: .58, ReplyRate: 2.10, RetainedRootCap: 48},
+	{Path: "4", Key: "4", Name: "ふり～と～く", ActivityWeight: 1.25, ReplyRate: 2.00, RetainedRootCap: 60},
+	{Path: "5", Key: "5", Name: "オフライントピックス", ActivityWeight: .48, ReplyRate: 1.70, RetainedRootCap: 42},
+	{Path: "6", Key: "6", Name: "街角情報スポット", ActivityWeight: .72, ReplyRate: 1.30, RetainedRootCap: 48},
+	{Path: "7", Key: "7", Name: "ＣＡＮＡＬ市場", ActivityWeight: .30, ReplyRate: .75, RetainedRootCap: 30},
+	// "夢工房はかた" の意味は史料未確定。ここでは意味を推測せず、
+	// 局固有の活動量だけを設定する。
+	{Path: "8", Key: "8", Name: "夢工房はかた", ActivityWeight: .42, ReplyRate: 1.10, RetainedRootCap: 36},
 	{Path: "10", Key: "10", Name: "博多・天神広場"},
 	{Path: "20", Key: "20", Name: "アミューズメントフォーラム"},
 	{Path: "60", Key: "60", Name: "コンピュータワールド"},
 	{Path: "68", Key: "68", Name: "ＣＡＮＡＬ Ｘ村"},
 	{Path: "70", Key: "70", Name: "９８ VS ＡＴ互換機"},
 	{Path: "80", Key: "80", Name: "その他のコンピュータ"},
-	{Path: "99", Key: "99", Name: "夜更かし部屋", Hidden: true},
+	{Path: "99", Key: "99", Name: "夜更かし部屋", Hidden: true, ActivityWeight: .34, ReplyRate: 2.30, RetainedRootCap: 36},
 
-	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル"},
-	{Path: "10/2", Key: "2", Parent: "10", Name: "オフ会連絡"},
-	{Path: "20/1", Key: "1", Parent: "20", Name: "ＧＡＭＥ"},
-	{Path: "20/2", Key: "2", Parent: "20", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ"},
-	{Path: "60/1", Key: "1", Parent: "60", Name: "ＰＣ－９８／ＭＯＤＥＭ"},
-	{Path: "60/2", Key: "2", Parent: "60", Name: "Ｗｉｎｄｏｗｓ／ＤＯＳ"},
-	{Path: "60/3", Key: "3", Parent: "60", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ"},
-	{Path: "68/1", Key: "1", Parent: "68", Name: "深夜雑談"},
-	{Path: "70/1", Key: "1", Parent: "70", Name: "ＰＣ－９８"},
-	{Path: "70/2", Key: "2", Parent: "70", Name: "ＤＯＳ／Ｖ"},
-	{Path: "80/1", Key: "1", Parent: "80", Name: "ＦＭ－ＴＯＷＮＳ"},
-	{Path: "80/2", Key: "2", Parent: "80", Name: "Forever with MSX"},
-	{Path: "80/3", Key: "3", Parent: "80", Name: "ワープロ"},
-	{Path: "80/4", Key: "4", Parent: "80", Name: "その他(PC88,FMR,etc)"},
+	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル", ActivityWeight: 1.00, ReplyRate: 1.45, RetainedRootCap: 54},
+	{Path: "10/2", Key: "2", Parent: "10", Name: "オフ会連絡", ActivityWeight: .48, ReplyRate: 1.75, RetainedRootCap: 36},
+	{Path: "20/1", Key: "1", Parent: "20", Name: "ＧＡＭＥ", ActivityWeight: .92, ReplyRate: 1.65, RetainedRootCap: 52},
+	{Path: "20/2", Key: "2", Parent: "20", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", ActivityWeight: .64, ReplyRate: 1.55, RetainedRootCap: 44},
+	{Path: "60/1", Key: "1", Parent: "60", Name: "ＰＣ－９８／ＭＯＤＥＭ", ActivityWeight: .84, ReplyRate: 1.95, RetainedRootCap: 50},
+	{Path: "60/2", Key: "2", Parent: "60", Name: "Ｗｉｎｄｏｗｓ／ＤＯＳ", ActivityWeight: .74, ReplyRate: 1.85, RetainedRootCap: 48},
+	{Path: "60/3", Key: "3", Parent: "60", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ", ActivityWeight: .70, ReplyRate: 1.70, RetainedRootCap: 46},
+	{Path: "68/1", Key: "1", Parent: "68", Name: "深夜雑談", ActivityWeight: .62, ReplyRate: 2.20, RetainedRootCap: 44},
+	{Path: "70/1", Key: "1", Parent: "70", Name: "ＰＣ－９８", ActivityWeight: .67, ReplyRate: 1.85, RetainedRootCap: 46},
+	{Path: "70/2", Key: "2", Parent: "70", Name: "ＤＯＳ／Ｖ", ActivityWeight: .48, ReplyRate: 1.55, RetainedRootCap: 38},
+	{Path: "80/1", Key: "1", Parent: "80", Name: "ＦＭ－ＴＯＷＮＳ", ActivityWeight: .31, ReplyRate: 1.35, RetainedRootCap: 30},
+	{Path: "80/2", Key: "2", Parent: "80", Name: "Forever with MSX", ActivityWeight: .28, ReplyRate: 1.40, RetainedRootCap: 28},
+	{Path: "80/3", Key: "3", Parent: "80", Name: "ワープロ", ActivityWeight: .30, ReplyRate: 1.20, RetainedRootCap: 30},
+	{Path: "80/4", Key: "4", Parent: "80", Name: "その他(PC88,FMR,etc)", ActivityWeight: .26, ReplyRate: 1.25, RetainedRootCap: 26},
 }
 
 var unreadBoard = map[string]bool{
@@ -62,7 +69,17 @@ func BoardByPath(path string) (world.Board, bool) {
 	if !ok || node.Hidden {
 		return world.Board{}, false
 	}
-	return world.Board{ID: node.Path, Name: node.Name}, true
+	return worldBoard(node), true
+}
+
+func worldBoard(node boardNode) world.Board {
+	return world.Board{
+		ID:              node.Path,
+		Name:            node.Name,
+		ActivityWeight:  node.ActivityWeight,
+		ReplyRate:       node.ReplyRate,
+		RetainedRootCap: node.RetainedRootCap,
+	}
 }
 
 type Runtime struct {
@@ -101,7 +118,9 @@ func (r *Runtime) beginBoardPrefetch(boards []world.Board) {
 func (r *Runtime) prefetchLoginBoard() {
 	// Keep speculative work intentionally tiny. Free-talk is a plausible first
 	// destination, but choosing any other board simply waits on that board later.
-	r.beginBoardPrefetch([]world.Board{{ID: "4", Name: "ふり～と～く"}})
+	if node, ok := findNode("4"); ok {
+		r.beginBoardPrefetch([]world.Board{worldBoard(node)})
+	}
 }
 
 func (r *Runtime) prefetchFirstForumChild(path string) {
@@ -109,7 +128,7 @@ func (r *Runtime) prefetchFirstForumChild(path string) {
 		if r.isForum(child.Path) {
 			continue
 		}
-		r.beginBoardPrefetch([]world.Board{{ID: child.Path, Name: child.Name}})
+		r.beginBoardPrefetch([]world.Board{worldBoard(child)})
 		return
 	}
 }
@@ -235,8 +254,22 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 	}
 }
 
+func (r *Runtime) planBoardActivity() {
+	planner, ok := r.Store.(world.BoardActivityStore)
+	if !ok {
+		return
+	}
+	for _, node := range boardTree {
+		if r.isForum(node.Path) {
+			continue
+		}
+		_, _ = planner.BoardActivity(r.Host, worldBoard(node))
+	}
+}
+
 func (r *Runtime) finishLogin() string {
 	r.state = "main"
+	r.planBoardActivity()
 	r.prefetchLoginBoard()
 	last := "--/--/-- --:--"
 	if r.handle != "GUEST" {
@@ -530,7 +563,7 @@ func (r *Runtime) renderBoardIndex() string {
 	if !ok || r.isForum(r.boardPath) {
 		return r.renderBoardMenu()
 	}
-	board := world.Board{ID: node.Path, Name: node.Name}
+	board := worldBoard(node)
 	posts := r.observedBoardPosts(r.boardPath)
 	if observer, ok := r.Store.(world.HostObservationStore); ok {
 		// Predictive work may already be running from login/forum navigation. If
@@ -582,7 +615,7 @@ func (r *Runtime) renderThread(id int64) string {
 		return "\r\nMSGが見つかりません。\r\n" + r.threadPrompt()
 	}
 	boardNode, _ := findNode(r.boardPath)
-	board := world.Board{ID: r.boardPath, Name: boardNode.Name}
+	board := worldBoard(boardNode)
 	if strings.TrimSpace(root.Body) == "" {
 		if observer, ok := r.Store.(world.HostObservationStore); ok {
 			if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, root.ID); err == nil && ok {
@@ -785,6 +818,13 @@ func (r *Runtime) rootCount(path string) int {
 	for _, p := range r.observedBoardPosts(path) {
 		if p.ParentID == 0 {
 			count++
+		}
+	}
+	if node, ok := findNode(path); ok && !r.isForum(path) {
+		if planner, ok := r.Store.(world.BoardActivityStore); ok {
+			if state, found := planner.BoardActivity(r.Host, worldBoard(node)); found && state.RetainedRoots > count {
+				return state.RetainedRoots
+			}
 		}
 	}
 	return count

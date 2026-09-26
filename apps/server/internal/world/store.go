@@ -50,6 +50,20 @@ type BoardStore interface {
 	ListBoards(hostID string) []Board
 	SaveBoards(hostID string, boards []Board)
 }
+
+// BoardActivityStore exposes prose-free canonical board activity state. Host
+// runtimes may use it to display counts before article headers are materialized.
+type BoardActivityStore interface {
+	BoardActivity(host Host, board Board) (BoardActivityState, bool)
+}
+
+// BoardActivityStateStore is the persistence capability used by Repository when
+// it computes/refreshes one deterministic activity plan.
+type BoardActivityStateStore interface {
+	BoardActivityState(hostID, boardID string) (BoardActivityState, bool)
+	SaveBoardActivityState(hostID string, state BoardActivityState)
+	ListBoardActivityStates(hostID string) []BoardActivityState
+}
 type PostUpdater interface{ UpdatePost(hostID string, p Post) (Post, bool) }
 
 // PersonaStore keeps the global-persona / host-membership split explicit even in
@@ -82,6 +96,7 @@ type MemoryStore struct {
 	mu           sync.RWMutex
 	hosts        map[string]Host
 	boards       map[string][]Board
+	boardActivity map[string]map[string]BoardActivityState
 	posts        map[string][]Post
 	personas     map[string]Persona
 	personaFacts map[string][]PersonaFact
@@ -93,6 +108,7 @@ func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
 		hosts:        map[string]Host{},
 		boards:       map[string][]Board{},
+		boardActivity: map[string]map[string]BoardActivityState{},
 		posts:        map[string][]Post{},
 		personas:     map[string]Persona{},
 		personaFacts: map[string][]PersonaFact{},
@@ -100,7 +116,7 @@ func NewMemoryStore() *MemoryStore {
 		next:         1000,
 	}
 
-	h := Host{ID: "moonlight-yokohama", Phone: "0451234567", Name: "YOKOHAMA MOONLIGHT NETWORK", Region: "神奈川県横浜市", Software: "KTBBS compatible / customized", SoftwareID: "generic", Lines: 4, Popularity: .70, MaxBaud: 14400, Members: 187, ANSI: true, GuestAllowed: true, TelehoFriendly: true}
+	h := Host{ID: "moonlight-yokohama", Phone: "0451234567", Name: "YOKOHAMA MOONLIGHT NETWORK", Region: "神奈川県横浜市", Software: "KTBBS compatible / customized", SoftwareID: "generic", Lines: 4, Popularity: .70, MaxBaud: 14400, Members: 187, FoundedOn: "1994-06-12", ANSI: true, GuestAllowed: true, TelehoFriendly: true}
 	s.hosts[h.Phone] = h
 	s.posts[h.ID] = []Post{
 		{ID: 1, BoardID: "main", Author: "SYSOP", Subject: "HDD増設しました", Body: "先週、HDDを340MBに増設しました。\r\nファイルボードも少し整理しています。", CreatedAt: time.Date(1996, 8, 25, 21, 14, 0, 0, time.Local)},
@@ -108,13 +124,13 @@ func NewMemoryStore() *MemoryStore {
 		{ID: 3, BoardID: "main", Author: "TAKA", Subject: "Win95どうです？", Body: "うちはまだ3.1です。98で使うには重い気もしますが…。", CreatedAt: time.Date(1996, 8, 26, 1, 7, 0, 0, time.Local)},
 	}
 
-	erika := Host{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, ANSI: false, GuestAllowed: true, TelehoFriendly: true}
+	erika := Host{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, FoundedOn: "1994-11-03", ANSI: false, GuestAllowed: true, TelehoFriendly: true}
 	s.hosts[erika.Phone] = erika
 	s.posts[erika.ID] = nil
 	ensureHakataExperimentPopulationLocked(s, erika)
 
 
-	turbo := Host{ID: "silver-horizon-bbs", Phone: "0470001080", Name: "SILVER HORIZON BBS", Region: "千葉県", Software: "TurboBBS 1.08 compatible / customized", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, ANSI: false, GuestAllowed: false, TelehoFriendly: true}
+	turbo := Host{ID: "silver-horizon-bbs", Phone: "0470001080", Name: "SILVER HORIZON BBS", Region: "千葉県", Software: "TurboBBS 1.08 compatible / customized", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, FoundedOn: "1989-08-20", ANSI: false, GuestAllowed: false, TelehoFriendly: true}
 	s.hosts[turbo.Phone] = turbo
 	s.posts[turbo.ID] = []Post{
 		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "まだ動いてます", Body: "1980年代から手を入れながら使っているTurboBBSです。\r\n古い作りですが、のんびり使ってください(^^)", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, time.Local)},
@@ -123,8 +139,8 @@ func NewMemoryStore() *MemoryStore {
 		{ID: 604, BoardID: "8", Author: "KEN", Subject: "夏も終わりかな", Body: "夜は少し涼しくなってきましたね。\r\n電話代を気にしつつ、また深夜に来ます(笑)", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, time.Local)},
 	}
 
-	s.hosts["0450000001"] = Host{ID: "quiet-test", Phone: "0450000001", Name: "QUIET TEST BBS", Region: "神奈川県", Software: "mmm compatible", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, ANSI: false, GuestAllowed: true}
-	s.hosts["0459999999"] = Host{ID: "busy-test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, ANSI: true, GuestAllowed: true}
+	s.hosts["0450000001"] = Host{ID: "quiet-test", Phone: "0450000001", Name: "QUIET TEST BBS", Region: "神奈川県", Software: "mmm compatible", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, FoundedOn: "1996-05-05", ANSI: false, GuestAllowed: true}
+	s.hosts["0459999999"] = Host{ID: "busy-test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, FoundedOn: "1993-09-15", ANSI: true, GuestAllowed: true}
 
 	// Development-only seed: intentionally incomplete. WorldRepository fills the
 	// missing profile when this number is first dialed, then stores the result.
@@ -212,6 +228,34 @@ func (s *MemoryStore) SaveBoards(hostID string, boards []Board) {
 	out := make([]Board, len(boards))
 	copy(out, boards)
 	s.boards[hostID] = out
+}
+
+
+func (s *MemoryStore) BoardActivityState(hostID, boardID string) (BoardActivityState, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.boardActivity[hostID][boardID]
+	return state, ok
+}
+
+func (s *MemoryStore) SaveBoardActivityState(hostID string, state BoardActivityState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.boardActivity[hostID] == nil {
+		s.boardActivity[hostID] = map[string]BoardActivityState{}
+	}
+	s.boardActivity[hostID][state.BoardID] = state
+}
+
+func (s *MemoryStore) ListBoardActivityStates(hostID string) []BoardActivityState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	states := s.boardActivity[hostID]
+	out := make([]BoardActivityState, 0, len(states))
+	for _, state := range states {
+		out = append(out, state)
+	}
+	return out
 }
 func (s *MemoryStore) SavePersona(p Persona) {
 	s.mu.Lock()

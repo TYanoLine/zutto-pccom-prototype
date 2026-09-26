@@ -279,8 +279,8 @@ func TestPlanSlotsUsesStableNonUniformTimestamps(t *testing.T) {
 	start := now.Add(-28 * 24 * time.Hour)
 	engine := New(store, &fakeBatchPlanner{}, func() time.Time { return now })
 
-	a := engine.planSlots(host, board, nil, time.Time{}, now, 20, start)
-	b := engine.planSlots(host, board, nil, time.Time{}, now, 20, start)
+	a := engine.planSlots(host, board, nil, time.Time{}, now, 20, start, -1)
+	b := engine.planSlots(host, board, nil, time.Time{}, now, 20, start, -1)
 	if len(a) != 20 || len(b) != 20 {
 		t.Fatalf("slot counts=%d/%d, want 20", len(a), len(b))
 	}
