@@ -36,6 +36,9 @@ type TitleCandidateAdviceRequest struct {
 	Events         []TitleEvaluationEvent `json:"events"`
 	RecentBBSState string                 `json:"recent_bbs_state,omitempty"`
 	HistoricalFacts []string              `json:"historical_facts,omitempty"`
+	// FitOnly suppresses title-era questions when the caller only needs
+	// candidate × world-event/persona compatibility.
+	FitOnly        bool                  `json:"fit_only,omitempty"`
 }
 
 type TitleEraProbabilities struct {
@@ -136,19 +139,21 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 	targets := map[string]target{}
 	for i := range req.Titles {
 		candidate := i + 1
-		safeKey := fmt.Sprintf("c%d_era_safe", candidate)
-		targets[safeKey] = target{kind: "safe", candidate: candidate}
-		questions[safeKey] = map[string]any{
-			"type": "noul",
-			"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it safe_without_research", candidate),
-			"criteria": map[string]any{"true": "safe_without_research", "false": "research_needed"},
-		}
-		impossibleKey := fmt.Sprintf("c%d_era_impossible", candidate)
-		targets[impossibleKey] = target{kind: "impossible", candidate: candidate}
-		questions[impossibleKey] = map[string]any{
-			"type": "noul",
-			"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it logically_impossible", candidate),
-			"criteria": map[string]any{"true": "logically_impossible", "false": "not_logically_impossible"},
+		if !req.FitOnly {
+			safeKey := fmt.Sprintf("c%d_era_safe", candidate)
+			targets[safeKey] = target{kind: "safe", candidate: candidate}
+			questions[safeKey] = map[string]any{
+				"type": "noul",
+				"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it safe_without_research", candidate),
+				"criteria": map[string]any{"true": "safe_without_research", "false": "research_needed"},
+			}
+			impossibleKey := fmt.Sprintf("c%d_era_impossible", candidate)
+			targets[impossibleKey] = target{kind: "impossible", candidate: candidate}
+			questions[impossibleKey] = map[string]any{
+				"type": "noul",
+				"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it logically_impossible", candidate),
+				"criteria": map[string]any{"true": "logically_impossible", "false": "not_logically_impossible"},
+			}
 		}
 		for _, event := range req.Events {
 			key := fmt.Sprintf("c%d_e_%s_fit", candidate, sanitizeJevQuestionKey(event.EventID))
