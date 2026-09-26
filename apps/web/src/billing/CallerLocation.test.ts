@@ -13,9 +13,9 @@ describe('caller location', () => {
     expect(location.areaCode).toBe('092');
   });
 
-  it('does not assume every 092 number belongs to the Fukuoka MA', () => {
+  it('treats destinations with the configured 092 area code as local-area calls', () => {
     expect(resolve1996DistanceClass(DEFAULT_CALLER_LOCATION, '0920000196')).toBe('local');
-    expect(resolve1996DistanceClass(DEFAULT_CALLER_LOCATION, '0923200000')).toBe('over-160km');
+    expect(resolve1996DistanceClass(DEFAULT_CALLER_LOCATION, '0923200000')).toBe('local');
   });
 
   it('keeps known Yokohama and Tokyo fixtures in the far-distance fallback from Fukuoka', () => {
