@@ -29,16 +29,20 @@ colors, full-width continuation cells, cursor positions, and host commands.
   `全体表示` with 80 columns. The logical width remains 640px (8px × 80 cells)
   and is fitted uniformly to the device width. Cell aspect ratio is preserved:
   the client never stretches the 400px/25-row screen vertically. Instead the
-  terminal row count is computed as
+  presentation row count is computed as
   `floor((available viewport height - bottom control region) / displayed row height)`,
-  with a 25-row minimum. The backing canvas becomes 640×(rows×16), so a taller
-  phone displays more actual terminal rows instead of vertically stretching glyphs.
+  with a 25-row minimum. The emulated terminal core itself remains an 80×25
+  screen. A taller backing canvas presents additional rows from existing receive
+  scrollback plus the live 25-row screen, rather than resizing or truncating the
+  terminal buffer. The default mobile fit view is slightly inset so text is not
+  unnecessarily large while all 80 columns remain visible.
 - Mobile uses the full dynamic viewport height with one compact connection
   status row at the top. The row shows the connected network name (or OFFLINE),
   current session elapsed time and current-session pseudo telephone charge. The
   network name may ellipsize, while elapsed time and charge remain visible. The
-  old desktop title bar, modem/call status strip, help text and debug/settings
-  panels remain hidden on coarse-pointer/small-screen presentation. A single compact
+  old desktop title bar, modem/call status strip, help text, debug/settings
+  panels and development-only PoC shortcuts remain hidden on coarse-pointer/small-screen
+  presentation. A single compact
   `機能` button opens display controls on demand (`文字拡大`, `全体表示`,
   history up/down and `最新`) and closes again after a selection or when
   typing resumes. Host output is never rewrapped or replaced with a common host

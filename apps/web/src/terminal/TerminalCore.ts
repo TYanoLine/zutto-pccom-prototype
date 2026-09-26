@@ -20,7 +20,7 @@ function cloneRow(row: Cell[]): Cell[] {
 
 export class TerminalCore {
   readonly width = WIDTH;
-  height = HEIGHT;
+  readonly height = HEIGHT;
   cells: Cell[][] = [];
   cursorX = 0;
   cursorY = 0;
@@ -36,33 +36,34 @@ export class TerminalCore {
   private emit() { for (const fn of this.listeners) fn(); }
 
   get scrollbackLength() { return this.scrollback.length; }
-  get maxScrollOffset() { return this.scrollback.length; }
+  get maxScrollOffset() { return this.maxScrollOffsetForRows(this.height); }
 
-  resizeHeight(nextHeight: number) {
-    const height = Math.max(10, Math.min(120, Math.trunc(nextHeight)));
-    if (height === this.height) return;
-
-    if (height > this.height) {
-      for (let i = this.height; i < height; i++) this.cells.push(blankRow());
-    } else {
-      this.cells = this.cells.slice(0, height);
-      this.cursorY = Math.min(this.cursorY, height - 1);
-    }
-
-    this.height = height;
-    this.emit();
+  maxScrollOffsetForRows(rowCount = this.height) {
+    const rows = Math.max(1, Math.min(120, Math.trunc(rowCount)));
+    return Math.max(0, this.scrollback.length + this.cells.length - rows);
   }
 
-  // offset=0 is the live terminal screen. Positive offsets expose lines that
-  // physically scrolled off the top of the 80x25 screen. Keeping this in the
-  // terminal core (rather than scraping rendered pixels) preserves ANSI colors
-  // and full-width character metadata for historical display.
-  viewportRows(offset = 0): Cell[][] {
-    const clamped = Math.max(0, Math.min(this.maxScrollOffset, Math.trunc(offset)));
-    if (clamped === 0) return this.cells;
+  // The emulated terminal itself stays a historical 80x25 screen. Presentation
+  // layers may request a taller read-only viewport; those extra rows come from
+  // existing scrollback instead of mutating the live terminal buffer height.
+  viewportRows(offset = 0, rowCount = this.height): Cell[][] {
+    const rows = Math.max(1, Math.min(120, Math.trunc(rowCount)));
     const history = [...this.scrollback, ...this.cells];
-    const start = Math.max(0, history.length - this.height - clamped);
-    return history.slice(start, start + this.height);
+    const maxOffset = this.maxScrollOffsetForRows(rows);
+    const clamped = Math.max(0, Math.min(maxOffset, Math.trunc(offset)));
+    const end = Math.max(0, history.length - clamped);
+    const start = Math.max(0, end - rows);
+    const visible = history.slice(start, end);
+    while (visible.length < rows) visible.push(blankRow());
+    return visible;
+  }
+
+  viewportCursorY(rowCount = this.height) {
+    const rows = Math.max(1, Math.min(120, Math.trunc(rowCount)));
+    const historyLength = this.scrollback.length + this.cells.length;
+    const start = Math.max(0, historyLength - rows);
+    const absoluteCursorY = this.scrollback.length + this.cursorY;
+    return Math.max(0, Math.min(rows - 1, absoluteCursorY - start));
   }
 
   clear() {

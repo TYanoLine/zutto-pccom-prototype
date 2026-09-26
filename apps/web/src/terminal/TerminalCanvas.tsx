@@ -50,6 +50,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const [historyOffset, setHistoryOffset] = useState(0);
   const [layoutRows, setLayoutRows] = useState(terminal.height);
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
+  const layoutRowsRef = useRef(terminal.height);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
   const activePointerIdRef = useRef<number | null>(null);
@@ -66,10 +67,11 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     // If the user is reading history, keep the same historical text under the
     // viewport while new live lines arrive. At the live bottom, keep following
     // output exactly as a normal communications terminal does.
+    const maxOffset = terminal.maxScrollOffsetForRows(layoutRowsRef.current);
     if (scrollOffsetRef.current > 0 && added > 0) {
-      scrollOffsetRef.current = Math.min(terminal.maxScrollOffset, scrollOffsetRef.current + added);
+      scrollOffsetRef.current = Math.min(maxOffset, scrollOffsetRef.current + added);
     } else {
-      scrollOffsetRef.current = Math.min(terminal.maxScrollOffset, scrollOffsetRef.current);
+      scrollOffsetRef.current = Math.min(maxOffset, scrollOffsetRef.current);
     }
     previousScrollbackLengthRef.current = nextLength;
     setHistoryOffset(scrollOffsetRef.current);
@@ -80,8 +82,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 
   useEffect(() => {
     if (!isMobilePresentation()) {
-      if (terminal.height !== 25) terminal.resizeHeight(25);
-      setLayoutRows(25);
+      updateLayoutRows(terminal.height);
       return;
     }
 
@@ -101,11 +102,23 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }, [display, keyboardActive, bottomControlsActive]);
 
   function setScrollOffset(next: number) {
-    const clamped = Math.max(0, Math.min(terminal.maxScrollOffset, next));
+    const maxOffset = terminal.maxScrollOffsetForRows(layoutRowsRef.current);
+    const clamped = Math.max(0, Math.min(maxOffset, next));
     if (clamped === scrollOffsetRef.current) return;
     scrollOffsetRef.current = clamped;
     setHistoryOffset(clamped);
     draw();
+  }
+
+  function updateLayoutRows(next: number) {
+    const rows = Math.max(terminal.height, Math.min(120, Math.trunc(next)));
+    layoutRowsRef.current = rows;
+    const maxOffset = terminal.maxScrollOffsetForRows(rows);
+    if (scrollOffsetRef.current > maxOffset) {
+      scrollOffsetRef.current = maxOffset;
+      setHistoryOffset(maxOffset);
+    }
+    setLayoutRows(rows);
   }
 
   function isMobilePresentation() {
@@ -115,14 +128,14 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   function syncMobileRows() {
     if (!isMobilePresentation()) return;
     if (display !== 'fit') {
-      if (terminal.height !== 25) terminal.resizeHeight(25);
-      setLayoutRows(25);
+      updateLayoutRows(terminal.height);
       return;
     }
     if (keyboardActive) return;
 
     const viewport = viewportRef.current;
-    if (!viewport) return;
+    const canvas = ref.current;
+    if (!viewport || !canvas) return;
     const visualViewport = window.visualViewport;
     const visibleBottom = visualViewport
       ? visualViewport.offsetTop + visualViewport.height
@@ -133,10 +146,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       : null;
     const controlsTop = bottomControls?.getBoundingClientRect().top ?? visibleBottom;
     const availableHeight = Math.max(0, Math.min(visibleBottom, controlsTop) - viewportTop);
-    const rows = mobileTerminalRows(viewport.clientWidth, availableHeight);
-
-    if (terminal.height !== rows) terminal.resizeHeight(rows);
-    setLayoutRows(rows);
+    const rows = mobileTerminalRows(canvas.clientWidth || viewport.clientWidth, availableHeight);
+    updateLayoutRows(rows);
   }
 
   function resetKeyboardViewport() {
@@ -162,7 +173,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     }
 
     const cellWidth = Math.max(1, canvas.clientWidth / terminal.width);
-    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const rowHeight = Math.max(1, canvas.clientHeight / layoutRowsRef.current);
     const proxyWidth = Math.max(8, cellWidth);
     const proxyHeight = Math.max(16, rowHeight);
     const left = Math.max(
@@ -204,10 +215,11 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     viewport.style.maxHeight = `${nextHeight}px`;
     viewport.style.overflowY = nextHeight < canvas.clientHeight ? 'auto' : 'hidden';
 
+    const displayedRows = layoutRowsRef.current;
     const cellWidth = Math.max(1, canvas.clientWidth / terminal.width);
-    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const rowHeight = Math.max(1, canvas.clientHeight / displayedRows);
     const cursorLeft = terminal.cursorX * cellWidth;
-    const cursorTop = terminal.cursorY * rowHeight;
+    const cursorTop = terminal.viewportCursorY(displayedRows) * rowHeight;
     const targetScrollTop = terminalCursorTargetScrollTop(
       canvas.clientHeight,
       viewport.clientHeight,
@@ -256,9 +268,10 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rows = terminal.viewportRows(scrollOffsetRef.current);
+    const displayedRows = layoutRowsRef.current;
+    const rows = terminal.viewportRows(scrollOffsetRef.current, displayedRows);
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 640, terminal.height * 16);
+    ctx.fillRect(0, 0, 640, displayedRows * 16);
     ctx.textBaseline = 'top';
     ctx.font = '16px monospace';
 
@@ -266,7 +279,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     // a full-width character. A continuation is still a real 8x16 terminal
     // cell; skipping it leaves a black stripe through ANSI reverse/highlight
     // regions containing Japanese text.
-    for (let y = 0; y < terminal.height; y++) {
+    for (let y = 0; y < displayedRows; y++) {
       for (let x = 0; x < terminal.width; x++) {
         const cell = rows[y][x];
         if (cell.bg === 0) continue;
@@ -278,7 +291,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     // Then draw glyphs only from their leading cells. Full-width glyphs span
     // the leading cell and its continuation cell, whose background is already
     // present from the pass above.
-    for (let y = 0; y < terminal.height; y++) {
+    for (let y = 0; y < displayedRows; y++) {
       for (let x = 0; x < terminal.width; x++) {
         const cell = rows[y][x];
         if (cell.continuation) continue;
@@ -294,14 +307,15 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     if (scrollOffsetRef.current === 0) {
       ctx.globalAlpha = 0.65;
       ctx.fillStyle = '#aaaaaa';
-      ctx.fillRect(terminal.cursorX * 8, terminal.cursorY * 16 + 14, 8, 2);
+      const cursorY = terminal.viewportCursorY(displayedRows);
+      ctx.fillRect(terminal.cursorX * 8, cursorY * 16 + 14, 8, 2);
       ctx.globalAlpha = 1;
     }
     positionKeyboardProxy();
   }
 
   function wheel(e: ReactWheelEvent<HTMLCanvasElement>) {
-    if (terminal.maxScrollOffset === 0 || e.deltaY === 0) return;
+    if (terminal.maxScrollOffsetForRows(layoutRowsRef.current) === 0 || e.deltaY === 0) return;
     e.preventDefault();
     const lines = Math.max(1, Math.min(8, Math.round(Math.abs(e.deltaY) / 32)));
     const delta = e.deltaY < 0 ? lines : -lines;
@@ -327,7 +341,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     // pulling the content downward reveals older lines above, while pushing
     // upward moves back toward newer/live output. Scale by displayed row height
     // so the gesture feels the same on iPhone, iPad and desktop-sized canvases.
-    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const rowHeight = Math.max(1, canvas.clientHeight / layoutRowsRef.current);
     const dragPixels = e.clientY - pointerLastYRef.current;
     const dragX = pointerLastXRef.current - e.clientX;
     pointerTravelRef.current += Math.abs(dragPixels) + Math.abs(dragX);

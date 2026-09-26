@@ -23,15 +23,22 @@ describe('TerminalCore scrollback', () => {
     expect(rowText(terminal.viewportRows(-99)[0])).toBe('ROW-3');
   });
 
-  it('can expand the live screen height while keeping 80 columns', () => {
+  it('keeps the live screen at 80x25 while exposing a taller presentation viewport', () => {
     const terminal = new TerminalCore();
-    terminal.write('TOP');
-    terminal.resizeHeight(60);
+    for (let i = 0; i < 60; i++) terminal.write(`LINE-${String(i).padStart(2, '0')}\r\n`);
 
     expect(terminal.width).toBe(80);
-    expect(terminal.height).toBe(60);
-    expect(terminal.viewportRows(0)).toHaveLength(60);
-    expect(rowText(terminal.viewportRows(0)[0])).toBe('TOP');
+    expect(terminal.height).toBe(25);
+    expect(terminal.cells).toHaveLength(25);
+
+    const live = terminal.viewportRows(0, 40);
+    expect(live).toHaveLength(40);
+    expect(rowText(live[0])).toBe('LINE-21');
+    expect(rowText(live[39])).toBe('');
+    expect(terminal.viewportCursorY(40)).toBe(39);
+
+    const oldest = terminal.viewportRows(terminal.maxScrollOffsetForRows(40), 40);
+    expect(rowText(oldest[0])).toBe('LINE-00');
   });
 
   it('clears scrollback when the terminal screen is explicitly reset', () => {
