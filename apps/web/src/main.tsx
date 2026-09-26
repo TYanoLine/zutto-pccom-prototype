@@ -27,7 +27,7 @@ function Home() {
   const devLinkStyle = {padding:'7px 10px',fontFamily:'monospace',fontSize:12,color:'#9fffc0',background:'#07130dee',border:'1px solid #397a53',textDecoration:'none'} as const;
   return <>
     <App />
-    <div style={{position:'fixed',right:12,bottom:12,zIndex:50,display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
+    <div className="dev-shortcuts" style={{position:'fixed',right:12,bottom:12,zIndex:50,display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
       <a href="/poc/persona-timeline" style={devLinkStyle}>PERSONA TIME</a>
       <a href="/poc/persona-lab" style={devLinkStyle}>PERSONA LAB</a>
       <a href="/poc/gemini-article-viewer" style={devLinkStyle}>GEMINI WORKER</a>
