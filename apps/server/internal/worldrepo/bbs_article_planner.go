@@ -544,38 +544,24 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		return nil, fmt.Errorf("title-first batch left %d of %d root subjects unresolved after %d candidate pools; canned title fallback is disabled", len(remaining), len(rootSlots), maxPoolAttempts)
 	}
 
-	dominantFinal := 0
-	deFrameFinal := 0
-	temporalFailures := 0
-	for eventID, post := range adopted {
-		if titleHasDominantLead(post.Subject, func() map[string]bool {
-			// Final adopted titles can span two candidate pools. Recompute the
-			// repeated opening families from the adopted corpus for observability.
-			all := make([]string, 0, len(adopted))
-			for _, p := range adopted {
-				all = append(all, p.Subject)
-			}
-			return dominantTitleLeadKeys(all)
-		}()) {
-			dominantFinal++
-		}
-		slot := slotByEvent[eventID]
-		if !titleTemporalCompatible(post.Subject, slot.CreatedAt) {
-			temporalFailures++
-		}
-	}
 	finalTitles := make([]string, 0, len(adopted))
 	for _, post := range adopted {
 		finalTitles = append(finalTitles, post.Subject)
 	}
 	finalDominant := dominantTitleLeadKeys(finalTitles)
-	dominantFinal = 0
-	for _, post := range adopted {
+	dominantFinal := 0
+	deFrameFinal := 0
+	temporalFailures := 0
+	for eventID, post := range adopted {
 		if titleHasDominantLead(post.Subject, finalDominant) {
 			dominantFinal++
 		}
 		if titleUsesDominantDeFrame(post.Subject, finalDominant) {
 			deFrameFinal++
+		}
+		slot := slotByEvent[eventID]
+		if !titleTemporalCompatible(post.Subject, slot.CreatedAt) {
+			temporalFailures++
 		}
 	}
 	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), dominantFinal, deFrameFinal, temporalFailures)
