@@ -94,7 +94,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   function positionKeyboardProxy() {
     const proxy = keyboardProxyRef.current;
     const canvas = ref.current;
-    if (!proxy || !canvas) return;
+    const viewport = viewportRef.current;
+    if (!proxy || !canvas || !viewport) return;
 
     if (isMobilePresentation()) {
       proxy.style.left = '';
@@ -108,8 +109,14 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
     const proxyWidth = Math.max(8, cellWidth);
     const proxyHeight = Math.max(16, rowHeight);
-    const left = Math.max(0, Math.min(canvas.clientWidth - proxyWidth, terminal.cursorX * cellWidth));
-    const top = Math.max(0, Math.min(canvas.clientHeight - proxyHeight, terminal.cursorY * rowHeight));
+    const left = Math.max(
+      0,
+      Math.min(viewport.clientWidth - proxyWidth, terminal.cursorX * cellWidth - viewport.scrollLeft),
+    );
+    const top = Math.max(
+      0,
+      Math.min(viewport.clientHeight - proxyHeight, terminal.cursorY * rowHeight - viewport.scrollTop),
+    );
 
     proxy.style.left = `${left}px`;
     proxy.style.top = `${top}px`;
@@ -325,31 +332,31 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             onPointerUp={pointerEnd}
             onPointerCancel={pointerCancel}
           />
-          <input
-            ref={keyboardProxyRef}
-            className="terminal-input-proxy"
-            aria-label="端末入力"
-            type="text"
-            value={keyboardInput.value}
-            readOnly={keyboardInput.readOnly}
-            onChange={keyboardInput.onChange}
-            onKeyDown={keyboardInput.onKeyDown}
-            onCompositionStart={keyboardInput.onCompositionStart}
-            onCompositionEnd={keyboardInput.onCompositionEnd}
-            onFocus={keyboardInput.onFocus}
-            onBlur={keyboardInput.onBlur}
-            onPointerDown={pointerDown}
-            onPointerMove={pointerMove}
-            onPointerUp={pointerEnd}
-            onPointerCancel={pointerCancel}
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="off"
-            inputMode="text"
-            enterKeyHint="send"
-            spellCheck={false}
-          />
         </div>
+        <input
+          ref={keyboardProxyRef}
+          className="terminal-input-proxy"
+          aria-label="端末入力"
+          type="text"
+          value={keyboardInput.value}
+          readOnly={keyboardInput.readOnly}
+          onChange={keyboardInput.onChange}
+          onKeyDown={keyboardInput.onKeyDown}
+          onCompositionStart={keyboardInput.onCompositionStart}
+          onCompositionEnd={keyboardInput.onCompositionEnd}
+          onFocus={keyboardInput.onFocus}
+          onBlur={keyboardInput.onBlur}
+          onPointerDown={pointerDown}
+          onPointerMove={pointerMove}
+          onPointerUp={pointerEnd}
+          onPointerCancel={pointerCancel}
+          autoCapitalize="none"
+          autoCorrect="off"
+          autoComplete="off"
+          inputMode="text"
+          enterKeyHint="send"
+          spellCheck={false}
+        />
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
       </div>
       <p className="terminal-hint">{historyOffset > 0 ? `履歴表示中（${historyOffset}行前） /「最新」で受信画面へ` : display === 'readable' ? '左右にスワイプで移動・上下で受信履歴' : '80桁全体表示・上下スワイプで受信履歴'}</p>
