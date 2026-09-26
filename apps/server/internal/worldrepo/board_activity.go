@@ -31,7 +31,8 @@ func (r *Repository) BoardActivity(host world.Host, board world.Board) (world.Bo
 		existing.AsOfDate == asOfDate &&
 		existing.CurrentMembers == host.Members &&
 		existing.ActivityWeight == weight &&
-		existing.ReplyRate == replyRate {
+		existing.ReplyRate == replyRate &&
+		existing.SimulationBasis == boardActivitySimulationBasis {
 		return existing, true
 	}
 
@@ -137,7 +138,9 @@ func planBoardActivity(host world.Host, board world.Board, now time.Time) (world
 		AsOfDate:        now.Format(time.DateOnly),
 		OpenedOn:        openedOn,
 		CurrentMembers:  host.Members,
+		InitialMembers:  initialMembers,
 		AverageMembers:  averageMembers,
+		GrowthExponent:  growthExponent,
 		TotalRoots:      totalRoots,
 		TotalReplies:    totalReplies,
 		RetainedRoots:   retainedRoots,
