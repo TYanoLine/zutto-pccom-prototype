@@ -222,6 +222,7 @@ func (r *Repository) developmentJevTitleAdvice(
 		HostName: host.Name,
 		BoardID: board.ID,
 		BoardName: board.Name,
+		BoardScope: board.SemanticScope,
 		Titles: append([]string(nil), titles...),
 		Events: adviceEvents,
 		RecentBBSState: recentBBSState,
