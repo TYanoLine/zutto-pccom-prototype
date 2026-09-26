@@ -41,7 +41,11 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const keyboardProxyRef = useRef<HTMLInputElement>(null);
-  const [display, setDisplay] = useState<'readable' | 'fit'>('readable');
+  const [display, setDisplay] = useState<'readable' | 'fit'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 680px), (pointer: coarse)').matches
+      ? 'fit'
+      : 'readable',
+  );
   const [historyOffset, setHistoryOffset] = useState(0);
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
   const scrollOffsetRef = useRef(0);
