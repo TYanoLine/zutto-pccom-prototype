@@ -17,29 +17,29 @@ import (
 )
 
 const (
-	sharedTitlePoolMinAttempts          = 3
-	sharedTitlePoolMaxAttempts          = 6
-	sharedTitleEraSafeRefillAttempts    = 4
-	sharedTitlePoolTargetSize           = 20
-	sharedTitleResearchBudget           = 6 * time.Second
-	sharedTitleBackgroundResearchJobs   = 12
+	// Contextual production generation uses one large structured pool. A second
+	// pool is allowed only as recovery if fit/duplicate/historical attrition leaves
+	// world-selected roots unresolved.
+	sharedTitlePoolTargetSize         = 100
+	sharedTitleLargePoolMaxAttempts   = 2
+	sharedTitleFitBatchSize           = 20
+	sharedTitleLegacyPoolTargetSize   = 20
+	sharedTitleLegacyPoolMaxAttempts  = 6
+	sharedTitleResearchBudget         = 6 * time.Second
+	sharedTitleBackgroundResearchJobs = 12
 )
 
-func sharedTitlePoolAttemptLimit(rootCount int) int {
-	// A 20-title pool can theoretically fill at most 20 roots, but era/fit/
-	// duplicate gates deliberately reject some candidates. Keep two surplus
-	// pools above the theoretical minimum while retaining the historical
-	// three-pool floor for ordinary small batches.
+func sharedLegacyTitlePoolAttemptLimit(rootCount int) int {
 	required := 0
 	if rootCount > 0 {
-		required = (rootCount + sharedTitlePoolTargetSize - 1) / sharedTitlePoolTargetSize
+		required = (rootCount + sharedTitleLegacyPoolTargetSize - 1) / sharedTitleLegacyPoolTargetSize
 	}
-	attempts := required + 2
-	if attempts < sharedTitlePoolMinAttempts {
-		attempts = sharedTitlePoolMinAttempts
+	attempts := required + 1
+	if attempts < 2 {
+		attempts = 2
 	}
-	if attempts > sharedTitlePoolMaxAttempts {
-		attempts = sharedTitlePoolMaxAttempts
+	if attempts > sharedTitleLegacyPoolMaxAttempts {
+		attempts = sharedTitleLegacyPoolMaxAttempts
 	}
 	return attempts
 }
@@ -79,9 +79,10 @@ func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
 // PlanBBSBatch intentionally keeps the World/wording boundary narrow.
 //
 // World Engine: actor, time and root/reply topology.
-// Title candidate model: proposes many uncommitted subjects.
+// Title candidate model: proposes a large structured pool of uncommitted subjects
+// and marks only real-world/time-dependent claims that need historical checking.
 // Jev/OpenAI review: ranks/maps candidates to already-selected root slots.
-// Historical gate: checks only selected ambiguous titles.
+// Historical gate: verifies only selected claim-bearing titles.
 // World: adopts the winning title/summary as canonical.
 // Body prose: remains lazy until the article is read.
 func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengine.BatchRequest) ([]bbsengine.PlannedPost, error) {
@@ -241,7 +242,6 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
 	adopted := map[string]bbsengine.PlannedPost{}
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
-	eraFallback, hasEraFallback := materializer.Renderer.(llm.BBSTitleEraValidator)
 	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
 	// topic menu. Supplying the whole bootstrap catalog here strongly biases broad
 	// boards toward whatever few products happen to be pre-seeded. Candidate
@@ -250,11 +250,12 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	historicalFacts := usableClaims(decision)
 	var researchDeadline time.Time
 	backgroundResearchQueued := 0
-	normalPoolAttempts := sharedTitlePoolAttemptLimit(len(rootSlots))
-	maxPoolAttempts := normalPoolAttempts + sharedTitleEraSafeRefillAttempts
+	maxPoolAttempts := sharedTitleLargePoolMaxAttempts
+	if !hasContextual {
+		maxPoolAttempts = sharedLegacyTitlePoolAttemptLimit(len(rootSlots))
+	}
 
 	for attempt := 0; attempt < maxPoolAttempts && len(remaining) > 0; attempt++ {
-		preferEraSafe := attempt >= normalPoolAttempts
 		var pool llm.BBSTitleCandidates
 		var err error
 		poolStarted := time.Now()
@@ -269,12 +270,12 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				HistoricalFacts: historicalFacts,
 				EraRules:        materializer.eraRules(),
 				RemainingNeeded: len(remaining),
-				PreferEraSafe:   preferEraSafe,
+				CandidateCount:  sharedTitlePoolTargetSize,
 			})
 		} else {
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
 		}
-		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d era_safe_refill=%t remaining=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), preferEraSafe, len(remaining), err != nil)
+		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d target=%d remaining=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), func() int { if hasContextual { return sharedTitlePoolTargetSize }; return sharedTitleLegacyPoolTargetSize }(), len(remaining), err != nil)
 		if err != nil {
 			// The structured provider already retries transient transport/rate
 			// failures with backoff. A pool attempt means a new semantic pool,
@@ -288,101 +289,49 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		}
 		avoid = append(avoid, titles...)
 
-		// One title pool cannot assign more events than it has titles. Bound Jev
-		// pair evaluation to that many chronological remaining slots; later slots
-		// are handled by the next pool instead of generating useless pair scores.
-		jevEvents := remaining
-		if len(jevEvents) > len(pool.Titles) {
-			jevEvents = jevEvents[:len(pool.Titles)]
-		}
-		jevStarted := time.Now()
-		jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleAdvice(
-			ctx, req.Host, req.Board, worldDate, pool.Titles, jevEvents, recentState, historicalFacts,
-		)
-		log.Printf("BBS timing: host=%s board=%s phase=jev attempt=%d duration=%s used=%t err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil)
-		if jevErr != nil {
-			jevAttempted = false
-		}
-
-		eraStatus := map[string]string{}
-		if jevAttempted {
-			for i, title := range pool.Titles {
-				prob := jevAdvice.Era[i+1]
-				switch {
-				case prob.LogicallyImpossible >= developmentJevTitleEraImpossibleThreshold:
-					eraStatus[title] = "ng"
-				case prob.SafeWithoutResearch >= developmentJevTitleEraSafeThreshold:
-					eraStatus[title] = "ok"
-				case preferEraSafe && len(historicalClaimsForTitle(pool, title)) == 0:
-					// Refill generation is explicitly constrained to avoid any
-					// real-world/time-dependent claim that would need external
-					// verification. If that contract is satisfied (no research
-					// hints) and Jev does not find a date contradiction, keep the
-					// candidate usable instead of forcing a title-wide Web lookup.
-					// Ordinary pools remain conservative and still route the same
-					// low-confidence candidate through Historical KB research.
-					eraStatus[title] = "ok"
-				default:
-					eraStatus[title] = "research"
-				}
-			}
-		} else if hasEraFallback {
-			eraStarted := time.Now()
-			eraReq := llm.BBSTitleEraRequest{WorldDate: worldDate, BoardName: req.Board.Name, Titles: pool.Titles}
-			eraReview, eraErr := eraFallback.ValidateBBSTitleEra(ctx, eraReq)
-			log.Printf("BBS timing: host=%s board=%s phase=era_fallback attempt=%d duration=%s err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(eraStarted), eraErr != nil)
-			if eraErr == nil {
-				for _, d := range eraReview.Decisions {
-					if d.Candidate < 1 || d.Candidate > len(pool.Titles) {
-						continue
-					}
-					switch d.Status {
-					case llm.BBSTitleEraOK:
-						eraStatus[pool.Titles[d.Candidate-1]] = "ok"
-					case llm.BBSTitleEraNG:
-						eraStatus[pool.Titles[d.Candidate-1]] = "ng"
-					default:
-						eraStatus[pool.Titles[d.Candidate-1]] = "research"
-					}
-				}
-			}
-		}
-		for _, title := range pool.Titles {
-			if _, ok := eraStatus[title]; !ok {
-				eraStatus[title] = "research"
-			}
-		}
-
-		eligible := make([]string, 0, len(titles))
-		for _, title := range titles {
-			if eraStatus[title] != "ng" {
-				eligible = append(eligible, title)
-			}
-		}
-		if len(eligible) == 0 {
-			continue
-		}
-
-		reviewer := titlePlanner
-		if jevAttempted {
-			reviewer = developmentJevTitlePlanner{
-				titles:           append([]string(nil), pool.Titles...),
-				advice:           jevAdvice,
-				fitFloor:         developmentJevTitleFitThreshold,
-				rankingOnly:      attempt == maxPoolAttempts-1,
-			}
-		}
-		available := append([]string(nil), eligible...)
+		// Era routing is intentionally claim-driven. The generator's nested
+		// historical_claims field is only a routing hint: claim-free titles do not
+		// require Historical KB, while claim-bearing titles must be verified if
+		// they become tentative winners. Jev remains responsible only for
+		// candidate × world-event/persona fit in this stage.
+		available := append([]string(nil), titles...)
 		for len(available) > 0 && len(remaining) > 0 {
+			fitTitles := available
+			if len(fitTitles) > sharedTitleFitBatchSize {
+				fitTitles = fitTitles[:sharedTitleFitBatchSize]
+			}
+			fitEvents := remaining
+			if len(fitEvents) > sharedTitleFitBatchSize {
+				fitEvents = fitEvents[:sharedTitleFitBatchSize]
+			}
+
+			reviewer := titlePlanner
+			jevStarted := time.Now()
+			jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleFitAdvice(
+				ctx, req.Host, req.Board, worldDate, fitTitles, fitEvents, recentState, historicalFacts,
+			)
+			log.Printf("BBS timing: host=%s board=%s phase=jev_fit attempt=%d duration=%s used=%t err=%t titles=%d events=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil, len(fitTitles), len(fitEvents))
+			if jevErr != nil {
+				jevAttempted = false
+			}
+			if jevAttempted {
+				reviewer = developmentJevTitlePlanner{
+					titles:      append([]string(nil), fitTitles...),
+					advice:      jevAdvice,
+					fitFloor:    developmentJevTitleFitThreshold,
+					rankingOnly: attempt == maxPoolAttempts-1,
+				}
+			}
+
 			reviewReq := llm.BBSTitleReviewRequest{
 				BoardName:      req.Board.Name,
-				Titles:         available,
-				Events:         remaining,
+				Titles:         fitTitles,
+				Events:         fitEvents,
 				RecentBBSState: recentState,
 			}
 			reviewStarted := time.Now()
 			review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
-			log.Printf("BBS timing: host=%s board=%s phase=title_review attempt=%d duration=%s titles=%d events=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(reviewStarted), len(available), len(remaining), err != nil)
+			log.Printf("BBS timing: host=%s board=%s phase=title_review attempt=%d duration=%s titles=%d events=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(reviewStarted), len(fitTitles), len(fitEvents), err != nil)
 			if err != nil {
 				if attempt+1 < maxPoolAttempts {
 					break
@@ -415,25 +364,26 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				candidates = append(candidates, d)
 			}
 			if len(consumed) == 0 {
-				break
+				available = available[len(fitTitles):]
+				continue
 			}
 
 			researchJobs := make([]developmentTitleEraResearchJob, 0)
 			researchDecision := map[int]llm.BBSTitleDecision{}
 			jobID := 1
 			for _, d := range candidates {
-				switch eraStatus[d.Subject] {
-				case "ok":
+				claims := historicalClaimsForTitle(pool, d.Subject)
+				if len(claims) == 0 {
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
-				case "research":
-					researchJobs = append(researchJobs, developmentTitleEraResearchJob{
-						candidate: jobID,
-						title:     d.Subject,
-						claims:    historicalClaimsForTitle(pool, d.Subject),
-					})
-					researchDecision[jobID] = d
-					jobID++
+					continue
 				}
+				researchJobs = append(researchJobs, developmentTitleEraResearchJob{
+					candidate: jobID,
+					title:     d.Subject,
+					claims:    claims,
+				})
+				researchDecision[jobID] = d
+				jobID++
 			}
 			if len(researchJobs) > 0 {
 				// Always check the persistent KB first. Cache hits are local DB
@@ -529,10 +479,10 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	}
 
 	// Do not synthesize board-name paraphrases such as "ＰＣ－９８について".
-	// If bounded normal pools did not fill the world-selected roots, the final
-	// refill pools deliberately request historically safe but still concrete
-	// candidate wording. If those also fail, abort this batch without committing
-	// partial/canned subjects so a later observation can retry cleanly.
+	// A contextual call normally gets one 100-title pool, with one fresh large pool
+	// allowed only as recovery. If bounded generation still cannot fill the
+	// world-selected roots, abort without committing partial/canned subjects so a
+	// later observation can retry cleanly.
 	if len(remaining) > 0 {
 		return nil, fmt.Errorf("title-first batch left %d of %d root subjects unresolved after %d candidate pools; canned title fallback is disabled", len(remaining), len(rootSlots), maxPoolAttempts)
 	}

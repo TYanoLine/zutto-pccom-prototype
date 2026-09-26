@@ -68,15 +68,26 @@ func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx conte
 			"音ゲーじゃないけど", "SFCまだ現役", "PSのロード時間", "ゲーム雑誌の付録",
 			"夏休みの一本", "シューティング苦手", "対戦相手募集", "エンディング後の話",
 		}
+		count := req.CandidateCount
+		if count <= 0 {
+			count = 20
+		}
+		for len(titles) < count {
+			titles = append(titles, fmt.Sprintf("追加候補%03d", len(titles)+1))
+		}
+		if len(titles) > count {
+			titles = titles[:count]
+		}
 	}
 	if f.started != nil {
-		// Concurrency tests can now exercise activity plans larger than one
-		// 20-title pool. A real provider is asked for fresh candidates on refill;
-		// make this blocking fake behave the same way instead of repeating the
-		// identical pool forever.
+		// Concurrency tests should mirror the production candidate-count request.
 		offset := len(req.AvoidSubjects)
-		titles = make([]string, 0, 20)
-		for i := 0; i < 20; i++ {
+		count := req.CandidateCount
+		if count <= 0 {
+			count = 20
+		}
+		titles = make([]string, 0, count)
+		for i := 0; i < count; i++ {
 			titles = append(titles, fmt.Sprintf("候補%03d", offset+i+1))
 		}
 	}
@@ -241,6 +252,9 @@ func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 	if renderer.lastContext.BoardScope != "ゲームについての板" {
 		t.Fatalf("board scope=%q, want hidden semantic scope", renderer.lastContext.BoardScope)
 	}
+	if renderer.lastContext.CandidateCount != sharedTitlePoolTargetSize {
+		t.Fatalf("candidate count=%d, want %d", renderer.lastContext.CandidateCount, sharedTitlePoolTargetSize)
+	}
 	foundRecent := false
 	for _, subject := range renderer.lastContext.RecentSubjects {
 		if subject == recent.Subject {
@@ -321,7 +335,15 @@ func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnver
 	for i := 3; i <= 20; i++ {
 		titles = append(titles, fmt.Sprintf("低適合候補%02d", i))
 	}
-	renderer := &fakeSharedTitleRenderer{titles: titles}
+	renderer := &fakeSharedTitleRenderer{
+		titles: titles,
+		historicalClaims: []llm.BBSTitleHistoricalClaim{{
+			Candidate: 1,
+			Subject:   "要研究の実在作品A",
+			Kind:      "product_availability",
+			Need:      "world dateまでの存在確認",
+		}},
+	}
 	repo := New(base, fallbackTitleTestEngine{}, LLMMaterializer{
 		Renderer: renderer,
 	}, "1996-08-26")
@@ -377,48 +399,17 @@ func (noSafeTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worlde
 	return out, nil
 }
 
-type refillTitleTestEngine struct{ noSafeTitleTestEngine }
-
-func (refillTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
-	out := worldengine.TitleCandidateAdviceDecision{
-		Era: map[int]worldengine.TitleEraProbabilities{},
-		Fit: map[string]float64{},
-	}
-	for i, title := range req.Titles {
-		candidate := i + 1
-		safe := .05
-		if strings.HasPrefix(title, "補充:") {
-			safe = .95
-		}
-		out.Era[candidate] = worldengine.TitleEraProbabilities{
-			SafeWithoutResearch: safe,
-			LogicallyImpossible: .00,
-		}
-		for _, event := range req.Events {
-			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = .95
-		}
-	}
-	return out, nil
-}
-
-func TestSharedBBSPlannerGeneratesEraSafeRefillInsteadOfCannedSubjects(t *testing.T) {
+func TestSharedBBSPlannerDoesNotResearchClaimFreeTitlesBecauseJevEraIsLow(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
 		t.Fatal(err)
 	}
-	researchTitles := make([]string, 0, 20)
+	titles := make([]string, 0, 20)
 	for i := 1; i <= 20; i++ {
-		researchTitles = append(researchTitles, fmt.Sprintf("要調査候補%02d", i))
+		titles = append(titles, fmt.Sprintf("claim-free候補%02d", i))
 	}
-	refillTitles := []string{
-		"補充:パッドの調子", "補充:セーブが消えた", "補充:昨日の続き", "補充:説明書なくした",
-		"補充:二人で遊ぶなら", "補充:夜中までやってた", "補充:対戦ありがとう", "補充:貸したソフト",
-		"補充:このボス強い", "補充:名前入力で悩む", "補充:攻略本なしで", "補充:中古で見かけた",
-		"補充:ロード待ちの間", "補充:弟と対戦中", "補充:クリアしたので", "補充:雑誌の付録",
-		"補充:コントローラ故障", "補充:週末の一本", "補充:また最初から", "補充:対戦相手募集",
-	}
-	renderer := &fakeSharedTitleRenderer{titles: researchTitles, refillTitles: refillTitles}
+	renderer := &fakeSharedTitleRenderer{titles: titles}
 	repo := New(base, noSafeTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
 
 	slots := make([]bbsengine.Slot, 0, 7)
@@ -438,46 +429,41 @@ func TestSharedBBSPlannerGeneratesEraSafeRefillInsteadOfCannedSubjects(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(planned) != 7 {
-		t.Fatalf("planned=%d, want 7 generated roots", len(planned))
+	if len(planned) != len(slots) {
+		t.Fatalf("planned=%d, want %d", len(planned), len(slots))
 	}
-	if !renderer.lastContext.PreferEraSafe {
-		t.Fatal("final candidate request did not enter era-safe refill mode")
+	if renderer.contextCalls != 1 {
+		t.Fatalf("candidate pools=%d, want one large pool", renderer.contextCalls)
+	}
+	if renderer.lastContext.PreferEraSafe {
+		t.Fatal("production title generation should no longer use Jev-driven era-safe refill mode")
 	}
 	for _, post := range planned {
-		if !strings.HasPrefix(post.Subject, "補充:") {
-			t.Fatalf("subject=%q, want generated refill candidate rather than canned board-name fallback", post.Subject)
+		if !strings.HasPrefix(post.Subject, "claim-free候補") {
+			t.Fatalf("subject=%q, want claim-free candidate despite low Jev era score", post.Subject)
 		}
-	}
-	if renderer.contextCalls != sharedTitlePoolAttemptLimit(len(slots))+1 {
-		t.Fatalf("candidate pools=%d, want normal pools plus one generated refill", renderer.contextCalls)
 	}
 }
 
-func TestSharedBBSPlannerDoesNotBypassResearchForClaimedEraSafeRefill(t *testing.T) {
+func TestSharedBBSPlannerRequiresHistoricalVerificationForClaimBearingTitles(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
 		t.Fatal(err)
 	}
-	researchTitles := make([]string, 0, 20)
-	refillTitles := make([]string, 0, 20)
+	titles := make([]string, 0, 20)
 	claims := make([]llm.BBSTitleHistoricalClaim, 0, 20)
 	for i := 1; i <= 20; i++ {
-		researchTitles = append(researchTitles, fmt.Sprintf("要調査候補%02d", i))
-		refillTitles = append(refillTitles, fmt.Sprintf("補充:実在対象%02d", i))
+		title := fmt.Sprintf("実在対象候補%02d", i)
+		titles = append(titles, title)
 		claims = append(claims, llm.BBSTitleHistoricalClaim{
 			Candidate: i,
-			Subject:   fmt.Sprintf("実在対象%02d", i),
+			Subject:   title,
 			Kind:      "product_availability",
 			Need:      "world dateまでの存在確認",
 		})
 	}
-	renderer := &fakeSharedTitleRenderer{
-		titles:           researchTitles,
-		refillTitles:     refillTitles,
-		historicalClaims: claims,
-	}
+	renderer := &fakeSharedTitleRenderer{titles: titles, historicalClaims: claims}
 	repo := New(base, noSafeTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
 
 	slots := make([]bbsengine.Slot, 0, 3)
@@ -495,31 +481,35 @@ func TestSharedBBSPlannerDoesNotBypassResearchForClaimedEraSafeRefill(t *testing
 		Slots:    slots,
 	})
 	if err == nil {
-		t.Fatal("claim-bearing refill candidates must still require Historical KB verification")
+		t.Fatal("claim-bearing candidates must not be adopted without Historical KB verification")
+	}
+	if !strings.Contains(err.Error(), "canned title fallback is disabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if renderer.contextCalls != sharedTitleLargePoolMaxAttempts {
+		t.Fatalf("candidate pools=%d, want bounded primary+recovery pools", renderer.contextCalls)
 	}
 }
 
-func TestSharedBBSPlannerFailsCleanlyWhenGeneratedRefillsAreExhausted(t *testing.T) {
+func TestSharedBBSPlannerFailsCleanlyWhenLargePoolsAreExhausted(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
 		t.Fatal(err)
 	}
-	titles := make([]string, 0, 20)
-	for i := 1; i <= 20; i++ {
-		titles = append(titles, fmt.Sprintf("要調査候補%02d", i))
+	// All generated titles collapse to one similarity key. The planner must fail
+	// cleanly rather than inventing a canned board-name fallback.
+	titles := make([]string, 20)
+	for i := range titles {
+		titles[i] = "同じ候補"
 	}
 	renderer := &fakeSharedTitleRenderer{titles: titles}
-	repo := New(base, noSafeTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
-
-	slots := make([]bbsengine.Slot, 0, 7)
-	for i := 0; i < 7; i++ {
-		slots = append(slots, bbsengine.Slot{
-			Index:     i + 1,
-			Author:    fmt.Sprintf("USER%02d", i+1),
-			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
-		})
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	slots := []bbsengine.Slot{
+		{Index: 1, Author: "USER01", CreatedAt: time.Date(1996, 8, 26, 20, 0, 0, 0, time.Local)},
+		{Index: 2, Author: "USER02", CreatedAt: time.Date(1996, 8, 26, 20, 1, 0, 0, time.Local)},
 	}
+
 	_, err = (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
 		Host:     host,
 		Board:    world.Board{ID: "70/1", Name: "ＰＣ－９８"},
@@ -527,13 +517,10 @@ func TestSharedBBSPlannerFailsCleanlyWhenGeneratedRefillsAreExhausted(t *testing
 		Slots:    slots,
 	})
 	if err == nil {
-		t.Fatal("expected generation failure after all generated refill pools are exhausted")
+		t.Fatal("expected clean failure after bounded large pools are exhausted")
 	}
 	if !strings.Contains(err.Error(), "canned title fallback is disabled") {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if renderer.contextCalls != sharedTitlePoolAttemptLimit(len(slots))+sharedTitleEraSafeRefillAttempts {
-		t.Fatalf("candidate pools=%d, want all normal + refill pools", renderer.contextCalls)
 	}
 }
 
@@ -694,7 +681,8 @@ func TestSharedTitleResearchBudgetIsBoardWide(t *testing.T) {
 
 
 type fortyTitleRenderer struct {
-	calls int
+	calls              int
+	lastCandidateCount int
 }
 
 func (f *fortyTitleRenderer) GenerateBoardPost(context.Context, llm.BoardPostRequest) (llm.BoardPostDraft, error) {
@@ -705,12 +693,18 @@ func (f *fortyTitleRenderer) GenerateBBSTitleCandidates(context.Context, string,
 	return llm.BBSTitleCandidates{}, fmt.Errorf("legacy title path should not be used")
 }
 
-func (f *fortyTitleRenderer) GenerateContextualBBSTitleCandidates(_ context.Context, _ llm.BBSContextualTitleCandidateRequest) (llm.BBSTitleCandidates, error) {
+func (f *fortyTitleRenderer) GenerateContextualBBSTitleCandidates(_ context.Context, req llm.BBSContextualTitleCandidateRequest) (llm.BBSTitleCandidates, error) {
 	f.calls++
-	start := (f.calls-1)*20 + 1
-	titles := make([]string, 0, 20)
-	for i := 0; i < 20; i++ {
-		titles = append(titles, fmt.Sprintf("評価用タイトル%02d", start+i))
+	count := req.CandidateCount
+	if count <= 0 {
+		count = 20
+	}
+	f.lastCandidateCount = count
+	start := (f.calls-1)*count + 1
+	titles := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		index := start + i
+		titles = append(titles, fmt.Sprintf("%c-%03d", rune(0x4e00+(index%2000)), index))
 	}
 	return llm.BBSTitleCandidates{Titles: titles}, nil
 }
@@ -739,7 +733,7 @@ func (f *fortyTitleRenderer) ValidateBBSTitleEra(_ context.Context, req llm.BBST
 	return llm.BBSTitleEraReview{Decisions: decisions}, nil
 }
 
-func TestSharedBBSPlannerFillsFortyDebugHeadersAcrossTwoPools(t *testing.T) {
+func TestSharedBBSPlannerFillsFortyHeadersFromOneLargePool(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -767,8 +761,11 @@ func TestSharedBBSPlannerFillsFortyDebugHeadersAcrossTwoPools(t *testing.T) {
 	if len(planned) != 40 {
 		t.Fatalf("planned=%d, want 40", len(planned))
 	}
-	if renderer.calls != 2 {
-		t.Fatalf("candidate pools=%d, want 2 for 40 headers", renderer.calls)
+	if renderer.calls != 1 {
+		t.Fatalf("candidate pools=%d, want one 100-title pool", renderer.calls)
+	}
+	if renderer.lastCandidateCount != sharedTitlePoolTargetSize {
+		t.Fatalf("candidate count=%d, want %d", renderer.lastCandidateCount, sharedTitlePoolTargetSize)
 	}
 	seen := map[string]bool{}
 	for _, post := range planned {
@@ -779,21 +776,19 @@ func TestSharedBBSPlannerFillsFortyDebugHeadersAcrossTwoPools(t *testing.T) {
 	}
 }
 
-
-func TestSharedTitlePoolAttemptLimitScalesForLargeDebugBatch(t *testing.T) {
+func TestSharedLegacyTitlePoolAttemptLimit(t *testing.T) {
 	tests := []struct {
 		roots int
 		want  int
 	}{
-		{roots: 1, want: 3},
-		{roots: 5, want: 3},
-		{roots: 20, want: 3},
-		{roots: 40, want: 4},
-		{roots: 60, want: 5},
+		{roots: 1, want: 2},
+		{roots: 20, want: 2},
+		{roots: 40, want: 3},
+		{roots: 60, want: 4},
 		{roots: 100, want: 6},
 	}
 	for _, tc := range tests {
-		if got := sharedTitlePoolAttemptLimit(tc.roots); got != tc.want {
+		if got := sharedLegacyTitlePoolAttemptLimit(tc.roots); got != tc.want {
 			t.Fatalf("roots=%d attempts=%d, want %d", tc.roots, got, tc.want)
 		}
 	}
@@ -830,7 +825,7 @@ func (attritionTitleTestEngine) AdviseTitleCandidates(_ context.Context, req wor
 	return out, nil
 }
 
-func TestSharedBBSPlannerUsesFourthPoolAfterEraAttritionForFortyRoots(t *testing.T) {
+func TestSharedBBSPlannerIgnoresJevEraAttritionForFortyRoots(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -859,7 +854,7 @@ func TestSharedBBSPlannerUsesFourthPoolAfterEraAttritionForFortyRoots(t *testing
 	if len(planned) != 40 {
 		t.Fatalf("planned=%d, want 40", len(planned))
 	}
-	if renderer.calls != 4 {
-		t.Fatalf("candidate pools=%d, want 4 after 12-safe-per-pool attrition", renderer.calls)
+	if renderer.calls != 1 {
+		t.Fatalf("candidate pools=%d, want Jev era scores to have no pool-attrition effect", renderer.calls)
 	}
 }

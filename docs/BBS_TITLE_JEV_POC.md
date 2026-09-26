@@ -2,11 +2,11 @@
 
 Date: 2026-09-27 (project development time)
 
-This document records a development experiment. It does **not** change the canonical production planner policy by itself.
+This document records the development experiment that led to the current production title-planning policy. The measured findings remain historical experiment data; the implementation decision is recorded below.
 
 ## Question
 
-The title-first BBS planner currently generates title candidates in 20-title pools and uses Jev both for:
+At the start of this experiment, the title-first BBS planner generated title candidates in 20-title pools and used Jev both for:
 
 1. title-era routing (`safe_without_research` / `research` / `logically_impossible`), and
 2. title-to-world-event/persona fit.
@@ -21,7 +21,7 @@ World date: `1996-08-26`.
 
 The debug endpoint `/api/debug/bbs-title-jev-poc` generates 100 candidate titles in one structured OpenAI call, then asks Jev to perform title-era routing over the same candidates.
 
-The large-pool path is debug-only. Production callers still leave `CandidateCount == 0` and retain the normal 20-candidate contract.
+This endpoint remains a diagnostic harness. After the experiment, the shared production planner was changed to request `CandidateCount == 100` for contextual title generation; the 20-candidate shape remains only as a compatibility default for other callers.
 
 ### Important schema finding
 
@@ -32,7 +32,7 @@ The first 100-title versions returned:
 
 After prompt refinement, only 1 of 11 sampled claim references matched the title at the referenced position. Both arrays were schema-valid; the semantic cross-array alignment was not reliable enough at this size.
 
-For large PoC pools the schema was therefore changed to:
+For large pools the schema was therefore changed to:
 
 ```text
 candidates[]
@@ -133,7 +133,21 @@ Before removing Jev entirely, compare its fit decisions with either:
 - the existing OpenAI `ReviewBBSTitleCandidates` path, or
 - a large-pool structured generation/review design that includes the already-fixed world-event slots without allowing the model to rewrite them.
 
-The present evidence supports removing/replacing the **era-routing role**, while evaluating the **fit/assignment role** separately.
+The production planner now follows that scoped conclusion: the **era-routing role has been removed from Jev**, while the **fit/assignment role remains** and is evaluated separately.
+
+## Implementation decision
+
+As of the production change following this PoC:
+
+- contextual title generation requests 100 candidates in one structured call;
+- each large-pool candidate nests its own `historical_claims[]`;
+- claim-free candidates bypass title-era Historical KB lookup;
+- claim-bearing tentative winners require Historical KB/research verification;
+- Jev is invoked in fit-only mode and does not ask title-era questions;
+- Jev/OpenAI fit review is bounded to at most 20 titles × 20 remaining world events per fit batch;
+- a second 100-title generation is recovery only, not the normal path.
+
+This is intentionally a title-planning decision, not a conclusion that Jev is unnecessary elsewhere.
 
 ## Performance implication
 
@@ -141,4 +155,4 @@ A 100-title structured generation took roughly 20-26 seconds in these runs. Jev 
 
 The direct Jev call is therefore not the main latency cost. The larger performance problem is indirect: conservative Jev `research` routing can trigger Historical KB/Web work, reject otherwise usable candidates, and force additional title pools.
 
-The former 20-title design could require up to 9 semantic pools for a 48-root initial history. A single 100-title pool is therefore promising, but production migration should be tested end-to-end with title/event assignment and actual 48-root materialization before changing the canonical planner.
+The former 20-title design could require up to 9 semantic pools for a 48-root initial history. The production planner now uses a 100-title primary pool, keeps claim-bearing historical checks on the tentative shortlist only, and bounds retained Jev fit work to chunks of at most 20 titles × 20 world events. One second 100-title pool is permitted only as recovery. End-to-end materialization behavior should continue to be measured independently from this PoC.

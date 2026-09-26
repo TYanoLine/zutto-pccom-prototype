@@ -81,3 +81,51 @@ func TestJevAdvisorTitleCandidatesParsesEraAndFitProbabilities(t *testing.T) {
 		t.Fatalf("unexpected fit: %+v", got.Fit)
 	}
 }
+
+
+func TestJevAdvisorTitleCandidatesFitOnlyOmitsEraQuestions(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Questions map[string]any `json:"questions"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		answers := map[string]any{}
+		for key := range payload.Questions {
+			if strings.Contains(key, "era_") {
+				t.Fatalf("fit-only request unexpectedly contained era question %q", key)
+			}
+			if !strings.Contains(key, "_fit") {
+				t.Fatalf("fit-only request contained non-fit question %q", key)
+			}
+			answers[key] = map[string]any{"type": "noul", "noul": 0.77}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"model": "jev-fit-only",
+			"answers": answers,
+		})
+	}))
+	defer server.Close()
+
+	advisor := JevAdvisor{APIKey: "test-key", Endpoint: server.URL, Client: server.Client()}
+	got, err := advisor.AdviseTitleCandidates(context.Background(), TitleCandidateAdviceRequest{
+		WorldDate: "1996-08-26",
+		HostID: "h",
+		HostName: "host",
+		BoardID: "b",
+		BoardName: "ゲーム",
+		Titles: []string{"候補A", "候補B"},
+		Events: []TitleEvaluationEvent{{EventID: "e1"}, {EventID: "e2"}},
+		FitOnly: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Era) != 0 {
+		t.Fatalf("fit-only era results=%d, want 0", len(got.Era))
+	}
+	if len(got.Fit) != 4 {
+		t.Fatalf("fit-only pairs=%d, want 4", len(got.Fit))
+	}
+}

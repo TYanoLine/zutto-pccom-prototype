@@ -199,6 +199,33 @@ func (r *Repository) developmentJevTitleAdvice(
 	recentBBSState string,
 	historicalFacts []string,
 ) (worldengine.TitleCandidateAdviceDecision, bool, error) {
+	return r.developmentJevTitleAdviceMode(ctx, host, board, asOf, titles, events, recentBBSState, historicalFacts, false)
+}
+
+func (r *Repository) developmentJevTitleFitAdvice(
+	ctx context.Context,
+	host world.Host,
+	board world.Board,
+	asOf string,
+	titles []string,
+	events []llm.BBSWorldWindowEvent,
+	recentBBSState string,
+	historicalFacts []string,
+) (worldengine.TitleCandidateAdviceDecision, bool, error) {
+	return r.developmentJevTitleAdviceMode(ctx, host, board, asOf, titles, events, recentBBSState, historicalFacts, true)
+}
+
+func (r *Repository) developmentJevTitleAdviceMode(
+	ctx context.Context,
+	host world.Host,
+	board world.Board,
+	asOf string,
+	titles []string,
+	events []llm.BBSWorldWindowEvent,
+	recentBBSState string,
+	historicalFacts []string,
+	fitOnly bool,
+) (worldengine.TitleCandidateAdviceDecision, bool, error) {
 	advisor, ok := r.Engine.(developmentTitleCandidateAdvisor)
 	if !ok {
 		return worldengine.TitleCandidateAdviceDecision{}, false, nil
@@ -206,32 +233,38 @@ func (r *Repository) developmentJevTitleAdvice(
 	adviceEvents := make([]worldengine.TitleEvaluationEvent, 0, len(events))
 	for _, event := range events {
 		adviceEvents = append(adviceEvents, worldengine.TitleEvaluationEvent{
-			EventID: event.EventID,
-			AuthorHandle: event.AuthorHandle,
-			CreatedAt: event.CreatedAt,
-			CauseKind: event.CauseKind,
-			CauseSummary: event.CauseSummary,
-			DiscourseMode: event.DiscourseMode,
+			EventID:        event.EventID,
+			AuthorHandle:   event.AuthorHandle,
+			CreatedAt:      event.CreatedAt,
+			CauseKind:      event.CauseKind,
+			CauseSummary:   event.CauseSummary,
+			DiscourseMode:  event.DiscourseMode,
 			PersonaProfile: event.PersonaProfile,
-			ExistingFacts: append([]string(nil), event.ExistingFacts...),
+			ExistingFacts:  append([]string(nil), event.ExistingFacts...),
 		})
 	}
 	decision, err := advisor.AdviseTitleCandidates(ctx, worldengine.TitleCandidateAdviceRequest{
-		WorldDate: asOf,
-		HostID: host.ID,
-		HostName: host.Name,
-		BoardID: board.ID,
-		BoardName: board.Name,
-		BoardScope: board.SemanticScope,
-		Titles: append([]string(nil), titles...),
-		Events: adviceEvents,
-		RecentBBSState: recentBBSState,
+		WorldDate:       asOf,
+		HostID:          host.ID,
+		HostName:        host.Name,
+		BoardID:         board.ID,
+		BoardName:       board.Name,
+		BoardScope:      board.SemanticScope,
+		Titles:          append([]string(nil), titles...),
+		Events:          adviceEvents,
+		RecentBBSState:  recentBBSState,
 		HistoricalFacts: append([]string(nil), historicalFacts...),
+		FitOnly:         fitOnly,
 	})
 	if err != nil {
 		return decision, true, err
 	}
-	if len(decision.Era) != len(titles) {
+	if fitOnly {
+		wantFit := len(titles) * len(adviceEvents)
+		if len(decision.Fit) != wantFit {
+			return decision, true, fmt.Errorf("Jev title advice omitted fit pairs: got %d want %d", len(decision.Fit), wantFit)
+		}
+	} else if len(decision.Era) != len(titles) {
 		return decision, true, fmt.Errorf("Jev title advice omitted era candidates: got %d want %d", len(decision.Era), len(titles))
 	}
 	return decision, true, nil

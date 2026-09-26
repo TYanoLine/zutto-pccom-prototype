@@ -134,22 +134,36 @@ World/observation clock
 ```
 
 The shared planner keeps actor/time/root-vs-reply topology world-owned, then
-uses a **title-first candidate pool** for root wording. OpenAI generates 20
-uncommitted subjects for the board using the world date, recent board history,
-avoid-list and bounded historical referents. The prompt explicitly asks for a
-wide spread of concrete subjects rather than generic board-category paraphrases.
+uses a **title-first candidate pool** for root wording. The normal contextual
+OpenAI path generates **100 uncommitted subjects in one structured call** using
+the world date, recent board history, avoid-list and bounded historical
+referents. Each candidate carries its own nested `historical_claims[]` so a
+claim cannot drift onto a different title by array index. The prompt asks for a
+large concrete claim-free reserve while still preserving board/period texture
+through claim-bearing real names where appropriate.
 
-Jev then evaluates candidate × already-selected world-slot compatibility and
-cheap era plausibility. Code performs the one-title/one-slot assignment. A named
-candidate that remains historically ambiguous is researched only if it is
-tentatively selected. Only after those gates pass does the selected subject and
-its minimal summary become canonical world state. In other words, the system
-does **not** first invent a detailed canonical topic and then force the subject to
-echo it; specificity is proposed broadly and filtered before adoption.
+Title-era routing is claim-driven rather than Jev-driven. Claim-free candidates
+do not go to Historical KB merely because a classifier is uncertain. If a
+tentative winner carries one or more historical claims, those claims must be
+verified by Historical KB/research before adoption. The generator's claim marker
+is a routing hint, never historical proof.
+
+Jev is currently retained only for candidate × already-selected world-slot /
+persona fit. To keep that fit request bounded, the 100-title pool is evaluated in
+chunks of at most 20 titles × 20 remaining world events; Jev's era questions are
+suppressed for this path. If Jev fit is unavailable, the existing OpenAI title
+reviewer remains the fallback. Code performs the one-title/one-slot assignment.
+
+Only after fit, duplicate checks and any required historical verification does
+the selected subject and its minimal summary become canonical world state. The
+system does **not** first invent a detailed canonical topic and then force the
+subject to echo it; specificity is proposed broadly and filtered before adoption.
 
 The planner uses up to 48 recent board posts as title/flow context and may include
-short excerpts from recent bodies when available. Failed/duplicate/too-similar
-candidates are discarded and bounded pools may be replenished.
+short excerpts from recent bodies when available. A contextual generation
+normally needs one 100-title pool; one additional fresh 100-title pool is allowed
+only as recovery if fit/duplicate/research attrition still leaves world-selected
+roots unresolved. Failed/duplicate/too-similar candidates are discarded.
 
 Header planning does not pre-render article bodies. It commits only the canonical
 header/topology/semantic brief required to show the index. Body prose remains

@@ -108,7 +108,7 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 	if req.CandidateCount > 20 {
 		prompt += `
 
-大規模候補プール評価用の追加条件:
+大規模候補プールの追加条件:
 - 後段のJevが誤りを直してくれることを前提にしないこと。historical_claims の有無はこの出力だけでできる限り正確に分類すること。
 - RemainingNeeded が正なら、少なくとも RemainingNeeded 件は「外部史実照会なしでそのまま件名候補として扱える」claim-free候補を用意すること。これはカテゴリ比率ではなく、史料照会が全件失敗しても投稿枠を埋められるための予備です。
 - claim-freeとは、件名が個人の体験・質問・募集・一般的な生活用件だけで成立し、world date時点での実在確認が必要な固有施設・店舗・駅・路線・サービス・製品・作品・イベント名等を新たに断定していない候補を指す。福岡・博多・天神などBoardScope自体に含まれる広域地名だけを場所の手掛かりに使う場合は、それだけでclaimを付けなくてよい。
@@ -219,7 +219,7 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 		prompt = contextualTitleCandidatePrompt(req)
 	}
 	if largePool {
-		prompt += "\n- このPoCの出力では、各candidateのtitleとhistorical_claimsは同じオブジェクト内にあります。claimを別候補へずらしたり、候補番号で参照したりしないでください。\n"
+		prompt += "\n- この出力では、各candidateのtitleとhistorical_claimsは同じオブジェクト内にあります。claimを別候補へずらしたり、候補番号で参照したりしないでください。\n"
 	}
 	maxOutputTokens := 3200
 	if candidateCount > 20 {
