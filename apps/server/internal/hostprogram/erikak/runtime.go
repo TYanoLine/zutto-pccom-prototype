@@ -128,7 +128,7 @@ func (r *Runtime) prefetchFirstForumChild(path string) {
 		if r.isForum(child.Path) {
 			continue
 		}
-		r.beginBoardPrefetch([]world.Board{worldBoard(child)}
+		r.beginBoardPrefetch([]world.Board{worldBoard(child)})
 		return
 	}
 }
