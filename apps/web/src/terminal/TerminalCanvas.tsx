@@ -218,14 +218,23 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     }
   }
 
-  function pointerEnd(e: ReactPointerEvent<HTMLCanvasElement>) {
-    if (activePointerIdRef.current !== e.pointerId) return;
-    const wasTap = e.pointerType !== 'mouse' && pointerTravelRef.current < 8;
+  function finishPointer(e: ReactPointerEvent<HTMLCanvasElement>) {
     activePointerIdRef.current = null;
     pointerRemainderRef.current = 0;
     pointerTravelRef.current = 0;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+
+  function pointerEnd(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    const wasTap = e.pointerType !== 'mouse' && pointerTravelRef.current < 8;
+    finishPointer(e);
     if (wasTap) onKeyboardRequest?.();
+  }
+
+  function pointerCancel(e: ReactPointerEvent<HTMLCanvasElement>) {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    finishPointer(e);
   }
 
   return (
@@ -250,7 +259,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             onPointerDown={pointerDown}
             onPointerMove={pointerMove}
             onPointerUp={pointerEnd}
-            onPointerCancel={pointerEnd}
+            onPointerCancel={pointerCancel}
           />
         </div>
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
