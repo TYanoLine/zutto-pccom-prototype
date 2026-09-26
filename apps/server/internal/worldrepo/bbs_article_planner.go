@@ -242,7 +242,12 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	adopted := map[string]bbsengine.PlannedPost{}
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	eraFallback, hasEraFallback := materializer.Renderer.(llm.BBSTitleEraValidator)
-	historicalFacts := materializer.historicalFacts(decision)
+	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
+	// topic menu. Supplying the whole bootstrap catalog here strongly biases broad
+	// boards toward whatever few products happen to be pre-seeded. Candidate
+	// generation receives only board-specific resolved evidence; named candidates
+	// can still be proposed and verified later through Historical KB.
+	historicalFacts := usableClaims(decision)
 	var researchDeadline time.Time
 	backgroundResearchQueued := 0
 	normalPoolAttempts := sharedTitlePoolAttemptLimit(len(rootSlots))
@@ -257,6 +262,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
 				WorldDate:       worldDate,
 				BoardName:       req.Board.Name,
+				BoardScope:      req.Board.SemanticScope,
 				RecentBBSState:  recentState,
 				RecentSubjects:  recentSubjects,
 				AvoidSubjects:   avoid,
@@ -355,7 +361,6 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				advice:           jevAdvice,
 				fitFloor:         developmentJevTitleFitThreshold,
 				rankingOnly:      attempt == maxPoolAttempts-1,
-				specificityBonus: sourcedTitleSpecificityBonus(pool.Titles, worldDate),
 			}
 		}
 		available := append([]string(nil), eligible...)
@@ -550,23 +555,6 @@ func historicalClaimsForTitle(pool llm.BBSTitleCandidates, title string) []llm.B
 	for _, claim := range pool.HistoricalClaims {
 		if claim.Candidate == candidate {
 			out = append(out, claim)
-		}
-	}
-	return out
-}
-
-func sourcedTitleSpecificityBonus(titles []string, worldDate string) map[int]float64 {
-	out := map[int]float64{}
-	referents := historicalkb.PeriodReferents(worldDate)
-	for i, title := range titles {
-		for _, ref := range referents {
-			name := strings.TrimSpace(ref.Name)
-			if name != "" && strings.Contains(strings.ToLower(title), strings.ToLower(name)) {
-				// Deliberately small: it breaks near-ties among already-fitting
-				// candidates, never substitutes for Jev's board/person fit gate.
-				out[i+1] = 0.12
-				break
-			}
 		}
 	}
 	return out
