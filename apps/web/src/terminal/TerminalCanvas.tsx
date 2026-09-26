@@ -8,7 +8,7 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from 'react';
 import type { TerminalCore } from './TerminalCore';
-import { terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import { mobileTerminalRows, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
@@ -32,10 +32,11 @@ type TerminalCanvasProps = {
   terminal: TerminalCore;
   keyboardInput: TerminalKeyboardInput;
   keyboardActive?: boolean;
+  bottomControlsActive?: boolean;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
-  { terminal, keyboardInput, keyboardActive = false },
+  { terminal, keyboardInput, keyboardActive = false, bottomControlsActive = false },
   forwardedRef,
 ) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -47,6 +48,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       : 'readable',
   );
   const [historyOffset, setHistoryOffset] = useState(0);
+  const [layoutRows, setLayoutRows] = useState(terminal.height);
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
@@ -76,6 +78,28 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }), [terminal, keyboardActive]);
   useEffect(() => { draw(); });
 
+  useEffect(() => {
+    if (!isMobilePresentation()) {
+      if (terminal.height !== 25) terminal.resizeHeight(25);
+      setLayoutRows(25);
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+    const update = () => window.requestAnimationFrame(syncMobileRows);
+    update();
+    if (!keyboardActive) {
+      window.addEventListener('resize', update);
+      visualViewport?.addEventListener('resize', update);
+    }
+    return () => {
+      window.removeEventListener('resize', update);
+      visualViewport?.removeEventListener('resize', update);
+    };
+    // Geometry is intentionally measured from the live DOM after each relevant mode change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [display, keyboardActive, bottomControlsActive]);
+
   function setScrollOffset(next: number) {
     const clamped = Math.max(0, Math.min(terminal.maxScrollOffset, next));
     if (clamped === scrollOffsetRef.current) return;
@@ -86,6 +110,33 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 
   function isMobilePresentation() {
     return window.matchMedia('(max-width: 680px), (pointer: coarse)').matches;
+  }
+
+  function syncMobileRows() {
+    if (!isMobilePresentation()) return;
+    if (display !== 'fit') {
+      if (terminal.height !== 25) terminal.resizeHeight(25);
+      setLayoutRows(25);
+      return;
+    }
+    if (keyboardActive) return;
+
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const visualViewport = window.visualViewport;
+    const visibleBottom = visualViewport
+      ? visualViewport.offsetTop + visualViewport.height
+      : window.innerHeight;
+    const viewportTop = viewport.getBoundingClientRect().top;
+    const bottomControls = bottomControlsActive
+      ? document.querySelector<HTMLElement>('.directory-softkeys')
+      : null;
+    const controlsTop = bottomControls?.getBoundingClientRect().top ?? visibleBottom;
+    const availableHeight = Math.max(0, Math.min(visibleBottom, controlsTop) - viewportTop);
+    const rows = mobileTerminalRows(viewport.clientWidth, availableHeight);
+
+    if (terminal.height !== rows) terminal.resizeHeight(rows);
+    setLayoutRows(rows);
   }
 
   function resetKeyboardViewport() {
@@ -207,7 +258,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     if (!ctx) return;
     const rows = terminal.viewportRows(scrollOffsetRef.current);
     ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 640, 400);
+    ctx.fillRect(0, 0, 640, terminal.height * 16);
     ctx.textBaseline = 'top';
     ctx.font = '16px monospace';
 
@@ -327,9 +378,9 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           <canvas
             ref={ref}
             width={640}
-            height={400}
+            height={layoutRows * 16}
             className="terminal-canvas"
-            aria-label="80桁25行の通信端末"
+            aria-label={`80桁${layoutRows}行の通信端末`}
             onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) focusKeyboardProxy(); }}
             onWheel={wheel}
             onPointerDown={pointerDown}
