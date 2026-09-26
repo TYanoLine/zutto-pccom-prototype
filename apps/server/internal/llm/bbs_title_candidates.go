@@ -115,7 +115,7 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - HistoricalFacts にない固有の施設名、店舗名、駅名、路線名、劇場名、商業施設名、公共施設名、交通サービス名等を件名が実在物として参照するなら、原則 historical_claims に existence/availability 相当の確認を必ず付けること。
 - 「○○は何時まで？」「○○で乗り場変更」「工事で通れる？」「今週の催し」「現在混んでいる」のような、営業時間・一時的な工事・運行変更・開催中イベント・現在の混雑や空きなど、その時点の運用状態を未供給の現実世界事実として断定する候補は避けること。質問として未確定情報を尋ねるだけなら、その答えをclaimとして断定しないこと。ただし質問文中で特定施設の実在を前提にする場合、その施設自体のexistence claimは付けること。
 - historical_claims は安定して再利用できる史実照会に限定すること。個人が傘をなくした、待ち合わせをする、買い物先を探す、町内会の架空の日常イベントを話す、といった世界内の出来事そのものを外部史実として照会しないこと。
-- claim-free候補にも具体性を持たせること。固有名詞を外した結果、「おすすめありますか」「最近どうですか」だけの抽象題に逃げないこと。
+- claim-free候補にも具体性を持たせること。固有名詞を外した結果、「おすすめありますか」「最近どうですか」だけの抽象題に逃げないこと。\n- claim-free予備だけで候補全体を埋めないこと。予備を確保した後の余力では、その板らしい実在の地名・施設・交通・店など具体的なローカル対象も十分に混ぜ、それらには必要なhistorical_claimsを付けること。史実安全性のために地域色そのものを消さないこと。
 `
 	}
 	return prompt + string(payload)
@@ -136,29 +136,90 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	if candidateCount < 1 || candidateCount > 200 {
 		return BBSTitleCandidates{}, fmt.Errorf("title pool candidate count %d outside 1..200", candidateCount)
 	}
-	claimItem := map[string]any{
+
+	allowedKinds := map[string]bool{
+		"product_availability": true,
+		"technical_capability": true,
+		"terminology": true,
+		"historical_event": true,
+		"general": true,
+	}
+	claimFields := map[string]any{
+		"subject": map[string]any{"type": "string"},
+		"kind":    map[string]any{"type": "string", "enum": []string{"product_availability", "technical_capability", "terminology", "historical_event", "general"}},
+		"need":    map[string]any{"type": "string"},
+	}
+	claimWithoutIndex := map[string]any{
 		"type": "object",
-		"properties": map[string]any{
-			"candidate": map[string]any{"type": "integer", "minimum": 1, "maximum": candidateCount},
-			"subject": map[string]any{"type": "string"},
-			"kind": map[string]any{"type": "string", "enum": []string{"product_availability", "technical_capability", "terminology", "historical_event", "general"}},
-			"need": map[string]any{"type": "string"},
-		},
-		"required": []string{"candidate", "subject", "kind", "need"},
+		"properties": claimFields,
+		"required": []string{"subject", "kind", "need"},
 		"additionalProperties": false,
 	}
-	schema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": candidateCount, "maxItems": candidateCount},
-			"historical_claims": map[string]any{"type": "array", "items": claimItem, "minItems": 0, "maxItems": candidateCount * 3},
-		},
-		"required": []string{"titles", "historical_claims"},
-		"additionalProperties": false,
+
+	// Large PoC pools keep each title and its claims in the same schema object.
+	// With 100 independent titles, a second top-level array of 1-based candidate
+	// indexes proved easy for the model to misalign even when both arrays were
+	// individually schema-valid. Production 20-title calls retain the established
+	// wire shape until this experiment is evaluated.
+	largePool := candidateCount > 20
+	var schema map[string]any
+	if largePool {
+		candidateItem := map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"title": map[string]any{"type": "string"},
+				"historical_claims": map[string]any{
+					"type": "array",
+					"items": claimWithoutIndex,
+					"minItems": 0,
+					"maxItems": 3,
+				},
+			},
+			"required": []string{"title", "historical_claims"},
+			"additionalProperties": false,
+		}
+		schema = map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"candidates": map[string]any{
+					"type": "array",
+					"items": candidateItem,
+					"minItems": candidateCount,
+					"maxItems": candidateCount,
+				},
+			},
+			"required": []string{"candidates"},
+			"additionalProperties": false,
+		}
+	} else {
+		claimItem := map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"candidate": map[string]any{"type": "integer", "minimum": 1, "maximum": candidateCount},
+				"subject": claimFields["subject"],
+				"kind": claimFields["kind"],
+				"need": claimFields["need"],
+			},
+			"required": []string{"candidate", "subject", "kind", "need"},
+			"additionalProperties": false,
+		}
+		schema = map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"titles": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "minItems": candidateCount, "maxItems": candidateCount},
+				"historical_claims": map[string]any{"type": "array", "items": claimItem, "minItems": 0, "maxItems": candidateCount * 3},
+			},
+			"required": []string{"titles", "historical_claims"},
+			"additionalProperties": false,
+		}
 	}
+
 	prompt := titleCandidatePrompt(req.WorldDate, req.BoardName)
 	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" || req.RemainingNeeded > 0 || req.PreferEraSafe || req.CandidateCount > 0 {
 		prompt = contextualTitleCandidatePrompt(req)
+	}
+	if largePool {
+		prompt += "\n- このPoCの出力では、各candidateのtitleとhistorical_claimsは同じオブジェクト内にあります。claimを別候補へずらしたり、候補番号で参照したりしないでください。\n"
 	}
 	maxOutputTokens := 3200
 	if candidateCount > 20 {
@@ -168,8 +229,37 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	if err != nil {
 		return BBSTitleCandidates{}, err
 	}
+
 	var draft BBSTitleCandidates
-	if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
+	if largePool {
+		var nested struct {
+			Candidates []struct {
+				Title string `json:"title"`
+				HistoricalClaims []struct {
+					Subject string `json:"subject"`
+					Kind string `json:"kind"`
+					Need string `json:"need"`
+				} `json:"historical_claims"`
+			} `json:"candidates"`
+		}
+		if err := json.Unmarshal([]byte(result.Text), &nested); err != nil {
+			return draft, err
+		}
+		if len(nested.Candidates) != candidateCount {
+			return draft, fmt.Errorf("title pool: got %d candidates, want %d", len(nested.Candidates), candidateCount)
+		}
+		for i, item := range nested.Candidates {
+			draft.Titles = append(draft.Titles, item.Title)
+			for _, claim := range item.HistoricalClaims {
+				draft.HistoricalClaims = append(draft.HistoricalClaims, BBSTitleHistoricalClaim{
+					Candidate: i + 1,
+					Subject: claim.Subject,
+					Kind: claim.Kind,
+					Need: claim.Need,
+				})
+			}
+		}
+	} else if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
 		return draft, err
 	}
 	if len(draft.Titles) != candidateCount {
@@ -179,13 +269,6 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 		if strings.TrimSpace(title) == "" {
 			return draft, fmt.Errorf("empty title candidate")
 		}
-	}
-	allowedKinds := map[string]bool{
-		"product_availability": true,
-		"technical_capability": true,
-		"terminology": true,
-		"historical_event": true,
-		"general": true,
 	}
 	for _, claim := range draft.HistoricalClaims {
 		if claim.Candidate < 1 || claim.Candidate > len(draft.Titles) {
