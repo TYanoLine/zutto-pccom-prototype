@@ -1,6 +1,9 @@
 package erikak
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDisplayCellWidthJapaneseTerminal(t *testing.T) {
 	cases := map[string]int{
@@ -25,7 +28,7 @@ func TestPeriodSeparatorsOccupyEightyCells(t *testing.T) {
 	if got := displayCellWidth("■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■"); got != 80 {
 		t.Fatalf("black-square separator width = %d, want 80", got)
 	}
-	if got := displayCellWidth("――――――――――――――――――――――――――――――――――――――"); got != 80 {
+	if got := displayCellWidth(strings.Repeat("―", 40)); got != 80 {
 		t.Fatalf("horizontal separator width = %d, want 80", got)
 	}
 }
