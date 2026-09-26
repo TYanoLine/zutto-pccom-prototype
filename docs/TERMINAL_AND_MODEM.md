@@ -34,16 +34,20 @@ colors, full-width continuation cells, cursor positions, and host commands.
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
   terminal to live output before the new text is echoed.
-- A short tap on the mobile terminal focuses an invisible native input proxy;
-  there is no separate visible command field. The proxy uses the same command
-  routing, IME composition guard and Enter handling as physical keyboard input.
-  It remains a real 16px input inside the viewport so iOS/Android can keep the
-  software keyboard open without displaying modern form chrome.
-- While the software keyboard is open, the client listens to viewport resize
-  only and computes the terminal's vertical scroll position from the live cursor
-  row as an absolute target. It does not accumulate relative corrections or
-  follow VisualViewport scroll events, preventing the cursor from drifting
-  upward during continued typing.
+- A short tap on the mobile terminal focuses a native one-row textarea proxy;
+  there is no separate visible command field. The proxy is positioned at the
+  live terminal cursor cell, has a real cell-sized box and 16px font, but makes
+  its text/caret/background transparent. This keeps it as a normal in-viewport
+  editable control for iOS/Android while the user sees only the terminal cursor.
+  The proxy uses the same command routing, IME composition guard and Enter
+  handling as physical keyboard input.
+- Focusing the textarea does not immediately resize/reposition the terminal.
+  Once the software keyboard actually changes VisualViewport height, the client
+  handles resize events and computes terminal scroll positions from the live
+  cursor row as absolute targets. It does not accumulate relative corrections
+  or follow VisualViewport scroll events, preventing the cursor from drifting
+  upward during continued typing. Horizontal panning is likewise corrected only
+  as needed to keep the live cursor cell visible.
 - The center directory retains its own six navigation/call keys. The command
   field is read-only while selecting a center; Enter calls the selected center.
   Esc is an offline client-menu operation, not a fabricated shared BBS command.
