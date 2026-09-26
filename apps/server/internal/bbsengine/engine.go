@@ -150,7 +150,7 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUp(ctx, host, board, false, 0, 0)
+	return e.catchUp(ctx, host, board, false, 0, 0, -1)
 }
 
 // CatchUpInitial materializes one batch immediately when this board has no
@@ -158,14 +158,14 @@ func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board
 // reset flows so testers can inspect the current generator without waiting for the
 // normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
 func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUpInitial(ctx, host, board, 0, 0)
+	return e.catchUpInitial(ctx, host, board, 0, 0, -1)
 }
 
 // CatchUpInitialCount is the explicit-development variant of CatchUpInitial.
 // It lets generator-evaluation fixtures request a larger first materialization
 // without changing normal world cadence or MaxBatchSize.
 func (e *Engine) CatchUpInitialCount(ctx context.Context, host world.Host, board world.Board, count int) error {
-	return e.catchUpInitial(ctx, host, board, count, 0)
+	return e.catchUpInitial(ctx, host, board, count, 0, -1)
 }
 
 // CatchUpInitialRootHistoryCount is the explicit-development history variant.
@@ -177,7 +177,30 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 	if rootCount <= 0 {
 		return nil
 	}
-	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback)
+	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback, -1)
+}
+
+// CatchUpInitialBoardActivity realizes the already-decided retained activity
+// window for a board. The world plan fixes root/reply counts before wording; the
+// planner only materializes titles and later bodies for those slots.
+func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Host, board world.Board, state world.BoardActivityState) error {
+	if state.RetainedRoots <= 0 {
+		return nil
+	}
+	replyCount := state.RetainedReplies
+	if replyCount < 0 {
+		replyCount = 0
+	}
+	count := state.RetainedRoots + replyCount
+	if count <= 0 {
+		return nil
+	}
+	lookback := time.Duration(0)
+	now := e.currentTime()
+	if !state.RetainedSince.IsZero() && state.RetainedSince.Before(now) {
+		lookback = now.Sub(state.RetainedSince)
+	}
+	return e.catchUpInitial(ctx, host, board, count, lookback, replyCount)
 }
 
 func slotCountForRootTarget(rootCount int) int {
@@ -195,20 +218,20 @@ func slotCountForRootTarget(rootCount int) int {
 	return slots
 }
 
-func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration) error {
+func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
 		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
-			return e.catchUp(ctx, host, board, false, 0, 0)
+			return e.catchUp(ctx, host, board, false, 0, 0, -1)
 		}
 	}
-	return e.catchUp(ctx, host, board, true, count, initialLookback)
+	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies)
 }
 
-func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration) error {
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int) error {
 	if e == nil || e.Store == nil || e.Planner == nil {
 		return nil
 	}
@@ -230,7 +253,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 	if ignoreCadence && cursor.IsZero() && initialLookback > 0 {
 		initialStart = now.Add(-initialLookback)
 	}
-	slots := e.planSlots(host, board, recent, cursor, now, count, initialStart)
+	slots := e.planSlots(host, board, recent, cursor, now, count, initialStart, desiredReplies)
 	if len(slots) == 0 {
 		return nil
 	}
@@ -596,7 +619,7 @@ func personaActivityWeight(pattern string, lurker float64) float64 {
 	return base
 }
 
-func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Post, cursor, now time.Time, count int, initialStart time.Time) []Slot {
+func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Post, cursor, now time.Time, count int, initialStart time.Time, desiredReplies int) []Slot {
 	if count <= 0 {
 		return nil
 	}
@@ -650,11 +673,31 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 			AuthorPersonaID: a.personaID,
 			CreatedAt:       createdAt,
 		}
-		// Keep most events as new roots, but let the shared world engine create
-		// ordinary resident-to-resident replies as canonical topology too. Earlier
-		// roots in this same simulated window are valid reply targets even though
-		// their database IDs are assigned only during chronological commit.
-		if len(targets) > 0 && (i+1)%4 == 0 {
+		// Earlier roots in this same simulated window are valid reply targets even
+		// though their database IDs are assigned only during chronological commit.
+		// A preplanned board-history window may request an exact reply count;
+		// ordinary cadence batches retain the older one-in-four heuristic.
+		shouldReply := false
+		if len(targets) > 0 {
+			if desiredReplies >= 0 {
+				if desiredReplies > count-1 {
+					desiredReplies = count - 1
+				}
+				repliesSoFar := 0
+				for _, prior := range slots {
+					if prior.ReplyToPostID != 0 || prior.ReplyToSlotIndex != 0 {
+						repliesSoFar++
+					}
+				}
+				if i > 0 && desiredReplies > 0 {
+					expectedByNow := (i * desiredReplies) / (count - 1)
+					shouldReply = expectedByNow > repliesSoFar
+				}
+			} else {
+				shouldReply = (i+1)%4 == 0
+			}
+		}
+		if shouldReply {
 			target := targets[int((seed+uint64(i))%uint64(len(targets)))]
 			slot.ReplyToPostID = target.postID
 			slot.ReplyToSlotIndex = target.slotIndex
