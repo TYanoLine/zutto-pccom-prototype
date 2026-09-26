@@ -7,7 +7,7 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .terminal-display { width: 100%; min-width: 0; max-width: 800px; }
 .terminal-viewport-shell { position: relative; }
 .terminal-viewport { position: relative; width: 100%; overflow-x: auto; background: #000; }
-.terminal-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
+.terminal-canvas { display: block; width: 100%; height: auto; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
 .terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu, .mobile-statusbar, .mobile-modem-status { display: none; }
 .terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: pinch-zoom; }
 .terminal-input-proxy::selection { color: transparent; background: transparent; }
@@ -41,7 +41,7 @@ code { color: #ddd; }
   .mobile-modem-status--digital {
     position: relative;
     display: grid;
-    grid-template-columns: minmax(98px, 1.35fr) minmax(74px, 0.9fr) auto auto;
+    grid-template-columns: minmax(98px, 1.25fr) minmax(74px, 0.9fr) auto minmax(64px, auto);
     align-items: center;
     gap: 7px;
     height: 34px;
@@ -159,23 +159,36 @@ code { color: #ddd; }
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: 7px auto;
-    align-items: center;
-    gap: 3px;
+    grid-template-rows: 8px auto;
+    place-items: center;
+    gap: 1px;
+    min-width: 22px;
     font-size: 8px;
+    line-height: 9px;
     font-weight: 700;
     letter-spacing: -0.02em;
   }
-  .modem-lcd__dot { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; }
-  .modem-lcd__dot[data-on="true"] { background: currentColor; }
+  .modem-lcd__dot {
+    width: 7px;
+    height: 7px;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background: transparent;
+  }
+  .modem-lcd__dot[data-on="true"] { background: transparent; }
   .modem-lcd__signals {
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0;
+    grid-template-columns: repeat(2, auto);
+    grid-template-rows: repeat(3, 9px);
+    grid-auto-flow: row;
+    align-items: center;
+    column-gap: 6px;
+    row-gap: 0;
+    min-width: 62px;
     font-size: 8px;
-    line-height: 11px;
+    line-height: 9px;
     font-weight: 700;
     letter-spacing: -0.02em;
   }

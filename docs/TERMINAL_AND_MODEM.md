@@ -50,6 +50,12 @@ colors, full-width continuation cells, cursor positions, and host commands.
   coarse-pointer/small-screen presentation. The compact `機能` button also
   contains `文字拡大`, `全体表示`, history up/down and `最新` controls.
   Host output is never rewrapped or replaced with a common host menu.
+- The terminal remains a fixed 80-column cell grid rather than a proportional
+  text layout. Browser fonts are constrained to 8px half-width / 16px full-width
+  cell bounds, and the Canvas uses a device-aware backing raster capped at 2x.
+  Fit mode uses normal resampling instead of pixelated CSS scaling so Japanese
+  and Latin glyphs do not develop the severe stair-stepping seen when a 640px
+  canvas is fractionally reduced on high-DPI phones.
 - Horizontal dragging pans the enlarged screen; vertical dragging reads the
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
@@ -119,10 +125,15 @@ and negotiated protocol are stored separately: during dialing/ringing/training,
 AUTO mode may present both V.42bis and MNP5 capability legends; after the
 simulated negotiation settles, the display collapses to the selected protocol.
 MNP4 displays MNP without the class-5 digit. The variable speed field is rendered
-as explicit seven-segment digits, while V.42bis / MNP / OFH / DSR / CTS and the
-speed-unit K remain fixed LCD legends. The amber illumination keeps the Ver 0.21
-center brightness but darkens only toward the LCD edges, avoiding the raised
-bevel appearance of the first implementation. This display-state mapping is kept
+as explicit seven-segment digits, while V.42bis / MNP / OFH and the serial-signal
+labels remain fixed LCD legends. The right-side signal matrix follows the
+photographed PV-AF-family order DTR/DSR, RTS/CTS, AA/DCD. DTR currently follows
+the modeled terminal-ready state, DCD follows carrier detect, AA follows the
+auto-answer state, and RTS remains intentionally unlit until an independent RTS
+state exists. The circle above OFH is an outline indicator rather than a filled
+dot. The speed-unit K is also a fixed legend. The amber illumination keeps the
+Ver 0.21 center brightness but darkens only toward the LCD edges, avoiding the
+raised bevel appearance of the first implementation. This display-state mapping is kept
 separate from call state because the complete manufacturer LCD state table has
 not yet been recovered. See `docs/research/AIWA_PV_AF288_LCD.md`.
 

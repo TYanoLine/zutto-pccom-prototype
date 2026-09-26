@@ -31,3 +31,11 @@ export function mobileTerminalRows(
   const displayedRowHeight = cellHeight * scale;
   return Math.max(25, Math.min(120, Math.floor(availableHeight / displayedRowHeight)));
 }
+
+
+export function terminalBackingScale(devicePixelRatio: number) {
+  if (!Number.isFinite(devicePixelRatio) || devicePixelRatio <= 1) return 1;
+  // 2x is enough to remove most fit-mode raster stair-stepping without
+  // allocating an excessively tall 3x canvas when scrollback exposes many rows.
+  return Math.min(2, Math.max(1, Math.round(devicePixelRatio)));
+}
