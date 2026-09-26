@@ -16,6 +16,16 @@ const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa
 const HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
 const FULL_WIDTH_FONT = '16px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
 
+export function terminalGlyphPaintStyle(ch: string) {
+  const fullWidth = isFullWidth(ch);
+  return {
+    fullWidth,
+    font: fullWidth ? FULL_WIDTH_FONT : HALF_WIDTH_FONT,
+    glyphWidth: fullWidth ? 16 : 8,
+    yOffset: fullWidth ? 0 : 1,
+  } as const;
+}
+
 export type TerminalCanvasHandle = {
   returnToLive: () => void;
   ensureCursorVisible: () => void;
@@ -328,16 +338,15 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         const px = x * 8;
         const py = y * 16;
         ctx.fillStyle = PALETTE[cell.fg] ?? '#aaa';
-        const fullWidth = isFullWidth(cell.ch);
-        const glyphWidth = fullWidth ? 16 : 8;
-        const glyphCenter = px + glyphWidth / 2;
-        const glyphY = py + (fullWidth ? 0 : 1);
+        const glyphStyle = terminalGlyphPaintStyle(cell.ch);
+        const glyphCenter = px + glyphStyle.glyphWidth / 2;
+        const glyphY = py + glyphStyle.yOffset;
 
         // Do not use fillText(..., maxWidth): Canvas implements that by
         // horizontally squeezing the glyph, which made Latin text unnaturally
         // narrow on iOS. Instead choose a font size that naturally fits the
         // historical 8px half-width cell and center it in the fixed grid.
-        ctx.font = fullWidth ? FULL_WIDTH_FONT : HALF_WIDTH_FONT;
+        ctx.font = glyphStyle.font;
         ctx.fillText(cell.ch, glyphCenter, glyphY);
         if (cell.bold && cell.ch !== ' ') ctx.fillText(cell.ch, glyphCenter + 0.5, glyphY);
       }
