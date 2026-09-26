@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -175,7 +176,9 @@ func newBBSTitleJevPoCHandler(
 				"jev_logically_impossible": prob.LogicallyImpossible,
 				"jev_route": route,
 			})
+			log.Printf("BBS title Jev PoC candidate: board=%s candidate=%d route=%s safe=%.3f impossible=%.3f claims=%d title=%q", board.ID, candidate, route, prob.SafeWithoutResearch, prob.LogicallyImpossible, len(claims), title)
 		}
+		log.Printf("BBS title Jev PoC summary: board=%s generation_ms=%d jev_ms=%d summary=%v", board.ID, generationDuration.Milliseconds(), jevDuration.Milliseconds(), summary)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"ok": true,
 			"world_date": worldDate,
