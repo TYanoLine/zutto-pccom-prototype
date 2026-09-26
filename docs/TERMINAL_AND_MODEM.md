@@ -34,13 +34,16 @@ colors, full-width continuation cells, cursor positions, and host commands.
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
   terminal to live output before the new text is echoed.
-- On mobile, the visible terminal area itself is covered by a transparent native
-  single-line input. The user's tap therefore lands directly on the editable
-  control; the client does not synthesize focus from a canvas pointer event.
-  Text, caret and form chrome stay transparent so only the terminal cursor is
-  visible. The input uses a real 16px font and the same command routing, IME
-  composition guard and Enter handling as physical keyboard input. Desktop keeps
-  the cursor-sized proxy and click-to-focus behavior.
+- On mobile, the visible terminal area itself is covered by a native single-line
+  input. The user's tap therefore lands directly on the editable control; the
+  client does not synthesize focus from a canvas pointer event. The mobile input
+  element is fully transparent as a composited layer (in addition to transparent
+  text/caret/selection styles), so iOS-native caret or selection decorations do
+  not leak through at positions unrelated to the emulated terminal cursor. The
+  Canvas cursor is the only visible cursor. The input uses a real 16px font and
+  the same command routing, IME composition guard and Enter handling as physical
+  keyboard input. Desktop keeps the cursor-sized proxy and click-to-focus
+  behavior.
 - Focusing the textarea does not immediately resize/reposition the terminal.
   Once the software keyboard actually changes VisualViewport height, the client
   handles resize events and computes terminal scroll positions from the live
