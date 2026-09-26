@@ -36,7 +36,7 @@ colors, full-width continuation cells, cursor positions, and host commands.
 - Mobile uses the full dynamic viewport height with one compact connection
   status row at the top. The row shows the connected network name (or OFFLINE),
   current session elapsed time and current-session pseudo telephone charge. The
-  network name may ellipsize, while elapsed time and charge remain visible. The
+  network name may ellipsize first, while elapsed time and charge remain visible. The
   old desktop title bar, modem/call status strip, help text and debug/settings
   panels remain hidden on coarse-pointer/small-screen presentation. A single compact
   `機能` button opens display controls on demand (`文字拡大`, `全体表示`,
