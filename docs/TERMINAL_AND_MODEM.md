@@ -51,11 +51,13 @@ colors, full-width continuation cells, cursor positions, and host commands.
   contains `文字拡大`, `全体表示`, history up/down and `最新` controls.
   Host output is never rewrapped or replaced with a common host menu.
 - The terminal remains a fixed 80-column cell grid rather than a proportional
-  text layout. Browser fonts are constrained to 8px half-width / 16px full-width
-  cell bounds, and the Canvas uses a device-aware backing raster capped at 2x.
-  Fit mode uses normal resampling instead of pixelated CSS scaling so Japanese
-  and Latin glyphs do not develop the severe stair-stepping seen when a 640px
-  canvas is fractionally reduced on high-DPI phones.
+  text layout. Half-width and full-width glyphs use separate font sizes chosen
+  to fit the historical 8px / 16px cell grid naturally; they are centered in
+  their cells rather than horizontally squeezed with Canvas `maxWidth`.
+  The Canvas uses a device-aware backing raster capped at 2x. Fit mode uses
+  normal resampling instead of pixelated CSS scaling so Japanese and Latin
+  glyphs retain their natural proportions when the 640px terminal is
+  fractionally reduced on high-DPI phones.
 - Horizontal dragging pans the enlarged screen; vertical dragging reads the
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
