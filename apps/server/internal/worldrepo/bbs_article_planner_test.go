@@ -76,7 +76,7 @@ func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx conte
 		offset := len(req.AvoidSubjects)
 		titles = make([]string, 0, 20)
 		for i := 0; i < 20; i++ {
-			titles = append(titles, fmt.Sprintf("%s候補%03d", req.BoardName, offset+i+1))
+			titles = append(titles, fmt.Sprintf("候補%03d", offset+i+1))
 		}
 	}
 	return llm.BBSTitleCandidates{Titles: titles}, nil
