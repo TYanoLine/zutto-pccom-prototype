@@ -13,6 +13,7 @@ export type CallerLocation = {
   maName: string;
   areaCode: string;
   localDialPrefixes: string[];
+  localExactPhones: string[];
 };
 
 export const CALLER_LOCATION_STORAGE_KEY = 'zutto.callerLocation.v1';
@@ -22,14 +23,20 @@ export const DEFAULT_CALLER_LOCATION: CallerLocation = {
   label: '福岡',
   maName: '福岡',
   areaCode: '092',
-  // For the current prototype this preset represents the Fukuoka MA.
-  // Future location UI can replace this preset with a canonical MA record.
-  localDialPrefixes: ['092'],
+  // The area code is a user-facing clue, not an MA identifier: 092 also
+  // contains the Maebaru MA. Until centers expose canonical MA metadata, mark
+  // only explicitly known Fukuoka-MA fixture numbers as local.
+  localDialPrefixes: [],
+  localExactPhones: ['0920000196'],
 };
 
 export function normalizeCallerLocation(value: Partial<CallerLocation> | null | undefined): CallerLocation {
   const fallback = DEFAULT_CALLER_LOCATION;
-  if (!value) return { ...fallback, localDialPrefixes: [...fallback.localDialPrefixes] };
+  if (!value) return {
+    ...fallback,
+    localDialPrefixes: [...fallback.localDialPrefixes],
+    localExactPhones: [...fallback.localExactPhones],
+  };
 
   const cleanPrefix = (prefix: unknown) =>
     typeof prefix === 'string' ? prefix.replace(/\D/g, '').slice(0, 6) : '';
@@ -37,13 +44,17 @@ export function normalizeCallerLocation(value: Partial<CallerLocation> | null | 
   const prefixes = Array.isArray(value.localDialPrefixes)
     ? value.localDialPrefixes.map(cleanPrefix).filter(Boolean)
     : [];
+  const exactPhones = Array.isArray(value.localExactPhones)
+    ? value.localExactPhones.map(cleanPrefix).filter(Boolean)
+    : [];
 
   return {
     id: typeof value.id === 'string' && value.id.trim() ? value.id.trim() : fallback.id,
     label: typeof value.label === 'string' && value.label.trim() ? value.label.trim() : fallback.label,
     maName: typeof value.maName === 'string' && value.maName.trim() ? value.maName.trim() : fallback.maName,
     areaCode,
-    localDialPrefixes: prefixes.length ? prefixes : [areaCode],
+    localDialPrefixes: prefixes,
+    localExactPhones: exactPhones.length ? exactPhones : [...fallback.localExactPhones],
   };
 }
 
@@ -75,6 +86,7 @@ export function resolve1996DistanceClass(location: CallerLocation, phone: string
   // destinations, so keep the resolver explicit rather than pretending that
   // every fictional phone prefix is historically geocoded.
   if (location.id === 'fukuoka-092') {
+    if (location.localExactPhones.some(phone => digits === phone)) return 'local';
     if (location.localDialPrefixes.some(prefix => digits.startsWith(prefix))) return 'local';
     if (digits.startsWith('045') || digits.startsWith('03')) return 'over-160km';
   }
