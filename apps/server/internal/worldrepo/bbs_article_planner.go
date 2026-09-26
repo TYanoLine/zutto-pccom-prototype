@@ -307,7 +307,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 
 			reviewer := titlePlanner
 			jevStarted := time.Now()
-			jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleAdvice(
+			jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleFitAdvice(
 				ctx, req.Host, req.Board, worldDate, fitTitles, fitEvents, recentState, historicalFacts,
 			)
 			log.Printf("BBS timing: host=%s board=%s phase=jev_fit attempt=%d duration=%s used=%t err=%t titles=%d events=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil, len(fitTitles), len(fitEvents))
