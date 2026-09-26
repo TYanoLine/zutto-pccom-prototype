@@ -418,8 +418,8 @@ export class VirtualModem {
       if (msg.result === 'ok') {
         this.recoveringCarrier = false;
         this.sessionID = msg.session_id ?? this.sessionID;
-        this.emitTelemetry();
         if (msg.baud) this.currentBaud = Math.max(300, msg.baud);
+        this.emitTelemetry();
         if (this.negotiating) {
           this.onStatus?.(`MODEM NEGOTIATING ${this.currentBaud} / RESUMED`);
         } else {
@@ -563,6 +563,7 @@ export class VirtualModem {
       if (!this.send({ type: 'line', line: queued[i] })) {
         this.pendingLines = queued.slice(i);
         this.recoveringCarrier = true;
+        this.emitTelemetry();
         this.onStatus?.('LINE INTERRUPTED / RECONNECTING');
         this.scheduleRemoteReconnect();
         break;
@@ -629,8 +630,8 @@ export class VirtualModem {
 
   private phase(): ModemPhase {
     if (this.recoveringCarrier) return 'recovering';
-    if (this.negotiating) return 'negotiating';
     if (this.ringing) return 'ringing';
+    if (this.negotiating) return 'negotiating';
     if (this.connected) return 'online';
     if (this.dialing) return 'dialing';
     return 'idle';
