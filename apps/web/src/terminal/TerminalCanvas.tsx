@@ -1,5 +1,12 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent, WheelEvent as ReactWheelEvent } from 'react';
+import type {
+  ChangeEventHandler,
+  CompositionEventHandler,
+  FocusEventHandler,
+  KeyboardEventHandler,
+  PointerEvent as ReactPointerEvent,
+  WheelEvent as ReactWheelEvent,
+} from 'react';
 import type { TerminalCore } from './TerminalCore';
 import { terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
@@ -10,18 +17,30 @@ export type TerminalCanvasHandle = {
   ensureCursorVisible: () => void;
 };
 
+export type TerminalKeyboardInput = {
+  value: string;
+  readOnly: boolean;
+  onChange: ChangeEventHandler<HTMLTextAreaElement>;
+  onKeyDown: KeyboardEventHandler<HTMLTextAreaElement>;
+  onCompositionStart: CompositionEventHandler<HTMLTextAreaElement>;
+  onCompositionEnd: CompositionEventHandler<HTMLTextAreaElement>;
+  onFocus: FocusEventHandler<HTMLTextAreaElement>;
+  onBlur: FocusEventHandler<HTMLTextAreaElement>;
+};
+
 type TerminalCanvasProps = {
   terminal: TerminalCore;
-  onKeyboardRequest?: () => void;
+  keyboardInput: TerminalKeyboardInput;
   keyboardActive?: boolean;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
-  { terminal, onKeyboardRequest, keyboardActive = false },
+  { terminal, keyboardInput, keyboardActive = false },
   forwardedRef,
 ) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+  const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
   const [display, setDisplay] = useState<'readable' | 'fit'>('readable');
   const [historyOffset, setHistoryOffset] = useState(0);
   const scrollOffsetRef = useRef(0);
@@ -72,6 +91,32 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     viewport.scrollTop = 0;
   }
 
+  function positionKeyboardProxy() {
+    const proxy = keyboardProxyRef.current;
+    const canvas = ref.current;
+    if (!proxy || !canvas) return;
+
+    const cellWidth = Math.max(1, canvas.clientWidth / terminal.width);
+    const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const proxyWidth = Math.max(8, cellWidth);
+    const proxyHeight = Math.max(16, rowHeight);
+    const left = Math.max(0, Math.min(canvas.clientWidth - proxyWidth, terminal.cursorX * cellWidth));
+    const top = Math.max(0, Math.min(canvas.clientHeight - proxyHeight, terminal.cursorY * rowHeight));
+
+    proxy.style.left = `${left}px`;
+    proxy.style.top = `${top}px`;
+    proxy.style.width = `${proxyWidth}px`;
+    proxy.style.height = `${proxyHeight}px`;
+  }
+
+  function focusKeyboardProxy() {
+    if (keyboardInput.readOnly) return;
+    const proxy = keyboardProxyRef.current;
+    if (!proxy) return;
+    positionKeyboardProxy();
+    proxy.focus({ preventScroll: true });
+  }
+
   function ensureCursorVisible() {
     if (!keyboardActive || !isMobilePresentation()) return;
     const viewport = viewportRef.current;
@@ -88,7 +133,9 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     viewport.style.maxHeight = `${nextHeight}px`;
     viewport.style.overflowY = nextHeight < canvas.clientHeight ? 'auto' : 'hidden';
 
+    const cellWidth = Math.max(1, canvas.clientWidth / terminal.width);
     const rowHeight = Math.max(1, canvas.clientHeight / terminal.height);
+    const cursorLeft = terminal.cursorX * cellWidth;
     const cursorTop = terminal.cursorY * rowHeight;
     const targetScrollTop = terminalCursorTargetScrollTop(
       canvas.clientHeight,
@@ -96,7 +143,15 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       cursorTop,
       rowHeight,
     );
+    const maxScrollLeft = Math.max(0, canvas.clientWidth - viewport.clientWidth);
+    const targetScrollLeft = Math.max(
+      0,
+      Math.min(maxScrollLeft, cursorLeft - viewport.clientWidth + cellWidth * 2),
+    );
+
     if (Math.abs(viewport.scrollTop - targetScrollTop) > 1) viewport.scrollTop = targetScrollTop;
+    if (Math.abs(viewport.scrollLeft - targetScrollLeft) > 1) viewport.scrollLeft = targetScrollLeft;
+    positionKeyboardProxy();
   }
 
   function returnToLive() {
@@ -116,7 +171,6 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     const update = () => window.requestAnimationFrame(ensureCursorVisible);
     window.addEventListener('resize', update);
     visualViewport?.addEventListener('resize', update);
-    update();
 
     return () => {
       window.removeEventListener('resize', update);
@@ -172,6 +226,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       ctx.fillRect(terminal.cursorX * 8, terminal.cursorY * 16 + 14, 8, 2);
       ctx.globalAlpha = 1;
     }
+    positionKeyboardProxy();
   }
 
   function wheel(e: ReactWheelEvent<HTMLCanvasElement>) {
@@ -229,7 +284,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     if (activePointerIdRef.current !== e.pointerId) return;
     const wasTap = e.pointerType !== 'mouse' && pointerTravelRef.current < 8;
     finishPointer(e);
-    if (wasTap) onKeyboardRequest?.();
+    if (wasTap) focusKeyboardProxy();
   }
 
   function pointerCancel(e: ReactPointerEvent<HTMLCanvasElement>) {
@@ -254,12 +309,32 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             height={400}
             className="terminal-canvas"
             aria-label="80桁25行の通信端末"
-            onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) onKeyboardRequest?.(); }}
+            onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) focusKeyboardProxy(); }}
             onWheel={wheel}
             onPointerDown={pointerDown}
             onPointerMove={pointerMove}
             onPointerUp={pointerEnd}
             onPointerCancel={pointerCancel}
+          />
+          <textarea
+            ref={keyboardProxyRef}
+            className="terminal-input-proxy"
+            aria-label="端末入力"
+            rows={1}
+            wrap="off"
+            value={keyboardInput.value}
+            readOnly={keyboardInput.readOnly}
+            onChange={keyboardInput.onChange}
+            onKeyDown={keyboardInput.onKeyDown}
+            onCompositionStart={keyboardInput.onCompositionStart}
+            onCompositionEnd={keyboardInput.onCompositionEnd}
+            onFocus={keyboardInput.onFocus}
+            onBlur={keyboardInput.onBlur}
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            enterKeyHint="send"
+            spellCheck={false}
           />
         </div>
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
