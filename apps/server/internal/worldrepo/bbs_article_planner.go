@@ -287,6 +287,8 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		if len(titles) == 0 {
 			continue
 		}
+		dominantLeads := dominantTitleLeadKeys(titles)
+		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads)
 		avoid = append(avoid, titles...)
 
 		// Era routing is intentionally claim-driven. The generator's nested
@@ -315,11 +317,35 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				jevAttempted = false
 			}
 			if jevAttempted {
+				qualityBonus := make(map[int]float64, len(fitTitles))
+				for i, title := range fitTitles {
+					candidate := i + 1
+					bonus := 0.0
+					if !titleHasDominantLead(title, dominantLeads) {
+						bonus += .08
+					} else if titleUsesDominantDeFrame(title, dominantLeads) {
+						bonus -= .03
+					}
+					if len(historicalClaimsForTitle(pool, title)) > 0 {
+						// A small preference keeps verified period/local texture from
+						// disappearing entirely behind the claim-free reserve. Historical
+						// verification still remains mandatory before adoption.
+						bonus += .04
+					}
+					qualityBonus[candidate] = bonus
+					for _, event := range fitEvents {
+						slot := slotByEvent[event.EventID]
+						if !titleTemporalCompatible(title, slot.CreatedAt) {
+							jevAdvice.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = 0
+						}
+					}
+				}
 				reviewer = developmentJevTitlePlanner{
-					titles:      append([]string(nil), fitTitles...),
-					advice:      jevAdvice,
-					fitFloor:    developmentJevTitleFitThreshold,
-					rankingOnly: attempt == maxPoolAttempts-1,
+					titles:           append([]string(nil), fitTitles...),
+					advice:           jevAdvice,
+					fitFloor:         developmentJevTitleFitThreshold,
+					rankingOnly:      attempt == maxPoolAttempts-1,
+					specificityBonus: qualityBonus,
 				}
 			}
 
@@ -358,7 +384,14 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				if _, exists := adopted[d.EventID]; exists {
 					continue
 				}
+				slot, exists := slotByEvent[d.EventID]
+				if !exists || !titleTemporalCompatible(subject, slot.CreatedAt) {
+					continue
+				}
 				if titleTooSimilarToAny(subject, recentSubjects) || titleTooSimilarToAdopted(subject, adopted) {
+					continue
+				}
+				if !titleBatchNaturalnessAllows(subject, adopted, dominantLeads, len(rootSlots)) {
 					continue
 				}
 				candidates = append(candidates, d)
@@ -377,10 +410,12 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
 					continue
 				}
+				slot := slotByEvent[d.EventID]
 				researchJobs = append(researchJobs, developmentTitleEraResearchJob{
 					candidate: jobID,
 					title:     d.Subject,
 					claims:    claims,
+					asOf:      slot.CreatedAt.Format(time.DateOnly),
 				})
 				researchDecision[jobID] = d
 				jobID++
@@ -393,7 +428,11 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				cacheHits := 0
 				cacheNG := 0
 				for _, job := range researchJobs {
-					outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, job.title, job.claims)
+					lookupAsOf := strings.TrimSpace(job.asOf)
+					if lookupAsOf == "" {
+						lookupAsOf = worldDate
+					}
+					outcome := p.repo.developmentLookupTitleEra(ctx, lookupAsOf, job.title, job.claims)
 					switch outcome.status {
 					case "verified":
 						d := researchDecision[job.candidate]
@@ -516,7 +555,235 @@ func historicalClaimsForTitle(pool llm.BBSTitleCandidates, title string) []llm.B
 			out = append(out, claim)
 		}
 	}
+	// Structured generation remains the primary claim classifier, but obvious
+	// named station references are cheap enough to catch deterministically. This
+	// closes a real observed miss ("博多駅...") without turning ordinary broad
+	// region names or generic "駅前" wording into Web research.
+	for _, inferred := range inferredNamedStationClaims(candidate, title) {
+		duplicate := false
+		for _, existing := range out {
+			if strings.EqualFold(strings.TrimSpace(existing.Subject), strings.TrimSpace(inferred.Subject)) &&
+				strings.TrimSpace(existing.Kind) == strings.TrimSpace(inferred.Kind) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			out = append(out, inferred)
+		}
+	}
 	return out
+}
+
+func inferredNamedStationClaims(candidate int, title string) []llm.BBSTitleHistoricalClaim {
+	runes := []rune(strings.TrimSpace(title))
+	out := make([]llm.BBSTitleHistoricalClaim, 0, 1)
+	generic := map[string]bool{
+		"最寄り": true, "最寄りの": true, "近所": true, "近所の": true,
+		"近く": true, "近くの": true, "地元": true, "地元の": true,
+	}
+	isTokenRune := func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '・' || r == 'ー'
+	}
+	for i, r := range runes {
+		if r != '駅' || i == 0 {
+			continue
+		}
+		start := i
+		for start > 0 && i-start < 12 && isTokenRune(runes[start-1]) {
+			start--
+		}
+		prefix := strings.TrimSpace(string(runes[start:i]))
+		if len([]rune(prefix)) < 2 || generic[prefix] {
+			continue
+		}
+		subject := prefix + "駅"
+		out = append(out, llm.BBSTitleHistoricalClaim{
+			Candidate: candidate,
+			Subject:   subject,
+			Kind:      "general",
+			Need:      "この固有駅名が割当先の投稿日時までに日本で実在していたか",
+		})
+	}
+	return out
+}
+
+func orderTitleCandidatesForQuality(pool llm.BBSTitleCandidates, titles []string, dominant map[string]bool) []string {
+	// The generator often emits related surface frames in contiguous runs. Jev
+	// evaluates bounded 20-title chunks, so preserving that raw order can make a
+	// diverse 100-title pool collapse into a repetitive adopted subset. Round-robin
+	// four quality buckets before fit: non-dominant/dominant × claim-free/claiming.
+	buckets := make([][]string, 4)
+	for _, title := range titles {
+		claiming := len(historicalClaimsForTitle(pool, title)) > 0
+		dominantLead := titleHasDominantLead(title, dominant)
+		idx := 0
+		if claiming {
+			idx++
+		}
+		if dominantLead {
+			idx += 2
+		}
+		buckets[idx] = append(buckets[idx], title)
+	}
+	out := make([]string, 0, len(titles))
+	for len(out) < len(titles) {
+		progress := false
+		for i := range buckets {
+			if len(buckets[i]) == 0 {
+				continue
+			}
+			out = append(out, buckets[i][0])
+			buckets[i] = buckets[i][1:]
+			progress = true
+		}
+		if !progress {
+			break
+		}
+	}
+	return out
+}
+
+func dominantTitleLeadKeys(titles []string) map[string]bool {
+	counts := map[string]int{}
+	for _, title := range titles {
+		if lead := titleLeadToken(title); lead != "" {
+			counts[lead]++
+		}
+	}
+	threshold := len(titles) / 20
+	if threshold < 4 {
+		threshold = 4
+	}
+	out := map[string]bool{}
+	for lead, count := range counts {
+		if count >= threshold {
+			out[lead] = true
+		}
+	}
+	return out
+}
+
+func titleLeadToken(title string) string {
+	runes := []rune(strings.TrimSpace(title))
+	if len(runes) < 3 {
+		return ""
+	}
+	max := len(runes)
+	if max > 8 {
+		max = 8
+	}
+	for i := 2; i < max; i++ {
+		switch runes[i] {
+		case 'で', 'の', 'へ', 'に':
+			return string(runes[:i])
+		}
+		if i+1 < max {
+			pair := string(runes[i : i+2])
+			if pair == "から" || pair == "まで" {
+				return string(runes[:i])
+			}
+		}
+	}
+	return ""
+}
+
+func titleHasDominantLead(title string, dominant map[string]bool) bool {
+	return dominant[titleLeadToken(title)]
+}
+
+func titleUsesDominantDeFrame(title string, dominant map[string]bool) bool {
+	lead := titleLeadToken(title)
+	if !dominant[lead] || lead == "" {
+		return false
+	}
+	runes := []rune(strings.TrimSpace(title))
+	lr := []rune(lead)
+	return len(runes) > len(lr) && runes[len(lr)] == 'で'
+}
+
+func titleBatchNaturalnessAllows(title string, adopted map[string]bbsengine.PlannedPost, dominant map[string]bool, rootCount int) bool {
+	if rootCount < 20 || len(dominant) == 0 {
+		return true
+	}
+	if titleHasDominantLead(title, dominant) {
+		used := 0
+		for _, post := range adopted {
+			if titleHasDominantLead(post.Subject, dominant) {
+				used++
+			}
+		}
+		// Q2 requires <80% for the repeated broad/opening-token family.
+		maxAllowed := ceilDiv(rootCount*4, 5) - 1
+		if used >= maxAllowed {
+			return false
+		}
+	}
+	if titleUsesDominantDeFrame(title, dominant) {
+		used := 0
+		for _, post := range adopted {
+			if titleUsesDominantDeFrame(post.Subject, dominant) {
+				used++
+			}
+		}
+		// Q2 requires <60% for the obvious "<lead>で…" frame.
+		maxAllowed := ceilDiv(rootCount*3, 5) - 1
+		if used >= maxAllowed {
+			return false
+		}
+	}
+	return true
+}
+
+func ceilDiv(n, d int) int {
+	if d <= 0 {
+		return 0
+	}
+	return (n + d - 1) / d
+}
+
+func titleTemporalCompatible(title string, at time.Time) bool {
+	if at.IsZero() {
+		return true
+	}
+	month := int(at.Month())
+	containsAny := func(words ...string) bool {
+		for _, word := range words {
+			if strings.Contains(title, word) {
+				return true
+			}
+		}
+		return false
+	}
+	monthIn := func(months ...int) bool {
+		for _, allowed := range months {
+			if month == allowed {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Deliberately narrow, high-confidence Japanese seasonal constraints. Jev's
+	// slot-date fit handles softer cases; these deterministic guards block only
+	// obvious contradictions such as "夏物" in December.
+	switch {
+	case containsAny("夏物", "夏休み", "暑中", "夏祭り"):
+		return monthIn(5, 6, 7, 8, 9)
+	case containsAny("冬物", "冬休み", "雪かき"):
+		return monthIn(11, 12, 1, 2, 3)
+	case containsAny("梅雨"):
+		return monthIn(5, 6, 7)
+	case containsAny("花見", "桜"):
+		return monthIn(3, 4)
+	case containsAny("紅葉"):
+		return monthIn(10, 11)
+	case containsAny("クリスマス"):
+		return monthIn(11, 12)
+	case containsAny("正月", "年賀", "初詣"):
+		return monthIn(12, 1)
+	}
+	return true
 }
 
 func adoptedRoot(slot bbsengine.Slot, d llm.BBSTitleDecision) bbsengine.PlannedPost {
