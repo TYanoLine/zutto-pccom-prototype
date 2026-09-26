@@ -19,8 +19,9 @@ type fakeSharedTitleRenderer struct {
 	contextCalls int
 	lastContext  llm.BBSContextualTitleCandidateRequest
 	titles       []string
-	refillTitles []string
-	started      chan string
+	refillTitles     []string
+	historicalClaims []llm.BBSTitleHistoricalClaim
+	started          chan string
 	release      <-chan struct{}
 	active       atomic.Int32
 	maxActive    atomic.Int32
@@ -79,7 +80,10 @@ func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx conte
 			titles = append(titles, fmt.Sprintf("候補%03d", offset+i+1))
 		}
 	}
-	return llm.BBSTitleCandidates{Titles: titles}, nil
+	return llm.BBSTitleCandidates{
+		Titles:           titles,
+		HistoricalClaims: append([]llm.BBSTitleHistoricalClaim(nil), f.historicalClaims...),
+	}, nil
 }
 
 func (f *fakeSharedTitleRenderer) ReviewBBSTitleCandidates(_ context.Context, req llm.BBSTitleReviewRequest) (llm.BBSTitleReview, error) {
@@ -415,7 +419,7 @@ func TestSharedBBSPlannerGeneratesEraSafeRefillInsteadOfCannedSubjects(t *testin
 		"補充:コントローラ故障", "補充:週末の一本", "補充:また最初から", "補充:対戦相手募集",
 	}
 	renderer := &fakeSharedTitleRenderer{titles: researchTitles, refillTitles: refillTitles}
-	repo := New(base, refillTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	repo := New(base, noSafeTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
 
 	slots := make([]bbsengine.Slot, 0, 7)
 	for i := 0; i < 7; i++ {
@@ -447,6 +451,51 @@ func TestSharedBBSPlannerGeneratesEraSafeRefillInsteadOfCannedSubjects(t *testin
 	}
 	if renderer.contextCalls != sharedTitlePoolAttemptLimit(len(slots))+1 {
 		t.Fatalf("candidate pools=%d, want normal pools plus one generated refill", renderer.contextCalls)
+	}
+}
+
+func TestSharedBBSPlannerDoesNotBypassResearchForClaimedEraSafeRefill(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	researchTitles := make([]string, 0, 20)
+	refillTitles := make([]string, 0, 20)
+	claims := make([]llm.BBSTitleHistoricalClaim, 0, 20)
+	for i := 1; i <= 20; i++ {
+		researchTitles = append(researchTitles, fmt.Sprintf("要調査候補%02d", i))
+		refillTitles = append(refillTitles, fmt.Sprintf("補充:実在対象%02d", i))
+		claims = append(claims, llm.BBSTitleHistoricalClaim{
+			Candidate: i,
+			Subject:   fmt.Sprintf("実在対象%02d", i),
+			Kind:      "product_availability",
+			Need:      "world dateまでの存在確認",
+		})
+	}
+	renderer := &fakeSharedTitleRenderer{
+		titles:           researchTitles,
+		refillTitles:     refillTitles,
+		historicalClaims: claims,
+	}
+	repo := New(base, noSafeTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+
+	slots := make([]bbsengine.Slot, 0, 3)
+	for i := 0; i < 3; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index:     i + 1,
+			Author:    fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	_, err = (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "70/1", Name: "ＰＣ－９８"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots:    slots,
+	})
+	if err == nil {
+		t.Fatal("claim-bearing refill candidates must still require Historical KB verification")
 	}
 }
 
