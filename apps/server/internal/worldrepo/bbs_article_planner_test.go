@@ -562,7 +562,10 @@ func TestSharedBBSHeaderMaterializationAllowsDemandAlongsideBackgroundPrefetch(t
 	}
 	release := make(chan struct{})
 	renderer := &fakeSharedTitleRenderer{
-		started: make(chan string, 2),
+		// Initial board histories may need several 20-title pools. Keep the
+		// synchronization channel roomy so post-release refill calls do not block
+		// a concurrency test that only cares about the first call per board.
+		started: make(chan string, 16),
 		release: release,
 	}
 	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
