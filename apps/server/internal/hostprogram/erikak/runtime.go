@@ -254,8 +254,22 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 	}
 }
 
+func (r *Runtime) planBoardActivity() {
+	planner, ok := r.Store.(world.BoardActivityStore)
+	if !ok {
+		return
+	}
+	for _, node := range boardTree {
+		if r.isForum(node.Path) {
+			continue
+		}
+		_, _ = planner.BoardActivity(r.Host, worldBoard(node))
+	}
+}
+
 func (r *Runtime) finishLogin() string {
 	r.state = "main"
+	r.planBoardActivity()
 	r.prefetchLoginBoard()
 	last := "--/--/-- --:--"
 	if r.handle != "GUEST" {
