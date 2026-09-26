@@ -16,7 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
-const APP_VERSION = '0.12';
+const APP_VERSION = '0.13';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -147,11 +147,11 @@ export default function App() {
   }
   function syncTerminalInput(next: string) { const p = Array.from(echoedInputRef.current), n = Array.from(next); let c = 0; while (c < p.length && c < n.length && p[c] === n[c]) c++; for (let i = p.length; i > c; i--) terminal.backspace(); if (c < n.length) terminal.write(n.slice(c).join('')); echoedInputRef.current = next; }
   function followLiveInput() { terminalCanvasRef.current?.returnToLive(); }
-  function change(e: React.ChangeEvent<HTMLTextAreaElement>) { if (directoryRef.current?.isOpen()) return; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
+  function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
   function compositionStart() { composingRef.current = true; followLiveInput(); }
-  function compositionEnd(e: React.CompositionEvent<HTMLTextAreaElement>) { composingRef.current = false; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
+  function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
   function routeCommand(raw: string) { const upper = raw.trim().toUpperCase(), station = localStationRef.current; if (station?.isConnected()) { station.submitLine(raw); return; } if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; } let localMode: DialMode | null = null; if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode; if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; } if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; } if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false; modemRef.current?.submitLine(raw); }
-  function keyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+  function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; }
     const native = e.nativeEvent as KeyboardEvent;
     if (e.key === 'Escape' && !activeCall && !localTestConnected) {
