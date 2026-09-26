@@ -1,0 +1,37 @@
+name: production-title-timing-bench
+
+on:
+  push:
+    branches:
+      - bench/production-title-timing
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger zero-state board generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://zutto-pccom-prototype.onrender.com/api/debug/bbs/sample"
+          start_ms=$(date +%s%3N)
+          echo "start_ms=$start_ms"
+          curl --fail-with-body --silent --show-error "$base?phone=0920000196&board=6&action=start"
+          echo
+          for i in $(seq 1 120); do
+            sleep 2
+            body=$(curl --fail-with-body --silent --show-error "$base?phone=0920000196&board=6&action=status")
+            now_ms=$(date +%s%3N)
+            status=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))' <<<"$body")
+            roots=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("root_count",0))' <<<"$body")
+            posts=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("post_count",0))' <<<"$body")
+            elapsed=$((now_ms-start_ms))
+            echo "poll=$i status=$status elapsed_ms=$elapsed roots=$roots posts=$posts"
+            if [ "$status" = "completed" ]; then
+              echo "completed_ms=$elapsed"
+              echo "$body"
+              exit 0
+            fi
+          done
+          echo "benchmark timed out" >&2
+          exit 1
