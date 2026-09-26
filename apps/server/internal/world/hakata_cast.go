@@ -70,9 +70,10 @@ func ensureHakataExperimentPopulationLocked(s *MemoryStore, host Host) int {
 			if strings.TrimSpace(p.ActivityPattern) == "" {
 				fillHakataActivitySkeleton(rng, &p)
 			}
-			if len(p.Interests) == 0 {
-				p.Interests = randomHakataInterests(rng)
-			}
+			// HAKATA is an experiment station. Refresh only the cheap routing
+			// affinities on startup so older snapshots do not preserve a known
+			// computer/game-heavy distribution; detailed persona facts remain intact.
+			p.Interests = randomHakataInterests(rng)
 			s.personas[id] = p
 		}
 
@@ -139,17 +140,48 @@ func fillHakataActivitySkeleton(rng *rand.Rand, p *Persona) {
 }
 
 func randomHakataInterests(rng *rand.Rand) map[string]float64 {
-	// HAKATA is a mixed local/community station. These are routing affinities,
-	// not facts that must be mentioned in posts.
-	return map[string]float64{
-		"local":          .34 + .58*rng.Float64(),
-		"chat":           .28 + .58*rng.Float64(),
-		"games":          .12 + .70*rng.Float64(),
-		"communications": .14 + .68*rng.Float64(),
-		"software":       .12 + .68*rng.Float64(),
-		"music":          .08 + .62*rng.Float64(),
-		"hardware":       .10 + .66*rng.Float64(),
+	// Routing affinities are intentionally sparse. Being a BBS member does not
+	// imply that every resident is simultaneously interested in games, software,
+	// hardware and communications. Broad everyday domains are represented too so
+	// general boards can reflect ordinary life rather than a computer-magazine
+	// topic mix.
+	type domain struct {
+		key         string
+		probability float64
+		min         float64
+		max         float64
 	}
+	domains := []domain{
+		{"local", .72, .35, .95},
+		{"chat", .58, .30, .90},
+		{"daily_life", .66, .30, .92},
+		{"food", .34, .25, .82},
+		{"shopping", .28, .22, .78},
+		{"transport", .24, .20, .72},
+		{"offline_meetings", .28, .24, .82},
+		{"music", .34, .24, .88},
+		{"games", .36, .25, .92},
+		{"anime_manga", .28, .24, .88},
+		{"communications", .26, .24, .86},
+		{"software", .24, .22, .86},
+		{"hardware", .20, .22, .82},
+	}
+	out := map[string]float64{}
+	for _, d := range domains {
+		if rng.Float64() > d.probability {
+			continue
+		}
+		out[d.key] = d.min + (d.max-d.min)*rng.Float64()
+	}
+	// Ensure enough routing texture without giving everybody the same categories.
+	for len(out) < 3 {
+		d := domains[rng.Intn(len(domains))]
+		if _, exists := out[d.key]; exists {
+			continue
+		}
+		out[d.key] = d.min + (d.max-d.min)*rng.Float64()
+	}
+	return out
 }
 
 func nextHakataHandle(rng *rand.Rand, used map[string]bool) string {

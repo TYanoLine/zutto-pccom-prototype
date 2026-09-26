@@ -70,8 +70,16 @@ The following are service fiction unless separately sourced:
 - SYSOP/member identities
 - sample article text
 - exact board names and hierarchy
+- hidden semantic scope / activity weighting attached to each fictional HAKATA board
 - hidden `BJ 99` night-owl board
 - sample online users and access records
+
+HAKATA board semantic scopes are world/station metadata, not Erika-K host-program
+defaults. They exist so a broad label such as `Ｑ＆Ａ（質問ボード）` does not let
+a title generator infer an arbitrary specialist meaning. In particular, the
+fictional HAKATA Q&A board is a general question/consultation board; its large
+history must not collapse into PC/game questions merely because those subjects
+exist elsewhere on the station.
 
 These are intentionally allowed to vary per station while preserving the host software's interaction grammar.
 

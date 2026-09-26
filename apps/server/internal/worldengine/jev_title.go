@@ -31,6 +31,7 @@ type TitleCandidateAdviceRequest struct {
 	HostName       string                 `json:"host_name"`
 	BoardID        string                 `json:"board_id"`
 	BoardName      string                 `json:"board_name"`
+	BoardScope     string                 `json:"board_scope,omitempty"`
 	Titles         []string               `json:"titles"`
 	Events         []TitleEvaluationEvent `json:"events"`
 	RecentBBSState string                 `json:"recent_bbs_state,omitempty"`
@@ -114,14 +115,14 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 	state := map[string]any{
 		"world_date": req.WorldDate,
 		"host": map[string]any{"id": req.HostID, "name": req.HostName},
-		"board": map[string]any{"id": req.BoardID, "name": req.BoardName},
+		"board": map[string]any{"id": req.BoardID, "name": req.BoardName, "scope": req.BoardScope},
 		"titles": titleState,
 		"events": eventState,
 		"recent_bbs_state": recent,
 		"historical_facts": append([]string(nil), req.HistoricalFacts...),
 		"policy": map[string]any{
 			"era": "Classify only whether an external historical lookup is needed. A named product, work, service or standard may be safe_without_research when the time-sensitive identity/existence needed by the title is explicitly supported by state.historical_facts and the title adds no other unsupported time-dependent real-world claim. Familiarity alone is never enough; unsupported named or time-dependent claims require research. Only explicit contradictions derivable from world_date or supplied facts are logically impossible.",
-			"fit": "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Board name/id are a hard placement constraint: a title that would normally belong to another board/category should receive low fit even if its era and author are plausible. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect board scope, author role, cause, discourse mode, recent BBS state, and SYSOP role competence.",
+			"fit": "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Board name/id/scope are a hard placement constraint: a title that would normally belong to another board/category should receive low fit even if its era and author are plausible. For broad general-Q&A/general-chat scopes, repeated concentration in one specialist domain should not be treated as extra fit merely because the titles are plausible individually. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect board scope, author role, cause, discourse mode, recent BBS state, and SYSOP role competence.",
 			"authority": "Probabilities are advisory only. Deterministic World code performs matching and persistence. Historical verification remains separate.",
 		},
 	}

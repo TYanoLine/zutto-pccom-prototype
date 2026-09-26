@@ -16,6 +16,7 @@ type boardNode struct {
 	Parent          string
 	Name            string
 	Hidden          bool
+	SemanticScope   string
 	ActivityWeight  float64
 	ReplyRate       float64
 	RetainedRootCap int
@@ -24,16 +25,16 @@ type boardNode struct {
 var boardTree = []boardNode{
 	// Activity values below are HAKATA station fiction used by the world
 	// simulation. They are not claimed Erika-K defaults.
-	{Path: "1", Key: "1", Name: "事務局からのお知らせ", ActivityWeight: .10, ReplyRate: .20, RetainedRootCap: 24},
-	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎", ActivityWeight: .34, ReplyRate: 1.30, RetainedRootCap: 36},
-	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）", ActivityWeight: .58, ReplyRate: 2.10, RetainedRootCap: 48},
-	{Path: "4", Key: "4", Name: "ふり～と～く", ActivityWeight: 1.25, ReplyRate: 2.00, RetainedRootCap: 60},
-	{Path: "5", Key: "5", Name: "オフライントピックス", ActivityWeight: .48, ReplyRate: 1.70, RetainedRootCap: 42},
-	{Path: "6", Key: "6", Name: "街角情報スポット", ActivityWeight: .72, ReplyRate: 1.30, RetainedRootCap: 48},
-	{Path: "7", Key: "7", Name: "ＣＡＮＡＬ市場", ActivityWeight: .30, ReplyRate: .75, RetainedRootCap: 30},
+	{Path: "1", Key: "1", Name: "事務局からのお知らせ", SemanticScope: "SYSOP・運営側からの局内告知、利用案内、保守連絡。一般会員の趣味相談や雑談を置かない。", ActivityWeight: .10, ReplyRate: .20, RetainedRootCap: 24},
+	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎", SemanticScope: "新規会員の自己紹介、常連からの歓迎、局内での呼び名や簡単な近況。特定趣味の専門相談板にはしない。", ActivityWeight: .34, ReplyRate: 1.30, RetainedRootCap: 36},
+	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）", SemanticScope: "会員が分野を限定せず日常の疑問や相談を持ち寄る一般質問板。地域生活、仕事・学校、買い物、交通、食事、趣味、局の使い方などが混在する。PC・ゲームの専門質問は専用板が別にあるため、この板全体をPC/ゲーム中心にしない。", ActivityWeight: .58, ReplyRate: 2.10, RetainedRootCap: 48},
+	{Path: "4", Key: "4", Name: "ふり～と～く", SemanticScope: "会員の日常雑談。仕事・学校・家族・食事・天気・街・趣味・最近あった小さな出来事など何でもあり。専門板の話題だけに偏らない。", ActivityWeight: 1.25, ReplyRate: 2.00, RetainedRootCap: 60},
+	{Path: "5", Key: "5", Name: "オフライントピックス", SemanticScope: "局外で会うこと、オフ会、待ち合わせ、参加確認、持ち物、終了後の連絡など実際に会う活動。", ActivityWeight: .48, ReplyRate: 1.70, RetainedRootCap: 42},
+	{Path: "6", Key: "6", Name: "街角情報スポット", SemanticScope: "福岡・博多・天神周辺の店、交通、街の変化、地域の用事や生活情報。PC/ゲームの話は地域情報として必要な場合だけ。", ActivityWeight: .72, ReplyRate: 1.30, RetainedRootCap: 48},
+	{Path: "7", Key: "7", Name: "ＣＡＮＡＬ市場", SemanticScope: "会員同士の譲ります・譲ってください・交換・探し物などの売買交換連絡。", ActivityWeight: .30, ReplyRate: .75, RetainedRootCap: 30},
 	// "夢工房はかた" の意味は史料未確定。ここでは意味を推測せず、
 	// 局固有の活動量だけを設定する。
-	{Path: "8", Key: "8", Name: "夢工房はかた", ActivityWeight: .42, ReplyRate: 1.10, RetainedRootCap: 36},
+	{Path: "8", Key: "8", Name: "夢工房はかた", SemanticScope: "史料上の板の意味は未確認。板名からゲーム制作・創作工房などの意味を推測して話題を決めない。局固有設定が確定するまで狭い専門内容を自動付与しない。", ActivityWeight: .42, ReplyRate: 1.10, RetainedRootCap: 36},
 	{Path: "10", Key: "10", Name: "博多・天神広場"},
 	{Path: "20", Key: "20", Name: "アミューズメントフォーラム"},
 	{Path: "60", Key: "60", Name: "コンピュータワールド"},
@@ -42,20 +43,20 @@ var boardTree = []boardNode{
 	{Path: "80", Key: "80", Name: "その他のコンピュータ"},
 	{Path: "99", Key: "99", Name: "夜更かし部屋", Hidden: true, ActivityWeight: .34, ReplyRate: 2.30, RetainedRootCap: 36},
 
-	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル", ActivityWeight: 1.00, ReplyRate: 1.45, RetainedRootCap: 54},
-	{Path: "10/2", Key: "2", Parent: "10", Name: "オフ会連絡", ActivityWeight: .48, ReplyRate: 1.75, RetainedRootCap: 36},
-	{Path: "20/1", Key: "1", Parent: "20", Name: "ＧＡＭＥ", ActivityWeight: .92, ReplyRate: 1.65, RetainedRootCap: 52},
-	{Path: "20/2", Key: "2", Parent: "20", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", ActivityWeight: .64, ReplyRate: 1.55, RetainedRootCap: 44},
-	{Path: "60/1", Key: "1", Parent: "60", Name: "ＰＣ－９８／ＭＯＤＥＭ", ActivityWeight: .84, ReplyRate: 1.95, RetainedRootCap: 50},
-	{Path: "60/2", Key: "2", Parent: "60", Name: "Ｗｉｎｄｏｗｓ／ＤＯＳ", ActivityWeight: .74, ReplyRate: 1.85, RetainedRootCap: 48},
-	{Path: "60/3", Key: "3", Parent: "60", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ", ActivityWeight: .70, ReplyRate: 1.70, RetainedRootCap: 46},
-	{Path: "68/1", Key: "1", Parent: "68", Name: "深夜雑談", ActivityWeight: .62, ReplyRate: 2.20, RetainedRootCap: 44},
-	{Path: "70/1", Key: "1", Parent: "70", Name: "ＰＣ－９８", ActivityWeight: .67, ReplyRate: 1.85, RetainedRootCap: 46},
-	{Path: "70/2", Key: "2", Parent: "70", Name: "ＤＯＳ／Ｖ", ActivityWeight: .48, ReplyRate: 1.55, RetainedRootCap: 38},
-	{Path: "80/1", Key: "1", Parent: "80", Name: "ＦＭ－ＴＯＷＮＳ", ActivityWeight: .31, ReplyRate: 1.35, RetainedRootCap: 30},
-	{Path: "80/2", Key: "2", Parent: "80", Name: "Forever with MSX", ActivityWeight: .28, ReplyRate: 1.40, RetainedRootCap: 28},
-	{Path: "80/3", Key: "3", Parent: "80", Name: "ワープロ", ActivityWeight: .30, ReplyRate: 1.20, RetainedRootCap: 30},
-	{Path: "80/4", Key: "4", Parent: "80", Name: "その他(PC88,FMR,etc)", ActivityWeight: .26, ReplyRate: 1.25, RetainedRootCap: 26},
+	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル", SemanticScope: "博多・天神を中心とした地域の日常、店、交通、待ち合わせ、街の変化、地元での小さな出来事。", ActivityWeight: 1.00, ReplyRate: 1.45, RetainedRootCap: 54},
+	{Path: "10/2", Key: "2", Parent: "10", Name: "オフ会連絡", SemanticScope: "オフ会の日程、集合場所、参加可否、当日の連絡、終了後の忘れ物など。", ActivityWeight: .48, ReplyRate: 1.75, RetainedRootCap: 36},
+	{Path: "20/1", Key: "1", Parent: "20", Name: "ＧＡＭＥ", SemanticScope: "家庭用・PC等のゲームについての感想、攻略上の詰まり、対戦、貸し借り、購入相談など。ゲーム以外のPC一般話題を持ち込まない。", ActivityWeight: .92, ReplyRate: 1.65, RetainedRootCap: 52},
+	{Path: "20/2", Key: "2", Parent: "20", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", SemanticScope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。", ActivityWeight: .64, ReplyRate: 1.55, RetainedRootCap: 44},
+	{Path: "60/1", Key: "1", Parent: "60", Name: "ＰＣ－９８／ＭＯＤＥＭ", SemanticScope: "PC-98系やモデム、通信環境についての具体的な相談・情報交換。", ActivityWeight: .84, ReplyRate: 1.95, RetainedRootCap: 50},
+	{Path: "60/2", Key: "2", Parent: "60", Name: "Ｗｉｎｄｏｗｓ／ＤＯＳ", SemanticScope: "WindowsやDOSの操作、設定、ソフト利用上の相談や情報交換。", ActivityWeight: .74, ReplyRate: 1.85, RetainedRootCap: 48},
+	{Path: "60/3", Key: "3", Parent: "60", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ", SemanticScope: "ソフトウェア、データ、ファイル、ツール利用の情報交換。ハードやゲームそのものへ逸れすぎない。", ActivityWeight: .70, ReplyRate: 1.70, RetainedRootCap: 46},
+	{Path: "68/1", Key: "1", Parent: "68", Name: "深夜雑談", SemanticScope: "深夜に接続している会員のゆるい雑談。日常、眠気、仕事・学校、食事、テレビ、音楽、趣味など幅広く、PC/ゲーム専用ではない。", ActivityWeight: .62, ReplyRate: 2.20, RetainedRootCap: 44},
+	{Path: "70/1", Key: "1", Parent: "70", Name: "ＰＣ－９８", SemanticScope: "PC-98系機種の利用、設定、周辺機器、ソフト利用など。", ActivityWeight: .67, ReplyRate: 1.85, RetainedRootCap: 46},
+	{Path: "70/2", Key: "2", Parent: "70", Name: "ＤＯＳ／Ｖ", SemanticScope: "DOS/V・AT互換機側の利用、設定、周辺機器、ソフト利用など。", ActivityWeight: .48, ReplyRate: 1.55, RetainedRootCap: 38},
+	{Path: "80/1", Key: "1", Parent: "80", Name: "ＦＭ－ＴＯＷＮＳ", SemanticScope: "FM TOWNS利用者の機種・ソフト・周辺機器等の情報交換。", ActivityWeight: .31, ReplyRate: 1.35, RetainedRootCap: 30},
+	{Path: "80/2", Key: "2", Parent: "80", Name: "Forever with MSX", SemanticScope: "MSX利用者の機種・ソフト・周辺機器等の情報交換。", ActivityWeight: .28, ReplyRate: 1.40, RetainedRootCap: 28},
+	{Path: "80/3", Key: "3", Parent: "80", Name: "ワープロ", SemanticScope: "ワープロ専用機や文書作成・印刷等の利用情報。", ActivityWeight: .30, ReplyRate: 1.20, RetainedRootCap: 30},
+	{Path: "80/4", Key: "4", Parent: "80", Name: "その他(PC88,FMR,etc)", SemanticScope: "PC-88、FMR等、他の専用板に当てはまらないコンピュータ機種の情報交換。", ActivityWeight: .26, ReplyRate: 1.25, RetainedRootCap: 26},
 }
 
 var unreadBoard = map[string]bool{
@@ -76,6 +77,7 @@ func worldBoard(node boardNode) world.Board {
 	return world.Board{
 		ID:              node.Path,
 		Name:            node.Name,
+		SemanticScope:   node.SemanticScope,
 		ActivityWeight:  node.ActivityWeight,
 		ReplyRate:       node.ReplyRate,
 		RetainedRootCap: node.RetainedRootCap,
