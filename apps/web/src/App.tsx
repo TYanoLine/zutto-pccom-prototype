@@ -16,7 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
-const APP_VERSION = '0.17';
+const APP_VERSION = '0.18';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -202,6 +202,7 @@ export default function App() {
       ref={terminalCanvasRef}
       terminal={terminal}
       keyboardActive={commandFocused}
+      bottomControlsActive={directoryOpen}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,
