@@ -68,15 +68,26 @@ func (f *fakeSharedTitleRenderer) GenerateContextualBBSTitleCandidates(ctx conte
 			"音ゲーじゃないけど", "SFCまだ現役", "PSのロード時間", "ゲーム雑誌の付録",
 			"夏休みの一本", "シューティング苦手", "対戦相手募集", "エンディング後の話",
 		}
+		count := req.CandidateCount
+		if count <= 0 {
+			count = 20
+		}
+		for len(titles) < count {
+			titles = append(titles, fmt.Sprintf("追加候補%03d", len(titles)+1))
+		}
+		if len(titles) > count {
+			titles = titles[:count]
+		}
 	}
 	if f.started != nil {
-		// Concurrency tests can now exercise activity plans larger than one
-		// 20-title pool. A real provider is asked for fresh candidates on refill;
-		// make this blocking fake behave the same way instead of repeating the
-		// identical pool forever.
+		// Concurrency tests should mirror the production candidate-count request.
 		offset := len(req.AvoidSubjects)
-		titles = make([]string, 0, 20)
-		for i := 0; i < 20; i++ {
+		count := req.CandidateCount
+		if count <= 0 {
+			count = 20
+		}
+		titles = make([]string, 0, count)
+		for i := 0; i < count; i++ {
 			titles = append(titles, fmt.Sprintf("候補%03d", offset+i+1))
 		}
 	}
@@ -241,6 +252,9 @@ func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 	if renderer.lastContext.BoardScope != "ゲームについての板" {
 		t.Fatalf("board scope=%q, want hidden semantic scope", renderer.lastContext.BoardScope)
 	}
+	if renderer.lastContext.CandidateCount != sharedTitlePoolTargetSize {
+		t.Fatalf("candidate count=%d, want %d", renderer.lastContext.CandidateCount, sharedTitlePoolTargetSize)
+	}
 	foundRecent := false
 	for _, subject := range renderer.lastContext.RecentSubjects {
 		if subject == recent.Subject {
@@ -321,7 +335,15 @@ func TestSharedBBSPlannerFallsBackWithinPoolWhenSelectedResearchCandidateIsUnver
 	for i := 3; i <= 20; i++ {
 		titles = append(titles, fmt.Sprintf("低適合候補%02d", i))
 	}
-	renderer := &fakeSharedTitleRenderer{titles: titles}
+	renderer := &fakeSharedTitleRenderer{
+		titles: titles,
+		historicalClaims: []llm.BBSTitleHistoricalClaim{{
+			Candidate: 1,
+			Subject:   "要研究の実在作品A",
+			Kind:      "product_availability",
+			Need:      "world dateまでの存在確認",
+		}},
+	}
 	repo := New(base, fallbackTitleTestEngine{}, LLMMaterializer{
 		Renderer: renderer,
 	}, "1996-08-26")
