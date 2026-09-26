@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -39,30 +38,6 @@ type serverMessage struct {
 	SessionID string      `json:"session_id,omitempty"`
 	Host      *world.Host `json:"host,omitempty"`
 	Text      string      `json:"text,omitempty"`
-}
-
-const debugAutoResetPhone = "0920000196"
-
-type debugBBSConnectionPreparer interface {
-	PrepareDebugBBSConnection(host world.Host) (removed int, kept int, ok bool)
-}
-
-func prepareDebugBBSConnection(store world.Store, host world.Host) bool {
-	if host.Phone != debugAutoResetPhone {
-		return true
-	}
-	preparer, ok := store.(debugBBSConnectionPreparer)
-	if !ok {
-		log.Printf("debug BBS auto-reset unavailable for host=%s", host.ID)
-		return false
-	}
-	removed, kept, resetOK := preparer.PrepareDebugBBSConnection(host)
-	if !resetOK {
-		log.Printf("debug BBS auto-reset blocked for host=%s", host.ID)
-		return false
-	}
-	log.Printf("debug BBS auto-reset on CONNECT: host=%s removed=%d kept=%d immediate_batch=true", host.ID, removed, kept)
-	return true
 }
 
 var fallbackSessions = NewSessionManager(DefaultReconnectGrace)
@@ -114,18 +89,6 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			res := h.Network.Dial(phone, msg.Attempt)
 			sm := serverMessage{Type: "dial_result", Result: string(res.Result), Baud: res.Baud, Line: res.Line}
 			if res.Result == telephone.Connect {
-				if !prepareDebugBBSConnection(h.Store, res.Host) {
-					// During this experiment, a CONNECT is valid only after the
-					// previous generated sample was safely cleared. Fail the dial
-					// rather than showing a mixed old/new sample.
-					sm.Result = string(telephone.NoCarrier)
-					sm.Baud = 0
-					sm.Line = 0
-					if err := writeJSON(ctx, conn, sm); err != nil {
-						return
-					}
-					continue
-				}
 				runtime := hostprogram.New(res.Host, h.Store)
 				if observer, ok := h.Store.(world.HostObservationStore); ok {
 					// A successful physical/logical CONNECT is the observation

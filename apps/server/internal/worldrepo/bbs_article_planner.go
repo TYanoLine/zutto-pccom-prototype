@@ -313,6 +313,15 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					eraStatus[title] = "ng"
 				case prob.SafeWithoutResearch >= developmentJevTitleEraSafeThreshold:
 					eraStatus[title] = "ok"
+				case preferEraSafe && len(historicalClaimsForTitle(pool, title)) == 0:
+					// Refill generation is explicitly constrained to avoid any
+					// real-world/time-dependent claim that would need external
+					// verification. If that contract is satisfied (no research
+					// hints) and Jev does not find a date contradiction, keep the
+					// candidate usable instead of forcing a title-wide Web lookup.
+					// Ordinary pools remain conservative and still route the same
+					// low-confidence candidate through Historical KB research.
+					eraStatus[title] = "ok"
 				default:
 					eraStatus[title] = "research"
 				}
