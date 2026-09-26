@@ -2,27 +2,18 @@ export function terminalViewportHeight(
   canvasHeight: number,
   viewportTop: number,
   visibleBottom: number,
-  trailingUiHeight: number,
 ) {
-  const available = Math.floor(visibleBottom - viewportTop - trailingUiHeight - 4);
+  const available = Math.floor(visibleBottom - viewportTop - 4);
   return Math.min(canvasHeight, Math.max(96, available));
 }
 
-export function terminalCursorScrollTop(
-  currentScrollTop: number,
+export function terminalCursorTargetScrollTop(
+  canvasHeight: number,
   viewportHeight: number,
   cursorTop: number,
   rowHeight: number,
 ) {
-  const padding = rowHeight;
-  if (cursorTop - currentScrollTop < padding) {
-    return Math.max(0, cursorTop - padding);
-  }
-
-  const cursorBottom = cursorTop + rowHeight;
-  if (cursorBottom - currentScrollTop > viewportHeight - padding) {
-    return Math.max(0, cursorBottom - viewportHeight + padding);
-  }
-
-  return currentScrollTop;
+  const maxScrollTop = Math.max(0, canvasHeight - viewportHeight);
+  const target = cursorTop - viewportHeight + rowHeight * 2;
+  return Math.max(0, Math.min(maxScrollTop, target));
 }
