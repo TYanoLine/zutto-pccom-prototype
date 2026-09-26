@@ -602,6 +602,24 @@ func main() {
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
+	if labEnabled() && cfg.OpenAIKey != "" && cfg.JevKey != "" {
+		go func() {
+			time.Sleep(2 * time.Second)
+			client := &http.Client{Timeout: 95 * time.Second}
+			resp, err := client.Get("http://127.0.0.1" + cfg.Addr + "/api/debug/bbs-title-jev-poc?board=6")
+			if err != nil {
+				log.Printf("BBS title Jev PoC autorun failed: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+			var payload map[string]any
+			if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+				log.Printf("BBS title Jev PoC autorun decode failed: status=%s err=%v", resp.Status, err)
+				return
+			}
+			log.Printf("BBS title Jev PoC autorun completed: status=%s summary=%v error=%v", resp.Status, payload["summary"], payload["error"])
+		}()
+	}
 	log.Printf("zutto server listening on %s", cfg.Addr)
 	log.Fatal(srv.ListenAndServe())
 }
