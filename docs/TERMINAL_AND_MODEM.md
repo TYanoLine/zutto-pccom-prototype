@@ -112,7 +112,21 @@ Long-term BUSY behavior should reflect logical line occupancy, NPC schedules, po
 
 A world-generation lease or bounded generation capacity may also make a line temporarily unavailable when admitting the call would require conflicting or over-budget materialization. In that case `BUSY` is an intentional form of runtime backpressure, not a fabricated random failure.
 
-The service may maintain an atmospheric pseudo telephone bill. It never charges real telephone money. Telehodai-style simulation uses registered destination numbers and a 23:00–08:00 window; exact historical tariffs must be researched before being presented as accurate.
+The service may maintain an atmospheric pseudo telephone bill. It never charges
+real telephone money. The client tariff table follows NTT's March 1996 dial-call
+history: tax-exclusive 10-yen pulse units whose duration varies by time band and
+distance.
+
+Caller origin is persisted separately from modem settings. The current preset is
+福岡 / 092. For the client simulation, destinations sharing the configured area
+code use the local-rate bucket; non-local destinations use historical distance
+bands when geographic metadata is available and otherwise an explicit >160 km
+fallback. Future UI may change this caller location without changing BBS/world
+state.
+
+Telehodai simulation uses registered destination numbers and the historical
+23:00–08:00 window. See `docs/research/NTT_DIAL_TARIFF_1996.md` for source
+links, implemented pulse seconds and the current geographic abstraction.
 
 ## Diegetic backpressure
 
