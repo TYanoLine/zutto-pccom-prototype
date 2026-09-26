@@ -159,6 +159,11 @@ the selected subject and its minimal summary become canonical world state. The
 system does **not** first invent a detailed canonical topic and then force the
 subject to echo it; specificity is proposed broadly and filtered before adoption.
 
+Title generation and adoption are additionally governed by
+`docs/BBS_TITLE_QUALITY_GATES.md`. That document distinguishes blocking
+structural/world-correctness gates from provisional batch-naturalness thresholds
+and corpus-authenticity audit criteria.
+
 The planner uses up to 48 recent board posts as title/flow context and may include
 short excerpts from recent bodies when available. A contextual generation
 normally needs one 100-title pool; one additional fresh 100-title pool is allowed
