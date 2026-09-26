@@ -6,11 +6,10 @@ body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
 .screen-wrap { position: relative; display: grid; place-items: center; background: #050505; padding: 12px; border-left: 4px solid #555; border-right: 4px solid #333; }
 .terminal-display { width: 100%; min-width: 0; max-width: 800px; }
 .terminal-viewport-shell { position: relative; }
-.terminal-viewport { width: 100%; overflow-x: auto; background: #000; }
+.terminal-viewport { position: relative; width: 100%; overflow-x: auto; background: #000; }
 .terminal-canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
 .terminal-tools, .terminal-hint, .terminal-live-return { display: none; }
-.command-proxy { position: absolute; width: 0; height: 0; overflow: visible; }
-.keyboard-capture { position: fixed; left: 0; bottom: 0; width: 1px; height: 1px; margin: 0; padding: 0; border: 0; opacity: 0.001; pointer-events: none; font-size: 16px; color: transparent; background: transparent; caret-color: transparent; }
+.terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; resize: none; overflow: hidden; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; touch-action: manipulation; }
 .statusbar { flex-wrap: wrap; }
 .statusbar label { display: flex; gap: 6px; align-items: center; }
 .directory-softkeys { display: none; }
