@@ -39,14 +39,17 @@ colors, full-width continuation cells, cursor positions, and host commands.
 - Mobile uses the full dynamic viewport height with one compact connection
   status row at the top. The row shows the connected network name (or OFFLINE),
   current session elapsed time and current-session pseudo telephone charge. The
-  network name may ellipsize, while elapsed time and charge remain visible. The
-  old desktop title bar, modem/call status strip, help text, debug/settings
-  panels and development-only PoC shortcuts remain hidden on coarse-pointer/small-screen
-  presentation. A single compact
-  `機能` button opens display controls on demand (`文字拡大`, `全体表示`,
-  history up/down and `最新`) and closes again after a selection or when
-  typing resumes. Host output is never rewrapped or replaced with a common host
-  menu.
+  network name may ellipsize, while elapsed time and charge remain visible.
+  Directly below it, an optional modem-status strip defaults to `ランプ` and
+  can be switched from `機能` among `ランプ`, `デジタル`, and `OFF`.
+  `OFF` removes only the modem-status strip; the connection/time/charge row
+  always remains. The digital strip is a flat LCD-style presentation inspired
+  by surviving aiwa PV-AF288-family displays, not a reproduction of the modem
+  enclosure. The old desktop title bar, modem/call status strip, help text,
+  debug/settings panels and development-only PoC shortcuts remain hidden on
+  coarse-pointer/small-screen presentation. The compact `機能` button also
+  contains `文字拡大`, `全体表示`, history up/down and `最新` controls.
+  Host output is never rewrapped or replaced with a common host menu.
 - Horizontal dragging pans the enlarged screen; vertical dragging reads the
   existing receive scrollback. While history is visible, a floating `最新へ`
   control remains available over the terminal. Beginning input returns the
@@ -101,6 +104,20 @@ Hayes-style interaction is first-class UX:
 - `CONNECT 2400/9600/14400/28800` and later historically supported rates
 
 Handshake audio should be based on modem protocol behavior rather than arbitrary retro beeps. Existing synthesis research lives in `docs/MODEM_HANDSHAKE_SYNTHESIS.md`.
+
+Mobile modem indicators are driven by structured modem telemetry rather than by
+parsing human-readable status strings. Lamp activity is state/data-driven:
+MR/TR readiness, SD/RD activity pulses, OH off-hook, CD carrier detect, AA
+auto-answer (currently off because incoming calls are not implemented), and HS
+for an established 9600-bps-or-faster carrier.
+
+For the reconstructed digital display, OFH means Off Hook. Protocol capability
+and negotiated protocol are stored separately: during dialing/ringing/training,
+AUTO mode may present both V.42bis and MNP5 capability legends; after the
+simulated negotiation settles, the display collapses to the selected protocol.
+MNP4 displays MNP without the class-5 digit. This display-state mapping is kept
+separate from call state because the complete manufacturer LCD state table has
+not yet been recovered. See `docs/research/AIWA_PV_AF288_LCD.md`.
 
 ## Transport is not the call
 

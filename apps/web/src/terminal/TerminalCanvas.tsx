@@ -8,6 +8,7 @@ import type {
   WheelEvent as ReactWheelEvent,
 } from 'react';
 import type { TerminalCore } from './TerminalCore';
+import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
 import { mobileTerminalRows, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
@@ -33,10 +34,19 @@ type TerminalCanvasProps = {
   keyboardInput: TerminalKeyboardInput;
   keyboardActive?: boolean;
   bottomControlsActive?: boolean;
+  modemStatusMode: ModemStatusDisplayMode;
+  onModemStatusModeChange: (mode: ModemStatusDisplayMode) => void;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
-  { terminal, keyboardInput, keyboardActive = false, bottomControlsActive = false },
+  {
+    terminal,
+    keyboardInput,
+    keyboardActive = false,
+    bottomControlsActive = false,
+    modemStatusMode,
+    onModemStatusModeChange,
+  },
   forwardedRef,
 ) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -99,7 +109,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     };
     // Geometry is intentionally measured from the live DOM after each relevant mode change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [display, keyboardActive, bottomControlsActive]);
+  }, [display, keyboardActive, bottomControlsActive, modemStatusMode]);
 
   function setScrollOffset(next: number) {
     const maxOffset = terminal.maxScrollOffsetForRows(layoutRowsRef.current);
@@ -439,6 +449,12 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         <nav id="terminal-function-menu" className="terminal-function-menu" aria-label="端末機能" hidden={!functionMenuOpen}>
           <button type="button" aria-pressed={display === 'readable'} onClick={() => { setDisplay('readable'); setFunctionMenuOpen(false); }}>文字拡大</button>
           <button type="button" aria-pressed={display === 'fit'} onClick={() => { setDisplay('fit'); setFunctionMenuOpen(false); }}>全体表示</button>
+          <span className="terminal-function-section-label">モデム表示</span>
+          <div className="terminal-function-mode-row">
+            <button type="button" aria-pressed={modemStatusMode === 'lamps'} onClick={() => { onModemStatusModeChange('lamps'); setFunctionMenuOpen(false); }}>ランプ</button>
+            <button type="button" aria-pressed={modemStatusMode === 'digital'} onClick={() => { onModemStatusModeChange('digital'); setFunctionMenuOpen(false); }}>デジタル</button>
+            <button type="button" aria-pressed={modemStatusMode === 'off'} onClick={() => { onModemStatusModeChange('off'); setFunctionMenuOpen(false); }}>OFF</button>
+          </div>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current - 12); setFunctionMenuOpen(false); }}>履歴↓</button>
           <button type="button" onClick={() => { setScrollOffset(0); setFunctionMenuOpen(false); }} disabled={historyOffset === 0}>最新</button>

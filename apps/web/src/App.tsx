@@ -15,9 +15,17 @@ import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
 import type { DialMode } from './audio/dialLineAudio';
+import { createIdleModemTelemetry } from './modem/ModemTelemetry';
+import type { ModemTelemetry } from './modem/ModemTelemetry';
+import {
+  loadModemStatusDisplayMode,
+  ModemStatusDisplay,
+  saveModemStatusDisplayMode,
+} from './modem/ModemStatusDisplay';
+import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import './styles.css';
 
-const APP_VERSION = '0.20';
+const APP_VERSION = '0.21';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -77,6 +85,8 @@ export default function App() {
   const [lastHandshake, setLastHandshake] = useState<HandshakeRun | null>(null);
   const [audioStatus, setAudioStatus] = useState('READY');
   const [commSettings, setCommSettings] = useState<CommSettings>(loadCommSettings);
+  const [modemTelemetry, setModemTelemetry] = useState<ModemTelemetry>(() => createIdleModemTelemetry(loadCommSettings()));
+  const [modemStatusMode, setModemStatusMode] = useState<ModemStatusDisplayMode>(loadModemStatusDisplayMode);
   const [directoryCount, setDirectoryCount] = useState(0);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('センター情報読込中...');
@@ -84,7 +94,12 @@ export default function App() {
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => { saveCallerLocation(callerLocation); }, [callerLocation]);
-  useEffect(() => { try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ } }, [commSettings]);
+  useEffect(() => { saveModemStatusDisplayMode(modemStatusMode); }, [modemStatusMode]);
+  useEffect(() => {
+    try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ }
+    modemRef.current?.setCommunicationSettings(commSettings);
+    localStationRef.current?.setCommunicationSettings(commSettings);
+  }, [commSettings]);
   useEffect(() => {
     fetchWorldCenters(wsURL).then(centers => {
       if (!centers.length) throw new Error('empty center directory');
@@ -109,15 +124,21 @@ export default function App() {
     showMainMenu();
     const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
     modem.onStatus = setStatus;
+    modem.onTelemetry = setModemTelemetry;
     modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now } : null; }); };
+    modem.setCommunicationSettings(commSettings);
     modem.setAutoRedial(autoRedial); modemRef.current = modem;
     const localStation = new LocalTestStation(terminal, { audio: { dial: playDialSequence, handshake: playHandshake } });
-    localStation.onStatus = setStatus; localStation.onConnectionChange = connected => {
+    localStation.onStatus = setStatus;
+    localStation.onTelemetry = setModemTelemetry;
+    localStation.onConnectionChange = connected => {
       setLocalTestConnected(connected);
       setLocalTestConnectedAt(connected ? clock.now() : null);
-    }; localStationRef.current = localStation;
+    };
+    localStation.setCommunicationSettings(commSettings);
+    localStationRef.current = localStation;
     directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { setDirectoryOpen(false); dialCenter(center); }, () => { setDirectoryOpen(false); showMainMenu(); });
-    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
+    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.onTelemetry = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.onTelemetry = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
   useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
@@ -222,11 +243,14 @@ export default function App() {
       <span className="mobile-statusbar__name">{mobileConnectionName}</span>
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
+    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
     <section className="screen-wrap"><TerminalCanvas
       ref={terminalCanvasRef}
       terminal={terminal}
       keyboardActive={commandFocused}
       bottomControlsActive={directoryOpen}
+      modemStatusMode={modemStatusMode}
+      onModemStatusModeChange={setModemStatusMode}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,
