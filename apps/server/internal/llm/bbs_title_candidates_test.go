@@ -22,6 +22,25 @@ func TestTitleCandidatePromptStaysMinimal(t *testing.T) {
 		}
 	}
 }
+func TestContextualTitlePromptUsesBoardScopeAndWarnsBroadBoardsAgainstDomainCollapse(t *testing.T) {
+	prompt := contextualTitleCandidatePrompt(BBSContextualTitleCandidateRequest{
+		WorldDate:  "1996-08-26",
+		BoardName:  "Ｑ＆Ａ（質問ボード）",
+		BoardScope: "一般質問板。地域生活、仕事・学校、買い物、交通、食事、趣味などが混在する。",
+	})
+	for _, want := range []string{
+		"BoardNameとBoardScope",
+		"板名の語感から勝手に意味を補わず",
+		"PC・ゲーム・通信のような一分野へ偏らせない",
+		"地域生活、仕事・学校、買い物、交通、食事",
+		"一般質問板",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+}
+
 func TestTitleReviewRejectsInvalidAssignments(t *testing.T) {
 	req := BBSTitleReviewRequest{Titles: []string{"感想など", "最近何を遊んでます？"}, Events: []BBSWorldWindowEvent{{EventID: "a"}, {EventID: "b"}}}
 	valid := BBSTitleReview{Decisions: []BBSTitleDecision{{Candidate: 1, EventID: "a", Subject: "感想など", Reason: "整合", Summary: "感想を共有"}, {Candidate: 2, Reason: "適合枠なし"}}}
