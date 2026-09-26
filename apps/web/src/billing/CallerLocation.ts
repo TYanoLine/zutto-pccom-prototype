@@ -38,14 +38,16 @@ export function normalizeCallerLocation(value: Partial<CallerLocation> | null | 
     localExactPhones: [...fallback.localExactPhones],
   };
 
-  const cleanPrefix = (prefix: unknown) =>
-    typeof prefix === 'string' ? prefix.replace(/\D/g, '').slice(0, 6) : '';
+  const cleanDigits = (input: unknown, max: number) =>
+    typeof input === 'string' ? input.replace(/\D/g, '').slice(0, max) : '';
+  const cleanPrefix = (prefix: unknown) => cleanDigits(prefix, 6);
+  const cleanPhone = (phone: unknown) => cleanDigits(phone, 20);
   const areaCode = cleanPrefix(value.areaCode) || fallback.areaCode;
   const prefixes = Array.isArray(value.localDialPrefixes)
     ? value.localDialPrefixes.map(cleanPrefix).filter(Boolean)
     : [];
   const exactPhones = Array.isArray(value.localExactPhones)
-    ? value.localExactPhones.map(cleanPrefix).filter(Boolean)
+    ? value.localExactPhones.map(cleanPhone).filter(Boolean)
     : [];
 
   return {
