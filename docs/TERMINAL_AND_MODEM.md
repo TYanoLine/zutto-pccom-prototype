@@ -117,7 +117,11 @@ For the reconstructed digital display, OFH means Off Hook. Protocol capability
 and negotiated protocol are stored separately: during dialing/ringing/training,
 AUTO mode may present both V.42bis and MNP5 capability legends; after the
 simulated negotiation settles, the display collapses to the selected protocol.
-MNP4 displays MNP without the class-5 digit. This display-state mapping is kept
+MNP4 displays MNP without the class-5 digit. The variable speed field is rendered
+as explicit seven-segment digits, while V.42bis / MNP / OFH / DSR / CTS and the
+speed-unit K remain fixed LCD legends. The amber illumination keeps the Ver 0.21
+center brightness but darkens only toward the LCD edges, avoiding the raised
+bevel appearance of the first implementation. This display-state mapping is kept
 separate from call state because the complete manufacturer LCD state table has
 not yet been recovered. See `docs/research/AIWA_PV_AF288_LCD.md`.
 
