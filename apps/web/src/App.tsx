@@ -16,7 +16,7 @@ import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAu
 import type { DialMode } from './audio/dialLineAudio';
 import './styles.css';
 
-const APP_VERSION = '0.10';
+const APP_VERSION = '0.11';
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -207,11 +207,8 @@ export default function App() {
       <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
       <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
     </nav>}
-    <form className="command-dock" onSubmit={e => { e.preventDefault(); submitInput(); }}>
-      <label className="command-prompt" htmlFor="kbd">&gt;</label>
-      <input id="kbd" className="keyboard-capture" aria-label="コマンド入力" placeholder={directoryOpen ? 'センターは上下キーで選択' : 'コマンドを入力'} readOnly={directoryOpen} value={input} onFocus={() => { setCommandFocused(true); followLiveInput(); }} onBlur={() => setCommandFocused(false)} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" autoComplete="off" enterKeyHint="send" spellCheck={false} />
-      <button className="command-enter" type="submit">Enter</button>
-      <button className="command-escape" type="button" disabled={!!activeCall || localTestConnected} onClick={() => { if (directoryRef.current?.isOpen()) softKey('Escape'); else { openDirectoryWhenReadyRef.current = false; showMainMenu(); } }}>Esc</button>
+    <form className="command-proxy" onSubmit={e => { e.preventDefault(); submitInput(); }}>
+      <input id="kbd" className="keyboard-capture" aria-label="端末入力" readOnly={directoryOpen} value={input} onFocus={() => { setCommandFocused(true); followLiveInput(); }} onBlur={() => setCommandFocused(false)} onChange={change} onKeyDown={keyDown} onCompositionStart={compositionStart} onCompositionEnd={compositionEnd} autoCapitalize="none" autoCorrect="off" autoComplete="off" enterKeyHint="send" spellCheck={false} />
     </form>
     <footer className="statusbar"><span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span><label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label></footer>
     <aside className="quick-help"><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>

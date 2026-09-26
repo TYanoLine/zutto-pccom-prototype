@@ -27,33 +27,37 @@ colors, full-width continuation cells, cursor positions, and host commands.
 
 - At widths up to 680px or on coarse-pointer devices, default to a minimum
   640px-wide canvas (16px Japanese glyphs) inside a horizontal viewport.
-- `文字拡大` / `全体表示` switches between readable size and fitting all 80 columns.
-  No host output is rewrapped or replaced with a common host menu.
+- Mobile defaults to the readable 640px-wide terminal without a permanently
+  visible display toolbar. Host output is never rewrapped or replaced with a
+  common host menu.
 - Horizontal dragging pans the enlarged screen; vertical dragging reads the
-  existing receive scrollback. History buttons and `最新` provide explicit
-  navigation back to live output without sending host commands. While history
-  is visible, a floating `最新へ` control remains available over the terminal,
-  and the first command-field input automatically returns the display to live
-  output before echoing the new character.
-- Tapping the mobile screen does not summon the keyboard. A visible sticky
-  command field and Enter button use the same command routing and composition
-  guard as physical Enter. The command field keeps native browser focus
-  semantics so iOS/Android software keyboards are not dismissed by intercepted
-  touch events or focus-time position changes. If the software keyboard leaves
-  less than the full 25-row canvas visible, the client pans only the terminal
-  viewport enough to keep the live terminal cursor row above the command dock.
-  The field uses 16px text and disables autocorrection and capitalization. Empty
-  Enter remains a valid host input.
+  existing receive scrollback. While history is visible, a floating `最新へ`
+  control remains available over the terminal. Beginning input returns the
+  terminal to live output before the new text is echoed.
+- A short tap on the mobile terminal focuses an invisible native input proxy;
+  there is no separate visible command field. The proxy uses the same command
+  routing, IME composition guard and Enter handling as physical keyboard input.
+  It remains a real 16px input inside the viewport so iOS/Android can keep the
+  software keyboard open without displaying modern form chrome.
+- While the software keyboard is open, the client listens to viewport resize
+  only and computes the terminal's vertical scroll position from the live cursor
+  row as an absolute target. It does not accumulate relative corrections or
+  follow VisualViewport scroll events, preventing the cursor from drifting
+  upward during continued typing.
 - The center directory retains its own six navigation/call keys. The command
   field is read-only while selecting a center; Enter calls the selected center.
   Esc is an offline client-menu operation, not a fabricated shared BBS command.
-- Desktop keeps its fitted canvas and click-to-type interaction. Mobile controls
-  have at least 44px height; device safe areas and browser zoom remain enabled.
+- Desktop keeps its fitted canvas and click-to-type interaction. The mobile
+  center directory retains its six explicit navigation/call keys, and the
+  floating `最新へ` action remains at least 44px high. Device safe areas and
+  browser zoom remain enabled.
 
-Validation should cover 320/390px portrait and desktop widths, panning versus
-page overflow, fit/readable switching, soft and physical Enter, IME composition,
-center selection, history/latest, and reading without unintended keyboard focus.
-Real iOS/Android software-keyboard behavior still requires device testing.
+Validation should cover 320/390px portrait and desktop widths, tap-to-type
+versus drag gestures, horizontal panning, receive scrollback, software-keyboard
+resize, repeated typing without vertical drift, physical/soft Enter, IME
+composition, center selection, history/latest, and reading without unintended
+keyboard focus. Real iOS/Android software-keyboard behavior still requires
+device testing.
 
 ## Modem interaction
 
