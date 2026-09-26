@@ -290,34 +290,47 @@ Recommended order for prompt-cache friendliness:
 
 Do not send all historical logs. Retrieve only relevant facts and summarize old history.
 
-## HAKATA persistent-world behavior
+## Temporary HAKATA generator evaluation mode
 
-The fixed Erika-K experiment station `0920000196` now follows the normal
-persistent-world rule for article state. Generated headers, user-written posts,
-persona/world state, and previously observed history survive disconnects and
-process restarts through the experiment-host persistence layer. CONNECT must not
-clear article history or regenerate an alternate past.
+While the shared BBS article generator is being evaluated, the fixed experiment
+station `0920000196` has **no article seed at all**. The former hand-authored
+sample posts and the generated 40-root-per-board baseline have been removed.
+The station keeps a sparse membership population matching the code-defined
+`Host.Members` count (currently 326). These records are cheap identity/activity
+skeletons rather than article/content templates; expensive biography and life
+facts remain lazy.
 
-Generator evaluation remains available only through explicit debug reset/sample
-endpoints. Those tools may deliberately remove generated history for a test run,
-but ordinary dialing never invokes them.
+On process startup, any older persisted HAKATA article snapshot is cleared. On
+every successful CONNECT the server clears the station's entire article state
+again, clears completed observation leases, and enables immediate
+first-observation generation. During this temporary mode, user-written test posts
+also do not survive the next call.
 
-CONNECT itself does not fan out generation over every board. After login, the
-runtime may start one deliberately small speculative board-header job. Entering
+CONNECT itself must not fan out generation over every empty board. After login,
+the runtime starts one deliberately small speculative board-header job. Entering
 a forum may prefetch only its first child board. When the user actually requests
 a leaf-board index, that command joins/starts exactly that board's shared job and
-waits until the required headers are committed.
+**waits until its headers are committed**; ordinary UI must never show an empty
+placeholder that later requires BX/refresh to reveal completed generation.
 
-Large preplanned retained histories still use generated title pools. Normal
-pools conservatively route unsupported time-dependent claims through Historical
-KB. Final `PreferEraSafe` refill pools are explicitly instructed to avoid such
-claims; a claim-free refill candidate may therefore be adopted without a Web
-lookup when Jev does not mark it logically impossible. Any candidate carrying a
-`historical_claims` entry remains research-gated. This prevents large initial
-indexes from failing merely because the bounded foreground research budget was
-exhausted, without weakening the verification path for actual historical claims.
+The initial board batch materializes canonical headers + semantic state only.
+For the HAKATA generator-evaluation station, the first observed leaf board is
+materialized as a **28-day accumulated history with 40 visible root articles**.
+Reply events are added on top of those roots and may target roots selected earlier
+in the same simulated window, so the index can show APE activity instead of
+forty unrelated threads compressed into one six-hour cadence. This is an
+evaluation fixture, not a historical claim about a universal posting rate, and
+does not change the ordinary 3..7-event catch-up batch size used by other hosts.
+Title vocabulary and historical verification for a multi-date catch-up window
+are conservatively gated by its earliest event date so a later release cannot
+leak backward into an older article. Article bodies remain empty until BR/read
+observation, where the existing
+thread-body barrier materializes only the requested thread. This is the intended
+minimum-scope execution pattern even while HAKATA's reset-on-call behavior itself
+remains a temporary generator-quality evaluation override.
 
-Article bodies remain lazy until BR/read observation.
+The former hidden bare `99` reset command has been removed; `BJ 99` continues
+to mean the station-specific hidden board.
 
 ## Current prototype shortcuts
 
