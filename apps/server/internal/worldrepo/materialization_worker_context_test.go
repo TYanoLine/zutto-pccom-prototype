@@ -186,7 +186,7 @@ func TestMaterializationAuthorHistoryContextIsBoundedAndRecencyDeterministic(t *
 			t.Fatalf("bounded history missing recent %q: %s", want, got)
 		}
 	}
-	if strings.Contains(got, "過去04") || strings.Count(got, "\n- ") != 2 {
+	if strings.Contains(got, "過去04") || strings.Count(got, "\n- ") != 3 {
 		t.Fatalf("bounded history returned more than three posts: %s", got)
 	}
 }
