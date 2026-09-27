@@ -326,7 +326,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				}
 			}
 			if cacheProbes > 0 {
-				log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), verifiedReferentTarget)
+				log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), requestedVerifiedReferentTarget)
 			}
 		}
 		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads, cachedVerifiedClaims)
