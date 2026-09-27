@@ -25,7 +25,7 @@ import {
 import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import './styles.css';
 
-const APP_VERSION = '0.27';
+const APP_VERSION = '0.28';
 const SCREEN_MODE_KEY = 'zutto.terminalScreenMode.v1';
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 function loadTerminalScreenMode(): TerminalScreenMode {
