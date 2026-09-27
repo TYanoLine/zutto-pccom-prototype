@@ -42,7 +42,10 @@ export type TerminalKeyboardInput = {
   onBlur: FocusEventHandler<HTMLInputElement>;
 };
 
+export type TerminalScreenMode = 'variable' | 'fixed25';
+
 type TerminalCanvasProps = {
+  screenMode: TerminalScreenMode;
   terminal: TerminalCore;
   keyboardInput: TerminalKeyboardInput;
   keyboardActive?: boolean;
@@ -54,6 +57,7 @@ type TerminalCanvasProps = {
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
   {
     terminal,
+    screenMode,
     keyboardInput,
     keyboardActive = false,
     bottomControlsActive = false,
@@ -115,8 +119,22 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 
   useEffect(() => {
     if (!isMobilePresentation()) {
-      updateLayoutRows(terminal.height);
-      return;
+      if (screenMode === 'fixed25') {
+        updateLayoutRows(terminal.height);
+        return;
+      }
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      const syncDesktopRows = () => {
+        const canvas = ref.current;
+        if (!canvas) return;
+        const rows = mobileTerminalRows(canvas.clientWidth || viewport.clientWidth, viewport.clientHeight);
+        updateLayoutRows(rows);
+      };
+      const observer = new ResizeObserver(() => window.requestAnimationFrame(syncDesktopRows));
+      observer.observe(viewport);
+      syncDesktopRows();
+      return () => observer.disconnect();
     }
 
     const visualViewport = window.visualViewport;
@@ -132,7 +150,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     };
     // Geometry is intentionally measured from the live DOM after each relevant mode change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [display, keyboardActive, bottomControlsActive, modemStatusMode]);
+  }, [display, keyboardActive, bottomControlsActive, modemStatusMode, screenMode]);
 
   function setScrollOffset(next: number) {
     const maxOffset = terminal.maxScrollOffsetForRows(layoutRowsRef.current);
@@ -428,7 +446,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }
 
   return (
-    <div className={`terminal-display terminal-display--${display}`}>
+    <div className={`terminal-display terminal-display--${display} terminal-display--rows-${screenMode}`}>
       <nav className="terminal-tools" aria-label="端末表示">
         <button type="button" aria-pressed={display === 'readable'} onClick={() => setDisplay('readable')}>文字拡大</button>
         <button type="button" aria-pressed={display === 'fit'} onClick={() => setDisplay('fit')}>全体表示</button>
