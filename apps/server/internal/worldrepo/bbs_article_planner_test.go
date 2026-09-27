@@ -862,12 +862,26 @@ func TestSharedBBSPlannerIgnoresJevEraAttritionForFortyRoots(t *testing.T) {
 
 func TestTitleTemporalCompatibleBlocksObviousSeasonMismatch(t *testing.T) {
 	december := time.Date(1995, 12, 7, 12, 0, 0, 0, time.Local)
+	january := time.Date(1996, 1, 9, 12, 0, 0, 0, time.Local)
+	february := time.Date(1996, 2, 28, 12, 0, 0, 0, time.Local)
+	april := time.Date(1996, 4, 3, 12, 0, 0, 0, time.Local)
 	july := time.Date(1996, 7, 7, 12, 0, 0, 0, time.Local)
 	if titleTemporalCompatible("福岡で夏物の上着を買いたい", december) {
 		t.Fatal("summer-goods title should not fit a December slot")
 	}
-	if !titleTemporalCompatible("福岡で夏物の上着を買いたい", july) {
-		t.Fatal("summer-goods title should fit a July slot")
+	if titleTemporalCompatible("福岡の暑さに参った", january) {
+		t.Fatal("summer-heat title should not fit a January slot")
+	}
+	if titleTemporalCompatible("町内の盆踊りの手伝い", february) {
+		t.Fatal("bon-dance title should not fit a February slot")
+	}
+	if titleTemporalCompatible("夕立のあと、道がぬかるむ", april) {
+		t.Fatal("evening-shower title should not fit an April slot")
+	}
+	for _, title := range []string{"福岡で夏物の上着を買いたい", "福岡の暑さに参った", "町内の盆踊りの手伝い", "夕立のあと、道がぬかるむ"} {
+		if !titleTemporalCompatible(title, july) {
+			t.Fatalf("summer title %q should fit a July slot", title)
+		}
 	}
 	if !titleTemporalCompatible("天神で写真を焼き増ししたい", december) {
 		t.Fatal("non-seasonal title should remain date-agnostic")
