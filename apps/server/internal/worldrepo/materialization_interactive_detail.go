@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -136,7 +137,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	}
 	authorHistory := r.materializationAuthorHistoryContext(host, board, selected, 6)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	request := llm.BBSTitleArticleDetailRequest{
 		BoardName:      board.Name,
@@ -168,6 +169,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	}
 	usage := GenerationUsage{InputTokens: draft.Usage.InputTokens, CachedInputTokens: draft.Usage.CachedInputTokens, OutputTokens: draft.Usage.OutputTokens, ReasoningTokens: draft.Usage.ReasoningTokens, TotalTokens: draft.Usage.TotalTokens, Model: draft.Usage.Model}
 	storeDevelopmentPlanningUsage(r, host.ID, fmt.Sprintf("article-detail-%d", selected.ID), usage)
+	log.Printf("BBS article detail grounding: host=%s board=%s post=%d web_search_calls=%d web_sources=%d", host.ID, board.ID, selected.ID, draft.WebSearchCalls, len(draft.WebSearchSources))
 	if err != nil {
 		return selected, formatGenerationError("article-detail", err), err
 	}
