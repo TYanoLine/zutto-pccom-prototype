@@ -35,7 +35,7 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .terminal-viewport { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; background: #000; }
 .terminal-canvas { display: block; width: 100%; height: 100%; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
 .terminal-display--rows-fixed25 .terminal-viewport { align-items: center; }
-.terminal-display--rows-fixed25 .terminal-canvas { width: auto; height: auto; max-width: 100%; max-height: 100%; }
+.terminal-display--rows-fixed25 .terminal-canvas { width: 100%; height: auto; max-width: 100%; max-height: 100%; }
 .terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu { display: none; }
 .terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: pinch-zoom; }
 .terminal-input-proxy::selection { color: transparent; background: transparent; }
