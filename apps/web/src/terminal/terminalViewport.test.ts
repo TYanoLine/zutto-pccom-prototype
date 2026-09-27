@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+
+describe('desktop terminal viewport', () => {
+  it('preserves 80x25 proportions in short wide viewports and centers by fitting height', () => {
+    expect(desktopTerminalRows(1850, 800)).toBe(25);
+    expect(desktopTerminalRows(800, 800)).toBe(40);
+    expect(desktopTerminalRows(320, 100)).toBe(25);
+    expect(desktopTerminalRows(640, 4000)).toBe(120);
+  });
+});
 
 describe('mobile terminal viewport', () => {
   it('uses the visible keyboard viewport without reserving a command dock', () => {
