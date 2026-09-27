@@ -942,6 +942,18 @@ func TestTitleBatchNaturalnessCapsDominantOpeningFrames(t *testing.T) {
 }
 
 
+func TestClaimFreeAdoptionAllowedReservesSpecificitySlots(t *testing.T) {
+	if !claimFreeAdoptionAllowed(6, 4, 5) {
+		t.Fatal("six unfilled slots should still allow one claim-free adoption with one verified referent missing")
+	}
+	if claimFreeAdoptionAllowed(1, 4, 5) {
+		t.Fatal("last unfilled slot must be reserved for the missing verified referent")
+	}
+	if !claimFreeAdoptionAllowed(1, 5, 5) {
+		t.Fatal("claim-free adoption should resume once the verified referent target is met")
+	}
+}
+
 func TestVerifiedReferentTargetAndClaimPoolSizing(t *testing.T) {
 	if got := verifiedReferentTargetForBoard(48, .10); got != 5 {
 		t.Fatalf("verified target=%d, want 5", got)
@@ -979,8 +991,8 @@ func TestSharedBBSPlannerPassesBoardTextureTargetsToGenerator(t *testing.T) {
 		WorldNow: time.Date(1996, 8, 26, 23, 0, 0, 0, time.Local),
 		Slots: slots,
 	})
-	if err != nil {
-		t.Fatal(err)
+	if err == nil {
+		t.Fatal("fixture has no verifiable claims, so the blocking specificity gate should leave roots unresolved")
 	}
 	if renderer.lastContext.VerifiedReferentTarget != 5 {
 		t.Fatalf("verified referent target=%d, want 5", renderer.lastContext.VerifiedReferentTarget)
