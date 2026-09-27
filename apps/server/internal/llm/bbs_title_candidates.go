@@ -121,6 +121,11 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 「博多駅」「新宿駅」のような固有の駅名は、広域地名そのものとは別の実在対象です。HistoricalFactsで確認済みでない固有駅名を使う候補には、駅の存在/利用可能性を historical_claims に必ず付けること。
 - 季節・祝日・「今日」「今週末」など割当先の日付に依存する語は、後段で各投稿枠のcreated_atと照合されます。候補の多様化目的だけで季節語を混ぜず、その時期に置かれて自然な題材としてのみ使うこと。
 `
+		textureTarget := requestedBBSTitleCandidateCount(req) * 3 / 10
+		if textureTarget < 6 {
+			textureTarget = 6
+		}
+		prompt += fmt.Sprintf("\n- BoardScope上、実在の地域・交通・製品・作品・施設などが自然な板では、claim-free予備とは別に、少なくとも%d件は広域地名だけより具体的な実在対象を含む候補にし、必要なhistorical_claimsを付けること。100件をすべて安全で抽象的な候補に逃がさないこと。専門外の実在名を無理に混ぜる必要はない。\n", textureTarget)
 	}
 	return prompt + string(payload)
 }
