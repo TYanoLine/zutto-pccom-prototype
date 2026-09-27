@@ -32,13 +32,9 @@ jobs:
         run: npm run build
 
       - name: Deploy to serving directory
-        shell: powershell
         run: |
-          $deployDir = "C:\zutto-web"
-          if (!(Test-Path $deployDir)) {
-            New-Item -ItemType Directory -Force -Path $deployDir
-          }
-          Copy-Item -Recurse -Force dist "$deployDir\"
-          Copy-Item -Recurse -Force api "$deployDir\"
-          Copy-Item -Force server.mjs "$deployDir\"
-          Write-Host "Deployment to $deployDir completed successfully."
+          if not exist "C:\zutto-web" mkdir "C:\zutto-web"
+          xcopy /E /I /Y dist "C:\zutto-web\dist"
+          xcopy /E /I /Y api "C:\zutto-web\api"
+          copy /Y server.mjs "C:\zutto-web\"
+          echo Deployment to C:\zutto-web completed successfully.
