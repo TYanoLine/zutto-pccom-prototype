@@ -64,7 +64,8 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .desktop-statusbar__group { display: flex; flex: 0 0 410px; align-items: center; justify-content: space-between; gap: 12px; white-space: nowrap; }
 .desktop-statusbar__online { color: #e2ad4c; }
 .desktop-statusbar__offline { overflow: hidden; color: #aaa; text-overflow: ellipsis; }
-.quick-help, .directory-softkeys, .dev-shortcuts { display: none; }
+.quick-help, .directory-softkeys { display: none; }
+.dev-shortcuts { display: none !important; }
 code { color: #ddd; }
 .debug-panel, .comm-panel, .center-panel { margin-top: 10px; padding: 7px 9px; border: 1px solid #444; background: #111; }
 .debug-panel > summary, .comm-panel > summary, .center-panel > summary { color: #bbb; cursor: pointer; user-select: none; }
