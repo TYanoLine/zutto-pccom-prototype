@@ -51,11 +51,11 @@ subject:
   エンディングを見た人へ
 
 possible grounded details:
-  referent: 今回話している作品は1996-07-19までに日本で発売済みのゲーム「...」である
+  referent: 今回話している作品はゲーム「...」である
   reaction_context: X68.Vはその作品を最後まで遊び、最後のある場面の受け取り方が気になった
 ```
 
-The final prose worker may use a canonical `referent`; it still may not introduce additional unsupported external facts.
+The final prose worker may use a canonical `referent`; it still may not introduce additional unsupported external facts. Verification dates, source URLs, and phrases such as "existence confirmed" remain diagnostic metadata and must not leak into the diegetic detail.
 
 ## Reply behavior
 
