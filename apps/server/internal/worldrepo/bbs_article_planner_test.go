@@ -942,6 +942,18 @@ func TestTitleBatchNaturalnessCapsDominantOpeningFrames(t *testing.T) {
 }
 
 
+func TestClaimFreeAdoptionAllowedReservesSpecificitySlots(t *testing.T) {
+	if !claimFreeAdoptionAllowed(6, 4, 5) {
+		t.Fatal("six unfilled slots should still allow one claim-free adoption with one verified referent missing")
+	}
+	if claimFreeAdoptionAllowed(1, 4, 5) {
+		t.Fatal("last unfilled slot must be reserved for the missing verified referent")
+	}
+	if !claimFreeAdoptionAllowed(1, 5, 5) {
+		t.Fatal("claim-free adoption should resume once the verified referent target is met")
+	}
+}
+
 func TestVerifiedReferentTargetAndClaimPoolSizing(t *testing.T) {
 	if got := verifiedReferentTargetForBoard(48, .10); got != 5 {
 		t.Fatalf("verified target=%d, want 5", got)
@@ -957,14 +969,49 @@ func TestVerifiedReferentTargetAndClaimPoolSizing(t *testing.T) {
 	}
 }
 
+type alwaysVerifyTitleTestEngine struct{}
+
+func (alwaysVerifyTitleTestEngine) ResolveEvidence(_ context.Context, req worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	return worldengine.EvidenceDecision{
+		Knowledge: historicalkb.KnowledgeResult{
+			CanUse: true,
+			Facts: []historicalkb.Fact{{Subject: req.Subject, Claim: "verified for test"}},
+		},
+	}, nil
+}
+
+func (alwaysVerifyTitleTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
+	out := worldengine.TitleCandidateAdviceDecision{Era: map[int]worldengine.TitleEraProbabilities{}, Fit: map[string]float64{}}
+	for i := range req.Titles {
+		candidate := i + 1
+		for _, event := range req.Events {
+			out.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = .90
+		}
+	}
+	return out, nil
+}
+
 func TestSharedBBSPlannerPassesBoardTextureTargetsToGenerator(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
 		t.Fatal(err)
 	}
-	renderer := &fakeSharedTitleRenderer{}
-	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	titles := make([]string, 100)
+	claims := make([]llm.BBSTitleHistoricalClaim, 0, 5)
+	for i := range titles {
+		titles[i] = fmt.Sprintf("%c候補%03d", rune(0x4e00+(i%1800)), i+1)
+		if i < 5 {
+			claims = append(claims, llm.BBSTitleHistoricalClaim{
+				Candidate: i + 1,
+				Subject: fmt.Sprintf("実在対象%02d", i+1),
+				Kind: "general",
+				Need: "world dateまでの存在確認",
+			})
+		}
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles, historicalClaims: claims}
+	repo := New(base, alwaysVerifyTitleTestEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
 	slots := make([]bbsengine.Slot, 0, 48)
 	for i := 0; i < 48; i++ {
 		slots = append(slots, bbsengine.Slot{
