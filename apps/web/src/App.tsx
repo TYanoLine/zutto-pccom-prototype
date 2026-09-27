@@ -253,20 +253,16 @@ export default function App() {
   const mobileConnectedAt = localTestConnected ? localTestConnectedAt : activeCall?.connectedAt ?? null;
   const mobileElapsed = formatElapsed(mobileConnectedAt, worldNow);
   const mobileSessionCost = localTestConnected ? 0 : runningCost;
-  const desktopHostName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : '草の根ネット';
+  const desktopHostName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : '';
   const desktopBaud = activeCall || localTestConnected ? modemTelemetry.baud : commSettings.dteBaud;
   const desktopElapsed = mobileConnectedAt ? mobileElapsed.slice(0, 5) : '00:00';
   const desktopLocation = `${callerLocation.maName}MA`;
-  const modemVisible = modemStatusMode !== 'off';
-  function setDesktopModemVisible(visible: boolean) {
-    setModemStatusMode(visible ? (modemStatusMode === 'off' ? 'lamps' : modemStatusMode) : 'off');
-  }
   return <main className="shell">
     <header className="desktop-topbar">
-      <span className="desktop-host-name">{desktopHostName}</span>
+      {desktopHostName && <span className="desktop-host-name">{desktopHostName}</span>}
       <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
-      <span className="desktop-modem-display" hidden={!modemVisible}>
-        <ModemStatusDisplay mode="lamps" telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
+      <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
+        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
       </span>
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
         <span /><span /><span />
@@ -275,8 +271,9 @@ export default function App() {
         <div className="desktop-menu-row">
           <span>モデム表示</span>
           <div className="desktop-menu-toggle-group">
-            <button type="button" aria-pressed={modemVisible} onClick={() => setDesktopModemVisible(true)}>ON</button>
-            <button type="button" aria-pressed={!modemVisible} onClick={() => setDesktopModemVisible(false)}>OFF</button>
+            <button type="button" aria-pressed={modemStatusMode === 'lamps'} onClick={() => setModemStatusMode('lamps')}>ランプ</button>
+            <button type="button" aria-pressed={modemStatusMode === 'digital'} onClick={() => setModemStatusMode('digital')}>デジタル</button>
+            <button type="button" aria-pressed={modemStatusMode === 'off'} onClick={() => setModemStatusMode('off')}>OFF</button>
           </div>
         </div>
         <div className="desktop-menu-row">

@@ -22,9 +22,10 @@ Canonical stored text is UTF-8. The future terminal/serial wire boundary should 
 ## Desktop browser presentation
 
 The desktop shell gives the host terminal the full available window. Its header
-shows the active host at left, caller-origin MA and the 1996 world date/time
-before the modem lamp strip, and a hamburger menu at the far right. The menu
-provides modem indicators ON/OFF, hang-up, and two terminal viewport modes.
+shows the active host at left when connected, caller-origin MA and the 1996
+world date/time before the modem display, and a hamburger menu at the far right.
+The menu selects lamp, digital, or hidden modem display, provides hang-up and
+auto-redial controls, and offers two terminal viewport modes.
 The footer keeps the connection state, negotiated speed, elapsed call time, and
 pseudo-charge together in a fixed-width right-aligned region.
 

@@ -15,6 +15,26 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .desktop-topbar .modem-lamp__label { color: #aaa; font: 10px/15px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .desktop-topbar .modem-lamp__led { width: 9px; height: 9px; border: 1px solid #454545; border-radius: 50%; background: #1a1a1a; box-shadow: inset 0 0 2px #000; }
 .desktop-topbar .modem-lamp__led[data-on="true"] { border-color: #aa7830; background: #e2ad4c; box-shadow: 0 0 4px rgba(226, 173, 76, 0.24); }
+
+.desktop-topbar .mobile-modem-status--digital { display: grid; grid-template-columns: minmax(86px, 1.2fr) minmax(68px, .9fr) auto minmax(58px, auto); align-items: center; gap: 5px; height: 42px; padding: 3px 7px; overflow: hidden; color: #271800; background: radial-gradient(ellipse at 50% 48%, #d49a21 0%, #c18418 78%, #9d6914 100%); border: 1px solid #6a4a12; box-shadow: inset 0 0 0 1px rgba(255, 214, 112, .2); }
+.desktop-topbar .modem-lcd__protocols { display: flex; align-items: baseline; gap: 5px; font: 700 8px/1 ui-monospace, monospace; white-space: nowrap; }
+.desktop-topbar .modem-lcd__mnp { display: inline-flex; gap: 2px; }
+.desktop-topbar .mobile-modem-status--digital [data-on="false"] { color: rgba(39, 24, 0, .22); }
+.desktop-topbar .mobile-modem-status--digital [data-on="true"] { color: #271800; }
+.desktop-topbar .modem-lcd__speed { display: flex; align-items: flex-end; justify-self: center; gap: 1px; height: 27px; margin: 0; white-space: nowrap; }
+.desktop-topbar .modem-lcd__digit { position: relative; display: inline-block; width: 10px; height: 24px; flex: 0 0 10px; }
+.desktop-topbar .modem-lcd__segment { position: absolute; display: block; background: rgba(39, 24, 0, .14); }
+.desktop-topbar .modem-lcd__segment[data-on="true"] { background: #271800; }
+.desktop-topbar .modem-lcd__segment--a, .desktop-topbar .modem-lcd__segment--d, .desktop-topbar .modem-lcd__segment--g { left: 2px; width: 6px; height: 3px; clip-path: polygon(15% 0, 85% 0, 100% 50%, 85% 100%, 15% 100%, 0 50%); }
+.desktop-topbar .modem-lcd__segment--a { top: 0; } .desktop-topbar .modem-lcd__segment--g { top: 10px; } .desktop-topbar .modem-lcd__segment--d { bottom: 0; }
+.desktop-topbar .modem-lcd__segment--b, .desktop-topbar .modem-lcd__segment--c, .desktop-topbar .modem-lcd__segment--e, .desktop-topbar .modem-lcd__segment--f { width: 3px; height: 8px; clip-path: polygon(50% 0, 100% 14%, 100% 86%, 50% 100%, 0 86%, 0 14%); }
+.desktop-topbar .modem-lcd__segment--b { top: 2px; right: 0; } .desktop-topbar .modem-lcd__segment--c { right: 0; bottom: 2px; } .desktop-topbar .modem-lcd__segment--e { left: 0; bottom: 2px; } .desktop-topbar .modem-lcd__segment--f { top: 2px; left: 0; }
+.desktop-topbar .modem-lcd__decimal { width: 3px; height: 3px; margin: 0 0 1px; flex: 0 0 3px; border-radius: 50%; background: #271800; }
+.desktop-topbar .modem-lcd__speed-unit { align-self: flex-end; margin-bottom: 0; color: #271800; font: 700 10px/1 ui-monospace, monospace; }
+.desktop-topbar .modem-lcd__ofh { display: grid; grid-template-rows: 8px auto; place-items: center; gap: 1px; min-width: 20px; font: 700 7px/9px ui-monospace, monospace; }
+.desktop-topbar .modem-lcd__dot { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 50%; }
+.desktop-topbar .modem-lcd__signals { display: grid; grid-template-columns: repeat(2, auto); grid-template-rows: repeat(3, 8px); align-items: center; column-gap: 4px; min-width: 54px; font: 700 7px/8px ui-monospace, monospace; }
+
 .desktop-menu-toggle { display: flex; flex: 0 0 42px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 42px; height: 42px; padding: 8px; border: 1px solid transparent; color: #ddd; background: transparent; cursor: pointer; }
 .desktop-menu-toggle:hover, .desktop-menu-toggle[aria-expanded="true"] { border-color: #484848; background: #1c1c1c; }
 .desktop-menu-toggle span { display: block; width: 20px; height: 1px; background: currentColor; }
@@ -33,7 +53,7 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .terminal-display { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; max-width: none; flex-direction: column; }
 .terminal-viewport-shell { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .terminal-viewport { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; background: #000; }
-.terminal-canvas { display: block; width: 100%; height: 100%; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
+.terminal-canvas { display: block; width: 100%; height: auto; max-width: 100%; max-height: 100%; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
 .terminal-display--rows-fixed25 .terminal-viewport { align-items: center; }
 .terminal-display--rows-fixed25 .terminal-canvas { width: 100%; height: auto; max-width: 100%; max-height: 100%; }
 .terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu { display: none; }
@@ -45,6 +65,7 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .desktop-statusbar__online { color: #e2ad4c; }
 .desktop-statusbar__offline { overflow: hidden; color: #aaa; text-overflow: ellipsis; }
 .quick-help, .directory-softkeys { display: none; }
+.dev-shortcuts { display: none !important; }
 code { color: #ddd; }
 .debug-panel, .comm-panel, .center-panel { margin-top: 10px; padding: 7px 9px; border: 1px solid #444; background: #111; }
 .debug-panel > summary, .comm-panel > summary, .center-panel > summary { color: #bbb; cursor: pointer; user-select: none; }
@@ -239,7 +260,7 @@ code { color: #ddd; }
   .terminal-function-mode-row button { min-width: 0; padding-inline: 4px; font-size: 11px; }
   .terminal-tools, .terminal-hint { display: none; }
   .terminal-live-return { display: block; position: absolute; right: 8px; bottom: 8px; z-index: 4; min-height: 44px; padding: 6px 10px; border: 1px solid #7a7; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #cfc; background: #163616; touch-action: manipulation; }
-  .terminal-viewport { overflow-x: auto; overflow-y: auto; overscroll-behavior: contain; }
+  .terminal-viewport { display: block; overflow-x: auto; overflow-y: auto; overscroll-behavior: contain; }
   .terminal-display--fit.terminal-display--rows-fixed25 .terminal-canvas { width: 92%; height: auto; max-width: none; max-height: none; margin-inline: auto; }
   .terminal-display--readable.terminal-display--rows-fixed25 .terminal-canvas { width: max(100%, 640px); height: auto; max-width: none; max-height: none; }
   .settings-grid { grid-template-columns: 1fr; }

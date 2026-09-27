@@ -18,6 +18,21 @@ export function terminalCursorTargetScrollTop(
   return Math.max(0, Math.min(maxScrollTop, target));
 }
 
+export function desktopTerminalRows(
+  viewportWidth: number,
+  viewportHeight: number,
+  columns = 80,
+  cellWidth = 8,
+  cellHeight = 16,
+  minRows = 25,
+  maxRows = 120,
+) {
+  if (viewportWidth <= 0 || viewportHeight <= 0) return minRows;
+  const scale = Math.min(viewportWidth / (columns * cellWidth), viewportHeight / (minRows * cellHeight));
+  if (!Number.isFinite(scale) || scale <= 0) return minRows;
+  return Math.max(minRows, Math.min(maxRows, Math.floor(viewportHeight / (cellHeight * scale))));
+}
+
 export function mobileTerminalRows(
   viewportWidth: number,
   availableHeight: number,
