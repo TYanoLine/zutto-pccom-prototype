@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -108,7 +109,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 		})},
 	}}
 
-	draft, err := provider.MaterializeBBSTitleArticleDetails(t.Context(), BBSTitleArticleDetailRequest{
+	draft, err := provider.MaterializeBBSTitleArticleDetails(context.Background(), BBSTitleArticleDetailRequest{
 		BoardName: "GAME",
 		WorldDate: "1996-07-19",
 		Articles: []BBSTitleArticleDetailSeed{{
