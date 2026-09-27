@@ -135,8 +135,12 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 	if captured["tool_choice"] != "auto" {
 		t.Fatalf("tool_choice=%v, want auto", captured["tool_choice"])
 	}
+	reasoning, _ := captured["reasoning"].(map[string]any)
+	if reasoning["effort"] != "medium" {
+		t.Fatalf("reasoning effort=%v, want medium", reasoning["effort"])
+	}
 	prompt, _ := captured["input"].(string)
-	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず"} {
+	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず", "具体的な命題が検索結果に直接支持", "似た名前の敵・別機種版・移植版"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("article detail prompt missing %q", want)
 		}
