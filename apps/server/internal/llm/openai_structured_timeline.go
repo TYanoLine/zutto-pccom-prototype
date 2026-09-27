@@ -256,7 +256,15 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 	return p.responseTextWithJSONSchemaReasoning(ctx, prompt, verbosity, "", maxOutputTokens, schemaName, schema)
 }
 
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaWebSearch(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaOptions(ctx, prompt, verbosity, reasoningEffort, maxOutputTokens, schemaName, schema, true)
+}
+
 func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaOptions(ctx, prompt, verbosity, reasoningEffort, maxOutputTokens, schemaName, schema, false)
+}
+
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any, enableWebSearch bool) (responseTextResult, error) {
 	if p.APIKey == "" {
 		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
 	}
@@ -284,6 +292,11 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx contex
 	if reasoningEffort = strings.TrimSpace(reasoningEffort); reasoningEffort != "" {
 		payload["reasoning"] = map[string]any{"effort": reasoningEffort}
 	}
+	if enableWebSearch {
+		payload["tools"] = []map[string]any{{"type": "web_search", "search_context_size": "medium"}}
+		payload["tool_choice"] = "auto"
+		payload["include"] = []string{"web_search_call.action.sources"}
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return responseTextResult{}, err
@@ -306,6 +319,12 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx contex
 	var decoded struct {
 		Model  string `json:"model"`
 		Output []struct {
+			Type string `json:"type"`
+			Action struct {
+				Sources []struct {
+					URL string `json:"url"`
+				} `json:"sources"`
+			} `json:"action"`
 			Content []struct {
 				Type string `json:"type"`
 				Text string `json:"text"`
@@ -337,10 +356,25 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx contex
 	if usage.Model == "" {
 		usage.Model = p.Model
 	}
+	webSearchCalls := 0
+	webSearchSources := make([]string, 0, 8)
+	seenSources := map[string]bool{}
+	for _, out := range decoded.Output {
+		if out.Type == "web_search_call" {
+			webSearchCalls++
+			for _, source := range out.Action.Sources {
+				url := strings.TrimSpace(source.URL)
+				if url != "" && !seenSources[url] {
+					seenSources[url] = true
+					webSearchSources = append(webSearchSources, url)
+				}
+			}
+		}
+	}
 	for _, out := range decoded.Output {
 		for _, c := range out.Content {
 			if c.Type == "output_text" && strings.TrimSpace(c.Text) != "" {
-				return responseTextResult{Text: c.Text, Usage: usage}, nil
+				return responseTextResult{Text: c.Text, Usage: usage, WebSearchCalls: webSearchCalls, WebSearchSources: webSearchSources}, nil
 			}
 		}
 	}
