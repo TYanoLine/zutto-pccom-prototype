@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
@@ -185,7 +186,7 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 		Author:  "MARU",
 		Subject: "セーブの場所を決めてます",
 		Body:    "進めてから残しておけばと思うことがあるので、場所を決めています。",
-		CreatedAt: mustTime(t, "1996-07-19T13:47:00+09:00"),
+		CreatedAt: time.Date(1996, time.July, 19, 13, 47, 0, 0, time.FixedZone("JST", 9*60*60)),
 		Intent: world.PostIntent{
 			SituationKind: "title_first",
 			SituationSummary: "セーブする場所を先に決めている",
@@ -196,7 +197,7 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 		BoardID:  "reply-detail",
 		ParentID: root.ID,
 		Author:   "MINT-Y",
-		CreatedAt: mustTime(t, "1996-07-31T09:59:00+09:00"),
+		CreatedAt: time.Date(1996, time.July, 31, 9, 59, 0, 0, time.FixedZone("JST", 9*60*60)),
 		Intent: world.PostIntent{
 			DiscourseMode:    "reply",
 			SituationKind:    "title_first",
