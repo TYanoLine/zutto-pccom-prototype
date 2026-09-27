@@ -710,17 +710,26 @@ func (r *Runtime) renderThread(id int64) string {
 		if p.ParentID != root.ID {
 			continue
 		}
+		loadFailed := false
 		if strings.TrimSpace(p.Body) == "" {
 			if observer, ok := r.Store.(world.HostObservationStore); ok {
-				if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, p.ID); err == nil && ok {
+				if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, p.ID); err == nil && ok && strings.TrimSpace(rendered.Body) != "" {
 					p = rendered
+				} else {
+					loadFailed = true
 				}
+			} else {
+				loadFailed = true
 			}
 		}
 		appendNo++
 		fmt.Fprintf(&b, "\r\n--------------------------- アペ %d ---------------------------\r\n", appendNo)
 		fmt.Fprintf(&b, "FROM:%s  DATE:%s\r\n", p.Author, p.CreatedAt.Format("96/01/02 15:04"))
-		b.WriteString(normalizeNewlines(p.Body))
+		if loadFailed || strings.TrimSpace(p.Body) == "" {
+			b.WriteString("(アペンドの読み込みに失敗しました)")
+		} else {
+			b.WriteString(normalizeNewlines(p.Body))
+		}
 		b.WriteString("\r\n")
 	}
 	fmt.Fprintf(&b, "\r\n------------------------- APE:%d -------------------------------\r\n", appendNo)

@@ -307,6 +307,9 @@ func (r *Repository) getOrStartBodyObservationJob(key string, host world.Host, b
 		case strings.TrimSpace(post.Body) == "":
 			job.err = fmt.Errorf("article %d materialization returned an empty body", postID)
 		}
+		if job.err != nil {
+			log.Printf("BBS article body observation failed: host=%s board=%s post=%d err=%v", host.ID, board.ID, postID, job.err)
+		}
 
 		r.observationMu.Lock()
 		if r.observationBodyJobs[key] == job {

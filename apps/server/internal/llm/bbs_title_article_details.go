@@ -28,6 +28,7 @@ type BBSTitleArticleDetailSeed struct {
 	DiscourseMode  string   `json:"discourse_mode"`
 	PersonaProfile string   `json:"persona_profile,omitempty"`
 	ExistingFacts  []string `json:"existing_facts,omitempty"`
+	ThreadContext  string   `json:"thread_context,omitempty"`
 }
 
 type BBSTitleArticleDetailRequest struct {
@@ -64,9 +65,11 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 	if err != nil {
 		return BBSTitleArticleDetailDraft{}, err
 	}
-	prompt := `採用済みの記事タイトルについて、本文を書く前に本当に必要な記事ローカル事実だけをcanonical world factとして補ってください。これは文章の構成案を作る処理ではありません。
+	prompt := `採用済みの記事について、本文を書く前に本当に必要な記事ローカル事実だけをcanonical world factとして補ってください。これは文章の構成案を作る処理ではありません。rootのタイトルはすでに採用済みで変更しません。replyには独立タイトルが無いホストもあります。
 
-各articleのdetailsは0〜2件です。subject/summaryだけで自然な短い投稿が成立するなら0件で構いません。件数を埋めるために事実を追加しないでください。
+各articleのdetailsは0〜2件です。ただし、タイトルやsummaryが抽象的・一般的な場合でも本文まで抽象論にしないでください。その人物が今回実際に見たもの、試した条件、回数、場所、順序、比較対象など、投稿を一段具体化する小さな事実を自然に1件程度固定してください。短い感情表明や純粋な相づちとして既に十分な場合だけ0件でも構いません。件数を埋めるための作り話は禁止です。
+
+replyでThreadContextがある場合、先行記事・先行replyを読んだ上で「この返信者が今回どこへ反応し、何を自分側から足すか」を記事ローカル事実として具体化してください。原則として先行replyの結論を言い換えるだけにせず、本人の一回の観察・試行・質問条件・比較・小さな経験のいずれかを1件入れてください。低情報の相づちだけが自然な場合は0件でも構いませんが、それを毎回の安全策にしないでください。ThreadContext内の他人の経験をこの投稿者自身の経験へ移してはいけません。
 
 この処理の目的は「良い記事を完成させること」ではなく、その人物がその瞬間に書き込むきっかけとして必要な事実だけを固定することです。本文の結論、説明順、読者への問いかけ、まとめ、教訓、網羅すべき論点を設計しないでください。
 
@@ -93,6 +96,7 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 - author_handleがSYSOP、またはPersonaProfileにSYSOP役割がある場合も普通の個人的雑談は可能です。ただし局運営、回線、接続確認、ログ確認などが日常業務として示されているなら、それらの基本を今さら初めて学んだようなdetailを作らないでください。また個人環境の話を、根拠なく局設備や運営方針の変更へ膨らませないでください。
 - decisionはsubject/summaryが実際に選択・方針・質問を含む場合だけ使ってください。detailsの件数を埋めるために「今後は毎回〜することにした」のような新しい習慣を勝手に作らないでください。
 - ExistingFactsと矛盾する恒久的な所有、職歴、家族事情、長期の嗜好などは追加禁止です。
+- ThreadContextは同一スレッドのcanonicalな先行内容です。返信ではこれを読んだ上で差分を作れますが、引用・要約のための素材ではありません。既出の一般論をほぼ同じ意味で反復するdetailは禁止です。
 - RecentBBSStateにない別スレッドの出来事を混ぜないでください。
 - 各event_idは入力と完全一致させてください。
 

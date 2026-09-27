@@ -145,10 +145,27 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	req = r.prepareBoardComposition(req, selected)
 	var posts []world.Post
 	var usage GenerationUsage
-	if materializer, ok := r.Materializer.(usageAwareMaterializer); ok {
-		posts, usage, err = materializer.GenerateBoardPostsWithUsage(ctx, req, decision)
-	} else {
-		posts, err = r.Materializer.GenerateBoardPosts(ctx, req, decision)
+	for attempt := 0; attempt < 2; attempt++ {
+		posts = nil
+		usage = GenerationUsage{}
+		if materializer, ok := r.Materializer.(usageAwareMaterializer); ok {
+			posts, usage, err = materializer.GenerateBoardPostsWithUsage(ctx, req, decision)
+		} else {
+			posts, err = r.Materializer.GenerateBoardPosts(ctx, req, decision)
+		}
+		if err == nil && len(posts) > 0 && strings.TrimSpace(posts[0].Body) != "" {
+			break
+		}
+		if err == nil {
+			if len(posts) == 0 {
+				err = fmt.Errorf("no post returned")
+			} else {
+				err = fmt.Errorf("empty body returned")
+			}
+		}
+		if ctx.Err() != nil {
+			break
+		}
 	}
 	if err != nil {
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("renderer", err), contextStats.String())

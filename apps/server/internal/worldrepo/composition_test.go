@@ -28,3 +28,50 @@ func TestPrepareBoardCompositionUsesSemanticReplySource(t *testing.T) {
 		t.Fatalf("invalid length band %d-%d", got.BodyMinChars, got.BodyMaxChars)
 	}
 }
+
+
+func TestPrepareBoardCompositionTreatsFlatSemanticResponseAsReply(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0451234567")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := store.AddPost(host.ID, world.Post{
+		BoardID: "1",
+		Author:  "MARI",
+		Subject: "フロッピーの保管場所",
+		Body:    "湿気も気になるので、みなさんはどんな入れ物にまとめていますか。机の引き出しでいいのかな。",
+	})
+	reply := world.Post{
+		ID:      9877,
+		BoardID: "1",
+		Intent: world.PostIntent{
+			Action:           "bbs-world-catchup",
+			RespondsToPostID: root.ID,
+			SourcePostID:     root.ID,
+		},
+	}
+	repo := New(store, nil, nil, "1996-08-29")
+	got := repo.prepareBoardComposition(BoardMaterializationRequest{
+		Host:      host,
+		BoardID:   "1",
+		WorldDate: "1996-08-29",
+	}, reply)
+	if got.Kind != worldengine.PostKindReply {
+		t.Fatalf("kind=%q, want reply for semantic response without host-level parent linkage", got.Kind)
+	}
+	if got.ParentPost == nil || got.ParentPost.ID != root.ID {
+		t.Fatalf("resolved parent=%#v, want %d", got.ParentPost, root.ID)
+	}
+}
+
+func TestReplyQuoteFragmentPrefersFocusedFinalSentence(t *testing.T) {
+	body := "フロッピーの置き場所に困っています。湿気も気になるので、みなさんはどんな入れ物にまとめていますか。机の引き出しでいいのかな。"
+	got := replyQuoteFragment(body)
+	if got != "机の引き出しでいいのかな。" {
+		t.Fatalf("quote=%q", got)
+	}
+	if got == body {
+		t.Fatal("short multi-sentence parent was quoted in full")
+	}
+}

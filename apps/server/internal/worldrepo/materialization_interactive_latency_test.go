@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
@@ -164,5 +165,66 @@ func TestInteractiveTitleFirstDoesNotInventCannedSubjectsWhenPoolsRejectEverythi
 		if strings.Contains(post.Subject, board.Name+"について") || strings.Contains(post.Subject, board.Name+"の情報交換") {
 			t.Fatalf("canned board-name fallback leaked into canonical history: %+v", post)
 		}
+	}
+}
+
+
+func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &interactiveTitleFirstTestRenderer{titleFirstTestRenderer: titleFirstTestRenderer{
+		fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "自分側の具体的な経験を足した返信です。"}},
+	}}
+	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.EnableDevelopmentInteractiveTitleFirstPoC()
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "reply-detail", Name: "GAME"}
+	root := base.AddPost(host.ID, world.Post{
+		BoardID: "reply-detail",
+		Author:  "MARU",
+		Subject: "セーブの場所を決めてます",
+		Body:    "進めてから残しておけばと思うことがあるので、場所を決めています。",
+		CreatedAt: time.Date(1996, time.July, 19, 13, 47, 0, 0, time.FixedZone("JST", 9*60*60)),
+		Intent: world.PostIntent{
+			SituationKind: "title_first",
+			SituationSummary: "セーブする場所を先に決めている",
+			SituationFacts: []string{"title_first_subject=セーブの場所を決めてます"},
+		},
+	})
+	reply := base.AddPost(host.ID, world.Post{
+		BoardID:  "reply-detail",
+		ParentID: root.ID,
+		Author:   "MINT-Y",
+		CreatedAt: time.Date(1996, time.July, 31, 9, 59, 0, 0, time.FixedZone("JST", 9*60*60)),
+		Intent: world.PostIntent{
+			DiscourseMode:    "reply",
+			SituationKind:    "title_first",
+			SituationSummary: "MINT-YがMARUの記事へ返信する",
+			RespondsToPostID: root.ID,
+			SourcePostID:     root.ID,
+		},
+	})
+
+	rendered, found, bodyCreated, diagnostic := repo.MaterializationArticleWithDebug(host, board, reply.ID)
+	if !found || !bodyCreated || strings.TrimSpace(rendered.Body) == "" {
+		t.Fatalf("reply open did not materialize body: found=%v created=%v diagnostic=%s", found, bodyCreated, diagnostic)
+	}
+	if renderer.detailCalls != 1 {
+		t.Fatalf("reply article detail calls=%d, want 1", renderer.detailCalls)
+	}
+	if len(renderer.detailReq.Articles) != 1 {
+		t.Fatalf("reply detail request=%+v", renderer.detailReq)
+	}
+	seed := renderer.detailReq.Articles[0]
+	if seed.Subject != root.Subject {
+		t.Fatalf("reply semantic subject=%q, want parent subject %q", seed.Subject, root.Subject)
+	}
+	if !strings.Contains(seed.ThreadContext, "MARU") || !strings.Contains(seed.ThreadContext, root.Body) {
+		t.Fatalf("reply detail planner lacks canonical thread context: %q", seed.ThreadContext)
+	}
+	if !hasInteractiveArticleDetails(rendered.Intent.SituationFacts) {
+		t.Fatalf("reply details were not persisted before prose: %+v", rendered.Intent.SituationFacts)
 	}
 }
