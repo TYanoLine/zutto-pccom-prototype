@@ -1,6 +1,6 @@
 # SDD-001: Concrete persona-aware article and append realization
 
-Status: implementation in progress
+Status: phase 1 implemented; production quality sampling pending
 Updated: 2026-09-27
 
 ## Problem
@@ -157,3 +157,9 @@ Quality sampling after deployment:
 - verify no future PersonaFact leaks backward in world time.
 
 No numeric quality threshold is made a production gate until a stable baseline has been measured.
+
+## Phase 1 implementation note
+
+The initial implementation adds `AuthorHistory` to Article Detail input. Up to six of the actor's own prior posts are selected from canonical host history by topic/anchor/referent/board relevance plus recency. Posts in the current reply thread are excluded because `ThreadContext` already covers them. Unmaterialized prior bodies stay lazy and contribute only committed semantic state.
+
+This completes the code-level requirements of phase 1. The qualitative 20-30-thread sampling remains a follow-up observation task and does not block the next SDD design.
