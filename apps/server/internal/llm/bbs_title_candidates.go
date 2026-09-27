@@ -57,11 +57,16 @@ type BBSContextualTitleCandidateRequest struct {
 	AvoidSubjects   []string
 	HistoricalFacts []string
 	EraRules         string
-	RemainingNeeded int
-	PreferEraSafe   bool
-	// CandidateCount is a debug/PoC override. Production callers leave it zero,
-	// which preserves the normal 20-candidate pool contract.
-	CandidateCount  int
+	RemainingNeeded            int
+	PreferEraSafe              bool
+	// CandidateCount selects the structured pool size. The shared production
+	// planner requests 100; zero preserves the 20-candidate compatibility path.
+	CandidateCount             int
+	// VerifiedReferentTarget is the desired adopted-root count for verified named
+	// real-world referents. ClaimBearingCandidateTarget reserves enough raw pool
+	// capacity to pursue that target without sacrificing a full claim-free reserve.
+	VerifiedReferentTarget     int
+	ClaimBearingCandidateTarget int
 }
 
 type BBSContextualTitleCandidatePlanner interface {
@@ -121,11 +126,9 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 「博多駅」「新宿駅」のような固有の駅名は、広域地名そのものとは別の実在対象です。HistoricalFactsで確認済みでない固有駅名を使う候補には、駅の存在/利用可能性を historical_claims に必ず付けること。
 - 季節・祝日・「今日」「今週末」など割当先の日付に依存する語は、後段で各投稿枠のcreated_atと照合されます。候補の多様化目的だけで季節語を混ぜず、その時期に置かれて自然な題材としてのみ使うこと。
 `
-		textureTarget := requestedBBSTitleCandidateCount(req) * 3 / 10
-		if textureTarget < 6 {
-			textureTarget = 6
+		if req.ClaimBearingCandidateTarget > 0 {
+			prompt += fmt.Sprintf("\n- この板では最終的に約%d件のverified specific referentを残す品質目標があります。出力schemaがclaim_free_candidatesとclaim_bearing_candidatesを分離し、claim_bearing_candidatesは正確に%d件を要求します。claim-bearing側は広域地名だけではなく、その板で自然な具体的実在対象を含め、各候補に少なくとも1件のhistorical_claimsを必ず付けてください。claim-free側へ実在固有名詞を逃がして数合わせしないでください。\n", req.VerifiedReferentTarget, req.ClaimBearingCandidateTarget)
 		}
-		prompt += fmt.Sprintf("\n- BoardScope上、実在の地域・交通・製品・作品・施設などが自然な板では、claim-free予備とは別に、少なくとも%d件は広域地名だけより具体的な実在対象を含む候補にし、必要なhistorical_claimsを付けること。100件をすべて安全で抽象的な候補に逃がさないこと。専門外の実在名を無理に混ぜる必要はない。\n", textureTarget)
 	}
 	return prompt + string(payload)
 }
@@ -165,41 +168,73 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 		"additionalProperties": false,
 	}
 
-	// Large PoC pools keep each title and its claims in the same schema object.
-	// With 100 independent titles, a second top-level array of 1-based candidate
-	// indexes proved easy for the model to misalign even when both arrays were
-	// individually schema-valid. Production 20-title calls retain the established
-	// wire shape until this experiment is evaluated.
+	// Large pools keep each title and its claims in the same object. When a board
+	// explicitly asks for verified real-world texture, the schema separates a
+	// claim-free reserve from a fixed claim-bearing partition. This makes pool
+	// composition enforceable instead of relying on prompt compliance.
 	largePool := candidateCount > 20
+	claimBearingCount := req.ClaimBearingCandidateTarget
+	if claimBearingCount < 0 {
+		claimBearingCount = 0
+	}
+	if claimBearingCount > candidateCount {
+		claimBearingCount = candidateCount
+	}
+	if req.RemainingNeeded > 0 && candidateCount-claimBearingCount < req.RemainingNeeded {
+		claimBearingCount = candidateCount - req.RemainingNeeded
+		if claimBearingCount < 0 {
+			claimBearingCount = 0
+		}
+	}
+	claimFreeCount := candidateCount - claimBearingCount
 	var schema map[string]any
 	if largePool {
-		candidateItem := map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"title": map[string]any{"type": "string"},
-				"historical_claims": map[string]any{
-					"type": "array",
-					"items": claimWithoutIndex,
-					"minItems": 0,
-					"maxItems": 3,
+		candidateItem := func(minClaims, maxClaims int) map[string]any {
+			return map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"title": map[string]any{"type": "string"},
+					"historical_claims": map[string]any{
+						"type": "array",
+						"items": claimWithoutIndex,
+						"minItems": minClaims,
+						"maxItems": maxClaims,
+					},
 				},
-			},
-			"required": []string{"title", "historical_claims"},
-			"additionalProperties": false,
+				"required": []string{"title", "historical_claims"},
+				"additionalProperties": false,
+			}
 		}
-		schema = map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"candidates": map[string]any{
-					"type": "array",
-					"items": candidateItem,
-					"minItems": candidateCount,
-					"maxItems": candidateCount,
+		if claimBearingCount > 0 {
+			schema = map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"claim_free_candidates": map[string]any{
+						"type": "array", "items": candidateItem(0, 0),
+						"minItems": claimFreeCount, "maxItems": claimFreeCount,
+					},
+					"claim_bearing_candidates": map[string]any{
+						"type": "array", "items": candidateItem(1, 3),
+						"minItems": claimBearingCount, "maxItems": claimBearingCount,
+					},
 				},
-			},
-			"required": []string{"candidates"},
-			"additionalProperties": false,
+				"required": []string{"claim_free_candidates", "claim_bearing_candidates"},
+				"additionalProperties": false,
+			}
+		} else {
+			schema = map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"candidates": map[string]any{
+						"type": "array", "items": candidateItem(0, 3),
+						"minItems": candidateCount, "maxItems": candidateCount,
+					},
+				},
+				"required": []string{"candidates"},
+				"additionalProperties": false,
+			}
 		}
+
 	} else {
 		claimItem := map[string]any{
 			"type": "object",
@@ -224,11 +259,14 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	}
 
 	prompt := titleCandidatePrompt(req.WorldDate, req.BoardName)
-	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" || req.RemainingNeeded > 0 || req.PreferEraSafe || req.CandidateCount > 0 {
+	if req.RecentBBSState != "" || len(req.RecentSubjects) > 0 || len(req.AvoidSubjects) > 0 || len(req.HistoricalFacts) > 0 || req.EraRules != "" || req.RemainingNeeded > 0 || req.PreferEraSafe || req.CandidateCount > 0 || req.VerifiedReferentTarget > 0 || req.ClaimBearingCandidateTarget > 0 {
 		prompt = contextualTitleCandidatePrompt(req)
 	}
 	if largePool {
 		prompt += "\n- この出力では、各candidateのtitleとhistorical_claimsは同じオブジェクト内にあります。claimを別候補へずらしたり、候補番号で参照したりしないでください。\n"
+		if claimBearingCount > 0 {
+			prompt += fmt.Sprintf("- schema上、claim_free_candidatesは%d件でhistorical_claims=0件、claim_bearing_candidatesは%d件でhistorical_claims>=1件に固定されています。両者の意味を入れ替えないでください。\n", claimFreeCount, claimBearingCount)
+		}
 	}
 	maxOutputTokens := 3200
 	if candidateCount > 20 {
@@ -241,23 +279,33 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 
 	var draft BBSTitleCandidates
 	if largePool {
+		type nestedCandidate struct {
+			Title string `json:"title"`
+			HistoricalClaims []struct {
+				Subject string `json:"subject"`
+				Kind string `json:"kind"`
+				Need string `json:"need"`
+			} `json:"historical_claims"`
+		}
 		var nested struct {
-			Candidates []struct {
-				Title string `json:"title"`
-				HistoricalClaims []struct {
-					Subject string `json:"subject"`
-					Kind string `json:"kind"`
-					Need string `json:"need"`
-				} `json:"historical_claims"`
-			} `json:"candidates"`
+			Candidates []nestedCandidate `json:"candidates"`
+			ClaimFreeCandidates []nestedCandidate `json:"claim_free_candidates"`
+			ClaimBearingCandidates []nestedCandidate `json:"claim_bearing_candidates"`
 		}
 		if err := json.Unmarshal([]byte(result.Text), &nested); err != nil {
 			return draft, err
 		}
-		if len(nested.Candidates) != candidateCount {
-			return draft, fmt.Errorf("title pool: got %d candidates, want %d", len(nested.Candidates), candidateCount)
+		items := nested.Candidates
+		if claimBearingCount > 0 {
+			if len(nested.ClaimFreeCandidates) != claimFreeCount || len(nested.ClaimBearingCandidates) != claimBearingCount {
+				return draft, fmt.Errorf("title pool partition: claim-free=%d/%d claim-bearing=%d/%d", len(nested.ClaimFreeCandidates), claimFreeCount, len(nested.ClaimBearingCandidates), claimBearingCount)
+			}
+			items = append(append([]nestedCandidate(nil), nested.ClaimFreeCandidates...), nested.ClaimBearingCandidates...)
 		}
-		for i, item := range nested.Candidates {
+		if len(items) != candidateCount {
+			return draft, fmt.Errorf("title pool: got %d candidates, want %d", len(items), candidateCount)
+		}
+		for i, item := range items {
 			draft.Titles = append(draft.Titles, item.Title)
 			for _, claim := range item.HistoricalClaims {
 				draft.HistoricalClaims = append(draft.HistoricalClaims, BBSTitleHistoricalClaim{
@@ -268,6 +316,7 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 				})
 			}
 		}
+
 	} else if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
 		return draft, err
 	}

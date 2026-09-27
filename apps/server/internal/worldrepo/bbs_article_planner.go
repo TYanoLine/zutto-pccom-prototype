@@ -242,6 +242,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
 	adopted := map[string]bbsengine.PlannedPost{}
 	verifiedClaimEvents := map[string]bool{}
+	verifiedReferentTarget := verifiedReferentTargetForBoard(len(rootSlots), req.Board.VerifiedReferentRate)
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
 	// topic menu. Supplying the whole bootstrap catalog here strongly biases broad
@@ -261,17 +262,24 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		var err error
 		poolStarted := time.Now()
 		if hasContextual {
+			claimCandidateTarget := claimBearingCandidateTarget(
+				verifiedReferentTarget-len(verifiedClaimEvents),
+				sharedTitlePoolTargetSize,
+				len(remaining),
+			)
 			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
-				WorldDate:       worldDate,
-				BoardName:       req.Board.Name,
-				BoardScope:      req.Board.SemanticScope,
-				RecentBBSState:  recentState,
-				RecentSubjects:  recentSubjects,
-				AvoidSubjects:   avoid,
-				HistoricalFacts: historicalFacts,
-				EraRules:        materializer.eraRules(),
-				RemainingNeeded: len(remaining),
-				CandidateCount:  sharedTitlePoolTargetSize,
+				WorldDate:                   worldDate,
+				BoardName:                   req.Board.Name,
+				BoardScope:                  req.Board.SemanticScope,
+				RecentBBSState:              recentState,
+				RecentSubjects:              recentSubjects,
+				AvoidSubjects:               avoid,
+				HistoricalFacts:             historicalFacts,
+				EraRules:                    materializer.eraRules(),
+				RemainingNeeded:             len(remaining),
+				CandidateCount:              sharedTitlePoolTargetSize,
+				VerifiedReferentTarget:      verifiedReferentTarget,
+				ClaimBearingCandidateTarget: claimCandidateTarget,
 			})
 		} else {
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
@@ -289,7 +297,23 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			continue
 		}
 		dominantLeads := dominantTitleLeadKeys(titles)
-		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads)
+		cachedVerifiedClaims := map[string]bool{}
+		cacheProbeStarted := time.Now()
+		cacheProbes := 0
+		for _, title := range titles {
+			claims := historicalClaimsForTitle(pool, title)
+			if len(claims) == 0 {
+				continue
+			}
+			cacheProbes++
+			if outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, title, claims); outcome.status == "verified" {
+				cachedVerifiedClaims[title] = true
+			}
+		}
+		if cacheProbes > 0 {
+			log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), verifiedReferentTarget)
+		}
+		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads, cachedVerifiedClaims)
 		claimingCandidates := 0
 		dominantCandidates := 0
 		deFrameCandidates := 0
@@ -343,10 +367,14 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						bonus -= .03
 					}
 					if len(historicalClaimsForTitle(pool, title)) > 0 {
-						// A small preference keeps verified period/local texture from
-						// disappearing entirely behind the claim-free reserve. Historical
-						// verification still remains mandatory before adoption.
-						bonus += .08
+						// Prefer already-verified referents strongly enough to survive
+						// ranking, while unverified claims get only a small nudge. Neither
+						// bonus can rescue a candidate below the semantic fit floor.
+						if cachedVerifiedClaims[title] {
+							bonus += .18
+						} else if len(verifiedClaimEvents) < verifiedReferentTarget {
+							bonus += .03
+						}
 					}
 					qualityBonus[candidate] = bonus
 					for _, event := range fitEvents {
@@ -564,7 +592,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			temporalFailures++
 		}
 	}
-	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), dominantFinal, deFrameFinal, temporalFailures)
+	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d verified_claim_target=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), verifiedReferentTarget, verifiedReferentTarget == 0 || len(verifiedClaimEvents) >= verifiedReferentTarget, dominantFinal, deFrameFinal, temporalFailures)
 
 	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
 	for _, slot := range rootSlots {
@@ -648,40 +676,127 @@ func inferredNamedStationClaims(candidate int, title string) []llm.BBSTitleHisto
 	return out
 }
 
-func orderTitleCandidatesForQuality(pool llm.BBSTitleCandidates, titles []string, dominant map[string]bool) []string {
-	// The generator often emits related surface frames in contiguous runs. Jev
-	// evaluates bounded 20-title chunks, so preserving that raw order can make a
-	// diverse 100-title pool collapse into a repetitive adopted subset. Round-robin
-	// four quality buckets before fit: non-dominant/dominant × claim-free/claiming.
-	buckets := make([][]string, 4)
+func orderTitleCandidatesForQuality(pool llm.BBSTitleCandidates, titles []string, dominant map[string]bool, preferredClaims map[string]bool) []string {
+	// Preserve the generated claim-free/claim-bearing ratio while spreading
+	// claim-bearing candidates through the 20-title Jev chunks. The previous
+	// four-bucket round-robin accidentally turned a 20% claim pool into roughly
+	// 50% claim traffic and caused avoidable synchronous research.
+	type groups struct {
+		nonDominant []string
+		dominant    []string
+	}
+	free := groups{}
+	claim := groups{}
+	preferred := groups{}
 	for _, title := range titles {
-		claiming := len(historicalClaimsForTitle(pool, title)) > 0
 		dominantLead := titleHasDominantLead(title, dominant)
-		idx := 0
-		if claiming {
-			idx++
+		if preferredClaims[title] {
+			if dominantLead {
+				preferred.dominant = append(preferred.dominant, title)
+			} else {
+				preferred.nonDominant = append(preferred.nonDominant, title)
+			}
+			continue
+		}
+		if len(historicalClaimsForTitle(pool, title)) > 0 {
+			if dominantLead {
+				claim.dominant = append(claim.dominant, title)
+			} else {
+				claim.nonDominant = append(claim.nonDominant, title)
+			}
+			continue
 		}
 		if dominantLead {
-			idx += 2
+			free.dominant = append(free.dominant, title)
+		} else {
+			free.nonDominant = append(free.nonDominant, title)
 		}
-		buckets[idx] = append(buckets[idx], title)
 	}
-	out := make([]string, 0, len(titles))
-	for len(out) < len(titles) {
-		progress := false
-		for i := range buckets {
-			if len(buckets[i]) == 0 {
-				continue
+
+	alternate := func(g groups) []string {
+		out := make([]string, 0, len(g.nonDominant)+len(g.dominant))
+		for len(g.nonDominant) > 0 || len(g.dominant) > 0 {
+			if len(g.nonDominant) > 0 {
+				out = append(out, g.nonDominant[0])
+				g.nonDominant = g.nonDominant[1:]
 			}
-			out = append(out, buckets[i][0])
-			buckets[i] = buckets[i][1:]
-			progress = true
+			if len(g.dominant) > 0 {
+				out = append(out, g.dominant[0])
+				g.dominant = g.dominant[1:]
+			}
 		}
-		if !progress {
-			break
+		return out
+	}
+	freeTitles := alternate(free)
+	claimTitles := append(alternate(preferred), alternate(claim)...)
+	total := len(freeTitles) + len(claimTitles)
+	out := make([]string, 0, total)
+	fi, ci, accumulator := 0, 0, 0
+	for len(out) < total {
+		useClaim := false
+		if ci < len(claimTitles) {
+			if fi >= len(freeTitles) {
+				useClaim = true
+			} else {
+				accumulator += len(claimTitles)
+				if accumulator >= total {
+					useClaim = true
+					accumulator -= total
+				}
+			}
 		}
+		if useClaim {
+			out = append(out, claimTitles[ci])
+			ci++
+			continue
+		}
+		if fi < len(freeTitles) {
+			out = append(out, freeTitles[fi])
+			fi++
+			continue
+		}
+		out = append(out, claimTitles[ci])
+		ci++
 	}
 	return out
+}
+
+func verifiedReferentTargetForBoard(rootCount int, rate float64) int {
+	if rootCount <= 0 || rate <= 0 {
+		return 0
+	}
+	target := int(float64(rootCount) * rate)
+	if float64(target) < float64(rootCount)*rate {
+		target++
+	}
+	if target < 1 {
+		target = 1
+	}
+	if target > rootCount {
+		target = rootCount
+	}
+	return target
+}
+
+func claimBearingCandidateTarget(verifiedDeficit, candidateCount, remainingNeeded int) int {
+	if verifiedDeficit <= 0 || candidateCount <= 0 {
+		return 0
+	}
+	target := verifiedDeficit * 4
+	if target < 20 && candidateCount >= 40 {
+		target = 20
+	}
+	maxClaims := candidateCount - remainingNeeded
+	if maxClaims < 0 {
+		maxClaims = 0
+	}
+	if target > maxClaims {
+		target = maxClaims
+	}
+	if target > candidateCount {
+		target = candidateCount
+	}
+	return target
 }
 
 func dominantTitleLeadKeys(titles []string) map[string]bool {
