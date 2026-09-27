@@ -283,4 +283,9 @@ func TestLargeTitlePoolStructurallySeparatesClaimFreeAndClaimBearingCandidates(t
 	if !strings.Contains(prompt, "claim_free_candidatesは80件") || !strings.Contains(prompt, "claim_bearing_candidatesは20件") {
 		t.Fatalf("partition contract missing from prompt:\n%s", prompt)
 	}
+	for _, want := range []string{"識別可能な一つの実在固有対象", "title 本文に明記", "福岡市内の病院", "一般カテゴリや広域地名だけではspecific referent目標を満たしません"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("specific-referent contract missing %q:\n%s", want, prompt)
+		}
+	}
 }

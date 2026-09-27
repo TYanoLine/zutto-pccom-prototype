@@ -956,6 +956,45 @@ func TestTitleBatchNaturalnessCapsDominantOpeningFrames(t *testing.T) {
 }
 
 
+func TestTitleHasVisibleSpecificReferentRejectsGenericResearchAbstractions(t *testing.T) {
+	tests := []struct {
+		title string
+		claims []llm.BBSTitleHistoricalClaim
+		want bool
+	}{
+		{
+			title: "博多駅の待ち合わせ場所",
+			claims: []llm.BBSTitleHistoricalClaim{{Subject: "博多駅", Kind: "general", Need: "存在確認"}},
+			want: true,
+		},
+		{
+			title: "大濠公園を一周",
+			claims: []llm.BBSTitleHistoricalClaim{{Subject: "大濠公園", Kind: "general", Need: "存在確認"}},
+			want: true,
+		},
+		{
+			title: "休日に診てもらえる病院",
+			claims: []llm.BBSTitleHistoricalClaim{{Subject: "福岡市内の病院", Kind: "general", Need: "存在確認"}},
+			want: false,
+		},
+		{
+			title: "地下鉄で天神まで",
+			claims: []llm.BBSTitleHistoricalClaim{{Subject: "福岡市内の地下鉄", Kind: "general", Need: "存在確認"}},
+			want: false,
+		},
+		{
+			title: "福岡のこと",
+			claims: []llm.BBSTitleHistoricalClaim{{Subject: "福岡", Kind: "general", Need: "存在確認"}},
+			want: false,
+		},
+	}
+	for _, tc := range tests {
+		if got := titleHasVisibleSpecificReferent(tc.title, tc.claims); got != tc.want {
+			t.Fatalf("title=%q claims=%+v got=%t want=%t", tc.title, tc.claims, got, tc.want)
+		}
+	}
+}
+
 func TestClaimFreeAdoptionAllowedReservesSpecificitySlots(t *testing.T) {
 	if !claimFreeAdoptionAllowed(6, 4, 5) {
 		t.Fatal("six unfilled slots should still allow one claim-free adoption with one verified referent missing")

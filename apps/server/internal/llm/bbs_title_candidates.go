@@ -127,7 +127,7 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 季節・祝日・「今日」「今週末」など割当先の日付に依存する語は、後段で各投稿枠のcreated_atと照合されます。候補の多様化目的だけで季節語を混ぜず、その時期に置かれて自然な題材としてのみ使うこと。
 `
 		if req.ClaimBearingCandidateTarget > 0 {
-			prompt += fmt.Sprintf("\n- この板では最終的に約%d件のverified specific referentを残す品質目標があります。出力schemaがclaim_free_candidatesとclaim_bearing_candidatesを分離し、claim_bearing_candidatesは正確に%d件を要求します。claim-bearing側は広域地名だけではなく、その板で自然な具体的実在対象を含め、各候補に少なくとも1件のhistorical_claimsを必ず付けてください。claim-free側へ実在固有名詞を逃がして数合わせしないでください。\n", req.VerifiedReferentTarget, req.ClaimBearingCandidateTarget)
+			prompt += fmt.Sprintf("\n- この板では最終的に約%d件のverified specific referentを残す品質目標があります。出力schemaがclaim_free_candidatesとclaim_bearing_candidatesを分離し、claim_bearing_candidatesは正確に%d件を要求します。claim-bearing側は、識別可能な一つの実在固有対象（例: 大濠公園、博多駅、福岡市博物館、岩田屋のように名称だけで対象を特定できる場所・施設・店・路線・製品・作品等）を title 本文に明記し、その同じ固有名を historical_claims[].subject に入れてください。「福岡市内の病院」「市内の書店」「近所の店」「公共駐車場」「地下鉄」「タクシー」のような一般カテゴリや広域地名だけではspecific referent目標を満たしません。claim-bearing側をそのようなカテゴリ語で数合わせしないでください。claim-free側へ実在固有名詞を逃がして数合わせしないでください。\n", req.VerifiedReferentTarget, req.ClaimBearingCandidateTarget)
 		}
 	}
 	return prompt + string(payload)

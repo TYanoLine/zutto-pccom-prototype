@@ -241,7 +241,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 
 	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
 	adopted := map[string]bbsengine.PlannedPost{}
-	verifiedClaimEvents := map[string]bool{}
+	verifiedSpecificReferentEvents := map[string]bool{}
 	verifiedReferentTarget := verifiedReferentTargetForBoard(len(rootSlots), req.Board.VerifiedReferentRate)
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
@@ -263,7 +263,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		poolStarted := time.Now()
 		if hasContextual {
 			claimCandidateTarget := claimBearingCandidateTarget(
-				verifiedReferentTarget-len(verifiedClaimEvents),
+				verifiedReferentTarget-len(verifiedSpecificReferentEvents),
 				sharedTitlePoolTargetSize,
 				len(remaining),
 			)
@@ -307,7 +307,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			}
 			cacheProbes++
 			if outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, title, claims); outcome.status == "verified" {
-				cachedVerifiedClaims[title] = true
+				if titleHasVisibleSpecificReferent(title, claims) {
+					cachedVerifiedClaims[title] = true
+				}
 			}
 		}
 		if cacheProbes > 0 {
@@ -372,7 +374,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						// bonus can rescue a candidate below the semantic fit floor.
 						if cachedVerifiedClaims[title] {
 							bonus += .18
-						} else if len(verifiedClaimEvents) < verifiedReferentTarget {
+						} else if len(verifiedSpecificReferentEvents) < verifiedReferentTarget {
 							bonus += .03
 						}
 					}
@@ -458,7 +460,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					// This prevents an otherwise good claim-free ranking from filling
 					// the last slots and stranding the board one referent short.
 					unfilledAfterPriorFree := len(remaining) - claimFreeAdoptedThisRound
-					if !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedClaimEvents), verifiedReferentTarget) {
+					if !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedSpecificReferentEvents), verifiedReferentTarget) {
 						continue
 					}
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
@@ -492,7 +494,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					case "verified":
 						d := researchDecision[job.candidate]
 						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
-						verifiedClaimEvents[d.EventID] = true
+						if titleHasVisibleSpecificReferent(job.title, job.claims) {
+							verifiedSpecificReferentEvents[d.EventID] = true
+						}
 						cacheHits++
 					case "ng":
 						cacheNG++
@@ -549,7 +553,16 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 							continue
 						}
 						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
-						verifiedClaimEvents[d.EventID] = true
+						job := researchJobs[0]
+						for _, candidateJob := range queuedJobs {
+							if candidateJob.candidate == id {
+								job = candidateJob
+								break
+							}
+						}
+						if titleHasVisibleSpecificReferent(job.title, job.claims) {
+							verifiedSpecificReferentEvents[d.EventID] = true
+						}
 					}
 				} else {
 					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=0s jobs=%d queued_background=%d skipped_wait=%t", req.Host.ID, req.Board.ID, attempt+1, len(researchJobs), len(queuedJobs), remainingResearch <= 0)
@@ -603,10 +616,10 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			temporalFailures++
 		}
 	}
-	specificityPass := verifiedReferentTarget == 0 || len(verifiedClaimEvents) >= verifiedReferentTarget
-	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d verified_claim_target=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), verifiedReferentTarget, specificityPass, dominantFinal, deFrameFinal, temporalFailures)
+	specificityPass := verifiedReferentTarget == 0 || len(verifiedSpecificReferentEvents) >= verifiedReferentTarget
+	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_specific_roots=%d verified_specific_target=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedSpecificReferentEvents), verifiedReferentTarget, specificityPass, dominantFinal, deFrameFinal, temporalFailures)
 	if !specificityPass {
-		return nil, fmt.Errorf("title quality gate: verified referent roots=%d, want at least %d", len(verifiedClaimEvents), verifiedReferentTarget)
+		return nil, fmt.Errorf("title quality gate: verified referent roots=%d, want at least %d", len(verifiedSpecificReferentEvents), verifiedReferentTarget)
 	}
 	if temporalFailures > 0 {
 		return nil, fmt.Errorf("title quality gate: %d adopted titles conflict with their assigned slot date", temporalFailures)
@@ -692,6 +705,60 @@ func inferredNamedStationClaims(candidate int, title string) []llm.BBSTitleHisto
 		})
 	}
 	return out
+}
+
+func titleHasVisibleSpecificReferent(title string, claims []llm.BBSTitleHistoricalClaim) bool {
+	normalize := func(s string) string {
+		var b strings.Builder
+		for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+			if unicode.IsSpace(r) || strings.ContainsRune("！？?!。、・「」『』（）()[]【】〜～・", r) {
+				continue
+			}
+			b.WriteRune(r)
+		}
+		return b.String()
+	}
+	titleKey := normalize(title)
+	if titleKey == "" {
+		return false
+	}
+	broadOnly := map[string]bool{
+		"福岡": true, "福岡市": true, "博多": true, "天神": true,
+	}
+	genericPhrases := []string{
+		"市内の", "市内で", "近所の", "近所で", "地域の", "地域で",
+		"周辺の", "周辺で", "公共の", "一般の",
+	}
+	genericOnly := map[string]bool{
+		"地下鉄": true, "バス": true, "路線バス": true, "タクシー": true,
+		"病院": true, "医院": true, "図書館": true, "駐車場": true,
+		"駐輪場": true, "書店": true, "本屋": true, "郵便局": true,
+		"薬局": true, "銀行": true, "商店街": true, "公園": true,
+	}
+	for _, claim := range claims {
+		subject := strings.TrimSpace(claim.Subject)
+		key := normalize(subject)
+		if key == "" || broadOnly[key] || genericOnly[key] {
+			continue
+		}
+		generic := false
+		for _, phrase := range genericPhrases {
+			if strings.Contains(subject, phrase) {
+				generic = true
+				break
+			}
+		}
+		if generic {
+			continue
+		}
+		// The referent must be visible in the actual BBS subject. A broad
+		// research abstraction such as "福岡市内の病院" must not satisfy the
+		// texture gate for a title like "休日に診てもらえる病院".
+		if strings.Contains(titleKey, key) {
+			return true
+		}
+	}
+	return false
 }
 
 func orderTitleCandidatesForQuality(pool llm.BBSTitleCandidates, titles []string, dominant map[string]bool, preferredClaims map[string]bool) []string {
