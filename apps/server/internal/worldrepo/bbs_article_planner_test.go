@@ -1054,3 +1054,69 @@ func TestSharedBBSPlannerPassesBoardTextureTargetsToGenerator(t *testing.T) {
 		t.Fatalf("claim-bearing candidate target=%d, want 20", renderer.lastContext.ClaimBearingCandidateTarget)
 	}
 }
+
+
+type debugHistoricalBypassEngine struct {
+	resolveCalls atomic.Int32
+}
+
+func (e *debugHistoricalBypassEngine) ResolveEvidence(_ context.Context, _ worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	e.resolveCalls.Add(1)
+	return worldengine.EvidenceDecision{Knowledge: historicalkb.KnowledgeResult{CanUse: false}}, nil
+}
+
+func TestSharedBBSPlannerDebugCanBypassHistoricalVerification(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := make([]string, 0, 20)
+	claims := make([]llm.BBSTitleHistoricalClaim, 0, 20)
+	for i := 1; i <= 20; i++ {
+		title := fmt.Sprintf("未検証の実在対象候補%02d", i)
+		titles = append(titles, title)
+		claims = append(claims, llm.BBSTitleHistoricalClaim{
+			Candidate: i,
+			Subject:   title,
+			Kind:      "product_availability",
+			Need:      "world dateまでの存在確認",
+		})
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles, historicalClaims: claims}
+	engine := &debugHistoricalBypassEngine{}
+	repo := New(base, engine, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	repo.SetDebugDisableBBSTitleHistoricalVerification(true)
+
+	slots := make([]bbsengine.Slot, 0, 3)
+	for i := 0; i < 3; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index:     i + 1,
+			Author:    fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host:     host,
+		Board:    world.Board{ID: "20/1", Name: "ＧＡＭＥ", VerifiedReferentRate: .10},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots:    slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != len(slots) {
+		t.Fatalf("planned=%d, want %d", len(planned), len(slots))
+	}
+	if got := engine.resolveCalls.Load(); got != 0 {
+		t.Fatalf("historical evidence calls=%d, want 0 while debug bypass is enabled", got)
+	}
+	if renderer.lastContext.VerifiedReferentTarget != 0 || renderer.lastContext.ClaimBearingCandidateTarget != 0 {
+		t.Fatalf("debug bypass still requested verified-referent quota: verified=%d claim_target=%d", renderer.lastContext.VerifiedReferentTarget, renderer.lastContext.ClaimBearingCandidateTarget)
+	}
+	for _, post := range planned {
+		if !strings.HasPrefix(post.Subject, "未検証の実在対象候補") {
+			t.Fatalf("claim-bearing title was not adopted under debug bypass: %+v", post)
+		}
+	}
+}
