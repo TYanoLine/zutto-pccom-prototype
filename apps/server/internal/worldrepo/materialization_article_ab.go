@@ -19,12 +19,10 @@ func (r *Repository) MaterializationArticleWorkerABInput(host world.Host, board 
 	if !found {
 		return BoardMaterializationRequest{}, worldengine.EvidenceDecision{}, world.Post{}, fmt.Errorf("post not found")
 	}
-	if developmentInteractiveTitleFirstEnabled(r) {
-		var err error
-		selected, _, err = r.materializeInteractiveTitleArticleDetails(host, board, selected)
-		if err != nil {
-			return BoardMaterializationRequest{}, worldengine.EvidenceDecision{}, selected, err
-		}
+	var err error
+	selected, _, err = r.materializeArticleDetails(host, board, selected)
+	if err != nil {
+		return BoardMaterializationRequest{}, worldengine.EvidenceDecision{}, selected, err
 	}
 	if r.Engine == nil {
 		return BoardMaterializationRequest{}, worldengine.EvidenceDecision{}, selected, fmt.Errorf("world engine unavailable")

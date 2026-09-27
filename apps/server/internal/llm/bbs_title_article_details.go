@@ -154,6 +154,7 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 		if len(article.Details) > 2 {
 			return fmt.Errorf("article %q needs 0-2 details", article.EventID)
 		}
+		seenFacts := map[string]bool{}
 		for _, detail := range article.Details {
 			kind := strings.TrimSpace(detail.Kind)
 			fact := strings.TrimSpace(detail.Fact)
@@ -166,6 +167,11 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			if fact == strings.TrimSpace(seed.Subject) || fact == strings.TrimSpace(seed.Summary) || articleDetailLooksEditorial(fact) {
 				return fmt.Errorf("article %q detail is only a restatement/editorial instruction: %q", article.EventID, fact)
 			}
+			normalizedFact := strings.ToLower(strings.Join(strings.Fields(fact), " "))
+			if seenFacts[normalizedFact] {
+				return fmt.Errorf("article %q has duplicate detail fact %q", article.EventID, fact)
+			}
+			seenFacts[normalizedFact] = true
 			if ArticleDetailFactIsRenderingMetadata(fact) {
 				return fmt.Errorf("article %q detail leaked article-header/rendering metadata: %q", article.EventID, fact)
 			}

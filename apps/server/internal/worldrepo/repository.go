@@ -10,6 +10,7 @@ import (
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/hostprogram"
+	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
 )
@@ -41,12 +42,13 @@ type BoardMaterializationRequest struct {
 }
 
 type Repository struct {
-	Base         world.Store
-	Engine       EvidenceResolver
-	Materializer Materializer
-	WorldDate    string
-	worldNow     func() time.Time
-	bbsArticles  *bbsengine.Engine
+	Base                 world.Store
+	Engine               EvidenceResolver
+	Materializer         Materializer
+	ArticleDetailPlanner llm.BBSTitleArticleDetailPlanner
+	WorldDate            string
+	worldNow             func() time.Time
+	bbsArticles          *bbsengine.Engine
 
 	mu                     sync.Mutex
 	materialized           map[string]bool
@@ -69,6 +71,7 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		Base:                   base,
 		Engine:                 engine,
 		Materializer:           materializer,
+		ArticleDetailPlanner:   articleDetailPlannerFromMaterializer(materializer),
 		WorldDate:              worldDate,
 		worldNow:               func() time.Time { return worldTime(worldDate) },
 		materialized:           map[string]bool{},
@@ -90,6 +93,27 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		return bbsengine.ReplyRepresentation{ParentID: projected.ParentID, Subject: projected.Subject}, nil
 	})
 	return r
+}
+
+func articleDetailPlannerFromMaterializer(materializer Materializer) llm.BBSTitleArticleDetailPlanner {
+	switch value := materializer.(type) {
+	case LLMMaterializer:
+		planner, _ := value.Renderer.(llm.BBSTitleArticleDetailPlanner)
+		return planner
+	case *LLMMaterializer:
+		if value != nil {
+			planner, _ := value.Renderer.(llm.BBSTitleArticleDetailPlanner)
+			return planner
+		}
+	}
+	return nil
+}
+
+// SetArticleDetailPlanner explicitly wires the shared article detail capability.
+func (r *Repository) SetArticleDetailPlanner(planner llm.BBSTitleArticleDetailPlanner) {
+	if r != nil {
+		r.ArticleDetailPlanner = planner
+	}
 }
 
 // SetWorldNow supplies the mapped 1996 world clock used by background

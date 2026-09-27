@@ -48,6 +48,10 @@ func (r *Repository) MaterializationArticleWithDebugTimeout(host world.Host, boa
 }
 
 func (r *Repository) materializeArticleBodyOnceWithTimeout(host world.Host, board world.Board, selected world.Post, timeout time.Duration) (world.Post, bool, bool, string) {
+	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(host, board, selected)
+	if detailErr != nil {
+		return selected, true, false, detailDiagnostic
+	}
 	renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(selected.ID)
@@ -114,7 +118,7 @@ func (r *Repository) materializeArticleBodyOnceWithTimeout(host world.Host, boar
 	if usage.TotalTokens > 0 || usage.Model != "" {
 		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
 	}
-	diagnostic := joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
+	diagnostic := joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
 			return updated, true, true, diagnostic

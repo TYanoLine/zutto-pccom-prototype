@@ -1,13 +1,92 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"zutto-pccom/apps/server/internal/historicalkb"
+	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/worldengine"
+	"zutto-pccom/apps/server/internal/worldrepo"
 )
+
+type sharedFreshArticleProvider struct{ detailCalls, bodyCalls int }
+
+func (p *sharedFreshArticleProvider) MaterializeBBSTitleArticleDetails(_ context.Context, req llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
+	p.detailCalls++
+	articles := make([]llm.BBSTitleArticleDetailSet, 0, len(req.Articles))
+	for _, article := range req.Articles {
+		articles = append(articles, llm.BBSTitleArticleDetailSet{EventID: article.EventID, Details: []llm.BBSArticleDetail{{Kind: "observation", Fact: "画面の右端に短い表示が残った"}}})
+	}
+	return llm.BBSTitleArticleDetailDraft{Articles: articles}, nil
+}
+
+func (p *sharedFreshArticleProvider) GenerateBoardPost(_ context.Context, req llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+	p.bodyCalls++
+	return llm.BoardPostDraft{Author: req.AuthorHandle, Subject: req.CanonicalSubject, Body: "本文を確認しました。"}, nil
+}
+
+type sharedFreshArticleEvidence struct{}
+
+func (sharedFreshArticleEvidence) ResolveEvidence(context.Context, worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
+	return worldengine.EvidenceDecision{Level: historicalkb.EvidenceAtmospheric, Knowledge: historicalkb.KnowledgeResult{CanUse: true}}, nil
+}
+
+func TestNormalReadAndFreshLabUseSameArticleDetailPipeline(t *testing.T) {
+	provider := &sharedFreshArticleProvider{}
+	materializer := worldrepo.LLMMaterializer{Renderer: provider}
+	lab := newMaterializationLab(nil, sharedFreshArticleEvidence{}, materializer, "1996-08-29", "")
+	if lab.detailPlanner == nil {
+		t.Fatal("Lab did not retain the shared Article Detail planner capability")
+	}
+
+	type readPath struct {
+		name string
+		read func(*worldrepo.Repository, world.Host, world.Board, int64) (world.Post, bool, bool, string)
+	}
+	paths := []readPath{
+		{name: "normal", read: func(repo *worldrepo.Repository, host world.Host, board world.Board, id int64) (world.Post, bool, bool, string) {
+			return repo.MaterializationArticleWithDebug(host, board, id)
+		}},
+		{name: "fresh-lab-isolated-copy", read: func(repo *worldrepo.Repository, host world.Host, board world.Board, id int64) (world.Post, bool, bool, string) {
+			return repo.MaterializationArticleWithDebugTimeout(host, board, id, time.Second)
+		}},
+	}
+	for _, path := range paths {
+		t.Run(path.name, func(t *testing.T) {
+			store := world.NewMemoryStore()
+			host, err := store.HostByPhone("0450000196")
+			if err != nil {
+				t.Fatal(err)
+			}
+			board := world.Board{ID: "main", Name: "雑談"}
+			post := store.AddPost(host.ID, world.Post{BoardID: board.ID, Author: "MARI", Subject: "画面の表示", Intent: world.PostIntent{SituationSummary: "表示を見た"}})
+			repo := worldrepo.New(store, sharedFreshArticleEvidence{}, materializer, "1996-08-29")
+			repo.SetArticleDetailPlanner(lab.detailPlanner)
+			got, found, created, diagnostic := path.read(repo, host, board, post.ID)
+			if !found || !created || got.Body == "" || !got.Intent.ArticleDetailsMaterialized || strings.Contains(diagnostic, "error stage=") {
+				t.Fatalf("shared article read failed: post=%+v diagnostic=%s", got, diagnostic)
+			}
+			detailCount := 0
+			for _, fact := range got.Intent.SituationFacts {
+				if strings.HasPrefix(fact, "article_detail=") {
+					detailCount++
+				}
+			}
+			if detailCount != 1 {
+				t.Fatalf("detail was not persisted through shared pipeline: %+v", got.Intent.SituationFacts)
+			}
+		})
+	}
+	if provider.detailCalls != 2 || provider.bodyCalls != 2 {
+		t.Fatalf("normal/Lab provider calls detail=%d body=%d; want 2 each", provider.detailCalls, provider.bodyCalls)
+	}
+}
 
 func TestTopicFirstRejectsIncompatibleTextureBeforeAdmission(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/?action=start&situation_mode=topic-first&historical_texture=off", nil)

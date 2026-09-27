@@ -21,6 +21,17 @@ type flakyBoardObservationStore struct {
 	failures  int
 }
 
+type articleDetailFailureObservationStore struct{ *world.MemoryStore }
+
+func (s *articleDetailFailureObservationStore) WaitForArticleBody(_ context.Context, host world.Host, _ world.Board, postID int64) (world.Post, bool, error) {
+	for _, post := range s.ListPosts(host.ID) {
+		if post.ID == postID {
+			return post, true, fmt.Errorf("error stage=article-detail: planner unavailable")
+		}
+	}
+	return world.Post{}, false, nil
+}
+
 func (s *flakyBoardObservationStore) BeginHostObservation(world.Host, []world.Board) {}
 
 func (s *flakyBoardObservationStore) WaitForBoardHeaders(_ context.Context, host world.Host, board world.Board) ([]world.Post, error) {
@@ -47,7 +58,6 @@ func (s *noWaitObservationStore) WaitForBoardHeaders(_ context.Context, host wor
 func (s *noWaitObservationStore) WaitForArticleBody(context.Context, world.Host, world.Board, int64) (world.Post, bool, error) {
 	panic("article body wait is not expected in an index-navigation test")
 }
-
 
 func sampleRuntime(t *testing.T) (*Runtime, *world.MemoryStore) {
 	t.Helper()
@@ -359,7 +369,6 @@ func TestBare99IsNotAResetCommand(t *testing.T) {
 	}
 }
 
-
 func TestBoardByPathResolvesCanonicalLeaf(t *testing.T) {
 	board, ok := BoardByPath("70/1")
 	if !ok {
@@ -418,8 +427,6 @@ func TestBoardIndexFormatAndCommands(t *testing.T) {
 	}
 }
 
-
-
 func TestThreadShowsAppendLoadFailurePlaceholderInsteadOfBlankAppend(t *testing.T) {
 	runtime, store := sampleRuntime(t)
 	root := store.AddPost(runtime.Host.ID, world.Post{
@@ -439,5 +446,23 @@ func TestThreadShowsAppendLoadFailurePlaceholderInsteadOfBlankAppend(t *testing.
 	out := runtime.renderThread(root.ID)
 	if !strings.Contains(out, "(アペンドの読み込みに失敗しました)") {
 		t.Fatalf("blank append did not expose load failure placeholder: %q", out)
+	}
+}
+
+func TestThreadShowsAppendFailureWhenSharedDetailPipelineFails(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := &articleDetailFailureObservationStore{MemoryStore: base}
+	runtime := New(host, store)
+	root := base.AddPost(host.ID, world.Post{BoardID: "1", Author: "MARU", Subject: "セーブの場所", Body: "本文"})
+	base.AddPost(host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "MINT-Y", Subject: "", Body: ""})
+	runtime.boardPath = "1"
+
+	out := runtime.renderThread(root.ID)
+	if !strings.Contains(out, "セーブの場所") || !strings.Contains(out, "(アペンドの読み込みに失敗しました)") {
+		t.Fatalf("shared detail failure did not preserve the header and show host failure text: %q", out)
 	}
 }

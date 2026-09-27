@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
 	"zutto-pccom/apps/server/internal/worldrepo"
@@ -21,12 +22,13 @@ import (
 // the real materialization pipeline against the clone. OpenAI credentials stay
 // server-side on Render and no experiment write can reach the canonical store.
 type materializationLab struct {
-	store        debugExportStore
-	engine       worldrepo.EvidenceResolver
-	materializer worldrepo.Materializer
-	worldDate    string
-	token        string
-	freshArchive materializationFreshArchiveStore
+	store         debugExportStore
+	engine        worldrepo.EvidenceResolver
+	materializer  worldrepo.Materializer
+	detailPlanner llm.BBSTitleArticleDetailPlanner
+	worldDate     string
+	token         string
+	freshArchive  materializationFreshArchiveStore
 
 	mu     sync.Mutex
 	jobs   map[string]*materializationLabJob
@@ -35,20 +37,20 @@ type materializationLab struct {
 }
 
 type materializationLabJob struct {
-	ID          string                           `json:"id"`
-	Suite       string                           `json:"suite"`
-	Status      string                           `json:"status"`
-	Phone       string                           `json:"phone"`
-	Runs        int                              `json:"runs"`
-	TimeoutMS   int                              `json:"timeout_ms"`
-	PostIDs     []int64                          `json:"post_ids,omitempty"`
-	CreatedAt   time.Time                        `json:"created_at"`
-	StartedAt   time.Time                        `json:"started_at,omitempty"`
-	FinishedAt  time.Time                        `json:"finished_at,omitempty"`
-	Progress    materializationLabProgress       `json:"progress"`
-	Results     []materializationLabWorkerResult `json:"results,omitempty"`
-	Summary     materializationLabSummary        `json:"summary"`
-	Error       string                           `json:"error,omitempty"`
+	ID         string                           `json:"id"`
+	Suite      string                           `json:"suite"`
+	Status     string                           `json:"status"`
+	Phone      string                           `json:"phone"`
+	Runs       int                              `json:"runs"`
+	TimeoutMS  int                              `json:"timeout_ms"`
+	PostIDs    []int64                          `json:"post_ids,omitempty"`
+	CreatedAt  time.Time                        `json:"created_at"`
+	StartedAt  time.Time                        `json:"started_at,omitempty"`
+	FinishedAt time.Time                        `json:"finished_at,omitempty"`
+	Progress   materializationLabProgress       `json:"progress"`
+	Results    []materializationLabWorkerResult `json:"results,omitempty"`
+	Summary    materializationLabSummary        `json:"summary"`
+	Error      string                           `json:"error,omitempty"`
 }
 
 type materializationLabProgress struct {
@@ -57,20 +59,20 @@ type materializationLabProgress struct {
 }
 
 type materializationLabWorkerResult struct {
-	Run           int           `json:"run"`
-	PostID        int64         `json:"post_id"`
-	BoardID       string        `json:"board_id"`
-	Author        string        `json:"author"`
-	Subject       string        `json:"subject"`
-	Action        string        `json:"action"`
-	CauseKind     string        `json:"cause_kind"`
-	DurationMS    int64         `json:"duration_ms"`
-	Success       bool          `json:"success"`
-	Created       bool          `json:"created"`
-	BodyChars     int           `json:"body_chars"`
-	ErrorClass    string        `json:"error_class,omitempty"`
-	Diagnostic    string        `json:"diagnostic,omitempty"`
-	Usage         worldrepo.GenerationUsage `json:"usage,omitempty"`
+	Run        int                       `json:"run"`
+	PostID     int64                     `json:"post_id"`
+	BoardID    string                    `json:"board_id"`
+	Author     string                    `json:"author"`
+	Subject    string                    `json:"subject"`
+	Action     string                    `json:"action"`
+	CauseKind  string                    `json:"cause_kind"`
+	DurationMS int64                     `json:"duration_ms"`
+	Success    bool                      `json:"success"`
+	Created    bool                      `json:"created"`
+	BodyChars  int                       `json:"body_chars"`
+	ErrorClass string                    `json:"error_class,omitempty"`
+	Diagnostic string                    `json:"diagnostic,omitempty"`
+	Usage      worldrepo.GenerationUsage `json:"usage,omitempty"`
 }
 
 type materializationLabSummary struct {
@@ -90,16 +92,32 @@ type materializationLabSummary struct {
 
 func newMaterializationLab(store debugExportStore, engine worldrepo.EvidenceResolver, materializer worldrepo.Materializer, worldDate, token string) *materializationLab {
 	return &materializationLab{
-		store: store, engine: engine, materializer: materializer, worldDate: worldDate, token: token,
+		store: store, engine: engine, materializer: materializer, detailPlanner: detailPlannerFromMaterializer(materializer), worldDate: worldDate, token: token,
 		jobs: map[string]*materializationLabJob{},
 	}
+}
+
+func detailPlannerFromMaterializer(materializer worldrepo.Materializer) llm.BBSTitleArticleDetailPlanner {
+	switch value := materializer.(type) {
+	case worldrepo.LLMMaterializer:
+		planner, _ := value.Renderer.(llm.BBSTitleArticleDetailPlanner)
+		return planner
+	case *worldrepo.LLMMaterializer:
+		if value != nil {
+			planner, _ := value.Renderer.(llm.BBSTitleArticleDetailPlanner)
+			return planner
+		}
+	}
+	return nil
 }
 
 func (l *materializationLab) handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
-		if !labRequestAllowed(w, r) { return }
+		if !labRequestAllowed(w, r) {
+			return
+		}
 		action := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action")))
 		switch action {
 		case "start":
@@ -157,7 +175,9 @@ func (l *materializationLab) handleStart(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !publicLabAdmission.start(w, r, phone, runs) { return }
+	if !publicLabAdmission.start(w, r, phone, runs) {
+		return
+	}
 	l.mu.Lock()
 	id := fmt.Sprintf("lab-%d-%04d", time.Now().UTC().Unix(), atomic.AddUint64(&l.seq, 1)%10000)
 	job := &materializationLabJob{
@@ -313,7 +333,7 @@ func (l *materializationLab) snapshotForWorkerReplay(phone string, requested []i
 	}
 	snapshot := world.DevelopmentHostSnapshot{
 		SchemaVersion: world.DevelopmentHostSnapshotSchemaVersion,
-		Host: host, Boards: boards, Posts: posts, Personas: personas, PersonaFacts: facts,
+		Host:          host, Boards: boards, Posts: posts, Personas: personas, PersonaFacts: facts,
 		Memberships: memberships, NextPostID: maxID,
 	}
 	selected := make([]world.Post, 0, len(posts))

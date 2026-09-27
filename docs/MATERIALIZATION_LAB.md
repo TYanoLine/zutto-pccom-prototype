@@ -15,7 +15,8 @@ Vercelでは `/api/materialization-lab-fresh`。完了後は `/poc/materializati
 - 人物・投稿枠への割当はJevの適合確率を材料にWorld側コードが決定的に1候補1枠で行う。既存PersonaFactsと明確に矛盾する候補は低適合として採用しないが、既存Factsにないという理由だけで個人経験を一律拒否しない。採用summaryはタイトルから直接読み取れる最小限に限定し、Jevに新しい出来事を文章生成させない。
 - 採用が確定した時点で、タイトルとreview summaryがその投稿の `title_first` canonical world eventになる。**採用タイトルはそのまま実スレッドの件名として固定し、本文workerによる改題を許さない。** summaryはタイトルから直接読み取れる最小限の出来事だけを正本化し、タイトルにない機種・場所・原因・購入経路・進捗等は追加しない。本文workerはこの採用済みeventと既存Persona/BBS factsの範囲だけを文章化する。
 - title-first LABでは、新規rootは採用済みタイトルからだけ作る。既存rootの `continuation_progress` を独立した別rootへ昇格させず、候補一覧にない抽象件名を増やさない。採用rootにはWorld/Jevが選んだ返信機会から0〜3件のreplyだけを付ける。
-- title/persona/Era採用後にだけ専用Article Detail Materializerを実行し、採用記事ごとに記事ローカルの具体化情報を正本化する。detailは本文を豊かにする補助情報であり、detail生成に失敗しても採用済みタイトルそのものを取り消さない。20候補すべてにdetailを作らない。
+- title/persona/Era採用後にだけArticle Detail Materializerを実行し、採用記事ごとに記事ローカルの具体化情報を正本化する。detail生成に失敗しても採用済みタイトルそのものは残すが、その記事の本文生成は中断する。20候補すべてにdetailを作らない。
+- Article Detailの生成・検証・保存が再試行後も失敗した記事は本文生成を行わない。採用済み件名と記事意図は残り、detail完了状態は未完了のため次の閲覧で再試行できる。正常なdetail 0件は完了状態として保存する。
 - replyではrootのdetailを `source_article_detail` 等の `source_` namespaceへ移し、source authorの事実として扱う。返信者自身の購入・利用・開始・訪問・発見等へ一人称で継承してはならない。
 - 無矛盾の候補は原文保持。具体的矛盾・長さの補正のみ理由付きで認める。採用済みタイトルは本文workerで再生成・言い換えしない。LABの `accepted/corrected` 行は下段のrootスレッドへ1対1で対応し、そのroot本文はALLBODYで必ず文章化する。返信は親記事件名から `Re:` を作る。通常世界への書き戻しなし。
 - `title_candidates` に原文を含めてアーカイブする。理由空欄の判定はその候補だけ不採用。板のreview失敗はunreviewedとして残し、他の板を続行する。生成の再試行で候補を勝手に作り直さない。既存の開始制限・排他を共用。
@@ -48,6 +49,12 @@ Vercel経由では `/api/materialization-lab-fresh`。完了後は `/poc/materia
 
 各labは既存の開発ホストを独立したMemoryStoreへ複製し、その中で生成する。実験の記事・人物事実を保存済みデモ世界へ書き戻さない。OpenAIの認証情報はサーバー側に保持され、実際のproviderを使うため実行にはLLM利用が発生し得る。世界の正本や通常の世界進行スケジューラとして使わない。
 
+## 記事本文の共有具体化
+
+通常ホストの閲覧、開発用の直接確認、fresh Labは同じ共有記事具体化処理を呼び出す。Labが変えるのは入力データの隔離と実験条件であり、Article Detailの選択・検証・保存・本文生成の規則ではない。title-firstは上流で件名を選ぶ方式で、記事本文の具体化エンジンを切り替えるスイッチではない。
+
+`PostIntent.ArticleDetailsMaterialized` は詳細数と別に保存する。成功した0件応答も完了として固定し、planner不在、生成・検証失敗、保存失敗では本文を作らず、状態を未完了のまま残す。
+
 ## IFの使い分け
 
 パスの共通prefixは `/api/debug/`。
@@ -65,7 +72,7 @@ worker/randomの `timeout_ms` は既定35000、範囲5000–120000。
 
 freshの `situation_mode` は既定 `facets`。`facetless` はA/B実験専用で、手書きのsituation facet/occurrenceを事前選択せず、routing domain + discourse mode + 会話文脈だけからArticle Workerに小さな出来事を具体化させる。通常runtimeには影響しない。
 
-freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。**現在のfresh専用Repositoryでは `EnableDevelopmentConversationViewPoC()` を有効化し、host-wide semantic Producerを迂回する。** 世界層が決めた投稿者・日時・board・root/reply・source・routing domain・cause kind・discourse modeをshellとしてDBへ保存し、本文生成直前にthread本文、explicit source、同一人物の最近のcanonical投稿、related retrievalをDBから一時的な会話ビューとして再構成する。通常runtimeでも開発ホスト `0450000196` は Conversation View + title-first を有効化する。Web端末から `ATDT0450000196` で接続し、`B` で未生成Envelopeを計画、記事番号を開いてArticle Detail込み本文を遅延生成できる。傾向確認用の通常runtimeだけは、板を6種（フリートーク／パソコン通信・モデム／地域の話題／ゲーム／音楽／ソフトウェア）に広げ、最大120日の活動から1板最大24のworld-selected shellを選ぶ。title-firstは4 rootごとに独立した20候補poolを補充し、1回の候補偏りだけで大きな観察標本が空洞化しないようにする。これは開発ホストの観察用スケールであり、通常世界の投稿密度を20件固定する仕様ではない。fresh Labの `board_count` / `shell_limit` と14日活動窓・1板1候補poolは比較条件として従来どおり維持する。`ALLBODY` では全本文を一括生成でき、`RESET` 後はtitle-first候補・割当も新しいplanning passへ再初期化する。ほかのホストプログラムにはこの開発専用経路を適用しない。
+freshはホスト・人物・ボードを維持し、複製上の記事と遅延人物事実を消してから生成する。ホストや人物の初回生成自体の試験ではない。**現在のfresh専用Repositoryでは `EnableDevelopmentConversationViewPoC()` を有効化し、host-wide semantic Producerを迂回する。** 世界層が決めた投稿者・日時・board・root/reply・source・routing domain・cause kind・discourse modeをshellとしてDBへ保存し、本文生成直前にthread本文、explicit source、同一人物の最近のcanonical投稿、related retrievalをDBから一時的な会話ビューとして再構成する。通常runtimeでも開発ホスト `0450000196` は Conversation View + title-first を有効化する。Web端末から `ATDT0450000196` で接続し、`B` で未生成Envelopeを計画、記事番号を開いてArticle Detail込み本文を遅延生成できる。傾向確認用の通常runtimeだけは、板を6種（フリートーク／パソコン通信・モデム／地域の話題／ゲーム／音楽／ソフトウェア）に広げ、最大120日の活動から1板最大24のworld-selected shellを選ぶ。title-firstは4 rootごとに独立した20候補poolを補充し、1回の候補偏りだけで大きな観察標本が空洞化しないようにする。これは開発ホストの観察用スケールであり、通常世界の投稿密度を20件固定する仕様ではない。fresh Labの `board_count` / `shell_limit` と14日活動窓・1板1候補poolは比較条件として従来どおり維持する。`ALLBODY` では全本文を一括生成でき、`RESET` 後はtitle-first候補・割当も新しいplanning passへ再初期化する。ここで述べた開発専用設定は上流の活動・件名選定経路であり、ホストごとに共有記事具体化エンジンを切り替えるものではない。
 
 会話ビューPoCの設計意図と正本境界は [CONVERSATION_VIEW_POC.md](CONVERSATION_VIEW_POC.md) を参照。
 

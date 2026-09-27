@@ -14,10 +14,10 @@ import (
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/telephone"
+	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldcatalog"
 	"zutto-pccom/apps/server/internal/worldclock"
 	"zutto-pccom/apps/server/internal/worldengine"
-	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldrepo"
 	wsserver "zutto-pccom/apps/server/internal/ws"
 )
@@ -93,6 +93,7 @@ func main() {
 	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
 	openAIMaterializer := worldrepo.LLMMaterializer{Renderer: openAIRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
+	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetWorldNow(clock.Now)
 	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
@@ -278,13 +279,13 @@ func main() {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ok": true,
-			"phone": phone,
-			"host_id": host.ID,
+			"ok":                      true,
+			"phone":                   phone,
+			"host_id":                 host.ID,
 			"removed_generated_posts": removed,
-			"kept_posts": kept,
-			"kept": "seed/user history + boards + personas + host program configuration",
-			"next": "visit a board again to run a fresh shared-engine catch-up batch",
+			"kept_posts":              kept,
+			"kept":                    "seed/user history + boards + personas + host program configuration",
+			"next":                    "visit a board again to run a fresh shared-engine catch-up batch",
 		})
 	}
 
@@ -356,13 +357,13 @@ func main() {
 			}
 			runtimeStore.BeginHostObservation(host, []world.Board{board})
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"status": "started",
-				"phone": phone,
-				"host_id": host.ID,
-				"board_id": board.ID,
-				"board_name": board.Name,
+				"status":        "started",
+				"phone":         phone,
+				"host_id":       host.ID,
+				"board_id":      board.ID,
+				"board_name":    board.Name,
 				"removed_posts": removed,
-				"kept_posts": kept,
+				"kept_posts":    kept,
 			})
 			return
 		}
@@ -373,10 +374,10 @@ func main() {
 		}
 
 		type samplePost struct {
-			ID int64 `json:"id"`
-			Author string `json:"author"`
-			Subject string `json:"subject"`
-			ParentID int64 `json:"parent_id,omitempty"`
+			ID        int64     `json:"id"`
+			Author    string    `json:"author"`
+			Subject   string    `json:"subject"`
+			ParentID  int64     `json:"parent_id,omitempty"`
 			CreatedAt time.Time `json:"created_at"`
 		}
 		posts := make([]samplePost, 0)
@@ -398,14 +399,14 @@ func main() {
 			status = "completed"
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status": status,
-			"phone": phone,
-			"host_id": host.ID,
-			"board_id": board.ID,
+			"status":     status,
+			"phone":      phone,
+			"host_id":    host.ID,
+			"board_id":   board.ID,
 			"board_name": board.Name,
 			"post_count": len(posts),
 			"root_count": rootCount,
-			"posts": posts,
+			"posts":      posts,
 		})
 	}
 

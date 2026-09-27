@@ -20,13 +20,13 @@ type Host struct {
 }
 
 type Board struct {
-	ID                   string  `json:"id"`
-	Name                 string  `json:"name"`
-	SemanticScope        string  `json:"semantic_scope,omitempty"`
-	ActivityWeight       float64 `json:"activity_weight,omitempty"`
-	ReplyRate            float64 `json:"reply_rate,omitempty"`
-	RetainedRootCap      int     `json:"retained_root_cap,omitempty"`
-	OpenedOn             string  `json:"opened_on,omitempty"`
+	ID              string  `json:"id"`
+	Name            string  `json:"name"`
+	SemanticScope   string  `json:"semantic_scope,omitempty"`
+	ActivityWeight  float64 `json:"activity_weight,omitempty"`
+	ReplyRate       float64 `json:"reply_rate,omitempty"`
+	RetainedRootCap int     `json:"retained_root_cap,omitempty"`
+	OpenedOn        string  `json:"opened_on,omitempty"`
 	// VerifiedReferentRate is world/station content tuning, not a historical
 	// host-program default. When positive, title planning keeps this approximate
 	// share of roots available for historically verified named referents while
@@ -38,22 +38,22 @@ type Board struct {
 // It is deliberately prose-free: counts/timestamps may exist before any title
 // or article body has been materialized by an LLM.
 type BoardActivityState struct {
-	BoardID          string    `json:"board_id"`
-	AsOfDate         string    `json:"as_of_date"`
-	OpenedOn         string    `json:"opened_on"`
-	CurrentMembers   int       `json:"current_members"`
-	InitialMembers   int       `json:"initial_members"`
-	AverageMembers   float64   `json:"average_members"`
-	GrowthExponent   float64   `json:"growth_exponent"`
-	TotalRoots       int       `json:"total_roots"`
-	TotalReplies     int       `json:"total_replies"`
-	RetainedRoots    int       `json:"retained_roots"`
-	RetainedReplies  int       `json:"retained_replies"`
-	RetainedSince    time.Time `json:"retained_since"`
-	LastPostAt       time.Time `json:"last_post_at"`
-	ActivityWeight   float64   `json:"activity_weight"`
-	ReplyRate        float64   `json:"reply_rate"`
-	SimulationBasis  string    `json:"simulation_basis"`
+	BoardID         string    `json:"board_id"`
+	AsOfDate        string    `json:"as_of_date"`
+	OpenedOn        string    `json:"opened_on"`
+	CurrentMembers  int       `json:"current_members"`
+	InitialMembers  int       `json:"initial_members"`
+	AverageMembers  float64   `json:"average_members"`
+	GrowthExponent  float64   `json:"growth_exponent"`
+	TotalRoots      int       `json:"total_roots"`
+	TotalReplies    int       `json:"total_replies"`
+	RetainedRoots   int       `json:"retained_roots"`
+	RetainedReplies int       `json:"retained_replies"`
+	RetainedSince   time.Time `json:"retained_since"`
+	LastPostAt      time.Time `json:"last_post_at"`
+	ActivityWeight  float64   `json:"activity_weight"`
+	ReplyRate       float64   `json:"reply_rate"`
+	SimulationBasis string    `json:"simulation_basis"`
 }
 
 // PostIntent stores canonical semantic state for an actual post. Action,
@@ -84,6 +84,9 @@ type PostIntent struct {
 	SituationKind    string   `json:"situation_kind,omitempty"`
 	SituationSummary string   `json:"situation_summary,omitempty"`
 	SituationFacts   []string `json:"situation_facts,omitempty"`
+	// ArticleDetailsMaterialized distinguishes a successful empty detail set from
+	// an article whose detail pass has not completed yet.
+	ArticleDetailsMaterialized bool `json:"article_details_materialized,omitempty"`
 
 	Topic            string   `json:"topic,omitempty"`
 	Motivation       string   `json:"motivation,omitempty"`

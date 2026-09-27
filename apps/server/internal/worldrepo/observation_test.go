@@ -43,10 +43,10 @@ func (m *blockingObservationMaterializer) GenerateBoardPosts(ctx context.Context
 		body = "materialized body"
 	}
 	return []world.Post{{
-		BoardID:  req.BoardID,
-		Author:   "NPC",
-		Subject:  "materialized subject",
-		Body:     body,
+		BoardID:   req.BoardID,
+		Author:    "NPC",
+		Subject:   "materialized subject",
+		Body:      body,
 		CreatedAt: time.Date(1996, 8, 26, 20, 0, 0, 0, time.Local),
 	}}, nil
 }
@@ -55,6 +55,7 @@ func TestHostLookupDoesNotObserveOrGenerate(t *testing.T) {
 	base := world.NewMemoryStore()
 	materializer := &blockingObservationMaterializer{}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 
 	if _, err := repo.HostByPhone("0450000001"); err != nil {
 		t.Fatal(err)
@@ -74,6 +75,7 @@ func TestHostObservationStartsInBackgroundAndBoardReadWaits(t *testing.T) {
 		release: make(chan struct{}),
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 	host, err := repo.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +135,7 @@ func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
 		body:    "generated article body",
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 	host, err := repo.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +187,6 @@ func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
 		t.Fatalf("body materialization was duplicated: calls=%d", got)
 	}
 }
-
 
 type perBoardObservationMaterializer struct {
 	started chan string
@@ -261,7 +263,6 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 	close(materializer.release["a"])
 }
 
-
 func TestResetRearmsCompletedBoardObservation(t *testing.T) {
 	base := world.NewMemoryStore()
 	materializer := &blockingObservationMaterializer{}
@@ -335,7 +336,6 @@ func TestResetRefusesWhileBoardObservationIsRunning(t *testing.T) {
 		t.Fatal("reset should succeed after observation completes")
 	}
 }
-
 
 func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(t *testing.T) {
 	base := world.NewMemoryStore()

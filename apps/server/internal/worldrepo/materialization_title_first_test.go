@@ -22,6 +22,7 @@ type titleFirstTestRenderer struct {
 	eraStatuses    map[int]string
 	reviewedTitles []string
 	detailErr      bool
+	detailCalls    int
 }
 
 func (f *titleFirstTestRenderer) GenerateBBSTitleCandidates(context.Context, string, string) (llm.BBSTitleCandidates, error) {
@@ -66,6 +67,7 @@ func (f *titleFirstTestRenderer) ReviewBBSTitleCandidates(_ context.Context, r l
 }
 
 func (f *titleFirstTestRenderer) MaterializeBBSTitleArticleDetails(_ context.Context, r llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
+	f.detailCalls++
 	if f.detailErr {
 		return llm.BBSTitleArticleDetailDraft{}, fmt.Errorf("detail planner unavailable")
 	}
@@ -128,13 +130,17 @@ func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *test
 				detailCount++
 			}
 		}
-		if !hasWorldAdoption || !hasAdoptedSummary || detailCount < 2 {
-			t.Fatalf("missing world adoption/detail facts: %+v", post.Intent.SituationFacts)
+		if !hasWorldAdoption || !hasAdoptedSummary || detailCount != 0 || post.Intent.ArticleDetailsMaterialized {
+			t.Fatalf("title-first header unexpectedly contains article details: %+v", post.Intent)
 		}
+		detailCallsBeforeBody := renderer.detailCalls
 		semanticSubject := post.Subject
 		rendered, found, created, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
 		if !found || !created || renderer.req.CanonicalSubject != semanticSubject {
 			t.Fatalf("semantic subject was not preserved for rendering: %+v %s", rendered, diag)
+		}
+		if renderer.detailCalls != detailCallsBeforeBody+1 || !rendered.Intent.ArticleDetailsMaterialized {
+			t.Fatalf("article details were not materialized exactly once on body read: before=%d after=%d intent=%+v", detailCallsBeforeBody, renderer.detailCalls, rendered.Intent)
 		}
 		if rendered.Subject != semanticSubject {
 			t.Fatalf("accepted title was renamed by the prose renderer: got %q want %q; %+v %s", rendered.Subject, semanticSubject, rendered, diag)
@@ -150,7 +156,7 @@ func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *test
 		t.Fatal("no accepted root")
 	}
 	timing := repo.DevelopmentTitleFirstTiming()
-	if timing.CandidateGenerationCalls == 0 || timing.EraRoutingCalls == 0 || timing.AssignmentReviewCalls == 0 || timing.ArticleDetailCalls == 0 {
+	if timing.CandidateGenerationCalls == 0 || timing.EraRoutingCalls == 0 || timing.AssignmentReviewCalls == 0 || timing.ArticleDetailCalls != 0 {
 		t.Fatalf("title-first stage timing call counts missing: %+v", timing)
 	}
 	if timing.TotalPlanningMS < 0 || timing.TitleEvaluationMS != timing.EraRoutingMS+timing.AssignmentReviewMS {
@@ -166,7 +172,7 @@ func TestTitleFirstPreservesSemanticSubjectAndArchivesRejectedCandidates(t *test
 func TestTitleFirstDetailFailureKeepsAdoptedArticle(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &titleFirstTestRenderer{
-		detailErr: true,
+		detailErr:         true,
 		fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "本文です。"}},
 	}
 	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
@@ -184,9 +190,6 @@ func TestTitleFirstDetailFailureKeepsAdoptedArticle(t *testing.T) {
 	for _, row := range rows {
 		if row.Status == "accepted" || row.Status == "corrected" {
 			foundAccepted = true
-			if !strings.Contains(row.Reason, "採用記事は保持") {
-				t.Fatalf("detail failure was not recorded without rejection: %+v", row)
-			}
 		}
 	}
 	if !foundAccepted {
@@ -201,9 +204,12 @@ func TestTitleFirstDetailFailureKeepsAdoptedArticle(t *testing.T) {
 		if semanticSubject == "" || post.Subject != semanticSubject {
 			t.Fatalf("adopted root lost canonical title: %+v", post)
 		}
-		rendered, found, _, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
-		if !found || strings.TrimSpace(rendered.Body) == "" {
-			t.Fatalf("adopted root did not materialize prose: %+v %s", rendered, diag)
+		rendered, found, created, diag := repo.MaterializationArticleWithDebug(host, world.Board{ID: post.BoardID, Name: "雑談"}, post.ID)
+		if !found || created || strings.TrimSpace(rendered.Body) != "" || !strings.Contains(diag, "error stage=article-detail") {
+			t.Fatalf("article detail failure should preserve the header and stop body generation: %+v %s", rendered, diag)
+		}
+		if rendered.Intent.ArticleDetailsMaterialized {
+			t.Fatalf("failed article detail pass was marked complete: %+v", rendered.Intent)
 		}
 	}
 }
@@ -349,7 +355,6 @@ func TestTitleEraOutcomeRequiresVerifiedMarker(t *testing.T) {
 	}
 }
 
-
 type jevTitleAdviceTestEngine struct {
 	calls int
 }
@@ -361,9 +366,9 @@ func (e *jevTitleAdviceTestEngine) ResolveEvidence(context.Context, worldengine.
 func (e *jevTitleAdviceTestEngine) AdviseTitleCandidates(_ context.Context, req worldengine.TitleCandidateAdviceRequest) (worldengine.TitleCandidateAdviceDecision, error) {
 	e.calls++
 	decision := worldengine.TitleCandidateAdviceDecision{
-		Model: "jev-test",
-		Era: map[int]worldengine.TitleEraProbabilities{},
-		Fit: map[string]float64{},
+		Model:       "jev-test",
+		Era:         map[int]worldengine.TitleEraProbabilities{},
+		Fit:         map[string]float64{},
 		InputTokens: 77,
 	}
 	for i := range req.Titles {

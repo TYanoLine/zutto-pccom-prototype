@@ -18,9 +18,9 @@ func TestDevelopmentMaterializerDoesNotCommitGenericFallback(t *testing.T) {
 	m := LLMMaterializer{Renderer: renderer, Fallback: fallback}
 
 	posts, err := m.GenerateBoardPosts(context.Background(), BoardMaterializationRequest{
-		Host:      world.Host{SoftwareID: "materialization-demo"},
+		Host:       world.Host{SoftwareID: "materialization-demo"},
 		BoardTopic: "みなさんの98環境",
-		WorldDate: "1996-08-29",
+		WorldDate:  "1996-08-29",
 	}, worldengine.EvidenceDecision{
 		Level:     historicalkb.EvidenceAtmospheric,
 		Knowledge: historicalkb.KnowledgeResult{CanUse: true},
@@ -76,7 +76,6 @@ func TestDevelopmentArticleSurfacesRendererFailureAndKeepsBodyEmpty(t *testing.T
 
 var _ llm.BoardPostRenderer = (*fakeBoardRenderer)(nil)
 
-
 type retryOnceBoardRenderer struct {
 	calls int
 }
@@ -93,6 +92,7 @@ func TestDevelopmentArticleRetriesOneTransientRendererFailure(t *testing.T) {
 	base := world.NewMemoryStore()
 	renderer := &retryOnceBoardRenderer{}
 	repo := New(base, failureEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 	host, err := repo.HostByPhone("0450000196")
 	if err != nil {
 		t.Fatal(err)

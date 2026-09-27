@@ -354,6 +354,7 @@ func (l *materializationLab) runFreshAllBody(id string) {
 		}
 	}
 	repo := worldrepo.New(base, l.engine, labMaterializer, l.worldDate)
+	repo.SetArticleDetailPlanner(l.detailPlanner)
 	repo.EnableDevelopmentConversationViewPoC()
 	repo.SetDevelopmentConversationShellLimit(job.ShellLimit)
 	if job.SituationMode == "title-first" {

@@ -1,7 +1,7 @@
 # SDD-001: Concrete persona-aware article and append realization
 
-Status: phase 1 implemented; production quality sampling pending
-Updated: 2026-09-27
+Status: shared article-detail/body pipeline implemented; quality sampling pending
+Updated: 2026-09-28
 
 ## Problem
 
@@ -45,6 +45,8 @@ The accepted canonical/surface title is unchanged by this SDD. Erika-K append po
 The final prose worker is not allowed to invent a new durable ownership fact, biography, unexplained cause, historical product fact, or unrelated experience merely to make text vivid.
 
 Article Detail is the bounded proposal point for small article-local specifics. Once accepted and persisted, those details are canonical inputs to prose.
+
+The same article-level concretization pipeline runs for normal host reads, direct development inspection, and isolated Lab data. The Lab supplies a clone for evaluation; caller identity and title-first settings do not select a different Article Detail policy. `PostIntent.ArticleDetailsMaterialized` records completion independently from detail count, so a successful zero-detail response is stable across rereads and snapshot restore.
 
 ### Persona history is context, not a topic queue
 
@@ -126,7 +128,7 @@ The prose worker:
 
 ## Failure behavior
 
-Article Detail and final body generation may retry once for transient provider/validation failure under the existing bounded deadline.
+Article Detail and final body generation may retry once for transient provider/validation failure under the existing bounded deadline. A missing planner, exhausted generation/validation retries, or failed detail persistence leaves the body unmaterialized and the detail-completion state false. The accepted subject and selected article intent remain stored; the host runtime presents its own failure text. A successful zero-detail response is persisted as complete and is not proposed again.
 
 A permanently failed Erika-K append is rendered as:
 
@@ -145,11 +147,13 @@ Automated:
 - an unmaterialized prior post is represented by semantic envelope rather than forcing prose generation;
 - Article Detail request receives PersonaProfile, time-valid ExistingFacts, ThreadContext for replies, and AuthorHistory when available;
 - accepted title remains unchanged;
+- normal reads, direct inspection, and isolated Lab use the same article-level detail pipeline;
+- successful zero-detail results persist completion, while planner/validation/save failures do not invoke prose generation;
 - existing metadata-leak and append-failure tests remain green.
 
-Quality sampling after deployment:
+Quality sampling when usable samples are available:
 
-- inspect 20-30 multi-reply threads;
+- inspect available multi-reply threads; 20-30 is a target only when enough samples exist, not a minimum or release gate;
 - compare semantic repetition between sibling replies;
 - verify concrete propositions/observations are present even when titles are broad;
 - verify first-person facts have canonical support;
@@ -162,4 +166,4 @@ No numeric quality threshold is made a production gate until a stable baseline h
 
 The initial implementation adds `AuthorHistory` to Article Detail input. Up to six of the actor's own prior posts are selected from canonical host history by topic/anchor/referent/board relevance plus recency. Posts in the current reply thread are excluded because `ThreadContext` already covers them. Unmaterialized prior bodies stay lazy and contribute only committed semantic state.
 
-This completes the code-level requirements of phase 1. The qualitative 20-30-thread sampling remains a follow-up observation task and does not block the next SDD design.
+The implementation adds the shared Article Detail completion state and applies it independently of the entry point. Record the actual sample count and the reason for any shortfall; quality sampling does not block implementation completion when the world contains fewer eligible threads.

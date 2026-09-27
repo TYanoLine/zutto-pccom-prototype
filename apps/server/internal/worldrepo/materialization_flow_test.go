@@ -48,6 +48,7 @@ func TestDevelopmentMaterializationFlow(t *testing.T) {
 	engine := &flowEngine{}
 	mat := &flowMaterializer{}
 	repo := New(base, engine, mat, "1996-08-29")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 	h, err := repo.HostByPhone("0450000196")
 	if err != nil {
 		t.Fatal(err)

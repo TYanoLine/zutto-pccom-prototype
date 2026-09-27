@@ -126,14 +126,13 @@ func TestRepairInteractiveArticleDetailFactsDropsEntireMetadataTaintedSet(t *tes
 	}
 }
 
-
 func TestInteractiveTitleFirstDoesNotInventCannedSubjectsWhenPoolsRejectEverything(t *testing.T) {
 	base := world.NewMemoryStore()
 	// Force every generated candidate to be rejected. The diagnostic path must
 	// report the failed realization rather than converting selected roots into
 	// synthetic "<board>について" subjects.
 	renderer := &interactiveTitleFirstTestRenderer{titleFirstTestRenderer: titleFirstTestRenderer{
-		reject: true,
+		reject:            true,
 		fakeBoardRenderer: fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "WRONG", Subject: "WRONG", Body: "本文です。"}},
 	}}
 	repo := New(base, conversationViewEvidenceEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
@@ -167,7 +166,6 @@ func TestInteractiveTitleFirstDoesNotInventCannedSubjectsWhenPoolsRejectEverythi
 		}
 	}
 }
-
 
 func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) {
 	base := world.NewMemoryStore()
@@ -215,15 +213,15 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 	})
 	board := world.Board{ID: "reply-detail", Name: "GAME"}
 	root := base.AddPost(host.ID, world.Post{
-		BoardID: "reply-detail",
-		Author:  "MARU",
-		Subject: "セーブの場所を決めてます",
-		Body:    "進めてから残しておけばと思うことがあるので、場所を決めています。",
+		BoardID:   "reply-detail",
+		Author:    "MARU",
+		Subject:   "セーブの場所を決めてます",
+		Body:      "進めてから残しておけばと思うことがあるので、場所を決めています。",
 		CreatedAt: time.Date(1996, time.July, 19, 13, 47, 0, 0, time.FixedZone("JST", 9*60*60)),
 		Intent: world.PostIntent{
-			SituationKind: "title_first",
+			SituationKind:    "title_first",
 			SituationSummary: "セーブする場所を先に決めている",
-			SituationFacts: []string{"title_first_subject=セーブの場所を決めてます"},
+			SituationFacts:   []string{"title_first_subject=セーブの場所を決めてます"},
 		},
 	})
 	reply := base.AddPost(host.ID, world.Post{
@@ -231,7 +229,7 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 		ParentID:        root.ID,
 		Author:          "MINT-Y",
 		AuthorPersonaID: persona.ID,
-		CreatedAt: time.Date(1996, time.July, 31, 9, 59, 0, 0, time.FixedZone("JST", 9*60*60)),
+		CreatedAt:       time.Date(1996, time.July, 31, 9, 59, 0, 0, time.FixedZone("JST", 9*60*60)),
 		Intent: world.PostIntent{
 			DiscourseMode:    "reply",
 			SituationKind:    "title_first",
@@ -260,6 +258,9 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 	}
 	if !strings.Contains(seed.AuthorHistory, "前にもセーブで迷った") || !strings.Contains(seed.AuthorHistory, "三つある時は一つを戻りたい所用") {
 		t.Fatalf("reply detail planner lacks bounded self-history: %q", seed.AuthorHistory)
+	}
+	if strings.Contains(seed.AuthorHistory, root.Body) || strings.Contains(seed.AuthorHistory, "MARU") {
+		t.Fatalf("another writer's thread contribution leaked into the reply author's history: %q", seed.AuthorHistory)
 	}
 	if !strings.Contains(strings.Join(seed.ExistingFacts, "\n"), "habit.save_slots=") {
 		t.Fatalf("reply detail planner lacks time-valid persona fact: %+v", seed.ExistingFacts)

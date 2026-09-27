@@ -58,42 +58,47 @@ func worldAdoptedSummary(facts []string, fallback string) string {
 	return strings.TrimSpace(fallback)
 }
 
-// materializeInteractiveTitleArticleDetails moves the expensive article-local
-// detail pass to first article open. The index only needs accepted subjects; it
-// must not wait for body-only detail materialization.
-func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
-	if !developmentInteractiveTitleFirstEnabled(r) {
-		return selected, "", nil
-	}
-	isTitleFirstRoot := titleFirstSubject(selected.Intent.SituationFacts) != ""
-	isTitleFirstReply := selected.Intent.SituationKind == "title_first" && world.ResponseTargetID(selected) != 0
-	if !isTitleFirstRoot && !isTitleFirstReply {
+// materializeArticleDetails fixes article-local facts before prose generation.
+// It is shared by normal host reads, development inspection and isolated Lab runs.
+func (r *Repository) materializeArticleDetails(host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
+	if strings.TrimSpace(selected.Body) != "" || selected.Intent.ArticleDetailsMaterialized {
 		return selected, "", nil
 	}
 	if repaired, changed := repairInteractiveArticleDetailFacts(selected.Intent.SituationFacts); changed {
 		selected.Intent.SituationFacts = repaired
-		if updater, ok := r.Base.(world.PostUpdater); ok {
-			if updated, ok := updater.UpdatePost(host.ID, selected); ok {
-				selected = updated
-			}
+		updater, ok := r.Base.(world.PostUpdater)
+		if !ok {
+			err := fmt.Errorf("article detail repair requires post updater")
+			return selected, formatGenerationError("article-detail-save", err), err
 		}
+		updated, ok := updater.UpdatePost(host.ID, selected)
+		if !ok {
+			err := fmt.Errorf("could not persist repaired article details")
+			return selected, formatGenerationError("article-detail-save", err), err
+		}
+		selected = updated
 	}
+	// Pre-feature title-first articles may already contain validated details but
+	// lack the explicit completion bit. Preserve those canonical facts and migrate
+	// them to the new state without asking a planner to replace them.
 	if hasInteractiveArticleDetails(selected.Intent.SituationFacts) {
-		return selected, "", nil
+		selected.Intent.ArticleDetailsMaterialized = true
+		updater, ok := r.Base.(world.PostUpdater)
+		if !ok {
+			err := fmt.Errorf("article detail completion requires post updater")
+			return selected, formatGenerationError("article-detail-save", err), err
+		}
+		updated, ok := updater.UpdatePost(host.ID, selected)
+		if !ok {
+			err := fmt.Errorf("could not persist article detail completion")
+			return selected, formatGenerationError("article-detail-save", err), err
+		}
+		return updated, "", nil
 	}
-
-	var m LLMMaterializer
-	switch x := r.Materializer.(type) {
-	case LLMMaterializer:
-		m = x
-	case *LLMMaterializer:
-		m = *x
-	default:
-		return selected, "", fmt.Errorf("interactive title detail requires LLMMaterializer")
-	}
-	planner, ok := m.Renderer.(llm.BBSTitleArticleDetailPlanner)
-	if !ok {
-		return selected, "", fmt.Errorf("renderer does not support title article details")
+	planner := r.ArticleDetailPlanner
+	if planner == nil {
+		err := fmt.Errorf("article detail planner is not configured")
+		return selected, formatGenerationError("article-detail-setup", err), err
 	}
 
 	existingFacts := []string{}
@@ -154,6 +159,9 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 	var err error
 	for attempt := 0; attempt < 2; attempt++ {
 		draft, err = planner.MaterializeBBSTitleArticleDetails(ctx, request)
+		if err == nil {
+			err = llm.ValidateBBSTitleArticleDetails(request, draft)
+		}
 		if err == nil || ctx.Err() != nil {
 			break
 		}
@@ -175,10 +183,16 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 	selected.Intent.SituationFacts = append(selected.Intent.SituationFacts,
 		"article_detail_contract=The article_detail facts are canonical article-local specifics selected before prose. Use the naturally relevant supplied detail instead of collapsing the post into generic advice or a paraphrase of earlier replies. Do not enumerate details, force a conclusion, add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context.",
 	)
-	if updater, ok := r.Base.(world.PostUpdater); ok {
-		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
-			selected = updated
-		}
+	selected.Intent.ArticleDetailsMaterialized = true
+	updater, ok := r.Base.(world.PostUpdater)
+	if !ok {
+		err := fmt.Errorf("article detail persistence requires post updater")
+		return selected, formatGenerationError("article-detail-save", err), err
 	}
-	return selected, formatGenerationUsage(usage), nil
+	updated, ok := updater.UpdatePost(host.ID, selected)
+	if !ok || !updated.Intent.ArticleDetailsMaterialized {
+		err := fmt.Errorf("could not persist article detail result")
+		return selected, formatGenerationError("article-detail-save", err), err
+	}
+	return updated, formatGenerationUsage(usage), nil
 }

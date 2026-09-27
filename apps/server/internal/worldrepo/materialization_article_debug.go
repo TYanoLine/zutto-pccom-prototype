@@ -69,13 +69,9 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 }
 
 func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (world.Post, bool, bool, string) {
-	detailDiagnostic := ""
-	if developmentInteractiveTitleFirstEnabled(r) {
-		var detailErr error
-		selected, detailDiagnostic, detailErr = r.materializeInteractiveTitleArticleDetails(host, board, selected)
-		if detailErr != nil {
-			return selected, true, false, detailDiagnostic
-		}
+	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(host, board, selected)
+	if detailErr != nil {
+		return selected, true, false, detailDiagnostic
 	}
 	_, contextStats := r.materializationRenderContext(host, board, selected)
 	if selected.Body != "" {

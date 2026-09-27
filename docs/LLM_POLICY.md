@@ -125,6 +125,18 @@ The normal production path is observation-driven. Do not run broad periodic LLM 
 
 When a stale scope has been unobserved for a long time, prefer a bounded catch-up request that summarizes/selects important transitions over replaying every hour or day with separate LLM calls. Persist durable selected facts first; generate individual prose only for details that become visible or otherwise necessary.
 
+### Article detail before prose
+
+For an already-selected article whose body is not yet materialized, the shared
+article pipeline proposes zero to two article-local details before prose. It
+uses only the selected event, the author's profile and time-valid facts, bounded
+prior self-posts, and the current thread when replying. These details do not
+become durable persona facts or posting triggers. Persist the detail result and
+completion bit before rendering prose. A successful zero-detail result is
+complete; a missing planner, exhausted generation/validation retry, or failed
+save must leave the body empty and the detail state retryable. This rule is the
+same for host reads, development inspection, and isolated Lab data.
+
 ## Causal event shell contract
 
 Any LLM call that realizes a BBS event should receive an event shell whose world-owned fields are already fixed. At minimum for the current prototype:

@@ -55,6 +55,17 @@ func TestValidateBBSTitleArticleDetailsRejectsHeaderMetadata(t *testing.T) {
 	}
 }
 
+func TestValidateBBSTitleArticleDetailsRejectsDuplicateFacts(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{EventID: "post-1", Subject: "接続のこと", Summary: "接続を確認した"}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{EventID: "post-1", Details: []BBSArticleDetail{
+		{Kind: "observation", Fact: "画面の右側に線が残った"},
+		{Kind: "comparison", Fact: " 画面の右側に線が残った "},
+	}}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
+		t.Fatal("duplicate detail facts should be rejected")
+	}
+}
+
 func TestArticleDetailFactIsRenderingMetadataAllowsEventTiming(t *testing.T) {
 	for _, good := range []string{"接続して五分ほど後に一度切れた", "昨夜二度同じ症状が出た", "手元の攻略本の62ページだった"} {
 		if ArticleDetailFactIsRenderingMetadata(good) {

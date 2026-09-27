@@ -164,6 +164,13 @@ Title generation and adoption are additionally governed by
 structural/world-correctness gates from provisional batch-naturalness thresholds
 and corpus-authenticity audit criteria.
 
+After a selected post is read, normal host navigation, direct development
+inspection, and isolated Lab runs use the same article-detail/body pipeline.
+`PostIntent.ArticleDetailsMaterialized` is canonical article state independent of
+detail count: a persisted zero-detail result is complete, while planner,
+validation, or persistence failure stops body rendering and remains retryable.
+Host programs continue to own their append/title presentation and failure text.
+
 The planner uses up to 48 recent board posts as title/flow context and may include
 short excerpts from recent bodies when available. A contextual generation
 normally needs one 100-title pool; one additional fresh 100-title pool is allowed
