@@ -27,13 +27,17 @@ type Materializer interface {
 }
 
 type BoardMaterializationRequest struct {
-	Host             world.Host
-	BoardID          string
-	BoardTopic       string
-	WorldDate        string
-	Persona          *world.Persona
-	Intent           world.PostIntent
-	CanonicalSubject string
+	Host                       world.Host
+	BoardID                    string
+	BoardTopic                 string
+	WorldDate                  string
+	Persona                    *world.Persona
+	Intent                     world.PostIntent
+	CanonicalSubject           string
+	Kind                       worldengine.PostKind
+	ParentPost                 *world.Post
+	QuoteText                  string
+	BodyMinChars, BodyMaxChars int
 }
 
 type Repository struct {
@@ -72,10 +76,10 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		hostMaterialized:       map[string]bool{},
 		populationMaterialized: map[string]bool{},
 		debugImmediateBBS:      map[string]bool{},
-		observationBoardJobs: map[string]*observationJob{},
-		observationBodyJobs:  map[string]*observationJob{},
-		prefetchQueues:       map[string][]world.Board{},
-		prefetchRunning:      map[string]bool{},
+		observationBoardJobs:   map[string]*observationJob{},
+		observationBodyJobs:    map[string]*observationJob{},
+		prefetchQueues:         map[string][]world.Board{},
+		prefetchRunning:        map[string]bool{},
 	}
 	r.bbsArticles = bbsengine.New(base, repositoryBBSBatchPlanner{repo: r}, r.currentWorldTime)
 	r.bbsArticles.ReplyProjector = bbsengine.ReplyProjectorFunc(func(host world.Host, source world.Post, proposedSubject string) (bbsengine.ReplyRepresentation, error) {
@@ -293,7 +297,9 @@ func (r *Repository) ensureBoard(host world.Host, boardID, boardTopic string) er
 		r.mu.Unlock()
 		return err
 	}
-	posts, err := r.Materializer.GenerateBoardPosts(ctx, BoardMaterializationRequest{Host: host, BoardID: boardID, BoardTopic: boardTopic, WorldDate: r.WorldDate}, decision)
+	req := BoardMaterializationRequest{Host: host, BoardID: boardID, BoardTopic: boardTopic, WorldDate: r.WorldDate, Kind: worldengine.PostKindNewPost}
+	req = r.prepareBoardComposition(req, world.Post{BoardID: boardID, Subject: boardTopic})
+	posts, err := r.Materializer.GenerateBoardPosts(ctx, req, decision)
 	if err != nil {
 		r.mu.Lock()
 		delete(r.materialized, key)

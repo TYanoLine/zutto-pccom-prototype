@@ -113,6 +113,12 @@ func (p GeminiProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequ
 	if err := json.Unmarshal([]byte(strings.Join(texts, "\n")), &draft); err != nil {
 		return BoardPostDraft{}, fmt.Errorf("decode gemini board post JSON: %w", err)
 	}
+	if req.QuoteText != "" {
+		draft.Body, err = ensureExactQuote(draft.Body, req.QuoteText)
+		if err != nil {
+			return BoardPostDraft{}, err
+		}
+	}
 	if err := validateBoardPostWorkerDraft(req, draft); err != nil {
 		return BoardPostDraft{}, err
 	}

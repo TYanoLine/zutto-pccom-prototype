@@ -142,6 +142,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		Intent:           renderIntent,
 		CanonicalSubject: canonicalSubject,
 	}
+	req = r.prepareBoardComposition(req, selected)
 	var posts []world.Post
 	var usage GenerationUsage
 	if materializer, ok := r.Materializer.(usageAwareMaterializer); ok {

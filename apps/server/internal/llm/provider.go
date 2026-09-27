@@ -3,12 +3,17 @@ package llm
 import "context"
 
 type ReplyRequest struct {
-	HostName  string
-	Persona   string
-	WorldDate string
-	Subject   string
-	Body      string
-	EraRules  string
+	HostName      string
+	Persona       string
+	WorldDate     string
+	Subject       string
+	Body          string
+	EraRules      string
+	ParentSubject string
+	ParentBody    string
+	QuoteText     string
+	BodyMinChars  int
+	BodyMaxChars  int
 }
 
 type TokenUsage struct {
@@ -33,6 +38,12 @@ type BoardPostRequest struct {
 	PersonaProfile   string
 	PostIntent       string
 	CanonicalSubject string
+	Kind             string
+	ParentSubject    string
+	ParentBody       string
+	QuoteText        string
+	BodyMinChars     int
+	BodyMaxChars     int
 }
 
 type BoardPostDraft struct {

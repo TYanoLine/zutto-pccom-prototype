@@ -64,6 +64,20 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		PersonaProfile:   personaProfile,
 		PostIntent:       intentSummary(req.Intent),
 		CanonicalSubject: req.CanonicalSubject,
+		Kind:             string(req.Kind),
+		ParentSubject: func() string {
+			if req.ParentPost != nil {
+				return req.ParentPost.Subject
+			}
+			return ""
+		}(),
+		ParentBody: func() string {
+			if req.ParentPost != nil {
+				return req.ParentPost.Body
+			}
+			return ""
+		}(),
+		QuoteText: req.QuoteText, BodyMinChars: req.BodyMinChars, BodyMaxChars: req.BodyMaxChars,
 	})
 	if err != nil {
 		return nil, GenerationUsage{}, fmt.Errorf("board post renderer failed: %w", err)
@@ -75,6 +89,12 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		// CanonicalSubject is already world-selected. The prose renderer may write
 		// the body naturally, but it must never silently rename an accepted thread.
 		draft.Subject = req.CanonicalSubject
+	}
+	if req.QuoteText != "" {
+		draft.Body, err = llm.EnsureExactQuote(draft.Body, req.QuoteText)
+		if err != nil {
+			return nil, GenerationUsage{}, fmt.Errorf("quote validation failed: %w", err)
+		}
 	}
 	usage := GenerationUsage{
 		InputTokens:       draft.Usage.InputTokens,

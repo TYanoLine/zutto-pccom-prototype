@@ -20,6 +20,7 @@ type OpenAIProvider struct {
 }
 
 func (p OpenAIProvider) GenerateReply(ctx context.Context, req ReplyRequest) (string, error) {
+	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
 	eraRules := withDiegeticWorldFrame(req.EraRules)
 	prompt := fmt.Sprintf(`You are writing one Japanese grass-roots BBS post as the specified persona.
 World date: %s. Never use knowledge, products, slang, or events after this date.
@@ -34,12 +35,27 @@ Incoming subject: %s
 Incoming body:
 %s
 
-Return only the post body.`, req.WorldDate, req.HostName, req.Persona, eraRules, req.Subject, req.Body)
-	result, err := p.responseText(ctx, prompt, "low")
+返信制約:
+- 新しく書く非引用部分は%d〜%d文字を目標にする。ただし水増ししない。
+- 親記事件名: %s
+- 親記事本文:
+%s
+- 選択済みの引用（改変禁止）:
+%s
+
+Return only the post body.`, req.WorldDate, req.HostName, req.Persona, eraRules, req.Subject, req.Body, minChars, maxChars, req.ParentSubject, req.ParentBody, req.QuoteText)
+	result, err := p.responseTextWithLimit(ctx, prompt, "low", outputTokenBudget(maxChars))
 	if err != nil {
 		return "", err
 	}
-	return normalizeCRLF(result.Text), nil
+	text := result.Text
+	if req.QuoteText != "" {
+		text, err = ensureExactQuote(text, req.QuoteText)
+		if err != nil {
+			return "", err
+		}
+	}
+	return normalizeCRLF(text), nil
 }
 
 // GenerateBBSTimelineIntent proposes semantic content for event shells already
@@ -131,13 +147,20 @@ Return exactly one event object for every supplied event index.`, req.WorldDate,
 
 func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
 	prompt := BuildBoardPostPrompt(req)
-	result, err := p.responseText(ctx, prompt, "low")
+	_, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+	result, err := p.responseTextWithLimit(ctx, prompt, "low", outputTokenBudget(maxChars))
 	if err != nil {
 		return BoardPostDraft{}, err
 	}
 	var draft BoardPostDraft
 	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &draft); err != nil {
 		return BoardPostDraft{}, fmt.Errorf("decode board post JSON: %w", err)
+	}
+	if req.QuoteText != "" {
+		draft.Body, err = ensureExactQuote(draft.Body, req.QuoteText)
+		if err != nil {
+			return BoardPostDraft{}, err
+		}
 	}
 	if err := validateBoardPostWorkerDraft(req, draft); err != nil {
 		return BoardPostDraft{}, err
@@ -302,6 +325,10 @@ func forbiddenFutureMetaTerm(lower string) string {
 }
 
 func validateBoardPostDraft(d BoardPostDraft) error {
+	return validateBoardPostDraftWithBodyLimit(d, 700)
+}
+
+func validateBoardPostDraftWithBodyLimit(d BoardPostDraft, maxBodyChars int) error {
 	a := strings.TrimSpace(d.Author)
 	s := strings.TrimSpace(d.Subject)
 	b := strings.TrimSpace(d.Body)
@@ -318,8 +345,15 @@ func validateBoardPostDraft(d BoardPostDraft) error {
 	if s == "" || len([]rune(s)) > 36 {
 		return errors.New("board post subject is empty or too long")
 	}
-	if b == "" || len([]rune(b)) > 700 {
+	if b == "" {
 		return errors.New("board post body is empty or too long")
+	}
+	nonQuoted := bodyWithoutQuotes(b)
+	if nonQuoted == "" || len([]rune(nonQuoted)) > maxBodyChars {
+		return fmt.Errorf("board post body is empty or too long (max %d non-quoted characters)", maxBodyChars)
+	}
+	if len([]rune(b)) > 8192 {
+		return errors.New("board post body is too long (max 8192 total characters)")
 	}
 	lower := strings.ToLower(b + " " + s)
 	if forbidden := forbiddenFutureMetaTerm(lower); forbidden != "" {

@@ -32,6 +32,19 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 		subject = strings.TrimSpace(req.BoardTopic)
 	}
 	eraRules := compactBoardPostEraRules(req.EraRules)
+	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+	kind := req.Kind
+	if kind == "" {
+		kind = "new_post"
+	}
+	parent := "(none; this is a root post)"
+	if strings.TrimSpace(req.ParentSubject) != "" || strings.TrimSpace(req.ParentBody) != "" {
+		parent = fmt.Sprintf("subject=%s\nbody:\n%s", strings.TrimSpace(req.ParentSubject), strings.TrimSpace(req.ParentBody))
+	}
+	quoteRule := "引用なしで構いません。"
+	if strings.TrimSpace(req.QuoteText) != "" {
+		quoteRule = fmt.Sprintf("引用する場合は、次の原文を先頭に > を付けて一字一句そのまま使ってください。改変・要約は禁止です:\n%s", strings.TrimSpace(req.QuoteText))
+	}
 	subjectRule := "JSONのsubjectは上記の件名をそのまま返してください。"
 	if strings.Contains(intent, "surface_subject_mode=title_first_root") {
 		subjectRule = `上記の件名は、年代検証・人物割当・世界事実の確定に使われた意味判定用タイトルです。JSONのsubjectには、この人物が実際にBBSの件名欄へ入力しそうな表示件名を返してください。
@@ -78,13 +91,18 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 - subject/summaryから自然に分かる驚き・喜び・困惑などの一時的な反応は表現して構いませんが、新しい所有・経験・行動・予定を事実として足してはいけません。
 - supplied historical facts は公開世界について使ってよい事実です。そこから未提示の価格・発売日・仕様・作品内容などを連想で追加しないでください。
 - 新しい所有歴、購入歴、職歴、家族事情、長期的な嗜好や習慣を勝手に作らないでください。
-- 文章量・段落数・文の切り方は投稿者プロフィールの writing= を最優先してください。全員を同じ長さや同じ三文構成に揃えないでください。文章は自然なら短くて構いません。一文だけでも、多段落でも構いません。長文でも「導入→整理→結論」に整えず、本人が気づいた順・思い出した順に並んだり、途中で感想や言い直しが挟まったりして構いません。技術に詳しい人物も、canonicalに確定していない部分は不確かさを残せます。完全な解説記事やチュートリアルへ仕上げないでください。上限は5段落、500字程度。顔文字も人物プロフィールに従ってください。
+- 文章量・段落数・文の切り方は投稿者プロフィールの writing= を最優先してください。全員を同じ長さや同じ三文構成に揃えないでください。文章は自然なら短くて構いません。一文だけでも、多段落でも構いません。長文でも「導入→整理→結論」に整えず、本人が気づいた順・思い出した順に並んだり、途中で感想や言い直しが挟まったりして構いません。技術に詳しい人物も、canonicalに確定していない部分は不確かさを残せます。完全な解説記事やチュートリアルへ仕上げないでください。段落数は固定せず、目標文字数の範囲内で自然に書いてください。顔文字も人物プロフィールに従ってください。
 - 改行は意味のある段落、短い反応、引用、会話、署名風レイアウトなど投稿者が意図して入れる構造だけに使ってください。現代のスマホ文章のように10〜20文字程度ごと、または一文ごとに見栄え目的で改行しないでください。普通の長い文章行は無理に短くせず、端末側の80桁級表示で自然に折り返される前提で構いません。
 - 逆に、全員を長い一段落へ統一もしないでください。短文一行、空行を挟む人、引用だけ別行にする人など、personaと会話状況に自然な差は残してください。
 - 1990年代らしさを小道具で演出せず、その時代の本人として普通に書いてください。
+- world layerが選んだ投稿種別: %s。root/replyを変更しないでください。
+- 新しく書く非引用部分の目標文字数: %d〜%d文字。水増しせず、自然さを優先してください。
+- 返信対象の親記事（rootならなし）:
+%s
+- %s
 
 JSONだけを返してください:
-{"author":"...","subject":"...","body":"..."}`, subject, req.BoardTopic, persona, intent, facts, req.WorldDate, eraRules, subjectRule)
+{"author":"...","subject":"...","body":"..."}`, subject, req.BoardTopic, persona, intent, facts, req.WorldDate, eraRules, subjectRule, kind, minChars, maxChars, parent, quoteRule)
 }
 
 func compactBoardPostEraRules(raw string) string {
@@ -100,7 +118,8 @@ func compactBoardPostEraRules(raw string) string {
 }
 
 func validateBoardPostWorkerDraft(req BoardPostRequest, d BoardPostDraft) error {
-	if err := validateBoardPostDraft(d); err != nil {
+	_, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+	if err := validateBoardPostDraftWithBodyLimit(d, maxChars); err != nil {
 		return err
 	}
 	body := strings.TrimSpace(d.Body)

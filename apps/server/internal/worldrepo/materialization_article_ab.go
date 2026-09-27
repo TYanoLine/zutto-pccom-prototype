@@ -64,5 +64,6 @@ func (r *Repository) MaterializationArticleWorkerABInput(host world.Host, board 
 		return BoardMaterializationRequest{}, worldengine.EvidenceDecision{}, selected, fmt.Errorf("worker context unexpectedly contains MSG metadata")
 	}
 	req := BoardMaterializationRequest{Host: host, BoardID: board.ID, BoardTopic: boardTopic, WorldDate: selected.CreatedAt.Format("2006-01-02"), Persona: persona, Intent: renderIntent, CanonicalSubject: canonicalSubject}
+	req = r.prepareBoardComposition(req, selected)
 	return req, decision, selected, nil
 }
