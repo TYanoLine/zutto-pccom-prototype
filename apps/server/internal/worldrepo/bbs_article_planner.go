@@ -247,9 +247,13 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	adopted := map[string]bbsengine.PlannedPost{}
 	verifiedSpecificReferentEvents := map[string]bool{}
 	historicalVerificationDisabled := p.repo.debugBBSTitleHistoricalVerificationDisabled()
-	verifiedReferentTarget := verifiedReferentTargetForBoard(len(rootSlots), req.Board.VerifiedReferentRate)
+	requestedVerifiedReferentTarget := verifiedReferentTargetForBoard(len(rootSlots), req.Board.VerifiedReferentRate)
+	enforcedVerifiedReferentTarget := requestedVerifiedReferentTarget
 	if historicalVerificationDisabled {
-		verifiedReferentTarget = 0
+		// Debug bypass disables only verification/research and the blocking gate.
+		// Keep the normal concrete/claim-bearing candidate mix so the experiment
+		// still measures title/body quality under realistic specificity pressure.
+		enforcedVerifiedReferentTarget = 0
 	}
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
@@ -271,7 +275,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		poolStarted := time.Now()
 		if hasContextual {
 			claimCandidateTarget := claimBearingCandidateTarget(
-				verifiedReferentTarget-len(verifiedSpecificReferentEvents),
+				requestedVerifiedReferentTarget-len(verifiedSpecificReferentEvents),
 				sharedTitlePoolTargetSize,
 				len(remaining),
 			)
@@ -286,7 +290,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				EraRules:                    materializer.eraRules(),
 				RemainingNeeded:             len(remaining),
 				CandidateCount:              sharedTitlePoolTargetSize,
-				VerifiedReferentTarget:      verifiedReferentTarget,
+				VerifiedReferentTarget:      requestedVerifiedReferentTarget,
 				ClaimBearingCandidateTarget: claimCandidateTarget,
 			})
 		} else {
@@ -322,7 +326,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				}
 			}
 			if cacheProbes > 0 {
-				log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), verifiedReferentTarget)
+				log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), requestedVerifiedReferentTarget)
 			}
 		}
 		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads, cachedVerifiedClaims)
@@ -384,7 +388,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						// bonus can rescue a candidate below the semantic fit floor.
 						if cachedVerifiedClaims[title] {
 							bonus += .18
-						} else if len(verifiedSpecificReferentEvents) < verifiedReferentTarget {
+						} else if len(verifiedSpecificReferentEvents) < requestedVerifiedReferentTarget {
 							bonus += .03
 						}
 					}
@@ -470,7 +474,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					// This prevents an otherwise good claim-free ranking from filling
 					// the last slots and stranding the board one referent short.
 					unfilledAfterPriorFree := len(remaining) - claimFreeAdoptedThisRound
-					if !historicalVerificationDisabled && !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedSpecificReferentEvents), verifiedReferentTarget) {
+					if !historicalVerificationDisabled && !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedSpecificReferentEvents), enforcedVerifiedReferentTarget) {
 						continue
 					}
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
@@ -626,10 +630,10 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			temporalFailures++
 		}
 	}
-	specificityPass := verifiedReferentTarget == 0 || len(verifiedSpecificReferentEvents) >= verifiedReferentTarget
-	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_specific_roots=%d verified_specific_target=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedSpecificReferentEvents), verifiedReferentTarget, specificityPass, dominantFinal, deFrameFinal, temporalFailures)
+	specificityPass := enforcedVerifiedReferentTarget == 0 || len(verifiedSpecificReferentEvents) >= enforcedVerifiedReferentTarget
+	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_specific_roots=%d verified_specific_requested=%d verified_specific_enforced=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedSpecificReferentEvents), requestedVerifiedReferentTarget, enforcedVerifiedReferentTarget, specificityPass, dominantFinal, deFrameFinal, temporalFailures)
 	if !specificityPass {
-		return nil, fmt.Errorf("title quality gate: verified referent roots=%d, want at least %d", len(verifiedSpecificReferentEvents), verifiedReferentTarget)
+		return nil, fmt.Errorf("title quality gate: verified referent roots=%d, want at least %d", len(verifiedSpecificReferentEvents), enforcedVerifiedReferentTarget)
 	}
 	if temporalFailures > 0 {
 		return nil, fmt.Errorf("title quality gate: %d adopted titles conflict with their assigned slot date", temporalFailures)

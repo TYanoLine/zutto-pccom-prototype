@@ -1111,8 +1111,11 @@ func TestSharedBBSPlannerDebugCanBypassHistoricalVerification(t *testing.T) {
 	if got := engine.resolveCalls.Load(); got != 0 {
 		t.Fatalf("historical evidence calls=%d, want 0 while debug bypass is enabled", got)
 	}
-	if renderer.lastContext.VerifiedReferentTarget != 0 || renderer.lastContext.ClaimBearingCandidateTarget != 0 {
-		t.Fatalf("debug bypass still requested verified-referent quota: verified=%d claim_target=%d", renderer.lastContext.VerifiedReferentTarget, renderer.lastContext.ClaimBearingCandidateTarget)
+	if renderer.lastContext.VerifiedReferentTarget != 1 {
+		t.Fatalf("debug bypass changed requested concrete-title mix: verified target=%d, want 1", renderer.lastContext.VerifiedReferentTarget)
+	}
+	if renderer.lastContext.ClaimBearingCandidateTarget != 20 {
+		t.Fatalf("debug bypass changed claim-bearing pool target=%d, want 20", renderer.lastContext.ClaimBearingCandidateTarget)
 	}
 	for _, post := range planned {
 		if !strings.HasPrefix(post.Subject, "未検証の実在対象候補") {
