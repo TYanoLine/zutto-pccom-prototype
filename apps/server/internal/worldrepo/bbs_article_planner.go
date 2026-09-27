@@ -949,9 +949,15 @@ func titleTemporalCompatible(title string, at time.Time) bool {
 	// slot-date fit handles softer cases; these deterministic guards block only
 	// obvious contradictions such as "夏物" in December.
 	switch {
-	case containsAny("夏物", "夏休み", "暑中", "夏祭り"):
+	case containsAny("夏物", "夏休み", "暑中", "夏祭り", "暑さ", "猛暑", "真夏", "夏日"):
 		return monthIn(5, 6, 7, 8, 9)
-	case containsAny("冬物", "冬休み", "雪かき"):
+	case containsAny("盆踊り", "お盆"):
+		return monthIn(7, 8)
+	case containsAny("夕立"):
+		return monthIn(6, 7, 8, 9)
+	case containsAny("花火", "海水浴"):
+		return monthIn(6, 7, 8)
+	case containsAny("冬物", "冬休み", "雪かき", "寒さ", "寒波", "冷え込み"):
 		return monthIn(11, 12, 1, 2, 3)
 	case containsAny("梅雨"):
 		return monthIn(5, 6, 7)
