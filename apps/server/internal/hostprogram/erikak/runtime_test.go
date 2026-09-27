@@ -418,3 +418,26 @@ func TestBoardIndexFormatAndCommands(t *testing.T) {
 	}
 }
 
+
+
+func TestThreadShowsAppendLoadFailurePlaceholderInsteadOfBlankAppend(t *testing.T) {
+	runtime, store := sampleRuntime(t)
+	root := store.AddPost(runtime.Host.ID, world.Post{
+		BoardID: "1",
+		Author:  "MARU",
+		Subject: "セーブの場所を決めてます",
+		Body:    "本文",
+	})
+	store.AddPost(runtime.Host.ID, world.Post{
+		BoardID:  "1",
+		ParentID: root.ID,
+		Author:   "MINT-Y",
+		Body:     "",
+	})
+	runtime.boardPath = "1"
+
+	out := runtime.renderThread(root.ID)
+	if !strings.Contains(out, "(アペンドの読み込みに失敗しました)") {
+		t.Fatalf("blank append did not expose load failure placeholder: %q", out)
+	}
+}
