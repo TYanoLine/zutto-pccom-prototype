@@ -1,20 +1,50 @@
-:root { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #202020; color: #ddd; }
+:root { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif; background: #080808; color: #e4e1db; }
 * { box-sizing: border-box; }
-body { margin: 0; min-width: 320px; min-height: 100vh; background: #181818; }
-.shell { width: min(980px, 100%); margin: 0 auto; padding: 18px; }
-.titlebar, .statusbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; padding: 7px 10px; background: #bdbdbd; color: #111; font-size: 13px; border: 2px solid #eee; border-right-color: #555; border-bottom-color: #555; }
-.screen-wrap { position: relative; display: grid; place-items: center; background: #050505; padding: 12px; border-left: 4px solid #555; border-right: 4px solid #333; }
-.terminal-display { width: 100%; min-width: 0; max-width: 800px; }
-.terminal-viewport-shell { position: relative; }
-.terminal-viewport { position: relative; width: 100%; overflow-x: auto; background: #000; }
-.terminal-canvas { display: block; width: 100%; height: auto; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
-.terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu, .mobile-statusbar, .mobile-modem-status { display: none; }
+html, body, #root { width: 100%; min-width: 320px; height: 100%; margin: 0; }
+body { min-height: 100vh; overflow: hidden; background: #080808; }
+.shell { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; min-height: 0; margin: 0; padding: 0; overflow: hidden; background: #090909; }
+.titlebar, .statusbar { display: none; }
+.desktop-topbar { position: relative; z-index: 8; display: flex; flex: 0 0 60px; min-width: 0; align-items: center; gap: 18px; padding: 0 24px 0 32px; border-bottom: 1px solid #363636; color: #e4e1db; background: #111; }
+.desktop-host-name { flex: 0 1 230px; min-width: 130px; overflow: hidden; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.desktop-world-clock { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #bdbab5; font: 13px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.desktop-modem-display { display: flex; flex: 0 0 auto; align-items: center; padding-left: 18px; border-left: 1px solid #444; }
+.desktop-modem-display[hidden] { display: none; }
+.desktop-topbar .mobile-modem-status { display: flex; width: auto; flex: 0 0 auto; border: 0; background: transparent; }
+.desktop-topbar .mobile-modem-status--lamps { display: flex; height: 42px; gap: 8px; padding: 0; }
+.desktop-topbar .modem-lamp { display: grid; grid-template-rows: 15px 12px; place-items: center; width: 25px; min-width: 20px; }
+.desktop-topbar .modem-lamp__label { color: #aaa; font: 10px/15px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.desktop-topbar .modem-lamp__led { width: 9px; height: 9px; border: 1px solid #454545; border-radius: 50%; background: #1a1a1a; box-shadow: inset 0 0 2px #000; }
+.desktop-topbar .modem-lamp__led[data-on="true"] { border-color: #aa7830; background: #e2ad4c; box-shadow: 0 0 4px rgba(226, 173, 76, 0.24); }
+.desktop-menu-toggle { display: flex; flex: 0 0 42px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 42px; height: 42px; padding: 8px; border: 1px solid transparent; color: #ddd; background: transparent; cursor: pointer; }
+.desktop-menu-toggle:hover, .desktop-menu-toggle[aria-expanded="true"] { border-color: #484848; background: #1c1c1c; }
+.desktop-menu-toggle span { display: block; width: 20px; height: 1px; background: currentColor; }
+.desktop-menu { position: absolute; top: calc(100% + 4px); right: 16px; z-index: 10; width: 340px; padding: 12px 14px; border: 1px solid #555; color: #eee; background: rgba(21, 21, 21, 0.98); box-shadow: 0 8px 24px rgba(0,0,0,.45); }
+.desktop-menu-row { display: flex; min-height: 48px; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid #414141; font-size: 14px; }
+.desktop-menu-toggle-group { display: flex; }
+.desktop-menu button { min-height: 34px; padding: 6px 10px; border: 1px solid #4e4e4e; color: #ddd; background: #292929; font: 12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; cursor: pointer; }
+.desktop-menu-toggle-group button + button { border-left: 0; }
+.desktop-menu button[aria-pressed="true"] { border-color: #d6a348; color: #16120a; background: #e0b653; }
+.desktop-menu-action { display: flex; width: 100%; align-items: center; justify-content: space-between; margin: 0; padding: 8px 0 !important; border: 0 !important; border-bottom: 1px solid #414141 !important; color: #eee !important; background: transparent !important; font: 14px ui-sans-serif, system-ui, sans-serif !important; text-align: left; }
+.desktop-menu-section { display: grid; gap: 6px; padding-top: 10px; }
+.desktop-menu-section > span { margin-bottom: 2px; color: #aaa; font-size: 12px; }
+.desktop-menu-section button { width: 100%; text-align: left; }
+.mobile-statusbar, .mobile-modem-status { display: none; }
+.screen-wrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; align-items: stretch; justify-content: stretch; padding: 12px 24px; background: #090909; }
+.terminal-display { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; max-width: none; flex-direction: column; }
+.terminal-viewport-shell { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; }
+.terminal-viewport { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; background: #000; }
+.terminal-canvas { display: block; width: 100%; height: 100%; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
+.terminal-display--rows-fixed25 .terminal-viewport { align-items: center; }
+.terminal-display--rows-fixed25 .terminal-canvas { width: 100%; height: auto; max-width: 100%; max-height: 100%; }
+.terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu { display: none; }
 .terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: pinch-zoom; }
 .terminal-input-proxy::selection { color: transparent; background: transparent; }
-.statusbar { flex-wrap: wrap; }
-.statusbar label { display: flex; gap: 6px; align-items: center; }
-.directory-softkeys { display: none; }
-.quick-help { margin-top: 14px; color: #aaa; font-size: 13px; line-height: 1.7; }
+.desktop-statusbar { display: flex; flex: 0 0 44px; min-width: 0; align-items: center; justify-content: flex-end; padding: 0 32px; border-top: 1px solid #383838; color: #d7d4cf; background: #111; font: 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.desktop-statusbar__separator { flex: 0 0 1px; height: 24px; margin-right: 20px; background: #555; }
+.desktop-statusbar__group { display: flex; flex: 0 0 410px; align-items: center; justify-content: space-between; gap: 12px; white-space: nowrap; }
+.desktop-statusbar__online { color: #e2ad4c; }
+.desktop-statusbar__offline { overflow: hidden; color: #aaa; text-overflow: ellipsis; }
+.quick-help, .directory-softkeys { display: none; }
 code { color: #ddd; }
 .debug-panel, .comm-panel, .center-panel { margin-top: 10px; padding: 7px 9px; border: 1px solid #444; background: #111; }
 .debug-panel > summary, .comm-panel > summary, .center-panel > summary { color: #bbb; cursor: pointer; user-select: none; }
@@ -28,7 +58,7 @@ code { color: #ddd; }
 @media (max-width: 680px), (pointer: coarse) {
   body { overflow: hidden; background: #000; }
   .shell { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
-  .titlebar, .statusbar, .quick-help, .dev-shortcuts { display: none !important; }
+  .desktop-topbar, .desktop-statusbar, .titlebar, .statusbar, .quick-help, .dev-shortcuts { display: none !important; }
   .mobile-statusbar { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
   .mobile-statusbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-statusbar__stats { flex: 0 0 auto; color: #ddd; font-variant-numeric: tabular-nums; }
@@ -209,7 +239,9 @@ code { color: #ddd; }
   .terminal-function-mode-row button { min-width: 0; padding-inline: 4px; font-size: 11px; }
   .terminal-tools, .terminal-hint { display: none; }
   .terminal-live-return { display: block; position: absolute; right: 8px; bottom: 8px; z-index: 4; min-height: 44px; padding: 6px 10px; border: 1px solid #7a7; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #cfc; background: #163616; touch-action: manipulation; }
-  .terminal-viewport { overscroll-behavior: contain; }
+  .terminal-viewport { overflow-x: auto; overflow-y: auto; overscroll-behavior: contain; }
+  .terminal-display--fit.terminal-display--rows-fixed25 .terminal-canvas { width: 92%; height: auto; max-width: none; max-height: none; margin-inline: auto; }
+  .terminal-display--readable.terminal-display--rows-fixed25 .terminal-canvas { width: max(100%, 640px); height: auto; max-width: none; max-height: none; }
   .settings-grid { grid-template-columns: 1fr; }
   .settings-grid select { min-height: 44px; font-size: 16px; }
   .directory-softkeys { position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom); z-index: 9; display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; padding: 4px 2px; background: #111; border-top: 1px solid #555; border-bottom: 1px solid #333; }

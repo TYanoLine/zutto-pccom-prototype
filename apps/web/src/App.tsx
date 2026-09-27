@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TerminalCore } from './terminal/TerminalCore';
-import { TerminalCanvas, type TerminalCanvasHandle } from './terminal/TerminalCanvas';
+import { TerminalCanvas, type TerminalCanvasHandle, type TerminalScreenMode } from './terminal/TerminalCanvas';
 import { VirtualModem } from './modem/VirtualModem';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
 import { fetchWorldCenters, loadCenters } from './modem/CenterDirectory';
@@ -26,6 +26,17 @@ import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import './styles.css';
 
 const APP_VERSION = '0.27';
+const SCREEN_MODE_KEY = 'zutto.terminalScreenMode.v1';
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+function loadTerminalScreenMode(): TerminalScreenMode {
+  if (typeof window === 'undefined') return 'variable';
+  try { return window.localStorage.getItem(SCREEN_MODE_KEY) === 'fixed25' ? 'fixed25' : 'variable'; }
+  catch { return 'variable'; }
+}
+function formatWorldDate(date: Date) {
+  const weekday = WEEKDAYS[date.getUTCDay()];
+  return `${date.getUTCFullYear()}年${date.getUTCMonth() + 1}月${date.getUTCDate()}日（${weekday}） ${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+}
 const configuredWsURL = (import.meta.env.VITE_WS_URL as string | undefined)?.trim();
 const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
@@ -87,6 +98,8 @@ export default function App() {
   const [commSettings, setCommSettings] = useState<CommSettings>(loadCommSettings);
   const [modemTelemetry, setModemTelemetry] = useState<ModemTelemetry>(() => createIdleModemTelemetry(loadCommSettings()));
   const [modemStatusMode, setModemStatusMode] = useState<ModemStatusDisplayMode>(loadModemStatusDisplayMode);
+  const [terminalScreenMode, setTerminalScreenMode] = useState<TerminalScreenMode>(loadTerminalScreenMode);
+  const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
   const [directoryCount, setDirectoryCount] = useState(0);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('センター情報読込中...');
@@ -95,6 +108,9 @@ export default function App() {
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => { saveCallerLocation(callerLocation); }, [callerLocation]);
   useEffect(() => { saveModemStatusDisplayMode(modemStatusMode); }, [modemStatusMode]);
+  useEffect(() => {
+    try { window.localStorage.setItem(SCREEN_MODE_KEY, terminalScreenMode); } catch { /* optional preference */ }
+  }, [terminalScreenMode]);
   useEffect(() => {
     try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(commSettings)); } catch { /* optional */ }
     modemRef.current?.setCommunicationSettings(commSettings);
@@ -237,7 +253,44 @@ export default function App() {
   const mobileConnectedAt = localTestConnected ? localTestConnectedAt : activeCall?.connectedAt ?? null;
   const mobileElapsed = formatElapsed(mobileConnectedAt, worldNow);
   const mobileSessionCost = localTestConnected ? 0 : runningCost;
+  const desktopHostName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : '草の根ネット';
+  const desktopBaud = activeCall || localTestConnected ? modemTelemetry.baud : commSettings.dteBaud;
+  const desktopElapsed = mobileConnectedAt ? mobileElapsed.slice(0, 5) : '00:00';
+  const desktopLocation = `${callerLocation.maName}MA`;
+  const modemVisible = modemStatusMode !== 'off';
+  function setDesktopModemVisible(visible: boolean) {
+    setModemStatusMode(visible ? (modemStatusMode === 'off' ? 'lamps' : modemStatusMode) : 'off');
+  }
   return <main className="shell">
+    <header className="desktop-topbar">
+      <span className="desktop-host-name">{desktopHostName}</span>
+      <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
+      <span className="desktop-modem-display" hidden={!modemVisible}>
+        <ModemStatusDisplay mode="lamps" telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
+      </span>
+      <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
+        <span /><span /><span />
+      </button>
+      {desktopMenuOpen && <nav className="desktop-menu" aria-label="通信メニュー">
+        <div className="desktop-menu-row">
+          <span>モデム表示</span>
+          <div className="desktop-menu-toggle-group">
+            <button type="button" aria-pressed={modemVisible} onClick={() => setDesktopModemVisible(true)}>ON</button>
+            <button type="button" aria-pressed={!modemVisible} onClick={() => setDesktopModemVisible(false)}>OFF</button>
+          </div>
+        </div>
+        <div className="desktop-menu-row">
+          <span>自動再接続</span>
+          <button type="button" aria-pressed={autoRedial} onClick={() => setAutoRedial(value => !value)}>{autoRedial ? 'ON' : 'OFF'}</button>
+        </div>
+        <button type="button" className="desktop-menu-action" onClick={() => { setDesktopMenuOpen(false); routeCommand('ATH'); }}>電話を切る</button>
+        <div className="desktop-menu-section">
+          <span>画面サイズ</span>
+          <button type="button" aria-pressed={terminalScreenMode === 'variable'} onClick={() => { setTerminalScreenMode('variable'); setDesktopMenuOpen(false); }}>80桁 × 可変行</button>
+          <button type="button" aria-pressed={terminalScreenMode === 'fixed25'} onClick={() => { setTerminalScreenMode('fixed25'); setDesktopMenuOpen(false); }}>80桁 × 25行固定</button>
+        </div>
+      </nav>}
+    </header>
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
     <div className="mobile-statusbar" aria-label="接続状態">
       <span className="mobile-statusbar__name">{mobileConnectionName}</span>
@@ -249,6 +302,7 @@ export default function App() {
       terminal={terminal}
       keyboardActive={commandFocused}
       bottomControlsActive={directoryOpen}
+      screenMode={terminalScreenMode}
       modemStatusMode={modemStatusMode}
       onModemStatusModeChange={setModemStatusMode}
       keyboardInput={{
@@ -267,6 +321,15 @@ export default function App() {
       <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
       <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
     </nav>}
+    <footer className="desktop-statusbar" aria-label="通信状況">
+      <span className="desktop-statusbar__separator" />
+      <span className="desktop-statusbar__group">
+        <span className={activeCall || localTestConnected ? 'desktop-statusbar__online' : 'desktop-statusbar__offline'}>{activeCall || localTestConnected ? '● 接続中' : status}</span>
+        <span>{desktopBaud || commSettings.dteBaud} bps</span>
+        <span>経過 {desktopElapsed}</span>
+        <span>料金 ¥{cost}</span>
+      </span>
+    </footer>
     <footer className="statusbar"><span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span><label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label></footer>
     <aside className="quick-help"><strong>発信地:</strong> {callerLocation.label}MA ({callerLocation.areaCode})<br /><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
