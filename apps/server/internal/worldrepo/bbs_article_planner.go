@@ -457,9 +457,8 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					// claim-bearing candidates until the configured target is met.
 					// This prevents an otherwise good claim-free ranking from filling
 					// the last slots and stranding the board one referent short.
-					deficit := verifiedReferentTarget - len(verifiedClaimEvents)
 					unfilledAfterPriorFree := len(remaining) - claimFreeAdoptedThisRound
-					if deficit > 0 && unfilledAfterPriorFree <= deficit {
+					if !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedClaimEvents), verifiedReferentTarget) {
 						continue
 					}
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
@@ -778,6 +777,14 @@ func orderTitleCandidatesForQuality(pool llm.BBSTitleCandidates, titles []string
 		ci++
 	}
 	return out
+}
+
+func claimFreeAdoptionAllowed(unfilled, verifiedCount, verifiedTarget int) bool {
+	if verifiedTarget <= verifiedCount {
+		return true
+	}
+	deficit := verifiedTarget - verifiedCount
+	return unfilled > deficit
 }
 
 func verifiedReferentTargetForBoard(rootCount int, rate float64) int {
