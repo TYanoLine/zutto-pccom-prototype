@@ -14,8 +14,9 @@ type Config struct {
 	JevKey                      string
 	JevModel                    string
 	WorldDate                   string
-	HistoricalReferencesEnabled bool
-	DatabaseURL                 string
+	HistoricalReferencesEnabled                  bool
+	DebugDisableBBSTitleHistoricalVerification   bool
+	DatabaseURL                                  string
 	DebugResetToken             string
 	MaterializationLabToken     string
 }
@@ -34,8 +35,9 @@ func Load() Config {
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),
-		HistoricalReferencesEnabled: envBool("HISTORICAL_REFERENCES_ENABLED", false),
-		DatabaseURL:                 os.Getenv("DATABASE_URL"),
+		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
+		DebugDisableBBSTitleHistoricalVerification: envBool("DEBUG_DISABLE_BBS_TITLE_HISTORICAL_VERIFICATION", false),
+		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
 		MaterializationLabToken:     os.Getenv("MATERIALIZATION_LAB_TOKEN"),
 	}

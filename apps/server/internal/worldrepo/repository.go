@@ -49,6 +49,7 @@ type Repository struct {
 	WorldDate            string
 	worldNow             func() time.Time
 	bbsArticles          *bbsengine.Engine
+	debugDisableBBSTitleHistoricalVerification bool
 
 	mu                     sync.Mutex
 	materialized           map[string]bool
@@ -114,6 +115,19 @@ func (r *Repository) SetArticleDetailPlanner(planner llm.BBSTitleArticleDetailPl
 	if r != nil {
 		r.ArticleDetailPlanner = planner
 	}
+}
+
+// SetDebugDisableBBSTitleHistoricalVerification is an explicit development
+// escape hatch for isolating title-era research from body/reply experiments.
+// Production correctness must not depend on this switch.
+func (r *Repository) SetDebugDisableBBSTitleHistoricalVerification(disabled bool) {
+	if r != nil {
+		r.debugDisableBBSTitleHistoricalVerification = disabled
+	}
+}
+
+func (r *Repository) debugBBSTitleHistoricalVerificationDisabled() bool {
+	return r != nil && r.debugDisableBBSTitleHistoricalVerification
 }
 
 // SetWorldNow supplies the mapped 1996 world clock used by background
