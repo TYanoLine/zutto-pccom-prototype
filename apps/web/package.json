@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "node scripts/validate-vercel-json.mjs && tsc -b && vite build",
+    "start": "node server.mjs",
     "test": "vitest run",
     "preview": "vite --host 0.0.0.0"
   },

@@ -1,0 +1,40 @@
+name: deploy-self-hosted
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/deploy-self-hosted.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          npm --prefix apps/web ci
+
+      - name: Build web application
+        run: |
+          npm --prefix apps/web run build
+
+      - name: Deploy to serving directory
+        run: |
+          $deployDir = "C:\zutto-web"
+          if (!(Test-Path $deployDir)) {
+            New-Item -ItemType Directory -Force -Path $deployDir
+          }
+          Copy-Item -Recurse -Force apps/web/dist "$deployDir\"
+          Copy-Item -Recurse -Force apps/web/api "$deployDir\"
+          Copy-Item -Force apps/web/server.mjs "$deployDir\"
+          Write-Host "Deployment to $deployDir completed successfully."
+
