@@ -95,6 +95,7 @@ func main() {
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugDisableBBSTitleHistoricalVerification(cfg.DebugDisableBBSTitleHistoricalVerification)
+	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetWorldNow(clock.Now)
 	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
@@ -600,7 +601,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "world_repository": true, "world_post_renderer": "openai-article-worker-with-jev-title-advisor", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "openai-article-worker-with-jev-title-advisor", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
