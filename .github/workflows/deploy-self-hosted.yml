@@ -14,27 +14,30 @@ jobs:
     runs-on: self-hosted
     defaults:
       run:
-        shell: powershell
+        working-directory: apps/web
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Install dependencies
-        run: |
-          npm --prefix apps/web ci
+        run: npm ci
 
       - name: Build web application
-        run: |
-          npm --prefix apps/web run build
+        run: npm run build
 
       - name: Deploy to serving directory
+        shell: powershell
         run: |
           $deployDir = "C:\zutto-web"
           if (!(Test-Path $deployDir)) {
             New-Item -ItemType Directory -Force -Path $deployDir
           }
-          Copy-Item -Recurse -Force apps/web/dist "$deployDir\"
-          Copy-Item -Recurse -Force apps/web/api "$deployDir\"
-          Copy-Item -Force apps/web/server.mjs "$deployDir\"
+          Copy-Item -Recurse -Force dist "$deployDir\"
+          Copy-Item -Recurse -Force api "$deployDir\"
+          Copy-Item -Force server.mjs "$deployDir\"
           Write-Host "Deployment to $deployDir completed successfully."
-
