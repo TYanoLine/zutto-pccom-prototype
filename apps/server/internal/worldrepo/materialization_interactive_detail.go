@@ -196,8 +196,5 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 		err := fmt.Errorf("could not persist article detail result")
 		return selected, formatGenerationError("article-detail-save", err), err
 	}
-	return updated, joinDevelopmentDiagnostics(
-		formatGenerationUsage(usage),
-		fmt.Sprintf("article_detail_web_search_calls=%d article_detail_web_sources=%d", draft.WebSearchCalls, len(draft.WebSearchSources)),
-	), nil
+	return updated, formatGenerationUsage(usage), nil
 }
