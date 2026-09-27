@@ -9,7 +9,7 @@ import type {
 } from 'react';
 import { isFullWidth, type TerminalCore } from './TerminalCore';
 import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
-import { mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
@@ -128,7 +128,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       const syncDesktopRows = () => {
         const canvas = ref.current;
         if (!canvas) return;
-        const rows = mobileTerminalRows(canvas.clientWidth || viewport.clientWidth, viewport.clientHeight);
+        const rows = desktopTerminalRows(viewport.clientWidth, viewport.clientHeight);
         updateLayoutRows(rows);
       };
       const observer = new ResizeObserver(() => window.requestAnimationFrame(syncDesktopRows));
