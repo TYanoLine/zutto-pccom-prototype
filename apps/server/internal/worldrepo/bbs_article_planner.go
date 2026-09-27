@@ -448,10 +448,22 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			researchJobs := make([]developmentTitleEraResearchJob, 0)
 			researchDecision := map[int]llm.BBSTitleDecision{}
 			jobID := 1
+			claimFreeAdoptedThisRound := 0
 			for _, d := range candidates {
 				claims := historicalClaimsForTitle(pool, d.Subject)
 				if len(claims) == 0 {
+					// Q2's verified-referent floor is a blocking batch gate, not
+					// telemetry. Reserve enough still-unfilled world slots for
+					// claim-bearing candidates until the configured target is met.
+					// This prevents an otherwise good claim-free ranking from filling
+					// the last slots and stranding the board one referent short.
+					deficit := verifiedReferentTarget - len(verifiedClaimEvents)
+					unfilledAfterPriorFree := len(remaining) - claimFreeAdoptedThisRound
+					if deficit > 0 && unfilledAfterPriorFree <= deficit {
+						continue
+					}
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+					claimFreeAdoptedThisRound++
 					continue
 				}
 				slot := slotByEvent[d.EventID]
@@ -592,7 +604,14 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			temporalFailures++
 		}
 	}
-	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d verified_claim_target=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), verifiedReferentTarget, verifiedReferentTarget == 0 || len(verifiedClaimEvents) >= verifiedReferentTarget, dominantFinal, deFrameFinal, temporalFailures)
+	specificityPass := verifiedReferentTarget == 0 || len(verifiedClaimEvents) >= verifiedReferentTarget
+	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_claim_roots=%d verified_claim_target=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedClaimEvents), verifiedReferentTarget, specificityPass, dominantFinal, deFrameFinal, temporalFailures)
+	if !specificityPass {
+		return nil, fmt.Errorf("title quality gate: verified referent roots=%d, want at least %d", len(verifiedClaimEvents), verifiedReferentTarget)
+	}
+	if temporalFailures > 0 {
+		return nil, fmt.Errorf("title quality gate: %d adopted titles conflict with their assigned slot date", temporalFailures)
+	}
 
 	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
 	for _, slot := range rootSlots {
