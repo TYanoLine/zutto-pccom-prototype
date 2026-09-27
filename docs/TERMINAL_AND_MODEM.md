@@ -19,6 +19,23 @@ Long-term terminal implementation should favor a controlled Canvas 2D cell buffe
 
 Canonical stored text is UTF-8. The future terminal/serial wire boundary should use CP932/Shift_JIS-compatible bytes where historically appropriate.
 
+## Desktop browser presentation
+
+The desktop shell gives the host terminal the full available window. Its header
+shows the active host at left, caller-origin MA and the 1996 world date/time
+before the modem lamp strip, and a hamburger menu at the far right. The menu
+provides modem indicators ON/OFF, hang-up, and two terminal viewport modes.
+The footer keeps the connection state, negotiated speed, elapsed call time, and
+pseudo-charge together in a fixed-width right-aligned region.
+
+The emulated terminal buffer remains 80×25. The default desktop presentation
+keeps 80 columns and expands the visible row count to the available terminal
+height, showing existing receive scrollback above the live 25-row buffer. The
+80桁 × 25行固定 option displays only the historical 25-row viewport. The
+desktop preference persists in local storage. Mobile presentation continues to
+calculate its own fit rows from the visible device and keyboard viewport; the
+desktop setting does not override its sizing or function menu.
+
 ## Mobile browser presentation
 
 The mobile shell is a modern accessibility adaptation, not a claim about a
