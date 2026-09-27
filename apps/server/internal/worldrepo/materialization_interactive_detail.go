@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -176,6 +177,13 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	if len(draft.Articles) != 1 || draft.Articles[0].EventID != eventID {
 		err := fmt.Errorf("article detail result did not match selected post")
 		return selected, formatGenerationError("article-detail", err), err
+	}
+	if r.debugBBSArticleDetailLoggingEnabled() {
+		if encodedDetails, marshalErr := json.Marshal(draft.Articles[0].Details); marshalErr == nil {
+			log.Printf("BBS article detail canonical(debug): host=%s board=%s post=%d details=%s", host.ID, board.ID, selected.ID, encodedDetails)
+		} else {
+			log.Printf("BBS article detail canonical(debug): host=%s board=%s post=%d marshal_error=%v", host.ID, board.ID, selected.ID, marshalErr)
+		}
 	}
 
 	for _, detail := range draft.Articles[0].Details {
