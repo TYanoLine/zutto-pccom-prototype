@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -206,5 +207,80 @@ func TestContextualTitleCandidatesAllowUncommittedNamesAndUseLowReasoning(t *tes
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("candidate prompt missing %q:\n%s", want, prompt)
 		}
+	}
+}
+
+
+func TestLargeTitlePoolStructurallySeparatesClaimFreeAndClaimBearingCandidates(t *testing.T) {
+	claimFree := make([]map[string]any, 0, 80)
+	for i := 1; i <= 80; i++ {
+		claimFree = append(claimFree, map[string]any{
+			"title": fmt.Sprintf("日常候補%03d", i),
+			"historical_claims": []any{},
+		})
+	}
+	claimBearing := make([]map[string]any, 0, 20)
+	for i := 1; i <= 20; i++ {
+		claimBearing = append(claimBearing, map[string]any{
+			"title": fmt.Sprintf("実在候補%03d", i),
+			"historical_claims": []map[string]any{{
+				"subject": fmt.Sprintf("実在対象%03d", i),
+				"kind": "general",
+				"need": "基準日までの存在確認",
+			}},
+		})
+	}
+	payloadText, err := json.Marshal(map[string]any{
+		"claim_free_candidates": claimFree,
+		"claim_bearing_candidates": claimBearing,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var captured map[string]any
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		APIKey: "test-key",
+		Model: "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if err := json.NewDecoder(req.Body).Decode(&captured); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			response, _ := json.Marshal(map[string]any{
+				"model": "gpt-test",
+				"output": []any{map[string]any{"content": []any{map[string]any{"type": "output_text", "text": string(payloadText)}}}},
+				"usage": map[string]any{"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+			})
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(response)))}, nil
+		})},
+	}}
+
+	got, err := provider.GenerateContextualBBSTitleCandidates(context.Background(), BBSContextualTitleCandidateRequest{
+		WorldDate: "1996-08-26",
+		BoardName: "街角情報スポット",
+		BoardScope: "福岡の地域情報",
+		RemainingNeeded: 48,
+		CandidateCount: 100,
+		VerifiedReferentTarget: 5,
+		ClaimBearingCandidateTarget: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Titles) != 100 || len(got.HistoricalClaims) != 20 {
+		t.Fatalf("titles=%d claims=%d, want 100/20", len(got.Titles), len(got.HistoricalClaims))
+	}
+	for i := 0; i < 80; i++ {
+		if strings.HasPrefix(got.Titles[i], "実在候補") {
+			t.Fatalf("claim-bearing candidate leaked into claim-free partition at %d", i)
+		}
+	}
+	for _, claim := range got.HistoricalClaims {
+		if claim.Candidate <= 80 {
+			t.Fatalf("claim mapped to claim-free candidate: %+v", claim)
+		}
+	}
+	prompt, _ := captured["input"].(string)
+	if !strings.Contains(prompt, "claim_free_candidatesは80件") || !strings.Contains(prompt, "claim_bearing_candidatesは20件") {
+		t.Fatalf("partition contract missing from prompt:\n%s", prompt)
 	}
 }
