@@ -50,6 +50,7 @@ type Repository struct {
 	worldNow             func() time.Time
 	bbsArticles          *bbsengine.Engine
 	debugDisableBBSTitleHistoricalVerification bool
+	debugLogBBSArticleDetails                  bool
 
 	mu                     sync.Mutex
 	materialized           map[string]bool
@@ -128,6 +129,19 @@ func (r *Repository) SetDebugDisableBBSTitleHistoricalVerification(disabled bool
 
 func (r *Repository) debugBBSTitleHistoricalVerificationDisabled() bool {
 	return r != nil && r.debugDisableBBSTitleHistoricalVerification
+}
+
+// SetDebugLogBBSArticleDetails enables diagnostic logging of the final validated
+// Article Detail payload before it is persisted. It must remain opt-in because
+// the payload is world content rather than ordinary operational telemetry.
+func (r *Repository) SetDebugLogBBSArticleDetails(enabled bool) {
+	if r != nil {
+		r.debugLogBBSArticleDetails = enabled
+	}
+}
+
+func (r *Repository) debugBBSArticleDetailLoggingEnabled() bool {
+	return r != nil && r.debugLogBBSArticleDetails
 }
 
 // SetWorldNow supplies the mapped 1996 world clock used by background
