@@ -180,6 +180,39 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	persona := world.Persona{
+		ID:              "p-mint",
+		Handle:          "MINT-Y",
+		Age:             25,
+		Occupation:      "会社員",
+		WritingStyle:    "短め。自分の経験がある時だけ少し具体的に書く。",
+		EverydayContext: []string{"平日の夜に接続することが多い"},
+		Interests:       map[string]float64{"games": .8},
+		Opinions:        map[string]float64{},
+	}
+	base.SavePersona(persona)
+	base.AddMembership(host.ID, persona.ID)
+	base.SavePersonaFact(world.PersonaFact{
+		PersonaID:      persona.ID,
+		Key:            "habit.save_slots",
+		Value:          "セーブ枠が複数ある時は用途を分けることがある",
+		MaterializedAt: time.Date(1996, time.July, 10, 20, 0, 0, 0, time.FixedZone("JST", 9*60*60)),
+	})
+	base.SavePersonaFact(world.PersonaFact{
+		PersonaID:      persona.ID,
+		Key:            "future.fact",
+		Value:          "この投稿時点ではまだ存在しない",
+		MaterializedAt: time.Date(1996, time.August, 5, 20, 0, 0, 0, time.FixedZone("JST", 9*60*60)),
+	})
+	base.AddPost(host.ID, world.Post{
+		BoardID:         "older",
+		Author:          persona.Handle,
+		AuthorPersonaID: persona.ID,
+		Subject:         "前にもセーブで迷った",
+		Body:            "三つある時は一つを戻りたい所用に残していました。",
+		CreatedAt:       time.Date(1996, time.July, 12, 22, 0, 0, 0, time.FixedZone("JST", 9*60*60)),
+		Intent:          world.PostIntent{Topic: "セーブ"},
+	})
 	board := world.Board{ID: "reply-detail", Name: "GAME"}
 	root := base.AddPost(host.ID, world.Post{
 		BoardID: "reply-detail",
@@ -194,9 +227,10 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 		},
 	})
 	reply := base.AddPost(host.ID, world.Post{
-		BoardID:  "reply-detail",
-		ParentID: root.ID,
-		Author:   "MINT-Y",
+		BoardID:         "reply-detail",
+		ParentID:        root.ID,
+		Author:          "MINT-Y",
+		AuthorPersonaID: persona.ID,
 		CreatedAt: time.Date(1996, time.July, 31, 9, 59, 0, 0, time.FixedZone("JST", 9*60*60)),
 		Intent: world.PostIntent{
 			DiscourseMode:    "reply",
@@ -223,6 +257,18 @@ func TestInteractiveTitleFirstReplyGetsConcreteThreadAwareDetails(t *testing.T) 
 	}
 	if !strings.Contains(seed.ThreadContext, "MARU") || !strings.Contains(seed.ThreadContext, root.Body) {
 		t.Fatalf("reply detail planner lacks canonical thread context: %q", seed.ThreadContext)
+	}
+	if !strings.Contains(seed.AuthorHistory, "前にもセーブで迷った") || !strings.Contains(seed.AuthorHistory, "三つある時は一つを戻りたい所用") {
+		t.Fatalf("reply detail planner lacks bounded self-history: %q", seed.AuthorHistory)
+	}
+	if !strings.Contains(strings.Join(seed.ExistingFacts, "\n"), "habit.save_slots=") {
+		t.Fatalf("reply detail planner lacks time-valid persona fact: %+v", seed.ExistingFacts)
+	}
+	if strings.Contains(strings.Join(seed.ExistingFacts, "\n"), "future.fact=") {
+		t.Fatalf("future persona fact leaked backward: %+v", seed.ExistingFacts)
+	}
+	if !strings.Contains(seed.PersonaProfile, "writing=") || !strings.Contains(seed.PersonaProfile, "everyday_baseline=") {
+		t.Fatalf("reply detail planner lacks persona style/baseline: %s", seed.PersonaProfile)
 	}
 	if !hasInteractiveArticleDetails(rendered.Intent.SituationFacts) {
 		t.Fatalf("reply details were not persisted before prose: %+v", rendered.Intent.SituationFacts)

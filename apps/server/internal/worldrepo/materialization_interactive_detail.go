@@ -129,6 +129,7 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 	if world.ResponseTargetID(selected) != 0 {
 		threadContext = r.materializationArticleWorkerContext(host, board, selected)
 	}
+	authorHistory := r.materializationAuthorHistoryContext(host, board, selected, 6)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -146,6 +147,7 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 			PersonaProfile: personaProfile,
 			ExistingFacts:  existingFacts,
 			ThreadContext:  threadContext,
+			AuthorHistory:  authorHistory,
 		}},
 	}
 	var draft llm.BBSTitleArticleDetailDraft
