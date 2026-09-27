@@ -62,7 +62,12 @@ func worldAdoptedSummary(facts []string, fallback string) string {
 // detail pass to first article open. The index only needs accepted subjects; it
 // must not wait for body-only detail materialization.
 func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
-	if !developmentInteractiveTitleFirstEnabled(r) || titleFirstSubject(selected.Intent.SituationFacts) == "" {
+	if !developmentInteractiveTitleFirstEnabled(r) {
+		return selected, "", nil
+	}
+	isTitleFirstRoot := titleFirstSubject(selected.Intent.SituationFacts) != ""
+	isTitleFirstReply := selected.Intent.SituationKind == "title_first" && world.ResponseTargetID(selected) != 0
+	if !isTitleFirstRoot && !isTitleFirstReply {
 		return selected, "", nil
 	}
 	if repaired, changed := repairInteractiveArticleDetailFacts(selected.Intent.SituationFacts); changed {
@@ -106,23 +111,51 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 	}
 
 	eventID := fmt.Sprintf("interactive-post-%d", selected.ID)
+	semanticSubject := strings.TrimSpace(selected.Subject)
+	if semanticSubject == "" {
+		if sourceID := world.ResponseTargetID(selected); sourceID != 0 {
+			if source, ok := developmentConversationFindPost(r.Base.ListPosts(host.ID), sourceID); ok {
+				semanticSubject = semanticContextSubject(source)
+			}
+		}
+	}
+	if semanticSubject == "" {
+		semanticSubject = semanticContextSubject(selected)
+	}
+	if semanticSubject == "" {
+		semanticSubject = board.Name
+	}
+	threadContext := ""
+	if world.ResponseTargetID(selected) != 0 {
+		threadContext = r.materializationArticleWorkerContext(host, board, selected)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	draft, err := planner.MaterializeBBSTitleArticleDetails(ctx, llm.BBSTitleArticleDetailRequest{
+	request := llm.BBSTitleArticleDetailRequest{
 		BoardName:      board.Name,
 		WorldDate:      selected.CreatedAt.Format("2006-01-02"),
 		RecentBBSState: planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 48),
 		Articles: []llm.BBSTitleArticleDetailSeed{{
 			EventID:        eventID,
-			Subject:        selected.Subject,
+			Subject:        semanticSubject,
 			Summary:        worldAdoptedSummary(selected.Intent.SituationFacts, selected.Intent.SituationSummary),
 			AuthorHandle:   selected.Author,
 			CreatedAt:      selected.CreatedAt.Format(time.RFC3339),
 			DiscourseMode:  selected.Intent.DiscourseMode,
 			PersonaProfile: personaProfile,
 			ExistingFacts:  existingFacts,
+			ThreadContext:  threadContext,
 		}},
-	})
+	}
+	var draft llm.BBSTitleArticleDetailDraft
+	var err error
+	for attempt := 0; attempt < 2; attempt++ {
+		draft, err = planner.MaterializeBBSTitleArticleDetails(ctx, request)
+		if err == nil || ctx.Err() != nil {
+			break
+		}
+	}
 	usage := GenerationUsage{InputTokens: draft.Usage.InputTokens, CachedInputTokens: draft.Usage.CachedInputTokens, OutputTokens: draft.Usage.OutputTokens, ReasoningTokens: draft.Usage.ReasoningTokens, TotalTokens: draft.Usage.TotalTokens, Model: draft.Usage.Model}
 	storeDevelopmentPlanningUsage(r, host.ID, fmt.Sprintf("article-detail-%d", selected.ID), usage)
 	if err != nil {
@@ -138,7 +171,7 @@ func (r *Repository) materializeInteractiveTitleArticleDetails(host world.Host, 
 		selected.Intent.SituationFacts = append(selected.Intent.SituationFacts, "article_detail="+encoded)
 	}
 	selected.Intent.SituationFacts = append(selected.Intent.SituationFacts,
-		"article_detail_contract=The article_detail facts are canonical article-local specifics selected after title/persona/Era adoption. Materially express at least two distinct supplied details. A detail must add information beyond the title/summary; never collapse it back into vague wording. Do not add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context.",
+		"article_detail_contract=The article_detail facts are canonical article-local specifics selected before prose. Use the naturally relevant supplied detail instead of collapsing the post into generic advice or a paraphrase of earlier replies. Do not enumerate details, force a conclusion, add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context.",
 	)
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
