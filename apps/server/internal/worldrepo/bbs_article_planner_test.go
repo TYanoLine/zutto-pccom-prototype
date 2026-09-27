@@ -904,7 +904,7 @@ func TestOrderTitleCandidatesForQualityInterleavesDominantAndClaims(t *testing.T
 		},
 	}
 	dominant := map[string]bool{"福岡": true, "博多": true, "天神": true}
-	got := orderTitleCandidatesForQuality(pool, append([]string(nil), pool.Titles...), dominant)
+	got := orderTitleCandidatesForQuality(pool, append([]string(nil), pool.Titles...), dominant, map[string]bool{"傘をなくしました": true})
 	if len(got) != len(pool.Titles) {
 		t.Fatalf("ordered titles=%d, want %d", len(got), len(pool.Titles))
 	}
@@ -938,5 +938,54 @@ func TestTitleBatchNaturalnessCapsDominantOpeningFrames(t *testing.T) {
 	}
 	if !titleBatchNaturalnessAllows("傘をなくしました", adopted, dominant, 20) {
 		t.Fatal("non-dominant title should remain available")
+	}
+}
+
+
+func TestVerifiedReferentTargetAndClaimPoolSizing(t *testing.T) {
+	if got := verifiedReferentTargetForBoard(48, .10); got != 5 {
+		t.Fatalf("verified target=%d, want 5", got)
+	}
+	if got := verifiedReferentTargetForBoard(52, .10); got != 6 {
+		t.Fatalf("verified target=%d, want 6", got)
+	}
+	if got := claimBearingCandidateTarget(5, 100, 48); got != 20 {
+		t.Fatalf("claim candidate target=%d, want 20", got)
+	}
+	if got := claimBearingCandidateTarget(20, 100, 90); got != 10 {
+		t.Fatalf("claim target should preserve claim-free reserve: got %d want 10", got)
+	}
+}
+
+func TestSharedBBSPlannerPassesBoardTextureTargetsToGenerator(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	renderer := &fakeSharedTitleRenderer{}
+	repo := New(base, nil, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	slots := make([]bbsengine.Slot, 0, 48)
+	for i := 0; i < 48; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index: i + 1,
+			Author: fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 1, 12, i%60, 0, 0, time.Local),
+		})
+	}
+	_, err = (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host: host,
+		Board: world.Board{ID: "6", Name: "街角情報スポット", SemanticScope: "福岡の地域情報", VerifiedReferentRate: .10},
+		WorldNow: time.Date(1996, 8, 26, 23, 0, 0, 0, time.Local),
+		Slots: slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if renderer.lastContext.VerifiedReferentTarget != 5 {
+		t.Fatalf("verified referent target=%d, want 5", renderer.lastContext.VerifiedReferentTarget)
+	}
+	if renderer.lastContext.ClaimBearingCandidateTarget != 20 {
+		t.Fatalf("claim-bearing candidate target=%d, want 20", renderer.lastContext.ClaimBearingCandidateTarget)
 	}
 }
