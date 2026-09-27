@@ -12,7 +12,7 @@ func (r *Repository) prepareBoardComposition(req BoardMaterializationRequest, se
 	if req.Kind == "" {
 		req.Kind = worldengine.PostKindNewPost
 	}
-	if selected.ParentID != 0 || selected.Intent.Action == "reply" {
+	if world.ResponseTargetID(selected) != 0 || selected.Intent.Action == "reply" {
 		req.Kind = worldengine.PostKindReply
 	}
 	h := fnv.New64a()
@@ -41,22 +41,48 @@ func (r *Repository) prepareBoardComposition(req BoardMaterializationRequest, se
 		}
 	}
 	if req.Kind == worldengine.PostKindReply && req.QuoteText == "" && req.ParentPost != nil && h.Sum64()%1000 < 576 {
-		req.QuoteText = firstQuoteLine(req.ParentPost.Body)
+		req.QuoteText = replyQuoteFragment(req.ParentPost.Body)
 	}
 	return req
 }
 
-func firstQuoteLine(body string) string {
-	for _, line := range strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" {
+func replyQuoteFragment(body string) string {
+	normalized := strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\r", "\n")
+	normalized = strings.Join(strings.Fields(normalized), " ")
+	if normalized == "" {
+		return ""
+	}
+
+	runes := []rune(normalized)
+	sentences := make([]string, 0, 4)
+	start := 0
+	for i, r := range runes {
+		if !strings.ContainsRune("。！？?!", r) {
 			continue
 		}
-		runes := []rune(line)
-		if len(runes) > 160 {
-			runes = runes[:160]
+		if sentence := strings.TrimSpace(string(runes[start : i+1])); sentence != "" {
+			sentences = append(sentences, sentence)
 		}
+		start = i + 1
+	}
+	if start < len(runes) {
+		if tail := strings.TrimSpace(string(runes[start:])); tail != "" {
+			sentences = append(sentences, tail)
+		}
+	}
+
+	for i := len(sentences) - 1; i >= 0; i-- {
+		if len([]rune(sentences[i])) >= 6 {
+			return trimQuoteFragment(sentences[i], 96)
+		}
+	}
+	return trimQuoteFragment(normalized, 96)
+}
+
+func trimQuoteFragment(value string, maxRunes int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) <= maxRunes {
 		return string(runes)
 	}
-	return ""
+	return string(runes[:maxRunes])
 }
