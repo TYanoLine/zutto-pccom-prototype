@@ -173,8 +173,10 @@ func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequ
 }
 
 type responseTextResult struct {
-	Text  string
-	Usage TokenUsage
+	Text             string
+	Usage            TokenUsage
+	WebSearchCalls   int
+	WebSearchSources []string
 }
 
 func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity string) (responseTextResult, error) {
