@@ -123,7 +123,11 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	// no later release can leak backward into an earlier article.
 	materializer = materializer.withPeriodReferents(worldDate, titleAsOf)
 	decision := worldengine.EvidenceDecision{}
-	if p.repo.Engine != nil {
+	historicalVerificationDisabled := p.repo.debugBBSTitleHistoricalVerificationDisabled()
+	if historicalVerificationDisabled {
+		log.Printf("BBS DEBUG: host=%s board=%s title_historical_verification=disabled; claim-bearing titles may be adopted without Historical KB/research", req.Host.ID, req.Board.ID)
+	}
+	if p.repo.Engine != nil && !historicalVerificationDisabled {
 		evidenceStarted := time.Now()
 		var err error
 		decision, err = p.repo.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
@@ -242,7 +246,11 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
 	adopted := map[string]bbsengine.PlannedPost{}
 	verifiedSpecificReferentEvents := map[string]bool{}
+	historicalVerificationDisabled := p.repo.debugBBSTitleHistoricalVerificationDisabled()
 	verifiedReferentTarget := verifiedReferentTargetForBoard(len(rootSlots), req.Board.VerifiedReferentRate)
+	if historicalVerificationDisabled {
+		verifiedReferentTarget = 0
+	}
 	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
 	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
 	// topic menu. Supplying the whole bootstrap catalog here strongly biases broad
@@ -300,20 +308,22 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		cachedVerifiedClaims := map[string]bool{}
 		cacheProbeStarted := time.Now()
 		cacheProbes := 0
-		for _, title := range titles {
-			claims := historicalClaimsForTitle(pool, title)
-			if len(claims) == 0 {
-				continue
-			}
-			cacheProbes++
-			if outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, title, claims); outcome.status == "verified" {
-				if titleHasVisibleSpecificReferent(title, claims) {
-					cachedVerifiedClaims[title] = true
+		if !historicalVerificationDisabled {
+			for _, title := range titles {
+				claims := historicalClaimsForTitle(pool, title)
+				if len(claims) == 0 {
+					continue
+				}
+				cacheProbes++
+				if outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, title, claims); outcome.status == "verified" {
+					if titleHasVisibleSpecificReferent(title, claims) {
+						cachedVerifiedClaims[title] = true
+					}
 				}
 			}
-		}
-		if cacheProbes > 0 {
-			log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), verifiedReferentTarget)
+			if cacheProbes > 0 {
+				log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), verifiedReferentTarget)
+			}
 		}
 		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads, cachedVerifiedClaims)
 		claimingCandidates := 0
@@ -453,14 +463,14 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			claimFreeAdoptedThisRound := 0
 			for _, d := range candidates {
 				claims := historicalClaimsForTitle(pool, d.Subject)
-				if len(claims) == 0 {
+				if len(claims) == 0 || historicalVerificationDisabled {
 					// Q2's verified-referent floor is a blocking batch gate, not
 					// telemetry. Reserve enough still-unfilled world slots for
 					// claim-bearing candidates until the configured target is met.
 					// This prevents an otherwise good claim-free ranking from filling
 					// the last slots and stranding the board one referent short.
 					unfilledAfterPriorFree := len(remaining) - claimFreeAdoptedThisRound
-					if !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedSpecificReferentEvents), verifiedReferentTarget) {
+					if !historicalVerificationDisabled && !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedSpecificReferentEvents), verifiedReferentTarget) {
 						continue
 					}
 					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
