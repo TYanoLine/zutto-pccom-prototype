@@ -75,3 +75,46 @@ func TestDevelopmentArticleSurfacesRendererFailureAndKeepsBodyEmpty(t *testing.T
 }
 
 var _ llm.BoardPostRenderer = (*fakeBoardRenderer)(nil)
+
+
+type retryOnceBoardRenderer struct {
+	calls int
+}
+
+func (r *retryOnceBoardRenderer) GenerateBoardPost(_ context.Context, req llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+	r.calls++
+	if r.calls == 1 {
+		return llm.BoardPostDraft{}, errors.New("temporary structured response failure")
+	}
+	return llm.BoardPostDraft{Author: req.AuthorHandle, Subject: req.CanonicalSubject, Body: "二回目で生成できた本文です。"}, nil
+}
+
+func TestDevelopmentArticleRetriesOneTransientRendererFailure(t *testing.T) {
+	base := world.NewMemoryStore()
+	renderer := &retryOnceBoardRenderer{}
+	repo := New(base, failureEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-29")
+	host, err := repo.HostByPhone("0450000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{ID: "retry-test", Name: "再試行テスト"}
+	post := base.AddPost(host.ID, world.Post{
+		BoardID: "retry-test",
+		Author:  "MARI",
+		Subject: "本文生成",
+		Intent: world.PostIntent{
+			SituationSummary: "本文生成の一時失敗を再試行する",
+		},
+	})
+
+	got, found, created, diagnostic := repo.MaterializationArticleWithDebug(host, board, post.ID)
+	if !found || !created {
+		t.Fatalf("found=%v created=%v diagnostic=%s", found, created, diagnostic)
+	}
+	if renderer.calls != 2 {
+		t.Fatalf("renderer calls=%d, want 2", renderer.calls)
+	}
+	if got.Body != "二回目で生成できた本文です。" {
+		t.Fatalf("body=%q", got.Body)
+	}
+}
