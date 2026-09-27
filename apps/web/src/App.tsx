@@ -266,7 +266,7 @@ export default function App() {
       <span className="desktop-host-name">{desktopHostName}</span>
       <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
       <span className="desktop-modem-display" hidden={!modemVisible}>
-        <ModemStatusDisplay mode={modemStatusMode === 'off' ? 'lamps' : modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
+        <ModemStatusDisplay mode="lamps" telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
       </span>
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
         <span /><span /><span />
@@ -278,6 +278,10 @@ export default function App() {
             <button type="button" aria-pressed={modemVisible} onClick={() => setDesktopModemVisible(true)}>ON</button>
             <button type="button" aria-pressed={!modemVisible} onClick={() => setDesktopModemVisible(false)}>OFF</button>
           </div>
+        </div>
+        <div className="desktop-menu-row">
+          <span>自動再接続</span>
+          <button type="button" aria-pressed={autoRedial} onClick={() => setAutoRedial(value => !value)}>{autoRedial ? 'ON' : 'OFF'}</button>
         </div>
         <button type="button" className="desktop-menu-action" onClick={() => { setDesktopMenuOpen(false); routeCommand('ATH'); }}>電話を切る</button>
         <div className="desktop-menu-section">
