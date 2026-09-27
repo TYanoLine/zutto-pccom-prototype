@@ -29,6 +29,7 @@ type BBSTitleArticleDetailSeed struct {
 	PersonaProfile string   `json:"persona_profile,omitempty"`
 	ExistingFacts  []string `json:"existing_facts,omitempty"`
 	ThreadContext  string   `json:"thread_context,omitempty"`
+	AuthorHistory  string   `json:"author_history,omitempty"`
 }
 
 type BBSTitleArticleDetailRequest struct {
@@ -97,6 +98,9 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 - decisionはsubject/summaryが実際に選択・方針・質問を含む場合だけ使ってください。detailsの件数を埋めるために「今後は毎回〜することにした」のような新しい習慣を勝手に作らないでください。
 - ExistingFactsと矛盾する恒久的な所有、職歴、家族事情、長期の嗜好などは追加禁止です。
 - ThreadContextは同一スレッドのcanonicalな先行内容です。返信ではこれを読んだ上で差分を作れますが、引用・要約のための素材ではありません。既出の一般論をほぼ同じ意味で反復するdetailは禁止です。
+- AuthorHistoryは、この投稿者本人がこの投稿より前に実際に書いたcanonicalな発言のうち、関連性と近さで少数だけ選ばれたものです。本人の過去との一貫性を守るために使い、過去の話題を再登場させる義務はありません。今回のalready-selected actionと自然に関係する既存の経験・習慣・好みがあるなら、新しい似た設定を発明するよりそれを優先してください。
+- AuthorHistoryの過去発言は「本人がそう発言した」という継続性の証拠です。ExistingFactsと衝突する場合はExistingFactsを優先し、過去発言を不変の私生活上の真実へ昇格させないでください。過去本文の言い回しをコピーする必要もありません。
+- AuthorHistoryに無い過去の経験を、連続性を演出するためだけに「前にも〜した」「いつも〜している」と捏造しないでください。
 - RecentBBSStateにない別スレッドの出来事を混ぜないでください。
 - 各event_idは入力と完全一致させてください。
 
