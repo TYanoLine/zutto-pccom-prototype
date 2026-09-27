@@ -33,7 +33,9 @@ The model receives `web_search` with `tool_choice=auto`. Search is therefore ava
 
 - A fictional person's one-off experience, timing, reaction, comparison, or decision may be created without Web search if it does not assert external historical facts.
 - When the detail names or relies on a real work, product, person, company, place, event, release status, specification, story element, price, or other external historical fact, the planner should search rather than rely only on model memory.
-- If an initially considered concrete candidate does not fit the post timestamp or cannot be supported, do not fail the article or fall back to vague prose by default. Preserve the selected article intent and repair the candidate into:
+- If an initially considered concrete candidate does not fit the post timestamp or cannot be supported, do not fail the article or fall back to vague prose by default.
+- Search success is not itself evidence that every remembered property of the target is correct. Before returning an external-history detail, the exact proposition in that detail must be supported by the search result used for grounding.
+- Do not merge similarly named enemies/items, platform/version differences, ports, sequels, or separate works. If only the target's existence is supported, keep game/story/specification claims out of the canonical detail. Preserve the selected article intent and repair the candidate into:
   1. a supported historically valid target/fact,
   2. a supported narrower statement, or
   3. a generalized expression only when a safe concrete alternative cannot be established.
@@ -70,10 +72,10 @@ The Article Detail structured Responses API call uses:
 - strict JSON Schema output;
 - `tools: [{"type":"web_search"}]`;
 - `tool_choice: "auto"`;
-- low reasoning effort for the initial experiment;
+- medium reasoning effort after the first live sample showed a searched but unsupported game-specific claim;
 - a 60 second Article Detail deadline.
 
-The application records the number of `web_search_call` output items and returned source URLs as non-world diagnostic metadata.
+The application records the number of `web_search_call` output items and returned source URLs as non-world diagnostic metadata. When `DEBUG_LOG_BBS_ARTICLE_DETAILS=1`, it also logs the final validated Article Detail payload immediately before persistence so a grounding error can be distinguished from a later prose-worker invention.
 
 ## Failure behavior
 

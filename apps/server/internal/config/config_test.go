@@ -44,3 +44,18 @@ func TestDebugDisableBBSTitleHistoricalVerificationCanBeEnabled(t *testing.T) {
 		t.Fatal("debug title historical verification bypass was not enabled")
 	}
 }
+
+
+func TestDebugLogBBSArticleDetailsDefaultOff(t *testing.T) {
+	t.Setenv("DEBUG_LOG_BBS_ARTICLE_DETAILS", "")
+	if Load().DebugLogBBSArticleDetails {
+		t.Fatal("Article Detail debug logging must default to OFF")
+	}
+}
+
+func TestDebugLogBBSArticleDetailsCanBeEnabled(t *testing.T) {
+	t.Setenv("DEBUG_LOG_BBS_ARTICLE_DETAILS", "1")
+	if !Load().DebugLogBBSArticleDetails {
+		t.Fatal("Article Detail debug logging was not enabled")
+	}
+}
