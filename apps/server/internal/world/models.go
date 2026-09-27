@@ -20,13 +20,18 @@ type Host struct {
 }
 
 type Board struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	SemanticScope   string  `json:"semantic_scope,omitempty"`
-	ActivityWeight  float64 `json:"activity_weight,omitempty"`
-	ReplyRate       float64 `json:"reply_rate,omitempty"`
-	RetainedRootCap int     `json:"retained_root_cap,omitempty"`
-	OpenedOn        string  `json:"opened_on,omitempty"`
+	ID                   string  `json:"id"`
+	Name                 string  `json:"name"`
+	SemanticScope        string  `json:"semantic_scope,omitempty"`
+	ActivityWeight       float64 `json:"activity_weight,omitempty"`
+	ReplyRate            float64 `json:"reply_rate,omitempty"`
+	RetainedRootCap      int     `json:"retained_root_cap,omitempty"`
+	OpenedOn             string  `json:"opened_on,omitempty"`
+	// VerifiedReferentRate is world/station content tuning, not a historical
+	// host-program default. When positive, title planning keeps this approximate
+	// share of roots available for historically verified named referents while
+	// retaining enough claim-free candidates to complete the board safely.
+	VerifiedReferentRate float64 `json:"verified_referent_rate,omitempty"`
 }
 
 // BoardActivityState is the cheap world-layer existence plan for one board.
