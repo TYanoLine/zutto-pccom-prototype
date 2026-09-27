@@ -93,7 +93,7 @@ func TestBoardHierarchyAndBJPrompt(t *testing.T) {
 	loginGuest(t, runtime)
 
 	out, disconnect := runtime.HandleLine("1") // Main Menu: Board (BM)
-	if disconnect || !strings.Contains(out, "ボード／フォーラムメニュー") || !strings.Contains(out, "[60]") {
+	if disconnect || !strings.Contains(out, "ボード／フォーラムメニュー") || !strings.Contains(out, "<60><COMP>") {
 		t.Fatalf("root board menu missing: %q", out)
 	}
 	out, disconnect = runtime.HandleLine("60")
@@ -375,3 +375,46 @@ func TestBoardByPathResolvesCanonicalLeaf(t *testing.T) {
 		t.Fatal("unknown board unexpectedly resolved")
 	}
 }
+
+func TestBoardIndexFormatAndCommands(t *testing.T) {
+	runtime, store := sampleRuntime(t)
+	root := store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "今週末のメンテナンス", Body: "本文"})
+	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "MARI", Subject: "", Body: "その1"})
+	store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: "KAZU", Subject: "", Body: "その2"})
+
+	loginGuest(t, runtime)
+
+	// Navigate to board 1 (事務局からのお知らせ)
+	runtime.HandleLine("1")
+	out, _ := runtime.HandleLine("1")
+
+	// 1. Verify index format and ap/ref column
+	if !strings.Contains(out, "BD# 01") || !strings.Contains(out, "ap/ref___________i n d e x_______________") {
+		t.Fatalf("board index header missing or incorrect: %q", out)
+	}
+	// Post has 2 appends, so ap/ref column should have " 2 "
+	if !strings.Contains(out, fmt.Sprintf("%4d", root.ID)) || !strings.Contains(out, " 2 今週末のメンテナンス") {
+		t.Fatalf("post index row with append count missing: %q", out)
+	}
+	if !strings.Contains(out, "[BW/W]書く [A]アペ") {
+		t.Fatalf("guidance line should mention [BW/W] and [A]: %q", out)
+	}
+
+	// 2. Test 'A' command from board index to append
+	cmd := fmt.Sprintf("A %d", root.ID)
+	out, _ = runtime.HandleLine(cmd)
+	if !strings.Contains(out, fmt.Sprintf("MSG No.%d へアペンドします。", root.ID)) || !strings.Contains(out, "APE -->") {
+		t.Fatalf("%s should prompt for append: %q", cmd, out)
+	}
+	out, _ = runtime.HandleLine("") // cancel
+	if !strings.Contains(out, "アペを中止しました。") {
+		t.Fatalf("empty line should cancel append: %q", out)
+	}
+
+	// 3. Test '.' navigation to return to parent menu
+	out, _ = runtime.HandleLine(".")
+	if !strings.Contains(out, "ボード／フォーラムメニュー") {
+		t.Fatalf("'.' should return to parent menu: %q", out)
+	}
+}
+

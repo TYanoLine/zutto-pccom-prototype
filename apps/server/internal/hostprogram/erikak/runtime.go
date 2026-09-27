@@ -13,6 +13,7 @@ import (
 type boardNode struct {
 	Path                 string
 	Key                  string
+	Alias                string
 	Parent               string
 	Name                 string
 	Hidden               bool
@@ -36,12 +37,12 @@ var boardTree = []boardNode{
 	// "夢工房はかた" の意味は史料未確定。ここでは意味を推測せず、
 	// 局固有の活動量だけを設定する。
 	{Path: "8", Key: "8", Name: "夢工房はかた", SemanticScope: "史料上の板の意味は未確認。板名からゲーム制作・創作工房などの意味を推測して話題を決めない。局固有設定が確定するまで狭い専門内容を自動付与しない。", ActivityWeight: .42, ReplyRate: 1.10, RetainedRootCap: 36},
-	{Path: "10", Key: "10", Name: "博多・天神広場"},
-	{Path: "20", Key: "20", Name: "アミューズメントフォーラム"},
-	{Path: "60", Key: "60", Name: "コンピュータワールド"},
-	{Path: "68", Key: "68", Name: "ＣＡＮＡＬ Ｘ村"},
-	{Path: "70", Key: "70", Name: "９８ VS ＡＴ互換機"},
-	{Path: "80", Key: "80", Name: "その他のコンピュータ"},
+	{Path: "10", Key: "10", Alias: "HAKATA", Name: "博多・天神広場"},
+	{Path: "20", Key: "20", Alias: "AMUSE", Name: "アミューズメントフォーラム"},
+	{Path: "60", Key: "60", Alias: "COMP", Name: "コンピュータワールド"},
+	{Path: "68", Key: "68", Alias: "X68", Name: "ＣＡＮＡＬ Ｘ村"},
+	{Path: "70", Key: "70", Alias: "DOSV", Name: "９８ VS ＡＴ互換機"},
+	{Path: "80", Key: "80", Alias: "OTHER", Name: "その他のコンピュータ"},
 	{Path: "99", Key: "99", Name: "夜更かし部屋", Hidden: true, ActivityWeight: .34, ReplyRate: 2.30, RetainedRootCap: 36},
 
 	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル", SemanticScope: "博多・天神を中心とした地域の日常、店、交通、待ち合わせ、街の変化、地元での小さな出来事。", ActivityWeight: 1.00, ReplyRate: 1.45, RetainedRootCap: 54},
@@ -212,10 +213,27 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 		r.state = "thread"
 		return fmt.Sprintf("\r\nMSG No.%d を登録しました。\r\n", p.ID) + r.renderThread(p.ID), false
 
+	case "append_target":
+		if line == "" {
+			r.state = "board"
+			return "\r\nアペを中止しました。\r\n" + r.renderBoardIndex(), false
+		}
+		id, err := strconv.ParseInt(strings.TrimSpace(line), 10, 64)
+		if err != nil {
+			return "番号を数字で入力してください。\r\nアペンド対象MSG番号 --> ", false
+		}
+		root, ok := r.rootPost(id)
+		if !ok || root.BoardID != r.boardPath {
+			return "そのMSGはありません。\r\nアペンド対象MSG番号 --> ", false
+		}
+		r.threadID = id
+		r.state = "append_body"
+		return fmt.Sprintf("MSG No.%d へアペンドします。\r\nAPE --> ", id), false
+
 	case "append_body":
 		if line == "" {
-			r.state = "thread"
-			return "\r\nアペを中止しました。\r\n" + r.renderThread(r.threadID), false
+			r.state = "board"
+			return "\r\nアペを中止しました。\r\n" + r.renderBoardIndex(), false
 		}
 		root, ok := r.rootPost(r.threadID)
 		if !ok {
@@ -375,7 +393,7 @@ func (r *Runtime) handleBoard(line string) (string, bool) {
 	}
 
 	if r.boardPath == "" || r.isForum(r.boardPath) {
-		if line == "" {
+		if line == "" || line == "." {
 			if r.boardPath == "" {
 				r.state = "main"
 				return r.renderMainMenu(), false
@@ -397,7 +415,7 @@ func (r *Runtime) handleBoard(line string) (string, bool) {
 	}
 
 	// Leaf-board command mode.
-	if line == "" {
+	if line == "" || line == "." {
 		r.boardPath = parentPath(r.boardPath)
 		return r.renderBoardMenu(), false
 	}
@@ -409,6 +427,21 @@ func (r *Runtime) handleBoard(line string) (string, bool) {
 	case "BW", "BWX", "W", "NEW":
 		r.state = "new_subject"
 		return "TITLE --> ", false
+	case "A", "APE", "APPEND":
+		r.state = "append_target"
+		return "アペンド対象MSG番号 --> ", false
+	}
+	if strings.HasPrefix(upper, "A ") {
+		idStr := strings.TrimSpace(line[2:])
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			root, ok := r.rootPost(id)
+			if ok && root.BoardID == r.boardPath {
+				r.threadID = id
+				r.state = "append_body"
+				return fmt.Sprintf("MSG No.%d へアペンドします。\r\nAPE --> ", id), false
+			}
+		}
+		return "そのMSGはありません。\r\nアペンド対象MSG番号 --> ", false
 	}
 	if strings.HasPrefix(upper, "BR ") {
 		line = strings.TrimSpace(line[3:])
@@ -433,7 +466,7 @@ func (r *Runtime) handleThread(line string) (string, bool) {
 		return r.renderMainMenu(), false
 	}
 	switch upper {
-	case "", "BX", "BXS":
+	case "", ".", "BX", "BXS":
 		r.state = "board"
 		return r.renderBoardIndex(), false
 	case "BR", "R":
@@ -594,25 +627,48 @@ func (r *Runtime) renderBoardIndex() string {
 		}
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "\r\n〖%s〗  ★☆＝未読  〖Board.OP〗SYSOP\r\n", node.Name)
-	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
-	found := false
+	mark := "☆"
+	if unreadBoard[r.boardPath] {
+		mark = "★"
+	}
+	keyInt, err := strconv.Atoi(node.Key)
+	if err != nil {
+		keyInt = 1
+	}
+	fmt.Fprintf(&b, "\r\n%sBD# %02d %s\r\n", mark, keyInt, node.Name)
+	b.WriteString("# 最新10インデックス表示\r\n")
+	b.WriteString("___No. __date__ time_ _author_  ap/ref___________i n d e x_______________\r\n")
+
+	var roots []world.Post
 	for _, p := range posts {
-		if p.ParentID != 0 {
-			continue
+		if p.ParentID == 0 {
+			roots = append(roots, p)
 		}
-		found = true
-		mark := "☆"
-		if unreadBoard[r.boardPath] {
-			mark = "★"
-		}
-		fmt.Fprintf(&b, "%s[%04d] %-10s %-28s APE:%d\r\n", mark, p.ID, trimRunes(p.Author, 10), trimRunes(p.Subject, 28), r.appendCountFrom(posts, p.ID))
 	}
-	if !found {
+
+	if len(roots) == 0 {
 		b.WriteString("              --- MSG はありません ---\r\n")
+	} else {
+		// Show latest posts (up to 10) in reverse chronological order
+		start := len(roots) - 10
+		if start < 0 {
+			start = 0
+		}
+		for i := len(roots) - 1; i >= start; i-- {
+			p := roots[i]
+			ap := r.appendCountFrom(posts, p.ID)
+			apStr := "  "
+			if ap > 0 {
+				apStr = fmt.Sprintf("%2d", ap)
+			}
+			dateStr := p.CreatedAt.Format("06/01/02 15:04")
+			author := padRunes(trimRunes(p.Author, 8), 8)
+			subj := trimRunes(p.Subject, 38)
+			fmt.Fprintf(&b, "%02d %4d %s %s %s %s\r\n", keyInt, p.ID, dateStr, author, apStr, subj)
+		}
 	}
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
-	b.WriteString("[BX]一覧 [BR n]読む [BW]書く [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP\r\n")
+	b.WriteString("[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP\r\n")
 	b.WriteString(r.boardPrompt())
 	return b.String()
 }
@@ -692,7 +748,7 @@ func (r *Runtime) renderCommandHelp() string {
 }
 
 func (r *Runtime) renderBoardHelp() string {
-	return "\r\n〖BOARD COMMAND〗\r\nBM       ボード／フォーラムメニュー\r\nBJ n     階層移動   例: BJ 60 / BJ\\80\\2\r\nBX/BXS   MSGインデックス\r\nBR n     MSGを読む\r\nBW/BWX   新規MSGを書く\r\nA        現在のMSGへアペ（HAKATA局ショートカット）\r\nRETURN   前の階へ\r\n/        MAIN MENU\r\n\r\n" + r.boardPrompt()
+	return "\r\n〖BOARD COMMAND〗\r\nBM       ボード／フォーラムメニュー\r\nBJ n     階層移動   例: BJ 60 / BJ\\80\\2\r\nBX/BXS   MSGインデックス\r\nBR n     MSGを読む\r\nBW/W     新規MSGを書く\r\nA [n]    アペンド書き込み\r\n0/00/T   新着・未読表示\r\nRETURN/. 前の階へ\r\n/        MAIN MENU\r\n\r\n" + r.boardPrompt()
 }
 
 func (r *Runtime) renderFileMenu() string {
@@ -779,11 +835,13 @@ func (r *Runtime) formatBoardEntry(node boardNode) string {
 	if unreadBoard[node.Path] {
 		mark = "★"
 	}
-	entry := fmt.Sprintf("%s[%s] %s", mark, node.Key, node.Name)
-	if !r.isForum(node.Path) {
-		entry += fmt.Sprintf(" %d", r.rootCount(node.Path))
+	if r.isForum(node.Path) {
+		if node.Alias != "" {
+			return fmt.Sprintf("%s<%s><%s> %s", mark, node.Key, node.Alias, node.Name)
+		}
+		return fmt.Sprintf("%s<%s> %s", mark, node.Key, node.Name)
 	}
-	return entry
+	return fmt.Sprintf("%s[%s] %s %d", mark, node.Key, node.Name, r.rootCount(node.Path))
 }
 
 func (r *Runtime) boardPrompt() string {
