@@ -29,3 +29,18 @@ func TestHistoricalReferencesCanBeEnabledAndDisabled(t *testing.T) {
 		})
 	}
 }
+
+
+func TestDebugDisableBBSTitleHistoricalVerificationDefaultOff(t *testing.T) {
+	t.Setenv("DEBUG_DISABLE_BBS_TITLE_HISTORICAL_VERIFICATION", "")
+	if Load().DebugDisableBBSTitleHistoricalVerification {
+		t.Fatal("title historical verification debug bypass must default to OFF")
+	}
+}
+
+func TestDebugDisableBBSTitleHistoricalVerificationCanBeEnabled(t *testing.T) {
+	t.Setenv("DEBUG_DISABLE_BBS_TITLE_HISTORICAL_VERIFICATION", "1")
+	if !Load().DebugDisableBBSTitleHistoricalVerification {
+		t.Fatal("debug title historical verification bypass was not enabled")
+	}
+}
