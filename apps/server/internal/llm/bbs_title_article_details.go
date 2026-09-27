@@ -51,10 +51,11 @@ type BBSTitleArticleDetailSet struct {
 }
 
 type BBSTitleArticleDetailDraft struct {
-	Articles         []BBSTitleArticleDetailSet `json:"articles"`
-	Usage            TokenUsage                 `json:"-"`
-	WebSearchCalls   int                        `json:"-"`
-	WebSearchSources []string                   `json:"-"`
+	Articles             []BBSTitleArticleDetailSet `json:"articles"`
+	Usage                TokenUsage                 `json:"-"`
+	WebSearchCalls       int                        `json:"-"`
+	WebSearchSources     []string                   `json:"-"`
+	ForcedWebSearchRetry bool                       `json:"-"`
 }
 
 type BBSTitleArticleDetailPlanner interface {
@@ -133,17 +134,37 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 	if err != nil {
 		return BBSTitleArticleDetailDraft{}, err
 	}
-	var draft BBSTitleArticleDetailDraft
-	if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
+	draft, err := decodeBBSTitleArticleDetailResult(req, result)
+	if err != nil {
 		return draft, err
 	}
-	draft.Usage = result.Usage
-	draft.WebSearchCalls = result.WebSearchCalls
-	draft.WebSearchSources = append([]string(nil), result.WebSearchSources...)
-	if err := ValidateBBSTitleArticleDetails(req, draft); err != nil {
-		return draft, err
+	if !articleDetailNeedsForcedWebSearch(req, draft) {
+		return draft, nil
 	}
-	return draft, nil
+
+	forcedPrompt := prompt + `
+
+FORCED WEB SEARCH RETRY:
+前回の候補はWeb検索を一度も使わず、GAME系root記事の具体的なreferentも確定しませんでした。この再試行ではWeb検索を最低1回使ってください。
+- subject/summaryが省略している具体的な作品名を、投稿日時点で日本で成立する実在作品から1件選び、referent detailとして必ず返してください。
+- referentを選ぶためだけに作品固有の未確認仕様を発明してはいけません。
+- observation等に作品固有のボス名、面名、仕様、ストーリー、数値を入れるなら、その命題自体も検索結果に直接支持されている必要があります。
+- 安全な作品固有情報を確認できない場合でも、referentは確認済み作品名までに留め、もう1件のdetailは外部史実を主張しない本人の記事ローカル経験にしてください。
+- 元の記事意図・人物・投稿日時は変えないでください。
+`
+	forcedResult, err := p.responseTextWithJSONSchemaRequiredWebSearch(ctx, forcedPrompt, "low", "medium", 4200, "bbs_title_article_details", schema)
+	if err != nil {
+		return draft, nil
+	}
+	forcedDraft, err := decodeBBSTitleArticleDetailResult(req, forcedResult)
+	if err != nil {
+		return draft, nil
+	}
+	forcedDraft.ForcedWebSearchRetry = true
+	forcedDraft.Usage = mergeTokenUsage(draft.Usage, forcedDraft.Usage)
+	forcedDraft.WebSearchCalls += draft.WebSearchCalls
+	forcedDraft.WebSearchSources = mergeWebSearchSources(draft.WebSearchSources, forcedDraft.WebSearchSources)
+	return forcedDraft, nil
 }
 
 func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBSTitleArticleDetailDraft) error {
@@ -220,4 +241,79 @@ func ArticleDetailFactIsRenderingMetadata(fact string) bool {
 		}
 	}
 	return false
+}
+
+
+func decodeBBSTitleArticleDetailResult(req BBSTitleArticleDetailRequest, result responseTextResult) (BBSTitleArticleDetailDraft, error) {
+	var draft BBSTitleArticleDetailDraft
+	if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
+		return draft, err
+	}
+	draft.Usage = result.Usage
+	draft.WebSearchCalls = result.WebSearchCalls
+	draft.WebSearchSources = append([]string(nil), result.WebSearchSources...)
+	if err := ValidateBBSTitleArticleDetails(req, draft); err != nil {
+		return draft, err
+	}
+	return draft, nil
+}
+
+func articleDetailNeedsForcedWebSearch(req BBSTitleArticleDetailRequest, draft BBSTitleArticleDetailDraft) bool {
+	if draft.WebSearchCalls != 0 || !articleDetailBoardRequiresConcreteReferentExperiment(req.BoardName) {
+		return false
+	}
+	detailsByEvent := make(map[string][]BBSArticleDetail, len(draft.Articles))
+	for _, article := range draft.Articles {
+		detailsByEvent[article.EventID] = article.Details
+	}
+	for _, seed := range req.Articles {
+		if !strings.EqualFold(strings.TrimSpace(seed.DiscourseMode), "thread_start") {
+			continue
+		}
+		hasReferent := false
+		for _, detail := range detailsByEvent[seed.EventID] {
+			if strings.EqualFold(strings.TrimSpace(detail.Kind), "referent") {
+				hasReferent = true
+				break
+			}
+		}
+		if !hasReferent {
+			return true
+		}
+	}
+	return false
+}
+
+func articleDetailBoardRequiresConcreteReferentExperiment(boardName string) bool {
+	name := strings.ToLower(strings.TrimSpace(boardName))
+	return name == "game" || name == "ｇａｍｅ" || strings.Contains(name, "ゲーム")
+}
+
+func mergeTokenUsage(a, b TokenUsage) TokenUsage {
+	out := TokenUsage{
+		InputTokens:       a.InputTokens + b.InputTokens,
+		CachedInputTokens: a.CachedInputTokens + b.CachedInputTokens,
+		OutputTokens:      a.OutputTokens + b.OutputTokens,
+		ReasoningTokens:   a.ReasoningTokens + b.ReasoningTokens,
+		TotalTokens:       a.TotalTokens + b.TotalTokens,
+		Model:             b.Model,
+	}
+	if out.Model == "" {
+		out.Model = a.Model
+	}
+	return out
+}
+
+func mergeWebSearchSources(a, b []string) []string {
+	out := make([]string, 0, len(a)+len(b))
+	seen := map[string]bool{}
+	for _, source := range append(append([]string(nil), a...), b...) {
+		source = strings.TrimSpace(source)
+		if source == "" || seen[source] {
+			continue
+		}
+		seen[source] = true
+		out = append(out, source)
+	}
+	return out
 }
