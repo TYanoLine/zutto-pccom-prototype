@@ -975,7 +975,7 @@ func (alwaysVerifyTitleTestEngine) ResolveEvidence(_ context.Context, req worlde
 	return worldengine.EvidenceDecision{
 		Knowledge: historicalkb.KnowledgeResult{
 			CanUse: true,
-			Facts: []historicalkb.Fact{{Subject: req.Subject, Claim: "verified for test"}},
+			Facts: []historicalkb.HistoricalFact{{Subject: req.Subject, Claim: "verified for test"}},
 		},
 	}, nil
 }
