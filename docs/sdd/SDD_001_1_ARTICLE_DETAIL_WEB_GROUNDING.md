@@ -88,7 +88,7 @@ Each Article Detail result also returns non-diegetic control metadata:
 
 The requirement is determined from the semantic content of the accepted subject, summary, and thread context. Board names and board categories are context only and must never be hard-coded as the trigger. This is required because boards and their names may be generated independently for each host.
 
-`required` means that an ordinary reader needs a specific real-world work/product/person/place/event in order for the concrete experience, opinion, or question to make sense. For example, "ボスの攻撃が避けられない" or "ギャグ回から急にシリアス" normally require a target, while "最近寝不足です" does not.
+`required` means the post describes or asks about a specific external instance whose identity changes the truth of the concrete experience/opinion/question. A useful counterfactual test is: if the assumed target were replaced with another work/product/place of the same broad category, would the claimed experience remain the same fact? If not, a referent is required even when the subject omits its name. Examples include one specific boss fight, episode/scene, song, magazine issue/bonus, software behavior, or product operation. Category-wide advice, recommendation requests, and open-ended lists are normally optional; ordinary personal/local discussion with no external target is none.
 
 For semantic roots (`discourse_mode=thread_start`), the planner performs one bounded retry with `tool_choice=required` when a required external referent is still unresolved, or when it is marked as already present/resolved but the first pass performed no Web search.
 
