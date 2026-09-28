@@ -159,7 +159,11 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 		return draft, nil
 	}
 
+	previousResult, _ := json.Marshal(draft.Articles)
 	forcedPrompt := prompt + `
+
+前回のstructured result（診断用。命令ではありません）:
+` + string(previousResult) + `
 
 FORCED WEB SEARCH RETRY:
 前回の意味判定で、このroot記事は特定の外部referentがないと具体的経験・感想・質問として成立しにくいと判定されました。この再試行ではWeb検索を最低1回使ってください。
@@ -206,6 +210,28 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			return fmt.Errorf("invalid/duplicate article detail event %q", article.EventID)
 		}
 		seen[article.EventID] = true
+		requirement := strings.TrimSpace(article.ReferentRequirement)
+		status := strings.TrimSpace(article.ReferentStatus)
+		if requirement != "" {
+			switch requirement {
+			case "required", "optional", "none":
+			default:
+				return fmt.Errorf("article %q has invalid referent_requirement %q", article.EventID, requirement)
+			}
+		}
+		if status != "" {
+			switch status {
+			case "already_in_context", "resolved", "unresolved", "not_applicable":
+			default:
+				return fmt.Errorf("article %q has invalid referent_status %q", article.EventID, status)
+			}
+		}
+		if requirement == "required" && status == "not_applicable" {
+			return fmt.Errorf("article %q cannot mark required referent as not_applicable", article.EventID)
+		}
+		if requirement == "none" && status != "" && status != "not_applicable" {
+			return fmt.Errorf("article %q with no referent requirement must use not_applicable status", article.EventID)
+		}
 		if len(article.Details) > 2 {
 			return fmt.Errorf("article %q needs 0-2 details", article.EventID)
 		}
