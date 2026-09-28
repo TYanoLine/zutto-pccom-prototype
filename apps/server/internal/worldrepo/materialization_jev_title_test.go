@@ -104,3 +104,60 @@ func TestJevTitlePlannerSpecificityBonusCannotRescueBelowFitFloor(t *testing.T) 
 		}
 	}
 }
+
+
+func TestJevTitlePlannerRejectsGenericRootBelowSpecificityFloor(t *testing.T) {
+	planner := developmentJevTitlePlanner{
+		titles: []string{"お気に入りの見開き", "エヴァ第九話の作画について"},
+		advice: worldengine.TitleCandidateAdviceDecision{
+			Fit: map[string]float64{
+				worldengine.TitleCandidatePairKey(1, "e1"): 0.92,
+				worldengine.TitleCandidatePairKey(2, "e1"): 0.70,
+			},
+			Specificity: map[int]float64{1: 0.18, 2: 0.91},
+		},
+	}
+	req := llm.BBSTitleReviewRequest{
+		BoardName: "ＡＮＩＭＥ／ＭＡＮＧＡ",
+		Titles: []string{"お気に入りの見開き", "エヴァ第九話の作画について"},
+		Events: []llm.BBSWorldWindowEvent{{EventID: "e1"}},
+	}
+	got, err := planner.ReviewBBSTitleCandidates(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range got.Decisions {
+		if d.EventID == "e1" {
+			if d.Subject != "エヴァ第九話の作画について" {
+				t.Fatalf("generic root crossed semantic specificity floor: %+v", got.Decisions)
+			}
+			return
+		}
+	}
+	t.Fatal("specific root was not assigned")
+}
+
+func TestJevTitlePlannerRankingRecoveryStillKeepsSpecificityFloor(t *testing.T) {
+	planner := developmentJevTitlePlanner{
+		titles: []string{"次号の展開を予想"},
+		advice: worldengine.TitleCandidateAdviceDecision{
+			Fit: map[string]float64{
+				worldengine.TitleCandidatePairKey(1, "e1"): 0.99,
+			},
+			Specificity: map[int]float64{1: 0.10},
+		},
+		rankingOnly: true,
+	}
+	req := llm.BBSTitleReviewRequest{
+		BoardName: "ＡＮＩＭＥ／ＭＡＮＧＡ",
+		Titles: []string{"次号の展開を予想"},
+		Events: []llm.BBSWorldWindowEvent{{EventID: "e1"}},
+	}
+	got, err := planner.ReviewBBSTitleCandidates(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Decisions) != 1 || got.Decisions[0].EventID != "" {
+		t.Fatalf("ranking-only recovery must not rescue generic roots: %+v", got.Decisions)
+	}
+}
