@@ -163,7 +163,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	for attempt := 0; attempt < 2; attempt++ {
 		draft, err = planner.MaterializeBBSTitleArticleDetails(ctx, request)
 		if err == nil {
-			err = llm.ValidateBBSTitleArticleDetails(request, draft)
+			err = llm.ValidateBBSTitleArticleDetailsForCommit(request, draft)
 		}
 		if err == nil || ctx.Err() != nil {
 			break
