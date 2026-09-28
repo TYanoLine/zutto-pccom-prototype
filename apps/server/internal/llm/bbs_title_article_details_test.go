@@ -96,7 +96,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 				"model":"gpt-test",
 				"output":[
 					{"type":"web_search_call","action":{"type":"search","sources":[{"type":"url","url":"https://example.com/source"}]}},
-					{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回話している作品は『テスト作品』である\"}]}]}"}]}
+					{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"referent_grounding\":\"external_history\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回話している作品は『テスト作品』である\"}]}]}"}]}
 				],
 				"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":12,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":32}
 			}`
@@ -151,7 +151,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 	if len(draft.WebSearchSources) != 1 || draft.WebSearchSources[0] != "https://example.com/source" {
 		t.Fatalf("web search sources=%v", draft.WebSearchSources)
 	}
-	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || len(draft.Articles[0].Details) != 1 || draft.Articles[0].Details[0].Kind != "referent" {
+	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || draft.Articles[0].ReferentGrounding != "external_history" || len(draft.Articles[0].Details) != 1 || draft.Articles[0].Details[0].Kind != "referent" {
 		t.Fatalf("unexpected grounded detail draft: %+v", draft.Articles)
 	}
 }
@@ -259,7 +259,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 			if call == 1 {
 				response = `{
 					"model":"gpt-test",
-					"output":[{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"unresolved\",\"details\":[{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}],
+					"output":[{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"unresolved\",\"referent_grounding\":\"external_history\",\"details\":[{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}],
 					"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":30}
 				}`
 			} else {
