@@ -81,11 +81,12 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 BoardNameは文脈の一部にすぎず、GAME/ANIME等の板名やカテゴリ名だけを理由にrequired/noneを決めてはいけません。将来、板名や板構成は局ごとに自動生成されます。
 
 referent_status:
-- already_in_context: subject/summary/ThreadContext等に具体的対象がすでに明示されている。別の対象へ置換しない。
+- already_in_context: subject/summary/ThreadContext等に具体的対象がすでに明示されている。別の対象へ置換しない。requiredな外部対象なら必要に応じてその対象自体をWeb検索で検証し、referent detailにも同じ対象を残す。
 - resolved: 今回の処理で具体的対象を選び、必要なら検索で投稿日時点との整合を確認した。
 - unresolved: referent_requiredだが、まだ具体的対象を同定できていない。
 - not_applicable: referent_requiredではなく、対象同定が不要。
-referent_requiredなのに対象が省略されている場合、単に架空の場面だけを足して具体化したつもりにならないでください。
+referent_requirement/referent_statusは生成制御と診断のためのメタデータで、BBS世界の事実や本文には書かないでください。
+referent_requiredなのに対象が省略されている場合、単に架空の場面だけを足して具体化したつもりにならないでください。subject等にすでに固有対象がある場合は、勝手に別対象を発明せずその対象をアンカーにしてください。
 
 各articleのdetailsは0〜2件です。ただし、タイトルやsummaryが抽象的・一般的な場合でも本文まで抽象論にしないでください。その人物が今回実際に見たもの、試した条件、回数、場所、順序、比較対象、必要なら話題の具体的な実在対象など、投稿を一段具体化する小さな事実を自然に1件程度固定してください。短い感情表明や純粋な相づちとして既に十分な場合だけ0件でも構いません。件数を埋めるための作り話は禁止です。
 
