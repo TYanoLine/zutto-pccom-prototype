@@ -287,7 +287,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		poolStarted := time.Now()
 		if hasContextual {
 			claimCandidateTarget := claimBearingCandidateTarget(
-				requestedSpecificReferentTarget-len(verifiedSpecificReferentEvents),
+				requestedSpecificReferentTarget-len(specificReferentEvents),
 				sharedTitlePoolTargetSize,
 				len(remaining),
 			)
@@ -400,7 +400,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						// bonus can rescue a candidate below the semantic fit floor.
 						if cachedVerifiedClaims[title] {
 							bonus += .18
-						} else if len(verifiedSpecificReferentEvents) < requestedSpecificReferentTarget {
+						} else if len(specificReferentEvents) < requestedSpecificReferentTarget {
 							bonus += .03
 						}
 					}
