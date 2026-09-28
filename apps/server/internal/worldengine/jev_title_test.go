@@ -96,10 +96,16 @@ func TestJevAdvisorTitleCandidatesFitOnlyOmitsEraQuestions(t *testing.T) {
 			if strings.Contains(key, "era_") {
 				t.Fatalf("fit-only request unexpectedly contained era question %q", key)
 			}
-			if !strings.Contains(key, "_fit") {
-				t.Fatalf("fit-only request contained non-fit question %q", key)
+			value := 0.77
+			switch {
+			case strings.Contains(key, "_fit"):
+				// candidate × event compatibility
+			case strings.Contains(key, "_root_specificity"):
+				value = 0.88
+			default:
+				t.Fatalf("fit-only request contained unexpected question %q", key)
 			}
-			answers[key] = map[string]any{"type": "noul", "noul": 0.77}
+			answers[key] = map[string]any{"type": "noul", "noul": value}
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"model": "jev-fit-only",
@@ -127,5 +133,8 @@ func TestJevAdvisorTitleCandidatesFitOnlyOmitsEraQuestions(t *testing.T) {
 	}
 	if len(got.Fit) != 4 {
 		t.Fatalf("fit-only pairs=%d, want 4", len(got.Fit))
+	}
+	if len(got.Specificity) != 2 || got.Specificity[1] != 0.88 || got.Specificity[2] != 0.88 {
+		t.Fatalf("fit-only specificity=%v, want two 0.88 scores", got.Specificity)
 	}
 }

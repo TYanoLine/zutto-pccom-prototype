@@ -363,3 +363,28 @@ func TestValidateBBSTitleArticleDetailsAcceptsInheritedReplyReferent(t *testing.
 		t.Fatal("inherited reply referent should not force Web search")
 	}
 }
+
+
+func TestSanitizeArticleDetailEvidenceMetadataRemovesWebCitation(t *testing.T) {
+	in := "『美少女戦士セーラームーン』第1話。([lineup.toei-anim.co.jp](https://lineup.toei-anim.co.jp/ja/tv/sailor_moon/episode/1/?utm_source=openai))"
+	got := sanitizeArticleDetailEvidenceMetadata(in)
+	if got != "『美少女戦士セーラームーン』第1話。" {
+		t.Fatalf("sanitized detail=%q", got)
+	}
+	if ArticleDetailFactLeaksEvidenceMetadata(got) {
+		t.Fatalf("sanitized detail still leaks evidence metadata: %q", got)
+	}
+}
+
+func TestValidateBBSTitleArticleDetailsRejectsRawEvidenceURL(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
+		EventID: "e1", Subject: "セーラームーン第1話", Summary: "第1話の場面について感想を話す",
+	}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "resolved", ReferentGrounding: "external_history",
+		Details: []BBSArticleDetail{{Kind: "referent", Fact: "セーラームーン第1話 https://example.com/source"}},
+	}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
+		t.Fatal("canonical Article Detail must reject raw evidence URLs")
+	}
+}

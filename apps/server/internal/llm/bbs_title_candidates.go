@@ -127,8 +127,16 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 - 「博多駅」「新宿駅」のような固有の駅名は、広域地名そのものとは別の実在対象です。HistoricalFactsで確認済みでない固有駅名を使う候補には、駅の存在/利用可能性を historical_claims に必ず付けること。
 - 季節・祝日・「今日」「今週末」など割当先の日付に依存する語は、後段で各投稿枠のcreated_atと照合されます。候補の多様化目的だけで季節語を混ぜず、その時期に置かれて自然な題材としてのみ使うこと。
 `
+		specificTarget := requestedBBSTitleCandidateCount(req) * 3 / 5
+		if specificTarget < req.RemainingNeeded {
+			specificTarget = req.RemainingNeeded
+		}
+		if specificTarget > requestedBBSTitleCandidateCount(req) {
+			specificTarget = requestedBBSTitleCandidateCount(req)
+		}
+		prompt += fmt.Sprintf("\n- この大規模プールでは少なくとも%d件を、広い板にrootとして単独表示しても『何についての投稿か』を読者が識別できる自己完結した具体件名にしてください。固有名詞は必須ではありません。具体的な症状・操作・場所・物・用件・出来事でも構いません。ただし『台詞の間が好き』『お気に入りの見開き』『このキャラの表情がいい』『次号の展開を予想』『クリア時間を比べたい』のように、隠れた作品・ゲーム・対象を入れ替えても同じ文面が成立する件名は、BoardScopeやRecentBBSStateがその対象を一意にしていない限り、この自己完結件数へ数えないでください。後段のArticle Detailに対象を発明させる前提は禁止です。\n", specificTarget)
 		if req.ClaimBearingCandidateTarget > 0 {
-			prompt += fmt.Sprintf("\n- この板では最終的に約%d件のverified specific referentを残す品質目標があります。出力schemaがclaim_free_candidatesとclaim_bearing_candidatesを分離し、claim_bearing_candidatesは正確に%d件を要求します。claim-bearing側は、識別可能な一つの実在固有対象（例: 大濠公園、博多駅、福岡市博物館、岩田屋のように名称だけで対象を特定できる場所・施設・店・路線・製品・作品等）を title 本文に明記し、その同じ固有名を historical_claims[].subject に入れてください。「福岡市内の病院」「市内の書店」「近所の店」「公共駐車場」「地下鉄」「タクシー」のような一般カテゴリや広域地名だけではspecific referent目標を満たしません。claim-bearing側をそのようなカテゴリ語で数合わせしないでください。claim-free側へ実在固有名詞を逃がして数合わせしないでください。\n", req.VerifiedReferentTarget, req.ClaimBearingCandidateTarget)
+			prompt += fmt.Sprintf("\n- 出力schemaは候補プールの実在固有対象の供給を安定させるため、claim_free_candidatesとclaim_bearing_candidatesを分離し、claim_bearing_candidatesを正確に%d件要求します。局固有のverified referent採用目標は%d件です（0でも候補プールの多様性確保のためclaim-bearing候補は要求され得ます）。claim-bearing側は、識別可能な一つの実在固有対象（例: 大濠公園、博多駅、福岡市博物館、岩田屋のように名称だけで対象を特定できる場所・施設・店・路線・製品・作品等）を title 本文に明記し、その同じ固有名を historical_claims[].subject に入れてください。「福岡市内の病院」「市内の書店」「近所の店」「公共駐車場」「地下鉄」「タクシー」のような一般カテゴリや広域地名だけではclaim-bearing候補になりません。claim-bearing側をそのようなカテゴリ語で数合わせしないでください。claim-free側へ実在固有名詞を逃がして数合わせしないでください。\n", req.ClaimBearingCandidateTarget, req.VerifiedReferentTarget)
 		}
 	}
 	return prompt + string(payload)

@@ -1020,6 +1020,12 @@ func TestVerifiedReferentTargetAndClaimPoolSizing(t *testing.T) {
 	if got := claimBearingCandidateTarget(20, 100, 90); got != 10 {
 		t.Fatalf("claim target should preserve claim-free reserve: got %d want 10", got)
 	}
+	if got := baselineClaimBearingCandidateTarget(100, 44); got != 20 {
+		t.Fatalf("baseline claim-bearing pool=%d, want 20", got)
+	}
+	if got := baselineClaimBearingCandidateTarget(100, 90); got != 10 {
+		t.Fatalf("baseline must preserve claim-free reserve: got %d want 10", got)
+	}
 }
 
 func TestSharedBBSPlannerPassesBoardTextureTargetsToGenerator(t *testing.T) {

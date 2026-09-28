@@ -16,6 +16,7 @@ const (
 	developmentJevTitleEraSafeThreshold       = 0.80
 	developmentJevTitleEraImpossibleThreshold = 0.80
 	developmentJevTitleFitThreshold           = 0.35
+	developmentJevTitleSpecificityThreshold   = 0.60
 )
 
 type developmentTitleCandidateAdvisor interface {
@@ -26,6 +27,7 @@ type developmentJevTitlePlanner struct {
 	titles           []string
 	advice           worldengine.TitleCandidateAdviceDecision
 	fitFloor         float64
+	specificityFloor float64
 	rankingOnly      bool
 	specificityBonus map[int]float64
 }
@@ -68,6 +70,18 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 	for local, original := range originalIndexes {
 		title := req.Titles[local]
 		if strings.TrimSpace(title) == "" || utf8.RuneCountInString(title) > 36 || strings.ContainsAny(title, "\r\n") {
+			continue
+		}
+		specificityFloor := p.specificityFloor
+		if specificityFloor == 0 {
+			specificityFloor = developmentJevTitleSpecificityThreshold
+		}
+		// Specificity is candidate-level, independent of persona/event fit. When
+		// Jev supplied the score, a broad-board root that still depends on an
+		// unnamed hidden work/product/issue is ineligible even on the last
+		// ranking-only recovery pass. Missing scores remain fail-open for legacy
+		// test adapters and non-Jev reviewers.
+		if specificity, ok := p.advice.Specificity[original]; ok && specificity < specificityFloor {
 			continue
 		}
 		for ei, event := range req.Events {
@@ -132,6 +146,13 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 			decisions = append(decisions, llm.BBSTitleDecision{
 				Candidate: local,
 				Reason: func() string {
+					specificityFloor := p.specificityFloor
+					if specificityFloor == 0 {
+						specificityFloor = developmentJevTitleSpecificityThreshold
+					}
+					if specificity, scored := p.advice.Specificity[original]; scored && specificity < specificityFloor {
+						return fmt.Sprintf("Jev root具体性 %.2f（採用床 %.2f 未満）", specificity, specificityFloor)
+					}
 					floor := p.fitFloor
 					if p.rankingOnly {
 						floor = 0
@@ -263,6 +284,9 @@ func (r *Repository) developmentJevTitleAdviceMode(
 		wantFit := len(titles) * len(adviceEvents)
 		if len(decision.Fit) != wantFit {
 			return decision, true, fmt.Errorf("Jev title advice omitted fit pairs: got %d want %d", len(decision.Fit), wantFit)
+		}
+		if len(decision.Specificity) != 0 && len(decision.Specificity) != len(titles) {
+			return decision, true, fmt.Errorf("Jev title advice omitted specificity candidates: got %d want %d", len(decision.Specificity), len(titles))
 		}
 	} else if len(decision.Era) != len(titles) {
 		return decision, true, fmt.Errorf("Jev title advice omitted era candidates: got %d want %d", len(decision.Era), len(titles))
