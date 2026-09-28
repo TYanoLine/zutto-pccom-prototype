@@ -660,8 +660,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 	}
 
 	// Do not synthesize board-name paraphrases such as "ＰＣ－９８について".
-	// A contextual call normally gets one 100-title pool, with one fresh large pool
-	// allowed only as recovery. If bounded generation still cannot fill the
+	// A contextual call normally gets one adaptive large pool (remaining roots
+	// plus bounded reserve), with one fresh large pool allowed only as recovery.
+	// If bounded generation still cannot fill the
 	// world-selected roots, abort without committing partial/canned subjects so a
 	// later observation can retry cleanly.
 	if len(remaining) > 0 {
