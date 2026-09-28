@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
 
-var bbsArticleDetailKinds = map[string]bool{
+var (\n\tarticleDetailMarkdownURL = regexp.MustCompile(`\\(?\\[[^\\]\\r\\n]{1,160}\\]\\(https?://[^)\\s]+\\)\\)?`)\n\tarticleDetailRawURL      = regexp.MustCompile(`https?://[^\\s)）]+`)\n)\n\nvar bbsArticleDetailKinds = map[string]bool{
 	"referent":         true,
 	"locator":          true,
 	"timing":           true,
@@ -286,6 +287,9 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			if ArticleDetailFactIsRenderingMetadata(fact) {
 				return fmt.Errorf("article %q detail leaked article-header/rendering metadata: %q", article.EventID, fact)
 			}
+			if ArticleDetailFactContainsOperationalEvidence(fact) {
+				return fmt.Errorf("article %q detail leaked Web/search evidence metadata: %q", article.EventID, fact)
+			}
 		}
 		if hasReferent && status != "" && status != "resolved" && status != "already_in_context" {
 			return fmt.Errorf("article %q has referent detail with incompatible status %q", article.EventID, status)
@@ -387,7 +391,7 @@ func articleDetailLooksEditorial(fact string) bool {
 	return false
 }
 
-// ArticleDetailFactIsRenderingMetadata identifies facts about the BBS record/header
+// stripArticleDetailOperationalEvidence removes citation syntax emitted by the\n// Web-search transport. Source URLs are diagnostics, never fictional world facts.\n// This cleanup is semantic-preserving: it removes only link/citation wrappers and\n// leaves the asserted referent/observation text intact.\nfunc stripArticleDetailOperationalEvidence(fact string) string {\n\tclean := articleDetailMarkdownURL.ReplaceAllString(fact, "")\n\tclean = articleDetailRawURL.ReplaceAllString(clean, "")\n\tclean = strings.TrimSpace(clean)\n\tclean = strings.TrimSpace(strings.TrimRight(clean, " ()（）[]［］"))\n\treturn clean\n}\n\nfunc ArticleDetailFactContainsOperationalEvidence(fact string) bool {\n\tvalue := strings.ToLower(strings.TrimSpace(fact))\n\tif value == "" {\n\t\treturn false\n\t}\n\tfor _, marker := range []string{\n\t\t"http://", "https://", "utm_source=openai", "web検索", "検索結果", "検索で確認",\n\t\t"参照url", "source url", "citation:",\n\t} {\n\t\tif strings.Contains(value, marker) {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\n// ArticleDetailFactIsRenderingMetadata identifies facts about the BBS record/header
 // rather than facts inside the fictional article event. Such facts must never become
 // canonical article_detail because prose workers can otherwise echo them verbatim.
 func ArticleDetailFactIsRenderingMetadata(fact string) bool {
@@ -416,6 +420,11 @@ func decodeBBSTitleArticleDetailResult(req BBSTitleArticleDetailRequest, result 
 	draft.Usage = result.Usage
 	draft.WebSearchCalls = result.WebSearchCalls
 	draft.WebSearchSources = append([]string(nil), result.WebSearchSources...)
+	for ai := range draft.Articles {
+		for di := range draft.Articles[ai].Details {
+			draft.Articles[ai].Details[di].Fact = stripArticleDetailOperationalEvidence(draft.Articles[ai].Details[di].Fact)
+		}
+	}
 	if err := ValidateBBSTitleArticleDetails(req, draft); err != nil {
 		return draft, err
 	}
