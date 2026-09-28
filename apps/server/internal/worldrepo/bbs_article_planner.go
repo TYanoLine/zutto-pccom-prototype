@@ -279,6 +279,9 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				sharedTitlePoolTargetSize,
 				len(remaining),
 			)
+			if baseline := baselineClaimBearingCandidateTarget(sharedTitlePoolTargetSize, len(remaining)); claimCandidateTarget < baseline {
+				claimCandidateTarget = baseline
+			}
 			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
 				WorldDate:                   worldDate,
 				BoardName:                   req.Board.Name,
@@ -369,6 +372,19 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				ctx, req.Host, req.Board, worldDate, fitTitles, fitEvents, recentState, historicalFacts,
 			)
 			log.Printf("BBS timing: host=%s board=%s phase=jev_fit attempt=%d duration=%s used=%t err=%t titles=%d events=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil, len(fitTitles), len(fitEvents))
+			if jevAttempted && jevErr == nil && len(jevAdvice.Specificity) > 0 {
+				scored := 0
+				below := 0
+				for candidate := 1; candidate <= len(fitTitles); candidate++ {
+					if score, ok := jevAdvice.Specificity[candidate]; ok {
+						scored++
+						if score < developmentJevTitleSpecificityThreshold {
+							below++
+						}
+					}
+				}
+				log.Printf("BBS title quality: host=%s board=%s phase=jev_specificity attempt=%d scored=%d below_floor=%d floor=%.2f", req.Host.ID, req.Board.ID, attempt+1, scored, below, developmentJevTitleSpecificityThreshold)
+			}
 			if jevErr != nil {
 				jevAttempted = false
 			}
@@ -381,6 +397,12 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						bonus += .08
 					} else if titleUsesDominantDeFrame(title, dominantLeads) {
 						bonus -= .03
+					}
+					if specificity, ok := jevAdvice.Specificity[candidate]; ok {
+						// The hard floor removes generic roots. This bonus then
+						// prefers the clearest surviving topic without requiring
+						// a proper noun or a board-name-specific rule.
+						bonus += .15 * specificity
 					}
 					if len(historicalClaimsForTitle(pool, title)) > 0 {
 						// Prefer already-verified referents strongly enough to survive
@@ -404,6 +426,7 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 					titles:           append([]string(nil), fitTitles...),
 					advice:           jevAdvice,
 					fitFloor:         developmentJevTitleFitThreshold,
+					specificityFloor: developmentJevTitleSpecificityThreshold,
 					rankingOnly:      attempt == maxPoolAttempts-1,
 					specificityBonus: qualityBonus,
 				}
@@ -881,6 +904,30 @@ func verifiedReferentTargetForBoard(rootCount int, rate float64) int {
 	}
 	if target > rootCount {
 		target = rootCount
+	}
+	return target
+}
+
+func baselineClaimBearingCandidateTarget(candidateCount, remainingNeeded int) int {
+	if candidateCount <= 0 {
+		return 0
+	}
+	// Keep a stable supply of real-world named candidates even when a board has
+	// no station-specific VerifiedReferentRate. This is a candidate-pool
+	// diversity floor, not an adoption quota: board scope and the semantic
+	// specificity/fit gates still decide whether any of them are suitable.
+	target := candidateCount / 5
+	if target < 1 {
+		target = 1
+	}
+	// Preserve enough claim-free candidates to fill every remaining world slot
+	// if historical research is unavailable or rejects every named candidate.
+	maxClaims := candidateCount - remainingNeeded
+	if maxClaims < 0 {
+		maxClaims = 0
+	}
+	if target > maxClaims {
+		target = maxClaims
 	}
 	return target
 }
