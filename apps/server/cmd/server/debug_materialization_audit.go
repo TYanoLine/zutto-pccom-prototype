@@ -37,8 +37,8 @@ func startDebugMaterializationAudit(addr string) {
 			log.Printf("DEBUG materialization audit failed: %v", err)
 			return
 		}
-		log.Printf("DEBUG materialization audit completed: id=%s commit=%s status=%s duration_ms=%d posts=%d bodies=%d failures=%d empty=%v usage=%q",
-			job.ID, job.BuildCommit, job.Status, job.DurationMS, job.PostCount, job.BodyCount, job.Failures, job.EmptyPostIDs, job.Usage)
+		log.Printf("DEBUG materialization audit completed: id=%s commit=%s status=%s duration_ms=%d posts=%d bodies=%d failures=%d empty=%v usage=%q status_text=%q",
+			job.ID, job.BuildCommit, job.Status, job.DurationMS, job.PostCount, job.BodyCount, job.Failures, job.EmptyPostIDs, job.Usage, job.StatusText)
 		for _, article := range job.Articles {
 			payload, marshalErr := json.Marshal(map[string]any{
 				"id": article.ID,
