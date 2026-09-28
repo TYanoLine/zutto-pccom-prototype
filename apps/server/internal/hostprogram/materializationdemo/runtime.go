@@ -385,6 +385,15 @@ func formatBulkBodyJobStatus(job bulkBodyJob) string {
 	}
 	if len(job.failures) > 0 {
 		fmt.Fprintf(&b, "[DEV] LAST FAILURE   : %s\r\n", job.failures[len(job.failures)-1])
+		if !bulkJobRunning(job.state) {
+			start := 0
+			if len(job.failures) > 8 {
+				start = len(job.failures) - 8
+			}
+			for i := start; i < len(job.failures); i++ {
+				fmt.Fprintf(&b, "[DEV] FAILURE %d      : %s\r\n", i+1, job.failures[i])
+			}
+		}
 	}
 	if job.cancelRequested && bulkJobRunning(job.state) {
 		b.WriteString("[DEV] CANCEL         : requested; waiting for current call to return\r\n")
