@@ -59,3 +59,18 @@ func TestDebugLogBBSArticleDetailsCanBeEnabled(t *testing.T) {
 		t.Fatal("Article Detail debug logging was not enabled")
 	}
 }
+
+
+func TestDebugAutoRunMaterializationAuditDefaultOff(t *testing.T) {
+	t.Setenv("DEBUG_AUTORUN_MATERIALIZATION_AUDIT", "")
+	if Load().DebugAutoRunMaterializationAudit {
+		t.Fatal("materialization audit autorun must default to OFF")
+	}
+}
+
+func TestDebugAutoRunMaterializationAuditCanBeEnabled(t *testing.T) {
+	t.Setenv("DEBUG_AUTORUN_MATERIALIZATION_AUDIT", "1")
+	if !Load().DebugAutoRunMaterializationAudit {
+		t.Fatal("materialization audit autorun was not enabled")
+	}
+}
