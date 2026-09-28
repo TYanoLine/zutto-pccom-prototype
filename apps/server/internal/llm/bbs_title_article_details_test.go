@@ -96,7 +96,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 				"model":"gpt-test",
 				"output":[
 					{"type":"web_search_call","action":{"type":"search","sources":[{"type":"url","url":"https://example.com/source"}]}},
-					{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回話している作品は『テスト作品』である\"}]}]}"}]}
+					{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"referent_grounding\":\"external_history\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回話している作品は『テスト作品』である\"}]}]}"}]}
 				],
 				"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":12,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":32}
 			}`
@@ -140,7 +140,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 		t.Fatalf("reasoning effort=%v, want medium", reasoning["effort"])
 	}
 	prompt, _ := captured["input"].(string)
-	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず", "具体的な命題が検索結果に直接支持", "似た名前の敵・別機種版・移植版", "板名やカテゴリ名だけを理由に", "反実仮想テスト", "食事の場面が妙にうまそう", "referent_requirement", "referent_status"} {
+	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず", "具体的な命題が検索結果に直接支持", "似た名前の敵・別機種版・移植版", "板名やカテゴリ名だけを理由に", "反実仮想テスト", "食事の場面が妙にうまそう", "referent_requirement", "referent_status", "referent_grounding", "world_local"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("article detail prompt missing %q", want)
 		}
@@ -151,7 +151,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 	if len(draft.WebSearchSources) != 1 || draft.WebSearchSources[0] != "https://example.com/source" {
 		t.Fatalf("web search sources=%v", draft.WebSearchSources)
 	}
-	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || len(draft.Articles[0].Details) != 1 || draft.Articles[0].Details[0].Kind != "referent" {
+	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || draft.Articles[0].ReferentGrounding != "external_history" || len(draft.Articles[0].Details) != 1 || draft.Articles[0].Details[0].Kind != "referent" {
 		t.Fatalf("unexpected grounded detail draft: %+v", draft.Articles)
 	}
 }
@@ -165,7 +165,7 @@ func TestArticleDetailNeedsForcedWebSearchBySemanticRequirementNotBoardName(t *t
 		}},
 	}
 	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
-		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "unresolved",
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "unresolved", ReferentGrounding: "external_history",
 		Details: []BBSArticleDetail{{Kind: "sequence", Fact: "脇役の言い合いのあと主人公が一人で黙り込んだ"}},
 	}}}
 	if !articleDetailNeedsForcedWebSearch(req, draft) {
@@ -173,6 +173,7 @@ func TestArticleDetailNeedsForcedWebSearchBySemanticRequirementNotBoardName(t *t
 	}
 	draft.WebSearchCalls = 1
 	draft.Articles[0].ReferentStatus = "resolved"
+	draft.Articles[0].ReferentGrounding = "external_history"
 	draft.Articles[0].Details = append(draft.Articles[0].Details, BBSArticleDetail{Kind: "referent", Fact: "今回見ている作品は『テスト作品』である"})
 	if articleDetailNeedsForcedWebSearch(req, draft) {
 		t.Fatal("searched and resolved semantic referent should avoid forced retry")
@@ -187,7 +188,7 @@ func TestArticleDetailDoesNotForceRootWhoseMeaningNeedsNoExternalReferent(t *tes
 		}},
 	}
 	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
-		EventID: "e1", ReferentRequirement: "none", ReferentStatus: "not_applicable",
+		EventID: "e1", ReferentRequirement: "none", ReferentStatus: "not_applicable", ReferentGrounding: "not_applicable",
 	}}}
 	if articleDetailNeedsForcedWebSearch(req, draft) {
 		t.Fatal("board name alone must not force an external referent")
@@ -204,8 +205,8 @@ func TestArticleDetailNeedsForcedWebSearchToVerifyExistingSemanticReferent(t *te
 		}},
 	}
 	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
-		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "already_in_context",
-		Details: []BBSArticleDetail{{Kind: "question_scope", Fact: "最初に選ぶ勢力の違いだけを比べたい"}},
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "already_in_context", ReferentGrounding: "external_history",
+		Details: []BBSArticleDetail{{Kind: "referent", Fact: "今回話している作品は『天翔記』である"}, {Kind: "question_scope", Fact: "最初に選ぶ勢力の違いだけを比べたい"}},
 	}}}
 	if !articleDetailNeedsForcedWebSearch(req, draft) {
 		t.Fatal("required external referent already in subject should still be verified when first pass did not search")
@@ -219,7 +220,7 @@ func TestArticleDetailNeedsForcedWebSearchToVerifyExistingSemanticReferent(t *te
 func TestValidateBBSTitleArticleDetailsRejectsContradictoryReferentMetadata(t *testing.T) {
 	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{EventID: "e1", Subject: "近況", Summary: "近況"}}}
 	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
-		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "not_applicable",
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "not_applicable", ReferentGrounding: "not_applicable",
 	}}}
 	if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
 		t.Fatal("required referent cannot be not_applicable")
@@ -230,11 +231,11 @@ func TestArticleDetailDoesNotForceReplyWithoutNewReferent(t *testing.T) {
 	req := BBSTitleArticleDetailRequest{
 		BoardName: "自動生成された板名",
 		Articles: []BBSTitleArticleDetailSeed{{
-			EventID: "e1", Subject: "", Summary: "先行記事へ自分の経験を返す", DiscourseMode: "reply",
+			EventID: "e1", IsReply: true, Subject: "", Summary: "先行記事へ自分の経験を返す", DiscourseMode: "reply",
 		}},
 	}
 	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
-		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "already_in_context",
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "already_in_context", ReferentGrounding: "inherited_context",
 	}}}
 	if articleDetailNeedsForcedWebSearch(req, draft) {
 		t.Fatal("reply should inherit canonical thread context instead of forcing a new referent search")
@@ -258,7 +259,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 			if call == 1 {
 				response = `{
 					"model":"gpt-test",
-					"output":[{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"unresolved\",\"details\":[{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}],
+					"output":[{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"unresolved\",\"referent_grounding\":\"external_history\",\"details\":[{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}],
 					"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":30}
 				}`
 			} else {
@@ -266,7 +267,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 					"model":"gpt-test",
 					"output":[
 						{"type":"web_search_call","action":{"type":"search","sources":[{"type":"url","url":"https://example.com/game"}]}},
-						{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回見ている作品は『テスト作品』である\"},{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}
+						{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"referent_grounding\":\"external_history\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回見ている作品は『テスト作品』である\"},{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}
 					],
 					"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":5},"output_tokens":14,"output_tokens_details":{"reasoning_tokens":4},"total_tokens":44}
 				}`
@@ -279,7 +280,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 		BoardName: "アミューズメント談話室",
 		WorldDate: "1996-05-10",
 		Articles: []BBSTitleArticleDetailSeed{{
-			EventID: "e1", Subject: "ギャグ回から急にシリアス", Summary: "見ていた作品の雰囲気が急に変わった", AuthorHandle: "HIRO.K", CreatedAt: "1996-05-10T09:26:00+09:00", DiscourseMode: "thread_start",
+			EventID: "e1", IsReply: false, Subject: "ギャグ回から急にシリアス", Summary: "見ていた作品の雰囲気が急に変わった", AuthorHandle: "HIRO.K", CreatedAt: "1996-05-10T09:26:00+09:00", DiscourseMode: "thread_start",
 		}},
 	})
 	if err != nil {
@@ -295,7 +296,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 		t.Fatalf("retry tool_choice=%v, want required", got)
 	}
 	forcedPrompt, _ := captured[1]["input"].(string)
-	for _, want := range []string{"FORCED WEB SEARCH RETRY", "BoardNameや板カテゴリから対象を決めてはいけません", "referent_requirement", "referent_status"} {
+	for _, want := range []string{"FORCED WEB SEARCH RETRY", "BoardNameや板カテゴリから対象を決めてはいけません", "referent_requirement", "referent_status", "referent_grounding"} {
 		if !strings.Contains(forcedPrompt, want) {
 			t.Fatalf("forced retry prompt missing %q: %s", want, forcedPrompt)
 		}
@@ -309,7 +310,56 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 	if draft.Usage.TotalTokens != 74 || draft.Usage.InputTokens != 50 || draft.Usage.CachedInputTokens != 5 {
 		t.Fatalf("retry usage was not accumulated: %+v", draft.Usage)
 	}
-	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || len(draft.Articles[0].Details) != 2 || draft.Articles[0].Details[0].Kind != "referent" {
+	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || draft.Articles[0].ReferentGrounding != "external_history" || len(draft.Articles[0].Details) != 2 || draft.Articles[0].Details[0].Kind != "referent" {
 		t.Fatalf("forced grounded draft=%+v", draft.Articles)
+	}
+}
+
+
+func TestArticleDetailDoesNotForceWebSearchForWorldLocalReferent(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
+		EventID: "e1", Subject: "近所で見つけたおいしい店", Summary: "近所の店で食べたものがよかった",
+	}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "resolved", ReferentGrounding: "world_local",
+		Details: []BBSArticleDetail{
+			{Kind: "referent", Fact: "近所の中華料理店"},
+			{Kind: "observation", Fact: "焼き餃子の皮がぱりっとしていた"},
+		},
+	}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err != nil {
+		t.Fatalf("world-local referent should validate without Web grounding: %v", err)
+	}
+	if articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("world-local referent must not force Web search")
+	}
+}
+
+func TestValidateBBSTitleArticleDetailsRejectsNotApplicableWithReferent(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
+		EventID: "e1", Subject: "最近よく聴いている曲", Summary: "最近の曲の話",
+	}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "optional", ReferentStatus: "not_applicable", ReferentGrounding: "not_applicable",
+		Details: []BBSArticleDetail{{Kind: "referent", Fact: "Mr.Childrenのある曲"}},
+	}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
+		t.Fatal("not_applicable metadata must not carry a concrete referent")
+	}
+}
+
+func TestValidateBBSTitleArticleDetailsAcceptsInheritedReplyReferent(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
+		EventID: "e1", IsReply: true, Subject: "Re: 作品の話", Summary: "先行記事への返信",
+	}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "already_in_context", ReferentGrounding: "inherited_context",
+		Details: []BBSArticleDetail{{Kind: "reaction_context", Fact: "先行記事の場面について自分は少し違う受け取り方をした"}},
+	}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err != nil {
+		t.Fatalf("inherited reply referent should validate: %v", err)
+	}
+	if articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("inherited reply referent should not force Web search")
 	}
 }
