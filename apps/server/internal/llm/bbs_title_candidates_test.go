@@ -289,3 +289,49 @@ func TestLargeTitlePoolStructurallySeparatesClaimFreeAndClaimBearingCandidates(t
 		}
 	}
 }
+
+
+func TestNormalizeDominantOuterTitleQuotesStripsModelFormatting(t *testing.T) {
+	in := []string{
+		"「実家の押入れから出てきた古いセル画」",
+		"「セーラームーンの変身シーン」",
+		"「エヴァ第九話の作画」",
+		"「最近読んだ短編漫画」",
+		"「録画テープの整理」",
+	}
+	got := normalizeDominantOuterTitleQuotes(in)
+	for i, title := range got {
+		if strings.HasPrefix(title, "「") || strings.HasSuffix(title, "」") {
+			t.Fatalf("dominant decorative wrapper remained at %d: %q", i, title)
+		}
+	}
+}
+
+func TestNormalizeDominantOuterTitleQuotesPreservesOccasionalRealQuote(t *testing.T) {
+	in := []string{
+		"「行ってきます」の台詞について",
+		"エヴァ第九話",
+		"セーラームーン",
+		"最近読んだ短編漫画",
+		"録画テープの整理",
+	}
+	got := normalizeDominantOuterTitleQuotes(in)
+	if got[0] != in[0] {
+		t.Fatalf("occasional meaningful quote should remain: got %q want %q", got[0], in[0])
+	}
+}
+
+func TestContextualTitlePromptDoesNotDemandSentenceLikeSubjects(t *testing.T) {
+	prompt := contextualTitleCandidatePrompt(BBSContextualTitleCandidateRequest{
+		WorldDate: "1996-08-26",
+		BoardName: "ＡＮＩＭＥ／ＭＡＮＧＡ",
+		BoardScope: "アニメ、漫画、関連する雑談や感想。",
+		CandidateCount: 68,
+		RemainingNeeded: 44,
+	})
+	for _, want := range []string{"完全な文章", "短い名詞句", "title文字列全体を装飾目的の「」で囲まない"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("surface-diversity guidance missing %q", want)
+		}
+	}
+}
