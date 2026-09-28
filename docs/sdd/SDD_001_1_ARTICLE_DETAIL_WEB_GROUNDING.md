@@ -105,6 +105,24 @@ Replies do not trigger a forced search merely because they rely on a referent; t
 
 The semantic requirement/status fields are operational metadata only and are not persisted as fictional world facts or rendered in BBS prose.
 
+### Required-referent commit invariant
+
+`required` is now a hard commit invariant, not merely diagnostic metadata. A final Article Detail result may use `unresolved` only as an intermediate first-pass state that leads to recovery; it must not be persisted as materialized Article Detail.
+
+Before canonical persistence:
+
+- a required root must have `referent_status=resolved|already_in_context`;
+- it must have non-`not_applicable` grounding and an explicit `referent` detail;
+- a required reply may omit a new referent only when it is `already_in_context/inherited_context`;
+- placeholder labels such as 「題名不詳」「作品名不明」「某作品」 do not count as resolving a referent;
+- a required root returned as `unresolved/not_applicable` enters the bounded recovery path instead of silently becoming prose.
+
+This closes the failure mode where the system correctly recognized that a post needed one specific work/product/issue, but then persisted only a paraphrase such as 「次号では何か手掛かりが出そう」 without identifying what the post was about.
+
+### Root-title semantic anchoring
+
+Title generation and title-slot fit must not rely on Article Detail to invent a missing target after adoption. On a broad board, a root title that presupposes one specific work/product/issue/episode/character/etc. but does not identify it, and is not made unambiguous by board scope or recent shared BBS context, is not a suitable root candidate. Short titles remain valid when the surrounding canonical context genuinely makes the referent unique; the rule is about missing semantic anchors, not about forcing modern descriptive headlines.
+
 ## Failure behavior
 
 A provider/tool/schema failure follows the existing bounded Article Detail retry path. Failed detail materialization does not commit partial details.
