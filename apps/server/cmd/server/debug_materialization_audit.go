@@ -40,9 +40,6 @@ func startDebugMaterializationAudit(addr string) {
 		log.Printf("DEBUG materialization audit completed: id=%s commit=%s status=%s duration_ms=%d posts=%d bodies=%d failures=%d empty=%v usage=%q",
 			job.ID, job.BuildCommit, job.Status, job.DurationMS, job.PostCount, job.BodyCount, job.Failures, job.EmptyPostIDs, job.Usage)
 		for _, article := range job.Articles {
-			if article.BoardID != "4" {
-				continue
-			}
 			payload, marshalErr := json.Marshal(map[string]any{
 				"id": article.ID,
 				"parent_id": article.ParentID,
@@ -55,10 +52,10 @@ func startDebugMaterializationAudit(addr string) {
 				"situation_facts": article.SituationFacts,
 			})
 			if marshalErr != nil {
-				log.Printf("DEBUG materialization audit GAME article encode failed: id=%d err=%v", article.ID, marshalErr)
+				log.Printf("DEBUG materialization audit article encode failed: board=%s id=%d err=%v", article.BoardID, article.ID, marshalErr)
 				continue
 			}
-			log.Printf("DEBUG materialization audit GAME article: %s", payload)
+			log.Printf("DEBUG materialization audit article: board=%s payload=%s", article.BoardID, payload)
 		}
 	}()
 }
