@@ -130,3 +130,46 @@ func TestGeminiProviderUsesInteractionsStructuredOutput(t *testing.T) {
 		t.Fatalf("response_format=%v", rf)
 	}
 }
+
+
+func TestBuildBoardPostPromptRequiresRootReferentToSurface(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic:       "ANIME/MANGA",
+		WorldDate:        "1996-08-12",
+		AuthorHandle:     "KOJI.B",
+		CanonicalSubject: "伏線に気づいた？",
+		PostIntent: strings.Join([]string{
+			"world_adopted_summary=前の回で聞き流した台詞が後の回を見て気になった",
+			"article_detail=referent:新世紀エヴァンゲリオン",
+			"article_detail=observation:前の回では聞き流した台詞が、後の回を見てから気になった",
+			"article_referent_required=新世紀エヴァンゲリオン",
+		}, "\n"),
+	})
+	for _, want := range []string{
+		"canonical referent「新世紀エヴァンゲリオン」",
+		"表示件名がこの対象名を明示していない場合",
+		"本文の自然な位置で対象名を少なくとも一度",
+		"対象を別の作品・製品・店等へ置き換えない",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("required referent guidance missing %q:\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, "article_referent_required=") {
+		t.Fatalf("render-control metadata leaked into canonical fact block:\n%s", prompt)
+	}
+}
+
+func TestExtractArticleReferentControlPreservesOtherFacts(t *testing.T) {
+	intent, referent := extractArticleReferentControl(strings.Join([]string{
+		"discourse_mode=share_observation",
+		"article_referent_required=新世紀エヴァンゲリオン",
+		"article_detail=observation:前の回の台詞が気になった",
+	}, "\n"))
+	if referent != "新世紀エヴァンゲリオン" {
+		t.Fatalf("referent=%q", referent)
+	}
+	if strings.Contains(intent, "article_referent_required=") || !strings.Contains(intent, "article_detail=observation:") {
+		t.Fatalf("unexpected cleaned intent: %q", intent)
+	}
+}

@@ -124,3 +124,14 @@ For newly materialized samples, inspect:
 - any cases where search evidence was available but the final detail remained generic.
 
 This is an experiment. Search policy and reasoning effort may be adjusted after observing real samples.
+
+
+## Required referent rendering
+
+A semantic root may have a validated canonical referent that is necessary to understand the post while the accepted/display subject remains intentionally terse.
+
+When a non-reply Article Detail result has `referent_requirement=required` and a resolved `referent` detail, materialization persists an operational rendering control `article_referent_required=<referent>`.
+
+The prose worker must ensure the visible post identifies that referent at least once across the display subject or body. If the display subject already names it, the body need not repeat it. If the display subject remains generic, the body must name the referent naturally before relying on shorthand such as "あの回", "ボス", or "このソフト".
+
+This is a rendering requirement, not an additional fictional fact. It does not require all Article Detail facts to be enumerated, and it does not apply to replies that can rely on canonical thread context.
