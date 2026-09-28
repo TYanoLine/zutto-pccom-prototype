@@ -227,6 +227,7 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 		seen[article.EventID] = true
 		requirement := strings.TrimSpace(article.ReferentRequirement)
 		status := strings.TrimSpace(article.ReferentStatus)
+		grounding := strings.TrimSpace(article.ReferentGrounding)
 		if requirement != "" {
 			switch requirement {
 			case "required", "optional", "none":
@@ -241,6 +242,13 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 				return fmt.Errorf("article %q has invalid referent_status %q", article.EventID, status)
 			}
 		}
+		if grounding != "" {
+			switch grounding {
+			case "external_history", "world_local", "inherited_context", "not_applicable":
+			default:
+				return fmt.Errorf("article %q has invalid referent_grounding %q", article.EventID, grounding)
+			}
+		}
 		if requirement == "required" && status == "not_applicable" {
 			return fmt.Errorf("article %q cannot mark required referent as not_applicable", article.EventID)
 		}
@@ -251,11 +259,15 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			return fmt.Errorf("article %q needs 0-2 details", article.EventID)
 		}
 		seenFacts := map[string]bool{}
+		hasReferent := false
 		for _, detail := range article.Details {
 			kind := strings.TrimSpace(detail.Kind)
 			fact := strings.TrimSpace(detail.Fact)
 			if !bbsArticleDetailKinds[kind] {
 				return fmt.Errorf("article %q has invalid detail kind %q", article.EventID, kind)
+			}
+			if kind == "referent" {
+				hasReferent = true
 			}
 			if fact == "" || utf8.RuneCountInString(fact) > 180 || strings.ContainsAny(fact, "\r\n") {
 				return fmt.Errorf("article %q has invalid detail fact", article.EventID)
@@ -271,6 +283,35 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			if ArticleDetailFactIsRenderingMetadata(fact) {
 				return fmt.Errorf("article %q detail leaked article-header/rendering metadata: %q", article.EventID, fact)
 			}
+		}
+		if hasReferent && status != "" && status != "resolved" && status != "already_in_context" {
+			return fmt.Errorf("article %q has referent detail with incompatible status %q", article.EventID, status)
+		}
+		if status == "unresolved" && hasReferent {
+			return fmt.Errorf("article %q cannot be unresolved while carrying a referent detail", article.EventID)
+		}
+		if status == "not_applicable" && hasReferent {
+			return fmt.Errorf("article %q cannot be not_applicable while carrying a referent detail", article.EventID)
+		}
+		if grounding == "not_applicable" && hasReferent {
+			return fmt.Errorf("article %q cannot use not_applicable grounding with a referent detail", article.EventID)
+		}
+		if grounding == "inherited_context" {
+			if !seed.IsReply || status != "already_in_context" {
+				return fmt.Errorf("article %q inherited_context requires a reply with already_in_context status", article.EventID)
+			}
+		}
+		if grounding == "world_local" && status == "unresolved" {
+			return fmt.Errorf("article %q world_local referent must be resolved locally, not left unresolved", article.EventID)
+		}
+		if grounding == "external_history" && status == "not_applicable" {
+			return fmt.Errorf("article %q external_history grounding cannot be not_applicable", article.EventID)
+		}
+		if requirement == "none" && grounding != "" && grounding != "not_applicable" {
+			return fmt.Errorf("article %q with no referent requirement must use not_applicable grounding", article.EventID)
+		}
+		if requirement == "required" && !seed.IsReply && (status == "resolved" || status == "already_in_context") && !hasReferent {
+			return fmt.Errorf("article %q required root referent must be present in canonical details", article.EventID)
 		}
 	}
 	return nil
@@ -326,11 +367,8 @@ func articleDetailNeedsForcedWebSearch(req BBSTitleArticleDetailRequest, draft B
 		articlesByEvent[article.EventID] = article
 	}
 	for _, seed := range req.Articles {
-		if !strings.EqualFold(strings.TrimSpace(seed.DiscourseMode), "thread_start") {
-			continue
-		}
 		article, ok := articlesByEvent[seed.EventID]
-		if !ok || strings.TrimSpace(article.ReferentRequirement) != "required" {
+		if !ok || strings.TrimSpace(article.ReferentGrounding) != "external_history" {
 			continue
 		}
 		status := strings.TrimSpace(article.ReferentStatus)
