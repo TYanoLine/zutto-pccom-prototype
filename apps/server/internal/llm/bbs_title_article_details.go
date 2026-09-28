@@ -22,6 +22,7 @@ var bbsArticleDetailKinds = map[string]bool{
 
 type BBSTitleArticleDetailSeed struct {
 	EventID        string   `json:"event_id"`
+	IsReply        bool     `json:"is_reply"`
 	Subject        string   `json:"subject"`
 	Summary        string   `json:"summary"`
 	AuthorHandle   string   `json:"author_handle"`
@@ -49,6 +50,7 @@ type BBSTitleArticleDetailSet struct {
 	EventID              string             `json:"event_id"`
 	ReferentRequirement  string             `json:"referent_requirement"`
 	ReferentStatus       string             `json:"referent_status"`
+	ReferentGrounding    string             `json:"referent_grounding"`
 	Details              []BBSArticleDetail `json:"details"`
 }
 
@@ -81,11 +83,19 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 BoardNameは文脈の一部にすぎず、GAME/ANIME等の板名やカテゴリ名だけを理由にrequired/noneを決めてはいけません。将来、板名や板構成は局ごとに自動生成されます。
 
 referent_status:
-- already_in_context: subject/summary/ThreadContext等に具体的対象がすでに明示されている。別の対象へ置換しない。requiredな外部対象なら必要に応じてその対象自体をWeb検索で検証し、referent detailにも同じ対象を残す。
-- resolved: 今回の処理で具体的対象を選び、必要なら検索で投稿日時点との整合を確認した。
-- unresolved: referent_requiredだが、まだ具体的対象を同定できていない。
-- not_applicable: referent_requiredではなく、対象同定が不要。
-referent_requirement/referent_statusは生成制御と診断のためのメタデータで、BBS世界の事実や本文には書かないでください。
+- already_in_context: subject/summary/ThreadContext等に具体的対象がすでに明示されている。別の対象へ置換しない。
+- resolved: 今回の処理で具体的対象を同定できた。
+- unresolved: referent_requirement=requiredだが、まだ具体的対象を同定できていない。
+- not_applicable: 今回は具体的対象を採用していない。
+
+referent_grounding:
+- external_history: 実在作品・製品・人物・企業・サービス・実在店舗など、現実世界の外部史実に属する対象。投稿日時点との整合確認にWeb検索を使う。
+- world_local: この仮想世界のローカル/私的/匿名対象。例: 「近所の中華料理店」「会社帰りに通る商店街」「手元の無名ファイル」「知人から借りた本」。実在の代替物をWebから探してはいけない。必要ならこの処理で匿名のローカルreferentとして具体化してよい。
+- inherited_context: replyがThreadContextにすでにcanonicalな対象を引き継ぐ場合。対象を新しく選び直さない。
+- not_applicable: 具体的対象を採用していない。
+referent_requirement/referent_status/referent_groundingは生成制御と診断のためのメタデータで、BBS世界の事実や本文には書かないでください。
+is_reply=trueなら返信です。返信でThreadContextの既存対象を使うだけなら referent_grounding=inherited_context とし、新しいWeb検索や別対象の選択を強制しません。返信自身が新しい実在対象を持ち込む場合だけ external_history として必要に応じ検索してください。
+「近所の店」「近所の商店街」など、世界内に存在してよい匿名ローカル対象を具体化するために、現実の店名や場所をWeb検索で無理に当てはめないでください。
 判定時には次の反実仮想テストを使ってください。「このdetailで想定している対象を、同じカテゴリの別作品・別製品・別店舗などへ置き換えても、投稿者が経験した事実として同じ内容のまま成立するか？」成立しないならrequiredです。「ある一回の視聴回」「ある一つのボス戦」「ある特定の曲」「ある特定ソフトの挙動」「ある雑誌の付録」のようなinstance experienceは、対象名が入力に無くてもrequiredです。
 referent_requirement=requiredなのに対象が省略されている場合、単に架空の場面だけを足して具体化したつもりにならないでください。subject等にすでに固有対象がある場合は、勝手に別対象を発明せずその対象をアンカーにしてください。
 
@@ -145,8 +155,9 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 		"event_id": map[string]any{"type": "string"},
 		"referent_requirement": map[string]any{"type": "string", "enum": []string{"required", "optional", "none"}},
 		"referent_status": map[string]any{"type": "string", "enum": []string{"already_in_context", "resolved", "unresolved", "not_applicable"}},
+		"referent_grounding": map[string]any{"type": "string", "enum": []string{"external_history", "world_local", "inherited_context", "not_applicable"}},
 		"details":  map[string]any{"type": "array", "items": detailSchema, "minItems": 0, "maxItems": 2},
-	}, "required": []string{"event_id", "referent_requirement", "referent_status", "details"}, "additionalProperties": false}
+	}, "required": []string{"event_id", "referent_requirement", "referent_status", "referent_grounding", "details"}, "additionalProperties": false}
 	schema := map[string]any{"type": "object", "properties": map[string]any{
 		"articles": map[string]any{"type": "array", "items": articleSchema, "minItems": len(req.Articles), "maxItems": len(req.Articles)},
 	}, "required": []string{"articles"}, "additionalProperties": false}
@@ -171,9 +182,10 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 FORCED WEB SEARCH RETRY:
 前回の意味判定で、このroot記事は特定の外部referentがないと具体的経験・感想・質問として成立しにくいと判定されました。この再試行ではWeb検索を最低1回使ってください。
 - BoardNameや板カテゴリから対象を決めてはいけません。subject/summary/既存contextが何を前提にしているかから対象を解決してください。
-- 前回referent_status=already_in_contextなら、subject/summary/ThreadContextにあるその対象をまず検証し、史実上成立する限り別作品・別製品へ置換しないでください。
-- 前回referent_status=unresolvedなら、元のsubject/summaryを自然に成立させる具体的対象を、投稿日時点で日本で成立する実在対象から選んでください。単に年代条件だけを満たす無関係な有名対象を選んではいけません。
-- 最終結果では referent_requirement=required とし、referent detailに解決した対象を入れ、referent_statusは already_in_context または resolved にしてください。
+- 前回referent_grounding=external_history かつ referent_status=already_in_contextなら、subject/summary/ThreadContextにあるその対象をまず検証し、史実上成立する限り別作品・別製品へ置換しないでください。
+- 前回referent_grounding=external_history かつ referent_status=unresolvedなら、元のsubject/summaryを自然に成立させる具体的対象を、投稿日時点で日本で成立する実在対象から選んでください。単に年代条件だけを満たす無関係な有名対象を選んではいけません。
+- world_local/inherited_context の対象を、検索で見つけた実在対象へ置換してはいけません。
+- 最終結果では referent detailに解決した対象を入れ、referent_statusは already_in_context または resolved、referent_groundingは external_history にしてください。
 - referentを選ぶためだけに対象固有の未確認仕様を発明してはいけません。
 - observation等に対象固有のボス名、面名、仕様、ストーリー、数値を入れるなら、その命題自体も検索結果に直接支持されている必要があります。
 - 安全な対象固有情報を確認できない場合でも、referentは確認済み対象名までに留め、もう1件のdetailは外部史実を主張しない本人の記事ローカル経験にしてください。
