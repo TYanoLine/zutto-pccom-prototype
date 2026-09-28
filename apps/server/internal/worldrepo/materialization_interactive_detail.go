@@ -146,6 +146,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 		RecentBBSState: planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 48),
 		Articles: []llm.BBSTitleArticleDetailSeed{{
 			EventID:        eventID,
+			IsReply:        world.ResponseTargetID(selected) != 0,
 			Subject:        semanticSubject,
 			Summary:        worldAdoptedSummary(selected.Intent.SituationFacts, selected.Intent.SituationSummary),
 			AuthorHandle:   selected.Author,
@@ -170,12 +171,13 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	}
 	usage := GenerationUsage{InputTokens: draft.Usage.InputTokens, CachedInputTokens: draft.Usage.CachedInputTokens, OutputTokens: draft.Usage.OutputTokens, ReasoningTokens: draft.Usage.ReasoningTokens, TotalTokens: draft.Usage.TotalTokens, Model: draft.Usage.Model}
 	storeDevelopmentPlanningUsage(r, host.ID, fmt.Sprintf("article-detail-%d", selected.ID), usage)
-	referentRequirement, referentStatus := "", ""
+	referentRequirement, referentStatus, referentGrounding := "", "", ""
 	if len(draft.Articles) == 1 {
 		referentRequirement = draft.Articles[0].ReferentRequirement
 		referentStatus = draft.Articles[0].ReferentStatus
+		referentGrounding = draft.Articles[0].ReferentGrounding
 	}
-	log.Printf("BBS article detail grounding: host=%s board=%s post=%d referent_requirement=%s referent_status=%s web_search_calls=%d web_sources=%d forced_search_retry=%t", host.ID, board.ID, selected.ID, referentRequirement, referentStatus, draft.WebSearchCalls, len(draft.WebSearchSources), draft.ForcedWebSearchRetry)
+	log.Printf("BBS article detail grounding: host=%s board=%s post=%d is_reply=%t referent_requirement=%s referent_status=%s referent_grounding=%s web_search_calls=%d web_sources=%d forced_search_retry=%t", host.ID, board.ID, selected.ID, world.ResponseTargetID(selected) != 0, referentRequirement, referentStatus, referentGrounding, draft.WebSearchCalls, len(draft.WebSearchSources), draft.ForcedWebSearchRetry)
 	if err != nil {
 		return selected, formatGenerationError("article-detail", err), err
 	}
