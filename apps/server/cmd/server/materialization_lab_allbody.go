@@ -232,6 +232,15 @@ func parseBulkState(s string) string {
 }
 
 func parseBulkFailureCount(s string) int {
+	// Current materializationdemo STATUS reports the count inline on the
+	// REQUESTS row ("... / failures=N"). Keep support for the older dedicated
+	// FAILURES row so archived/debug status text remains parseable.
+	if idx := strings.Index(s, "failures="); idx >= 0 {
+		var n int
+		if _, err := fmt.Sscanf(s[idx+len("failures="):], "%d", &n); err == nil {
+			return n
+		}
+	}
 	marker := "[DEV] FAILURES       : "
 	idx := strings.Index(s, marker)
 	if idx < 0 { return 0 }
@@ -247,7 +256,7 @@ func compactLabStatus(s string) string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || line == "DEV>" { continue }
-		if strings.Contains(line, "BULK STATUS") || strings.Contains(line, "BOARDS") || strings.Contains(line, "BODIES") || strings.Contains(line, "REQUESTS") || strings.Contains(line, "FAILURES") || strings.Contains(line, "EMPTY") || strings.Contains(line, "CURRENT") {
+		if strings.Contains(line, "BULK STATUS") || strings.Contains(line, "BOARDS") || strings.Contains(line, "BODIES") || strings.Contains(line, "REQUESTS") || strings.Contains(line, "FAILURE") || strings.Contains(line, "EMPTY") || strings.Contains(line, "CURRENT") {
 			out = append(out, line)
 		}
 	}
