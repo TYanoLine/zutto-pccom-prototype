@@ -18,6 +18,8 @@ import (
 type fakeSharedTitleRenderer struct {
 	contextCalls int
 	lastContext  llm.BBSContextualTitleCandidateRequest
+	textureCalls int
+	textureLevel string
 	titles       []string
 	refillTitles     []string
 	historicalClaims []llm.BBSTitleHistoricalClaim
@@ -25,6 +27,15 @@ type fakeSharedTitleRenderer struct {
 	release      <-chan struct{}
 	active       atomic.Int32
 	maxActive    atomic.Int32
+}
+
+func (f *fakeSharedTitleRenderer) AssessBBSReferentTexture(_ context.Context, _, _, _ string) (llm.BBSReferentTextureDecision, error) {
+	f.textureCalls++
+	level := strings.TrimSpace(f.textureLevel)
+	if level == "" {
+		level = "none"
+	}
+	return llm.BBSReferentTextureDecision{Level: level, Reason: "test scope classification"}, nil
 }
 
 func (f *fakeSharedTitleRenderer) GenerateBoardPost(context.Context, llm.BoardPostRequest) (llm.BoardPostDraft, error) {
@@ -1121,5 +1132,121 @@ func TestSharedBBSPlannerDebugCanBypassHistoricalVerification(t *testing.T) {
 		if !strings.HasPrefix(post.Subject, "未検証の実在対象候補") {
 			t.Fatalf("claim-bearing title was not adopted under debug bypass: %+v", post)
 		}
+	}
+}
+
+
+func TestBBSReferentTextureRate(t *testing.T) {
+	tests := map[string]float64{
+		"none": 0,
+		"light": .05,
+		"regular": .10,
+		"unknown": 0,
+	}
+	for level, want := range tests {
+		if got := bbsReferentTextureRate(level); got != want {
+			t.Fatalf("level=%q rate=%v, want %v", level, got, want)
+		}
+	}
+}
+
+func TestSharedBBSPlannerDerivesSpecificityTargetFromSemanticScope(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := make([]string, 0, 100)
+	claims := make([]llm.BBSTitleHistoricalClaim, 0, 20)
+	for i := 1; i <= 100; i++ {
+		title := fmt.Sprintf("候補%03d", i)
+		if i <= 20 {
+			title = fmt.Sprintf("実在作品候補%02d", i)
+			claims = append(claims, llm.BBSTitleHistoricalClaim{
+				Candidate: i,
+				Subject: title,
+				Kind: "product_availability",
+				Need: "world dateまでの存在確認",
+			})
+		}
+		titles = append(titles, title)
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles, historicalClaims: claims, textureLevel: "regular"}
+	repo := New(base, &debugHistoricalBypassEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	repo.SetDebugDisableBBSTitleHistoricalVerification(true)
+
+	slots := make([]bbsengine.Slot, 0, 20)
+	for i := 0; i < 20; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index: i + 1,
+			Author: fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	planned, err := (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host: host,
+		Board: world.Board{ID: "generated-board", Name: "自動生成名", SemanticScope: "実在する作品について感想や登場人物、各回の内容を話す趣味の掲示板。"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local),
+		Slots: slots,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(planned) != 20 {
+		t.Fatalf("planned=%d, want 20", len(planned))
+	}
+	if renderer.textureCalls != 1 {
+		t.Fatalf("scope classifier calls=%d, want 1", renderer.textureCalls)
+	}
+	if renderer.lastContext.VerifiedReferentTarget != 2 {
+		t.Fatalf("scope-derived target=%d, want 2", renderer.lastContext.VerifiedReferentTarget)
+	}
+	if renderer.lastContext.ClaimBearingCandidateTarget != 20 {
+		t.Fatalf("claim-bearing candidates=%d, want 20", renderer.lastContext.ClaimBearingCandidateTarget)
+	}
+	specific := 0
+	for _, post := range planned {
+		if strings.HasPrefix(post.Subject, "実在作品候補") {
+			specific++
+		}
+	}
+	if specific < 2 {
+		t.Fatalf("debug verification bypass dropped specificity gate: specific=%d, want >=2", specific)
+	}
+}
+
+func TestSharedBBSPlannerDebugBypassStillFailsMissingSpecificity(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	titles := make([]string, 0, 100)
+	for i := 1; i <= 100; i++ {
+		titles = append(titles, fmt.Sprintf("一般的な話%03d", i))
+	}
+	renderer := &fakeSharedTitleRenderer{titles: titles, textureLevel: "regular"}
+	repo := New(base, &debugHistoricalBypassEngine{}, LLMMaterializer{Renderer: renderer}, "1996-08-26")
+	repo.SetDebugDisableBBSTitleHistoricalVerification(true)
+
+	slots := make([]bbsengine.Slot, 0, 20)
+	for i := 0; i < 20; i++ {
+		slots = append(slots, bbsengine.Slot{
+			Index: i + 1,
+			Author: fmt.Sprintf("USER%02d", i+1),
+			CreatedAt: time.Date(1996, 8, 26, 20, i, 0, 0, time.Local),
+		})
+	}
+	_, err = (repositoryBBSBatchPlanner{repo: repo}).PlanBBSBatch(context.Background(), bbsengine.BatchRequest{
+		Host: host,
+		Board: world.Board{ID: "generated-board", Name: "別の自動生成名", SemanticScope: "実在する作品について感想や登場人物、各回の内容を話す趣味の掲示板。"},
+		WorldNow: time.Date(1996, 8, 26, 23, 30, 0, 0, 0, time.Local),
+		Slots: slots,
+	})
+	if err == nil {
+		t.Fatal("debug historical bypass must not allow an all-generic batch to satisfy a regular specificity policy")
+	}
+	if renderer.lastContext.VerifiedReferentTarget != 2 {
+		t.Fatalf("debug bypass disabled scope-derived target: got %d want 2", renderer.lastContext.VerifiedReferentTarget)
 	}
 }
