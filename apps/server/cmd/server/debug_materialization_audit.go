@@ -109,8 +109,8 @@ func runDebugMaterializationAudit(ctx context.Context, client *http.Client, base
 	query.Set("situation_mode", "title-first")
 	query.Set("historical_texture", "model-memory")
 	query.Set("era_gate", "observe-only")
-	query.Set("board_count", "4")
-	query.Set("shell_limit", "3")
+	query.Set("board_count", "6")
+	query.Set("shell_limit", "4")
 	startURL.RawQuery = query.Encode()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, startURL.String(), nil)
