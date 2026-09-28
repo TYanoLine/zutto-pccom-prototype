@@ -99,6 +99,7 @@ is_reply=trueなら返信です。返信でThreadContextの既存対象を使う
 referent_requirement=optionalでも、あなた自身が具体的な実在作品・製品・曲・ソフト等を新たに選んでdetailsへ入れるなら、その時点でreferent_status=resolved・referent_grounding=external_historyとし、対象名をreferent detailに分離してWeb検索で確認してください。not_applicableのまま固有名詞をreaction_context/observationへ紛れ込ませてはいけません。
 判定時には次の反実仮想テストを使ってください。「このdetailで想定している対象を、同じカテゴリの別作品・別製品・別店舗などへ置き換えても、投稿者が経験した事実として同じ内容のまま成立するか？」成立しないならrequiredです。「ある一回の視聴回」「ある一つのボス戦」「ある特定の曲」「ある特定ソフトの挙動」「ある雑誌の付録」のようなinstance experienceは、対象名が入力に無くてもrequiredです。
 referent_requirement=requiredなのに対象が省略されている場合、単に架空の場面だけを足して具体化したつもりにならないでください。subject等にすでに固有対象がある場合は、勝手に別対象を発明せずその対象をアンカーにしてください。
+requiredで対象をまだ解決できていない一次結果は、外部史実対象なら referent_status=unresolved / referent_grounding=external_history としてください。requiredなのに referent_grounding=not_applicable のままにしないでください。world_local対象ならこの処理内で匿名でも一意な対象を固定して resolved にしてください。「題名不詳の作品」「作品名不明」「某作品」のように対象が分からないこと自体をreferentとして解決扱いにしてはいけません。
 
 各articleのdetailsは0〜2件です。ただし、タイトルやsummaryが抽象的・一般的な場合でも本文まで抽象論にしないでください。その人物が今回実際に見たもの、試した条件、回数、場所、順序、比較対象、必要なら話題の具体的な実在対象など、投稿を一段具体化する小さな事実を自然に1件程度固定してください。短い感情表明や純粋な相づちとして既に十分な場合だけ0件でも構いません。件数を埋めるための作り話は禁止です。
 
@@ -181,12 +182,13 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 ` + string(previousResult) + `
 
 FORCED WEB SEARCH RETRY:
-前回の意味判定で、このroot記事は特定の外部referentがないと具体的経験・感想・質問として成立しにくいと判定されました。この再試行ではWeb検索を最低1回使ってください。
+前回の意味判定で、このroot記事は特定referentがないと具体的経験・感想・質問として成立しにくいのに、最終的な対象が解決されませんでした。この再試行では整合性回復のためWeb検索を最低1回使ってください。
 - BoardNameや板カテゴリから対象を決めてはいけません。subject/summary/既存contextが何を前提にしているかから対象を解決してください。
 - 前回referent_grounding=external_history かつ referent_status=already_in_contextなら、subject/summary/ThreadContextにあるその対象をまず検証し、史実上成立する限り別作品・別製品へ置換しないでください。
 - 前回referent_grounding=external_history かつ referent_status=unresolvedなら、元のsubject/summaryを自然に成立させる具体的対象を、投稿日時点で日本で成立する実在対象から選んでください。単に年代条件だけを満たす無関係な有名対象を選んではいけません。
+- 前回requiredなのに referent_status=unresolved / referent_grounding=not_applicable だった場合は不整合です。subject/summary/contextから対象の種類を判定し直してください。実在の作品・製品・出版物等なら external_history として解決し、真に世界内の匿名・私的対象なら検索結果を代用品にせず world_local として一意に固定してください。
 - world_local/inherited_context の対象を、検索で見つけた実在対象へ置換してはいけません。
-- 最終結果では referent detailに解決した対象を入れ、referent_statusは already_in_context または resolved、referent_groundingは external_history にしてください。
+- 最終結果では required を unresolved のまま返さないでください。external_historyなら referent detailに解決した対象を入れ、referent_statusは already_in_context または resolved、referent_groundingは external_history にしてください。world_localなら匿名でも対象を一意に固定して resolved/world_local にしてください。「題名不詳」「作品名不明」「某作品」などをreferentとして解決扱いにしないでください。
 - referentを選ぶためだけに対象固有の未確認仕様を発明してはいけません。
 - observation等に対象固有のボス名、面名、仕様、ストーリー、数値を入れるなら、その命題自体も検索結果に直接支持されている必要があります。
 - 安全な対象固有情報を確認できない場合でも、referentは確認済み対象名までに留め、もう1件のdetailは外部史実を主張しない本人の記事ローカル経験にしてください。
@@ -318,6 +320,64 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 	return nil
 }
 
+func ValidateBBSTitleArticleDetailsForCommit(req BBSTitleArticleDetailRequest, draft BBSTitleArticleDetailDraft) error {
+	if err := ValidateBBSTitleArticleDetails(req, draft); err != nil {
+		return err
+	}
+	seeds := make(map[string]BBSTitleArticleDetailSeed, len(req.Articles))
+	for _, seed := range req.Articles {
+		seeds[seed.EventID] = seed
+	}
+	for _, article := range draft.Articles {
+		if strings.TrimSpace(article.ReferentRequirement) != "required" {
+			continue
+		}
+		seed := seeds[article.EventID]
+		status := strings.TrimSpace(article.ReferentStatus)
+		grounding := strings.TrimSpace(article.ReferentGrounding)
+		if status == "unresolved" || status == "not_applicable" || status == "" {
+			return fmt.Errorf("article %q required referent remained %q at commit", article.EventID, status)
+		}
+		if grounding == "" || grounding == "not_applicable" {
+			return fmt.Errorf("article %q required referent has no commit grounding", article.EventID)
+		}
+		hasReferent := false
+		for _, detail := range article.Details {
+			if strings.TrimSpace(detail.Kind) != "referent" {
+				continue
+			}
+			hasReferent = true
+			if articleDetailReferentLooksPlaceholder(detail.Fact) {
+				return fmt.Errorf("article %q required referent is only a placeholder: %q", article.EventID, detail.Fact)
+			}
+		}
+		if seed.IsReply && status == "already_in_context" && grounding == "inherited_context" {
+			continue
+		}
+		if !hasReferent {
+			return fmt.Errorf("article %q required referent must be explicit before commit", article.EventID)
+		}
+	}
+	return nil
+}
+
+func articleDetailReferentLooksPlaceholder(fact string) bool {
+	value := strings.ToLower(strings.TrimSpace(fact))
+	if value == "" {
+		return true
+	}
+	for _, marker := range []string{
+		"題名不詳", "題名不明", "作品名不詳", "作品名不明", "作品不詳", "作品不明",
+		"タイトル不詳", "タイトル不明", "名称不詳", "名称不明", "名前不詳", "名前不明",
+		"某作品", "ある作品",
+	} {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func articleDetailLooksEditorial(fact string) bool {
 	for _, marker := range []string{"話題にする", "共有する", "読者に", "参加者に", "紹介する", "紹介。", "報告する", "構成にする", "説明を求め", "情報提供を求め"} {
 		if strings.Contains(fact, marker) {
@@ -369,10 +429,23 @@ func articleDetailNeedsForcedWebSearch(req BBSTitleArticleDetailRequest, draft B
 	}
 	for _, seed := range req.Articles {
 		article, ok := articlesByEvent[seed.EventID]
-		if !ok || strings.TrimSpace(article.ReferentGrounding) != "external_history" {
+		if !ok {
 			continue
 		}
+		requirement := strings.TrimSpace(article.ReferentRequirement)
 		status := strings.TrimSpace(article.ReferentStatus)
+		grounding := strings.TrimSpace(article.ReferentGrounding)
+		// A required root that is still unresolved must never silently bypass
+		// the recovery pass merely because the first model mislabeled grounding
+		// as not_applicable. Genuine world-local targets should have been
+		// resolved locally in the first pass.
+		if !seed.IsReply && requirement == "required" && status == "unresolved" &&
+			grounding != "world_local" && grounding != "inherited_context" {
+			return true
+		}
+		if grounding != "external_history" {
+			continue
+		}
 		if status == "unresolved" {
 			return true
 		}
