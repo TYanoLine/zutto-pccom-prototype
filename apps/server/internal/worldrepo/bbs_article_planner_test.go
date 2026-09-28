@@ -763,10 +763,11 @@ func TestSharedBBSPlannerFillsFortyHeadersFromOneLargePool(t *testing.T) {
 		t.Fatalf("planned=%d, want 40", len(planned))
 	}
 	if renderer.calls != 1 {
-		t.Fatalf("candidate pools=%d, want one 100-title pool", renderer.calls)
+		t.Fatalf("candidate pools=%d, want one contextual pool", renderer.calls)
 	}
-	if renderer.lastCandidateCount != sharedTitlePoolTargetSize {
-		t.Fatalf("candidate count=%d, want %d", renderer.lastCandidateCount, sharedTitlePoolTargetSize)
+	wantCandidateCount := sharedContextualTitlePoolSize(40)
+	if renderer.lastCandidateCount != wantCandidateCount {
+		t.Fatalf("candidate count=%d, want %d", renderer.lastCandidateCount, wantCandidateCount)
 	}
 	seen := map[string]bool{}
 	for _, post := range planned {
