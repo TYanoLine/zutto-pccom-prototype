@@ -9,7 +9,12 @@ import (
 	"unicode/utf8"
 )
 
-var (\n\tarticleDetailMarkdownURL = regexp.MustCompile(`\\(?\\[[^\\]\\r\\n]{1,160}\\]\\(https?://[^)\\s]+\\)\\)?`)\n\tarticleDetailRawURL      = regexp.MustCompile(`https?://[^\\s)）]+`)\n)\n\nvar bbsArticleDetailKinds = map[string]bool{
+var (
+	articleDetailMarkdownURL = regexp.MustCompile(`\(?\[[^\]\r\n]{1,160}\]\(https?://[^)\s]+\)\)?`)
+	articleDetailRawURL      = regexp.MustCompile(`https?://[^\s)）]+`)
+)
+
+var bbsArticleDetailKinds = map[string]bool{
 	"referent":         true,
 	"locator":          true,
 	"timing":           true,
@@ -391,7 +396,35 @@ func articleDetailLooksEditorial(fact string) bool {
 	return false
 }
 
-// stripArticleDetailOperationalEvidence removes citation syntax emitted by the\n// Web-search transport. Source URLs are diagnostics, never fictional world facts.\n// This cleanup is semantic-preserving: it removes only link/citation wrappers and\n// leaves the asserted referent/observation text intact.\nfunc stripArticleDetailOperationalEvidence(fact string) string {\n\tclean := articleDetailMarkdownURL.ReplaceAllString(fact, "")\n\tclean = articleDetailRawURL.ReplaceAllString(clean, "")\n\tclean = strings.TrimSpace(clean)\n\tclean = strings.TrimSpace(strings.TrimRight(clean, " ()（）[]［］"))\n\treturn clean\n}\n\nfunc ArticleDetailFactContainsOperationalEvidence(fact string) bool {\n\tvalue := strings.ToLower(strings.TrimSpace(fact))\n\tif value == "" {\n\t\treturn false\n\t}\n\tfor _, marker := range []string{\n\t\t"http://", "https://", "utm_source=openai", "web検索", "検索結果", "検索で確認",\n\t\t"参照url", "source url", "citation:",\n\t} {\n\t\tif strings.Contains(value, marker) {\n\t\t\treturn true\n\t\t}\n\t}\n\treturn false\n}\n\n// ArticleDetailFactIsRenderingMetadata identifies facts about the BBS record/header
+// stripArticleDetailOperationalEvidence removes citation syntax emitted by the
+// Web-search transport. Source URLs are diagnostics, never fictional world facts.
+// This cleanup is semantic-preserving: it removes only link/citation wrappers and
+// leaves the asserted referent/observation text intact.
+func stripArticleDetailOperationalEvidence(fact string) string {
+	clean := articleDetailMarkdownURL.ReplaceAllString(fact, "")
+	clean = articleDetailRawURL.ReplaceAllString(clean, "")
+	clean = strings.TrimSpace(clean)
+	clean = strings.TrimSpace(strings.TrimRight(clean, " ()（）[]［］"))
+	return clean
+}
+
+func ArticleDetailFactContainsOperationalEvidence(fact string) bool {
+	value := strings.ToLower(strings.TrimSpace(fact))
+	if value == "" {
+		return false
+	}
+	for _, marker := range []string{
+		"http://", "https://", "utm_source=openai", "web検索", "検索結果", "検索で確認",
+		"参照url", "source url", "citation:",
+	} {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+// ArticleDetailFactIsRenderingMetadata identifies facts about the BBS record/header
 // rather than facts inside the fictional article event. Such facts must never become
 // canonical article_detail because prose workers can otherwise echo them verbatim.
 func ArticleDetailFactIsRenderingMetadata(fact string) bool {
