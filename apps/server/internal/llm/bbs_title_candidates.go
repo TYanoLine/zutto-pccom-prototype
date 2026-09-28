@@ -134,12 +134,65 @@ func contextualTitleCandidatePrompt(req BBSContextualTitleCandidateRequest) stri
 		if specificTarget > requestedBBSTitleCandidateCount(req) {
 			specificTarget = requestedBBSTitleCandidateCount(req)
 		}
-		prompt += fmt.Sprintf("\n- この大規模プールでは少なくとも%d件を、広い板にrootとして単独表示しても『何についての投稿か』を読者が識別できる自己完結した具体件名にしてください。固有名詞は必須ではありません。具体的な症状・操作・場所・物・用件・出来事でも構いません。ただし『台詞の間が好き』『お気に入りの見開き』『このキャラの表情がいい』『次号の展開を予想』『クリア時間を比べたい』のように、隠れた作品・ゲーム・対象を入れ替えても同じ文面が成立する件名は、BoardScopeやRecentBBSStateがその対象を一意にしていない限り、この自己完結件数へ数えないでください。後段のArticle Detailに対象を発明させる前提は禁止です。\n", specificTarget)
+		prompt += fmt.Sprintf("\n- この大規模プールでは少なくとも%d件を、広い板にrootとして単独表示しても『何についての投稿か』を読者が識別できる具体件名にしてください。これは完全な文章・説明的見出し・長文にする要求ではありません。短い名詞句、断片、対象名＋一言、個人的な近況でも構いません。固有名詞も必須ではありません。具体的な症状・操作・場所・物・用件・出来事でも構いません。ただし『台詞の間が好き』『お気に入りの見開き』『このキャラの表情がいい』『次号の展開を予想』『クリア時間を比べたい』のように、隠れた作品・ゲーム・対象を入れ替えても同じ文面が成立する件名は、BoardScopeやRecentBBSStateがその対象を一意にしていない限り、この件数へ数えないでください。後段のArticle Detailに対象を発明させる前提は禁止です。title文字列全体を装飾目的の「」で囲まないでください。「」は発言・語句そのものを引用する意味があるときだけ使ってください。\n", specificTarget)
 		if req.ClaimBearingCandidateTarget > 0 {
 			prompt += fmt.Sprintf("\n- 出力schemaは候補プールの実在固有対象の供給を安定させるため、claim_free_candidatesとclaim_bearing_candidatesを分離し、claim_bearing_candidatesを正確に%d件要求します。局固有のverified referent採用目標は%d件です（0でも候補プールの多様性確保のためclaim-bearing候補は要求され得ます）。claim-bearing側は、識別可能な一つの実在固有対象（例: 大濠公園、博多駅、福岡市博物館、岩田屋のように名称だけで対象を特定できる場所・施設・店・路線・製品・作品等）を title 本文に明記し、その同じ固有名を historical_claims[].subject に入れてください。「福岡市内の病院」「市内の書店」「近所の店」「公共駐車場」「地下鉄」「タクシー」のような一般カテゴリや広域地名だけではclaim-bearing候補になりません。claim-bearing側をそのようなカテゴリ語で数合わせしないでください。claim-free側へ実在固有名詞を逃がして数合わせしないでください。\n", req.ClaimBearingCandidateTarget, req.VerifiedReferentTarget)
 		}
 	}
 	return prompt + string(payload)
+}
+
+func normalizeDominantOuterTitleQuotes(titles []string) []string {
+	if len(titles) == 0 {
+		return titles
+	}
+	wrapped := 0
+	for _, title := range titles {
+		if _, ok := unwrapDecorativeTitleQuote(title); ok {
+			wrapped++
+		}
+	}
+	// A single historical subject may legitimately quote a phrase. Treat outer
+	// corner quotes as model formatting only when they dominate the generated
+	// pool, which is the observed failure mode.
+	if wrapped < 4 || wrapped*5 < len(titles)*3 {
+		return titles
+	}
+	out := append([]string(nil), titles...)
+	seen := map[string]bool{}
+	for i, title := range out {
+		normalized := strings.TrimSpace(title)
+		if inner, ok := unwrapDecorativeTitleQuote(normalized); ok {
+			key := strings.ToLower(strings.TrimSpace(inner))
+			if key != "" && !seen[key] {
+				normalized = strings.TrimSpace(inner)
+			}
+		}
+		key := strings.ToLower(strings.TrimSpace(normalized))
+		if key == "" || seen[key] {
+			// Preserve the original spelling if unwrapping would collide with
+			// another candidate; downstream duplicate handling can then decide.
+			normalized = strings.TrimSpace(title)
+			key = strings.ToLower(normalized)
+		}
+		out[i] = normalized
+		if key != "" {
+			seen[key] = true
+		}
+	}
+	return out
+}
+
+func unwrapDecorativeTitleQuote(title string) (string, bool) {
+	runes := []rune(strings.TrimSpace(title))
+	if len(runes) < 3 || runes[0] != '「' || runes[len(runes)-1] != '」' {
+		return "", false
+	}
+	inner := strings.TrimSpace(string(runes[1 : len(runes)-1]))
+	if inner == "" {
+		return "", false
+	}
+	return inner, true
 }
 
 func requestedBBSTitleCandidateCount(req BBSContextualTitleCandidateRequest) int {
@@ -329,6 +382,7 @@ func (p StructuredOpenAIProvider) GenerateContextualBBSTitleCandidates(ctx conte
 	} else if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
 		return draft, err
 	}
+	draft.Titles = normalizeDominantOuterTitleQuotes(draft.Titles)
 	if len(draft.Titles) != candidateCount {
 		return draft, fmt.Errorf("title pool: got %d candidates, want %d", len(draft.Titles), candidateCount)
 	}
