@@ -193,9 +193,19 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 		}
 	}
 
+	requiredReferent := ""
 	for _, detail := range draft.Articles[0].Details {
-		encoded := strings.TrimSpace(detail.Kind) + ":" + strings.TrimSpace(detail.Fact)
+		kind := strings.TrimSpace(detail.Kind)
+		fact := strings.TrimSpace(detail.Fact)
+		encoded := kind + ":" + fact
 		selected.Intent.SituationFacts = append(selected.Intent.SituationFacts, "article_detail="+encoded)
+		if kind == "referent" {
+			requiredReferent = fact
+		}
+	}
+	isReply := world.ResponseTargetID(selected) != 0
+	if !isReply && strings.TrimSpace(draft.Articles[0].ReferentRequirement) == "required" && requiredReferent != "" {
+		selected.Intent.SituationFacts = append(selected.Intent.SituationFacts, "article_referent_required="+requiredReferent)
 	}
 	selected.Intent.SituationFacts = append(selected.Intent.SituationFacts,
 		"article_detail_contract=The article_detail facts are canonical article-local specifics selected before prose. Use the naturally relevant supplied detail instead of collapsing the post into generic advice or a paraphrase of earlier replies. Do not enumerate details, force a conclusion, add external historical/product/game facts, durable biography, or unexplained causes beyond canonical context.",
