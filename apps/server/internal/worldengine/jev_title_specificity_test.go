@@ -21,7 +21,7 @@ func TestTitleCandidateFitPolicyRejectsUnanchoredSpecificReferents(t *testing.T)
 
 func TestTitleCandidateSpecificityPolicyNamesObservedGenericRoots(t *testing.T) {
 	for _, want := range []string{
-		"self-contained new root topic",
+		"enough topic identity",
 		"台詞の間が好き",
 		"お気に入りの見開き",
 		"次号の展開を予想",
