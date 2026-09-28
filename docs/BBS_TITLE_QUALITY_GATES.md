@@ -84,9 +84,12 @@ a city/region name, unless that board explicitly opts out. Zero or near-zero
 specific referents is treated as a quality failure even when every individual
 title is otherwise safe.
 
-This gate deliberately measures **adopted output**, not only the raw 100-title
-pool. A diverse candidate pool is not useful if fit/assignment consistently picks
-one repetitive subset.
+This gate deliberately measures **adopted output**, not only the raw adaptive
+candidate pool. A diverse candidate pool is not useful if fit/assignment
+consistently picks one repetitive subset. Whole-title decorative wrappers such as
+a pool dominated by `「...」` are also a generation-surface defect rather than
+meaningful subject diversity; the adapter removes that wrapper only when it
+dominates the pool, preserving occasional genuine quotation.
 
 ### Q3: corpus authenticity — audit gate
 

@@ -16,7 +16,7 @@ const (
 	developmentJevTitleEraSafeThreshold       = 0.80
 	developmentJevTitleEraImpossibleThreshold = 0.80
 	developmentJevTitleFitThreshold           = 0.35
-	developmentJevTitleSpecificityThreshold   = 0.60
+	developmentJevTitleSpecificityThreshold   = 0.25
 )
 
 type developmentTitleCandidateAdvisor interface {
@@ -76,11 +76,12 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 		if specificityFloor == 0 {
 			specificityFloor = developmentJevTitleSpecificityThreshold
 		}
-		// Specificity is candidate-level, independent of persona/event fit. When
-		// Jev supplied the score, a broad-board root that still depends on an
-		// unnamed hidden work/product/issue is ineligible even on the last
-		// ranking-only recovery pass. Missing scores remain fail-open for legacy
-		// test adapters and non-Jev reviewers.
+		// Specificity is candidate-level, independent of persona/event fit. The
+		// hard floor is deliberately low: it blocks only clear topicless or
+		// hidden-referent failures. More concrete surviving titles are preferred
+		// by ranking rather than forcing every historical BBS subject into a
+		// modern self-contained sentence. Missing scores remain fail-open for
+		// legacy test adapters and non-Jev reviewers.
 		if specificity, ok := p.advice.Specificity[original]; ok && specificity < specificityFloor {
 			continue
 		}

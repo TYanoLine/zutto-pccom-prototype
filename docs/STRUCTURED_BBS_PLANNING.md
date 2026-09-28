@@ -144,8 +144,9 @@ actor, board, timestamp and root/reply topology but does not pre-commit a detail
 topic merely to manufacture a title.
 
 The title model receives the board, world date, recent board state, recent/avoid
-subjects and bounded historical referents and normally proposes one large pool
-of 100 uncommitted subjects. The pool has two independent diversity pressures:
+subjects and bounded historical referents and normally proposes one large
+uncommitted pool sized from the remaining roots plus bounded reserve capacity
+(currently 60..100 candidates). The pool has two independent diversity pressures:
 it must keep enough claim-free candidates to fill the world slots safely, while
 also reserving a bounded supply of claim-bearing named real-world candidates
 even when the station has no hand-authored per-board referent quota. This latter
@@ -154,17 +155,17 @@ brands, works or place names.
 
 Concrete root quality is not left to the generator prompt. During Jev fit
 evaluation, every candidate also receives a **root specificity** probability.
-World code rejects a candidate below the specificity floor before it can compete
-for any actor/event slot, including on the final ranking-only recovery pass.
-The classifier asks a board-name-independent question: can a reader understand
-the concrete thing, situation, symptom, action, place, work/product or question
-from the root title plus genuinely shared board/recent context, without inventing
-an unnamed hidden referent? Thus broad-board subjects such as `台詞の間が好き`,
-`お気に入りの見開き`, `次号の展開を予想` or `クリア時間を比べたい`
-are rejected when no work/game is identified, while terse wording remains valid
-on a single-work board or when recent canonical context really makes the target
-unambiguous. Proper nouns are not required: a concrete world-local incident can
-satisfy the same gate.
+The hard floor is intentionally low and blocks only clear topicless or
+hidden-referent failures; higher specificity is primarily a ranking preference.
+This prevents the quality gate itself from selecting only long, sentence-like
+subjects. The classifier asks a board-name-independent question: can a reader
+identify the post's topic/referent from the root title plus genuinely shared
+board/recent context, without inventing an unnamed hidden target? Thus broad-board
+subjects such as `台詞の間が好き`, `お気に入りの見開き`,
+`次号の展開を予想` or `クリア時間を比べたい` remain low-scoring when no
+work/game is identified, while terse fragments and noun phrases remain valid when
+their topic is already identifiable. Proper nouns are not required: a concrete
+world-local incident can satisfy the same gate.
 
 If a large pool still leaves world-selected roots unresolved, one fresh large
 pool is allowed as bounded recovery. Canned subjects such as
@@ -221,3 +222,14 @@ sentence per line. Ordinary long logical lines may instead wrap on the emulated
 80-column-class terminal surface. Historical evidence, caveats and the
 intentional-newline/display-wrap distinction are recorded in
 `docs/research/BBS_BODY_CORPUS.md`.
+
+
+### Generated subject surface normalization
+
+A structured title pool is data, not display prose. If a generated pool
+pathologically encloses most titles in decorative Japanese corner quotes
+(`「...」`), the generator adapter removes that dominant outer wrapper before
+candidate matching. An occasional meaningful quoted phrase is preserved. The
+prompt also explicitly states that topic identity does not require a complete
+sentence and that whole-title decorative quotes are not a desired style. This is
+a transport/surface normalization only; it does not invent or rewrite the topic.

@@ -252,8 +252,9 @@ func TestSharedBBSPlannerUsesContextualTitleFirstPool(t *testing.T) {
 	if renderer.lastContext.BoardScope != "ゲームについての板" {
 		t.Fatalf("board scope=%q, want hidden semantic scope", renderer.lastContext.BoardScope)
 	}
-	if renderer.lastContext.CandidateCount != sharedTitlePoolTargetSize {
-		t.Fatalf("candidate count=%d, want %d", renderer.lastContext.CandidateCount, sharedTitlePoolTargetSize)
+	wantCandidateCount := sharedContextualTitlePoolSize(3)
+	if renderer.lastContext.CandidateCount != wantCandidateCount {
+		t.Fatalf("candidate count=%d, want %d", renderer.lastContext.CandidateCount, wantCandidateCount)
 	}
 	foundRecent := false
 	for _, subject := range renderer.lastContext.RecentSubjects {
@@ -762,10 +763,11 @@ func TestSharedBBSPlannerFillsFortyHeadersFromOneLargePool(t *testing.T) {
 		t.Fatalf("planned=%d, want 40", len(planned))
 	}
 	if renderer.calls != 1 {
-		t.Fatalf("candidate pools=%d, want one 100-title pool", renderer.calls)
+		t.Fatalf("candidate pools=%d, want one contextual pool", renderer.calls)
 	}
-	if renderer.lastCandidateCount != sharedTitlePoolTargetSize {
-		t.Fatalf("candidate count=%d, want %d", renderer.lastCandidateCount, sharedTitlePoolTargetSize)
+	wantCandidateCount := sharedContextualTitlePoolSize(40)
+	if renderer.lastCandidateCount != wantCandidateCount {
+		t.Fatalf("candidate count=%d, want %d", renderer.lastCandidateCount, wantCandidateCount)
 	}
 	seen := map[string]bool{}
 	for _, post := range planned {
@@ -1004,6 +1006,25 @@ func TestClaimFreeAdoptionAllowedReservesSpecificitySlots(t *testing.T) {
 	}
 	if !claimFreeAdoptionAllowed(1, 5, 5) {
 		t.Fatal("claim-free adoption should resume once the verified referent target is met")
+	}
+}
+
+func TestSharedContextualTitlePoolSizeScalesWithRemainingRoots(t *testing.T) {
+	tests := []struct {
+		remaining int
+		want      int
+	}{
+		{0, 60},
+		{3, 60},
+		{44, 68},
+		{52, 76},
+		{60, 84},
+		{90, 100},
+	}
+	for _, tt := range tests {
+		if got := sharedContextualTitlePoolSize(tt.remaining); got != tt.want {
+			t.Fatalf("remaining=%d pool=%d, want %d", tt.remaining, got, tt.want)
+		}
 	}
 }
 
