@@ -71,7 +71,7 @@ func TestContextualTitleCandidatePromptRejectsUnanchoredSpecificRoots(t *testing
 		CandidateCount: 100,
 		RemainingNeeded: 10,
 	})
-	for _, want := range []string{"次号の展開を予想", "台詞の間が好き", "後段Article Detailが補ってくれる前提"} {
+	for _, want := range []string{"次号の展開を予想", "台詞の間が好き", "後段Article Detailが補ってくれる前提", "少なくとも60件", "クリア時間を比べたい"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("title candidate specificity rule missing %q", want)
 		}
