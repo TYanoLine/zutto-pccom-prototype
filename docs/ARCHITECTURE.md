@@ -149,10 +149,14 @@ verified by Historical KB/research before adoption. The generator's claim marker
 is a routing hint, never historical proof.
 
 Jev is currently retained only for candidate × already-selected world-slot /
-persona fit. To keep that fit request bounded, the 100-title pool is evaluated in
+persona fit plus a candidate-level topic-identity score. To keep that fit request
+bounded, the adaptive title pool (currently 60..100 candidates) is evaluated in
 chunks of at most 20 titles × 20 remaining world events; Jev's era questions are
-suppressed for this path. If Jev fit is unavailable, the existing OpenAI title
-reviewer remains the fallback. Code performs the one-title/one-slot assignment.
+suppressed for this path. The topic-identity hard floor is deliberately low so it
+blocks clear topicless/hidden-referent roots without preferring complete sentences;
+higher specificity is a ranking signal. If Jev fit is unavailable, the existing
+OpenAI title reviewer remains the fallback. Code performs the one-title/one-slot
+assignment.
 
 Only after fit, duplicate checks and any required historical verification does
 the selected subject and its minimal summary become canonical world state. The
