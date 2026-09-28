@@ -155,3 +155,108 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 		t.Fatalf("unexpected grounded detail draft: %+v", draft.Articles)
 	}
 }
+
+
+func TestArticleDetailNeedsForcedWebSearchForGenericGameRoot(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{
+		BoardName: "GAME",
+		Articles: []BBSTitleArticleDetailSeed{{
+			EventID: "e1", Subject: "ボスの攻撃が避けられない", Summary: "ボス攻撃を避けられず困っている", DiscourseMode: "thread_start",
+		}},
+	}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1",
+		Details: []BBSArticleDetail{{Kind: "observation", Fact: "画面端へ逃げても追い詰められた"}},
+	}}}
+	if !articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("GAME root without search or referent should force one Web-search retry")
+	}
+	draft.Articles[0].Details = append(draft.Articles[0].Details, BBSArticleDetail{Kind: "referent", Fact: "今回遊んでいる作品は『テスト作品』である"})
+	if articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("existing canonical referent should avoid forced retry")
+	}
+}
+
+func TestArticleDetailDoesNotForceGameReplyWithoutReferent(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{
+		BoardName: "GAME",
+		Articles: []BBSTitleArticleDetailSeed{{
+			EventID: "e1", Subject: "", Summary: "先行記事へ自分の経験を返す", DiscourseMode: "reply",
+		}},
+	}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{EventID: "e1"}}}
+	if articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("reply should inherit thread context instead of forcing a new referent search")
+	}
+}
+
+func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForGenericGameRoot(t *testing.T) {
+	var captured []map[string]any
+	call := 0
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			var payload map[string]any
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			captured = append(captured, payload)
+			call++
+			var response string
+			if call == 1 {
+				response = `{
+					"model":"gpt-test",
+					"output":[{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"details\":[{\"kind\":\"observation\",\"fact\":\"画面端へ逃げても追い詰められて当たった\"}]}]}"}]}],
+					"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":30}
+				}`
+			} else {
+				response = `{
+					"model":"gpt-test",
+					"output":[
+						{"type":"web_search_call","action":{"type":"search","sources":[{"type":"url","url":"https://example.com/game"}]}},
+						{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回遊んでいる作品は『テスト作品』である\"},{\"kind\":\"observation\",\"fact\":\"同じ攻撃を三回避けようとしたが当たった\"}]}]}"}]}
+					],
+					"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":5},"output_tokens":14,"output_tokens_details":{"reasoning_tokens":4},"total_tokens":44}
+				}`
+			}
+			return &http.Response{StatusCode: http.StatusOK, Status: "200 OK", Header: make(http.Header), Body: io.NopCloser(strings.NewReader(response))}, nil
+		})},
+	}}
+
+	draft, err := provider.MaterializeBBSTitleArticleDetails(context.Background(), BBSTitleArticleDetailRequest{
+		BoardName: "GAME",
+		WorldDate: "1996-08-10",
+		Articles: []BBSTitleArticleDetailSeed{{
+			EventID: "e1", Subject: "ボスの攻撃が避けられない", Summary: "ボスの攻撃を避けられず困っている", AuthorHandle: "X68.V", CreatedAt: "1996-08-10T00:32:00+09:00", DiscourseMode: "thread_start",
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if call != 2 {
+		t.Fatalf("OpenAI calls=%d, want 2", call)
+	}
+	if got := captured[0]["tool_choice"]; got != "auto" {
+		t.Fatalf("first tool_choice=%v, want auto", got)
+	}
+	if got := captured[1]["tool_choice"]; got != "required" {
+		t.Fatalf("retry tool_choice=%v, want required", got)
+	}
+	forcedPrompt, _ := captured[1]["input"].(string)
+	if !strings.Contains(forcedPrompt, "FORCED WEB SEARCH RETRY") || !strings.Contains(forcedPrompt, "referent detailとして必ず") {
+		t.Fatalf("forced retry prompt missing referent requirement: %s", forcedPrompt)
+	}
+	if !draft.ForcedWebSearchRetry {
+		t.Fatal("forced retry diagnostic flag was not set")
+	}
+	if draft.WebSearchCalls != 1 || len(draft.WebSearchSources) != 1 {
+		t.Fatalf("search diagnostics calls=%d sources=%v", draft.WebSearchCalls, draft.WebSearchSources)
+	}
+	if draft.Usage.TotalTokens != 74 || draft.Usage.InputTokens != 50 || draft.Usage.CachedInputTokens != 5 {
+		t.Fatalf("retry usage was not accumulated: %+v", draft.Usage)
+	}
+	if len(draft.Articles) != 1 || len(draft.Articles[0].Details) != 2 || draft.Articles[0].Details[0].Kind != "referent" {
+		t.Fatalf("forced grounded draft=%+v", draft.Articles)
+	}
+}

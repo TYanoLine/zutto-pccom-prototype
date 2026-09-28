@@ -77,6 +77,24 @@ The Article Detail structured Responses API call uses:
 
 The application records the number of `web_search_call` output items and returned source URLs as non-world diagnostic metadata. When `DEBUG_LOG_BBS_ARTICLE_DETAILS=1`, it also logs the final validated Article Detail payload immediately before persistence so a grounding error can be distinguished from a later prose-worker invention.
 
+## Forced-search retry experiment
+
+The first pass continues to use `tool_choice=auto`.
+
+During the current GAME-board experiment, if all of the following are true:
+
+- the article is a semantic root (`discourse_mode=thread_start`);
+- the first Article Detail pass made zero Web searches; and
+- that root still has no `referent` detail,
+
+the planner performs one bounded retry with `tool_choice=required`.
+
+The retry must search at least once and is instructed to select one historically valid real work as the root's concrete referent while preserving the already-selected article intent. Unsupported work-specific boss names, stage names, mechanics, plot facts, numbers, and version details remain forbidden unless directly supported by the search evidence.
+
+Replies do not trigger this retry merely because they lack a referent; they are expected to inherit the root/thread context.
+
+This is intentionally scoped to GAME-board evaluation first. The trigger should be generalized only after live samples show that the rule improves concrete naturalness without forcing irrelevant proper nouns into ordinary roots.
+
 ## Failure behavior
 
 A provider/tool/schema failure follows the existing bounded Article Detail retry path. Failed detail materialization does not commit partial details.
