@@ -17,3 +17,19 @@ func TestTitleCandidateFitPolicyRejectsUnanchoredSpecificReferents(t *testing.T)
 		}
 	}
 }
+
+
+func TestTitleCandidateSpecificityPolicyNamesObservedGenericRoots(t *testing.T) {
+	for _, want := range []string{
+		"self-contained new root topic",
+		"台詞の間が好き",
+		"お気に入りの見開き",
+		"次号の展開を予想",
+		"クリア時間を比べたい",
+		"proper noun is not required",
+	} {
+		if !strings.Contains(titleCandidateSpecificityPolicy, want) {
+			t.Fatalf("specificity policy missing %q", want)
+		}
+	}
+}
