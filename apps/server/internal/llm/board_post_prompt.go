@@ -15,6 +15,7 @@ var (
 // World/planning metadata is already resolved before this point. The worker sees
 // only the facts needed to write the post, not internal routing/debug machinery.
 func BuildBoardPostPrompt(req BoardPostRequest) string {
+	intent, requiredReferent := extractArticleReferentControl(req.PostIntent)
 	facts := "(none supplied)"
 	if len(req.HistoricalFacts) > 0 {
 		facts = "- " + strings.Join(req.HistoricalFacts, "\n- ")
@@ -23,9 +24,13 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	if strings.TrimSpace(req.AuthorHandle) != "" {
 		persona = fmt.Sprintf("handle=%s\n%s", req.AuthorHandle, strings.TrimSpace(req.PersonaProfile))
 	}
-	intent := strings.TrimSpace(req.PostIntent)
+	intent = strings.TrimSpace(intent)
 	if intent == "" {
 		intent = "(no extra canonical facts supplied)"
+	}
+	referentRule := ""
+	if requiredReferent != "" {
+		referentRule = fmt.Sprintf(`- このroot記事には、読者が内容を理解するために必要なcanonical referent「%s」があります。表示件名がこの対象名を明示していない場合、本文の自然な位置で対象名を少なくとも一度は明示してください。対象を省略したまま「あの回」「前の回」「ボス」「このソフト」等だけで進めないでください。表示件名が対象名を明示している場合は本文で重ねて言い直す必要はありません。対象を別の作品・製品・店等へ置き換えないでください。`, requiredReferent)
 	}
 	subject := strings.TrimSpace(req.CanonicalSubject)
 	if subject == "" {
@@ -87,6 +92,7 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 - 「この件について書きます」「おすすめを教えてください」のように件名を言い換えるだけで終わらず、確定事実の中に具体的な対象・観察・条件・回数・順序・比較があれば、必要なものだけ普通に使ってください。タイトルが抽象的でも、canonicalなarticle_detailが具体的なら本文まで抽象化しないでください。
 - 記事の書き方を説明せず、最初の文から用件そのものに入ってください。本人が今言いたい部分だけを書いて構いません。
 - article_detail は投稿者について確定済みのローカル事実です。ただし本文で全detailを列挙する義務はありません。source_article_detail は相手の記事の事実で、返信者自身の経験へ移してはいけません。
+%s
 - article_detail または supplied historical facts にない具体的な操作手順、画面位置、料金制度、製品仕様、攻略情報、購入場所・購入経緯、通勤中/仕事帰り等の状況、将来の予定を「自然な補足」として作らないでください。detailが無ければ、その部分は短く曖昧なままで構いません。
 - subject/summaryから自然に分かる驚き・喜び・困惑などの一時的な反応は表現して構いませんが、新しい所有・経験・行動・予定を事実として足してはいけません。
 - supplied historical facts は公開世界について使ってよい事実です。そこから未提示の価格・発売日・仕様・作品内容などを連想で追加しないでください。
@@ -102,7 +108,7 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 - %s
 
 JSONだけを返してください:
-{"author":"...","subject":"...","body":"..."}`, subject, req.BoardTopic, persona, intent, facts, req.WorldDate, eraRules, subjectRule, kind, minChars, maxChars, parent, quoteRule)
+{"author":"...","subject":"...","body":"..."}`, subject, req.BoardTopic, persona, intent, facts, req.WorldDate, eraRules, subjectRule, referentRule, kind, minChars, maxChars, parent, quoteRule)
 }
 
 func compactBoardPostEraRules(raw string) string {
@@ -135,4 +141,22 @@ func validateBoardPostWorkerDraft(req BoardPostRequest, d BoardPostDraft) error 
 		}
 	}
 	return nil
+}
+
+
+func extractArticleReferentControl(raw string) (string, string) {
+	lines := strings.Split(strings.ReplaceAll(raw, "\r", ""), "\n")
+	kept := make([]string, 0, len(lines))
+	referent := ""
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "article_referent_required=") {
+			if referent == "" {
+				referent = strings.TrimSpace(strings.TrimPrefix(trimmed, "article_referent_required="))
+			}
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimSpace(strings.Join(kept, "\n")), referent
 }
