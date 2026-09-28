@@ -20,7 +20,9 @@ const (
 	// Contextual production generation uses one large structured pool. A second
 	// pool is allowed only as recovery if fit/duplicate/historical attrition leaves
 	// world-selected roots unresolved.
-	sharedTitlePoolTargetSize         = 100
+	sharedTitlePoolMaxSize            = 100
+	sharedTitlePoolMinSize            = 60
+	sharedTitlePoolReserve            = 24
 	sharedTitleLargePoolMaxAttempts   = 2
 	sharedTitleFitBatchSize           = 20
 	sharedTitleLegacyPoolTargetSize   = 20
@@ -28,6 +30,20 @@ const (
 	sharedTitleResearchBudget         = 6 * time.Second
 	sharedTitleBackgroundResearchJobs = 12
 )
+
+func sharedContextualTitlePoolSize(remaining int) int {
+	if remaining < 0 {
+		remaining = 0
+	}
+	size := remaining + sharedTitlePoolReserve
+	if size < sharedTitlePoolMinSize {
+		size = sharedTitlePoolMinSize
+	}
+	if size > sharedTitlePoolMaxSize {
+		size = sharedTitlePoolMaxSize
+	}
+	return size
+}
 
 func sharedLegacyTitlePoolAttemptLimit(rootCount int) int {
 	required := 0
@@ -273,13 +289,15 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 		var pool llm.BBSTitleCandidates
 		var err error
 		poolStarted := time.Now()
+		poolTarget := sharedTitleLegacyPoolTargetSize
 		if hasContextual {
+			poolTarget = sharedContextualTitlePoolSize(len(remaining))
 			claimCandidateTarget := claimBearingCandidateTarget(
 				requestedVerifiedReferentTarget-len(verifiedSpecificReferentEvents),
-				sharedTitlePoolTargetSize,
+				poolTarget,
 				len(remaining),
 			)
-			if baseline := baselineClaimBearingCandidateTarget(sharedTitlePoolTargetSize, len(remaining)); claimCandidateTarget < baseline {
+			if baseline := baselineClaimBearingCandidateTarget(poolTarget, len(remaining)); claimCandidateTarget < baseline {
 				claimCandidateTarget = baseline
 			}
 			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
@@ -292,14 +310,14 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 				HistoricalFacts:             historicalFacts,
 				EraRules:                    materializer.eraRules(),
 				RemainingNeeded:             len(remaining),
-				CandidateCount:              sharedTitlePoolTargetSize,
+				CandidateCount:              poolTarget,
 				VerifiedReferentTarget:      requestedVerifiedReferentTarget,
 				ClaimBearingCandidateTarget: claimCandidateTarget,
 			})
 		} else {
 			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
 		}
-		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d target=%d remaining=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), func() int { if hasContextual { return sharedTitlePoolTargetSize }; return sharedTitleLegacyPoolTargetSize }(), len(remaining), err != nil)
+		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d target=%d remaining=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), poolTarget, len(remaining), err != nil)
 		if err != nil {
 			// The structured provider already retries transient transport/rate
 			// failures with backoff. A pool attempt means a new semantic pool,
@@ -383,7 +401,24 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 						}
 					}
 				}
-				log.Printf("BBS title quality: host=%s board=%s phase=jev_specificity attempt=%d scored=%d below_floor=%d floor=%.2f", req.Host.ID, req.Board.ID, attempt+1, scored, below, developmentJevTitleSpecificityThreshold)
+				low := 0
+				mid := 0
+				high := 0
+				for candidate := 1; candidate <= len(fitTitles); candidate++ {
+					score, ok := jevAdvice.Specificity[candidate]
+					if !ok {
+						continue
+					}
+					switch {
+					case score < .25:
+						low++
+					case score < .60:
+						mid++
+					default:
+						high++
+					}
+				}
+				log.Printf("BBS title quality: host=%s board=%s phase=jev_specificity attempt=%d scored=%d below_floor=%d floor=%.2f buckets_lt25=%d buckets_25_60=%d buckets_ge60=%d", req.Host.ID, req.Board.ID, attempt+1, scored, below, developmentJevTitleSpecificityThreshold, low, mid, high)
 			}
 			if jevErr != nil {
 				jevAttempted = false
