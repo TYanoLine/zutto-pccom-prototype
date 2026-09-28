@@ -363,3 +363,49 @@ func TestValidateBBSTitleArticleDetailsAcceptsInheritedReplyReferent(t *testing.
 		t.Fatal("inherited reply referent should not force Web search")
 	}
 }
+
+
+func TestStripArticleDetailOperationalEvidenceRemovesSearchCitation(t *testing.T) {
+	in := "『美少女戦士セーラームーン』第1話。([lineup.toei-anim.co.jp](https://lineup.toei-anim.co.jp/ja/tv/sailor_moon/episode/1/?utm_source=openai))"
+	got := stripArticleDetailOperationalEvidence(in)
+	if got != "『美少女戦士セーラームーン』第1話。" {
+		t.Fatalf("citation cleanup=%q", got)
+	}
+	if ArticleDetailFactContainsOperationalEvidence(got) {
+		t.Fatalf("cleaned fact still looks like operational evidence: %q", got)
+	}
+}
+
+func TestValidateBBSTitleArticleDetailsRejectsResidualOperationalEvidence(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
+		EventID: "e1", Subject: "作品の話", Summary: "作品について話す",
+	}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "optional", ReferentStatus: "resolved", ReferentGrounding: "external_history",
+		Details: []BBSArticleDetail{{Kind: "referent", Fact: "テスト作品 https://example.com/source"}},
+	}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
+		t.Fatal("raw source URL must not become canonical article detail")
+	}
+}
+
+func TestDecodeBBSTitleArticleDetailResultCleansCitationBeforeValidation(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
+		EventID: "e1", Subject: "作品の話", Summary: "作品について話す",
+	}}}
+	result := responseTextResult{
+		Text: `{"articles":[{"event_id":"e1","referent_requirement":"optional","referent_status":"resolved","referent_grounding":"external_history","details":[{"kind":"referent","fact":"ウイニングポスト2。([example.com](https://example.com/?utm_source=openai))"}]}]}`,
+		WebSearchCalls: 1,
+		WebSearchSources: []string{"https://example.com/"},
+	}
+	got, err := decodeBBSTitleArticleDetailResult(req, result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Articles) != 1 || len(got.Articles[0].Details) != 1 {
+		t.Fatalf("unexpected decoded draft: %+v", got)
+	}
+	if fact := got.Articles[0].Details[0].Fact; fact != "ウイニングポスト2。" {
+		t.Fatalf("canonical fact retained citation metadata: %q", fact)
+	}
+}
