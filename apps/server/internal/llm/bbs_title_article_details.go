@@ -4,8 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
+)
+
+var (
+	articleDetailMarkdownCitation = regexp.MustCompile(`\s*\(\[[^\]\r\n]+\]\(https?://[^\)\r\n]+\)\)\s*`)
+	articleDetailBareURL = regexp.MustCompile(`https?://[^\s）)]+`)
 )
 
 var bbsArticleDetailKinds = map[string]bool{
@@ -286,6 +292,9 @@ func ValidateBBSTitleArticleDetails(req BBSTitleArticleDetailRequest, draft BBST
 			if ArticleDetailFactIsRenderingMetadata(fact) {
 				return fmt.Errorf("article %q detail leaked article-header/rendering metadata: %q", article.EventID, fact)
 			}
+			if ArticleDetailFactLeaksEvidenceMetadata(fact) {
+				return fmt.Errorf("article %q detail leaked Web/evidence metadata: %q", article.EventID, fact)
+			}
 		}
 		if hasReferent && status != "" && status != "resolved" && status != "already_in_context" {
 			return fmt.Errorf("article %q has referent detail with incompatible status %q", article.EventID, status)
@@ -378,6 +387,27 @@ func articleDetailReferentLooksPlaceholder(fact string) bool {
 	return false
 }
 
+func sanitizeArticleDetailEvidenceMetadata(fact string) string {
+	value := articleDetailMarkdownCitation.ReplaceAllString(strings.TrimSpace(fact), "")
+	value = articleDetailBareURL.ReplaceAllString(value, "")
+	value = strings.ReplaceAll(value, "()", "")
+	value = strings.ReplaceAll(value, "（）", "")
+	return strings.TrimSpace(value)
+}
+
+func ArticleDetailFactLeaksEvidenceMetadata(fact string) bool {
+	value := strings.ToLower(strings.TrimSpace(fact))
+	if value == "" {
+		return false
+	}
+	for _, marker := range []string{"http://", "https://", "utm_source=", "web検索", "検索結果", "参照url", "source url"} {
+		if strings.Contains(value, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func articleDetailLooksEditorial(fact string) bool {
 	for _, marker := range []string{"話題にする", "共有する", "読者に", "参加者に", "紹介する", "紹介。", "報告する", "構成にする", "説明を求め", "情報提供を求め"} {
 		if strings.Contains(fact, marker) {
@@ -412,6 +442,11 @@ func decodeBBSTitleArticleDetailResult(req BBSTitleArticleDetailRequest, result 
 	var draft BBSTitleArticleDetailDraft
 	if err := json.Unmarshal([]byte(result.Text), &draft); err != nil {
 		return draft, err
+	}
+	for ai := range draft.Articles {
+		for di := range draft.Articles[ai].Details {
+			draft.Articles[ai].Details[di].Fact = sanitizeArticleDetailEvidenceMetadata(draft.Articles[ai].Details[di].Fact)
+		}
 	}
 	draft.Usage = result.Usage
 	draft.WebSearchCalls = result.WebSearchCalls
