@@ -170,7 +170,12 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	}
 	usage := GenerationUsage{InputTokens: draft.Usage.InputTokens, CachedInputTokens: draft.Usage.CachedInputTokens, OutputTokens: draft.Usage.OutputTokens, ReasoningTokens: draft.Usage.ReasoningTokens, TotalTokens: draft.Usage.TotalTokens, Model: draft.Usage.Model}
 	storeDevelopmentPlanningUsage(r, host.ID, fmt.Sprintf("article-detail-%d", selected.ID), usage)
-	log.Printf("BBS article detail grounding: host=%s board=%s post=%d web_search_calls=%d web_sources=%d forced_search_retry=%t", host.ID, board.ID, selected.ID, draft.WebSearchCalls, len(draft.WebSearchSources), draft.ForcedWebSearchRetry)
+	referentRequirement, referentStatus := "", ""
+	if len(draft.Articles) == 1 {
+		referentRequirement = draft.Articles[0].ReferentRequirement
+		referentStatus = draft.Articles[0].ReferentStatus
+	}
+	log.Printf("BBS article detail grounding: host=%s board=%s post=%d referent_requirement=%s referent_status=%s web_search_calls=%d web_sources=%d forced_search_retry=%t", host.ID, board.ID, selected.ID, referentRequirement, referentStatus, draft.WebSearchCalls, len(draft.WebSearchSources), draft.ForcedWebSearchRetry)
 	if err != nil {
 		return selected, formatGenerationError("article-detail", err), err
 	}
