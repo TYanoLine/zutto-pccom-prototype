@@ -144,24 +144,43 @@ actor, board, timestamp and root/reply topology but does not pre-commit a detail
 topic merely to manufacture a title.
 
 The title model receives the board, world date, recent board state, recent/avoid
-subjects and bounded historical referents and proposes a pool of 20 uncommitted
-subjects. That pool should be concrete and diverse: specific works/products,
-operations, symptoms, places, events or ordinary concrete questions may appear
-when supported, while vague board-category paraphrases are discouraged.
+subjects and bounded historical referents and normally proposes one large pool
+of 100 uncommitted subjects. The pool has two independent diversity pressures:
+it must keep enough claim-free candidates to fill the world slots safely, while
+also reserving a bounded supply of claim-bearing named real-world candidates
+even when the station has no hand-authored per-board referent quota. This latter
+rule is only a candidate-supply floor, not a requirement that every board adopt
+brands, works or place names.
 
-If ordinary candidate pools still leave world-selected roots unresolved, the
-shared planner requests additional **era-safe generated refill pools**. Those
-refill requests avoid unsupported named/time-dependent external claims but still
-ask for concrete ordinary situations rather than board-name paraphrases. Canned
-subjects such as `ＰＣ－９８について` are not permitted. Exhausting all bounded
-generated refills fails the batch atomically so it can be retried later.
+Concrete root quality is not left to the generator prompt. During Jev fit
+evaluation, every candidate also receives a **root specificity** probability.
+World code rejects a candidate below the specificity floor before it can compete
+for any actor/event slot, including on the final ranking-only recovery pass.
+The classifier asks a board-name-independent question: can a reader understand
+the concrete thing, situation, symptom, action, place, work/product or question
+from the root title plus genuinely shared board/recent context, without inventing
+an unnamed hidden referent? Thus broad-board subjects such as `台詞の間が好き`,
+`お気に入りの見開き`, `次号の展開を予想` or `クリア時間を比べたい`
+are rejected when no work/game is identified, while terse wording remains valid
+on a single-work board or when recent canonical context really makes the target
+unambiguous. Proper nouns are not required: a concrete world-local incident can
+satisfy the same gate.
 
-Jev evaluates each candidate against the already-selected world slots and its era
-plausibility. Code performs deterministic one-title/one-slot matching. Candidates
-with ambiguous named real-world references are historically researched only
-after tentative selection. A candidate becomes canonical only after it survives
-these gates. This preserves the creative breadth of the first generation pass
-without giving the wording model authority to rewrite actor/time/topology.
+If a large pool still leaves world-selected roots unresolved, one fresh large
+pool is allowed as bounded recovery. Canned subjects such as
+`ＰＣ－９８について` are not permitted. Exhausting the bounded generated pools
+fails the batch atomically so it can be retried later rather than committing
+generic filler.
+
+Jev evaluates candidate specificity and each candidate × already-selected world
+slot fit. Code performs deterministic one-title/one-slot matching. Candidates
+with named real-world references are historically researched only after
+tentative selection unless a debug experiment explicitly bypasses that research;
+the semantic specificity gate remains active independently of that debug switch.
+A candidate becomes canonical only after it survives these gates. This preserves
+the creative breadth of the generation pass without giving the wording model
+authority to rewrite actor/time/topology or to defer missing topic identity to
+the later Article Detail prose stage.
 
 The same header pass commits semantic state but not the article body. The body
 worker receives the canonical subject, concrete matter, claims and other intent
