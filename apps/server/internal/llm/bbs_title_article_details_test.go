@@ -267,7 +267,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 					"model":"gpt-test",
 					"output":[
 						{"type":"web_search_call","action":{"type":"search","sources":[{"type":"url","url":"https://example.com/game"}]}},
-						{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回見ている作品は『テスト作品』である\"},{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}
+						{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"referent_grounding\":\"external_history\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回見ている作品は『テスト作品』である\"},{\"kind\":\"sequence\",\"fact\":\"脇役の言い合いのあと主人公が一人で黙り込んだ\"}]}]}"}]}
 					],
 					"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":5},"output_tokens":14,"output_tokens_details":{"reasoning_tokens":4},"total_tokens":44}
 				}`
