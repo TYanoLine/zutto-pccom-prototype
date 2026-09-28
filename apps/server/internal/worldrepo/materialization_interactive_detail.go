@@ -41,7 +41,7 @@ func repairInteractiveArticleDetailFacts(facts []string) ([]string, bool) {
 	}
 	clean := make([]string, 0, len(facts))
 	for _, raw := range facts {
-		if strings.HasPrefix(raw, "article_detail=") || strings.HasPrefix(raw, "article_detail_contract=") {
+		if strings.HasPrefix(raw, "article_detail=") || strings.HasPrefix(raw, "article_detail_contract=") || strings.HasPrefix(raw, "article_referent_required=") {
 			continue
 		}
 		clean = append(clean, raw)
