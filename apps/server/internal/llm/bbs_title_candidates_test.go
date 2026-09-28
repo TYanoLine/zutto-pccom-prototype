@@ -289,3 +289,47 @@ func TestLargeTitlePoolStructurallySeparatesClaimFreeAndClaimBearingCandidates(t
 		}
 	}
 }
+
+
+func TestAssessBBSReferentTextureUsesSemanticScope(t *testing.T) {
+	var captured map[string]any
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if err := json.NewDecoder(req.Body).Decode(&captured); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			response := `{
+				"model":"gpt-test",
+				"output":[{"type":"message","content":[{"type":"output_text","text":"{"level":"regular","reason":"scope ordinarily discusses identifiable works"}"}]}],
+				"usage":{"input_tokens":10,"input_tokens_details":{"cached_tokens":0},"output_tokens":8,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18}
+			}`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status: "200 OK",
+				Header: make(http.Header),
+				Body: io.NopCloser(strings.NewReader(response)),
+			}, nil
+		})},
+	}}
+
+	got, err := provider.AssessBBSReferentTexture(
+		context.Background(),
+		"自動生成された板名",
+		"実在する作品について感想や登場人物、各回の内容を話す趣味の掲示板。",
+		"",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Level != "regular" || got.Reason == "" {
+		t.Fatalf("unexpected assessment: %+v", got)
+	}
+	input, _ := captured["input"].(string)
+	for _, want := range []string{"BoardScopeを主根拠", "BoardNameの語感だけで分類してはいけません", "自動生成された板名", "実在する作品について"} {
+		if !strings.Contains(input, want) {
+			t.Fatalf("referent texture prompt missing %q: %s", want, input)
+		}
+	}
+}
