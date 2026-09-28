@@ -85,12 +85,17 @@ Each Article Detail result also returns non-diegetic control metadata:
 
 - `referent_requirement=required|optional|none`
 - `referent_status=already_in_context|resolved|unresolved|not_applicable`
+- `referent_grounding=external_history|world_local|inherited_context|not_applicable`
+
+`external_history` is a real-world work/product/person/company/service/business/etc. whose period correctness must be grounded with Web evidence when used. `world_local` is a private, anonymous, or simulation-local target such as a nearby unnamed restaurant, a local shopping street, or the actor's own file; it must not be replaced with a conveniently searchable real-world entity. `inherited_context` is for replies reusing a canonical thread referent and does not require redundant research unless the reply introduces a new external historical fact.
 
 The requirement is determined from the semantic content of the accepted subject, summary, and thread context. Board names and board categories are context only and must never be hard-coded as the trigger. This is required because boards and their names may be generated independently for each host.
 
 `required` means the post describes or asks about a specific external instance whose identity changes the truth of the concrete experience/opinion/question. A useful counterfactual test is: if the assumed target were replaced with another work/product/place of the same broad category, would the claimed experience remain the same fact? If not, a referent is required even when the subject omits its name. Examples include one specific boss fight, episode/scene, song, magazine issue/bonus, software behavior, or product operation. Category-wide advice, recommendation requests, and open-ended lists are normally optional; ordinary personal/local discussion with no external target is none.
 
-For semantic roots (`discourse_mode=thread_start`), the planner performs one bounded retry with `tool_choice=required` when a required external referent is still unresolved, or when it is marked as already present/resolved but the first pass performed no Web search.
+The request carries an explicit `is_reply` flag; discourse-mode labels are not used to infer topology.
+
+The planner performs one bounded retry with `tool_choice=required` only for `referent_grounding=external_history` when the external referent is still unresolved, or when it is marked as already present/resolved but the first pass performed no Web search. World-local and inherited-context referents never trigger Web search merely to find a real-world substitute.
 
 If the specific referent is already present in the subject/summary/thread context, the retry must verify and preserve that referent rather than replacing it with another famous period-appropriate target. If the referent is omitted, the retry may select a historically valid target only when it naturally makes the already-selected article intent true; satisfying the date constraint alone is not enough.
 
