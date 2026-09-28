@@ -84,6 +84,20 @@ a city/region name, unless that board explicitly opts out. Zero or near-zero
 specific referents is treated as a quality failure even when every individual
 title is otherwise safe.
 
+The applicability of this floor must not be hard-coded from a board display name.
+When a board does not carry an explicit world/station tuning override, the shared
+planner classifies the board's **SemanticScope** as `none`, `light`, or
+`regular`: `none` has no named-referent floor, `light` uses approximately
+5%, and `regular` uses approximately 10%. This classification is editorial
+generation control, not a world fact, and BoardScope is the primary signal.
+
+The debug switch that bypasses Historical KB/Web verification does **not** disable
+this composition gate. In that mode a visible claim-bearing referent may count as
+specific-but-unverified for diagnostic generation, and telemetry must distinguish
+that count from genuinely verified specificity. This lets debug runs measure
+whether the candidate/selection pipeline is still collapsing into generic titles
+without pretending that skipped historical verification succeeded.
+
 This gate deliberately measures **adopted output**, not only the raw 100-title
 pool. A diverse candidate pool is not useful if fit/assignment consistently picks
 one repetitive subset.
