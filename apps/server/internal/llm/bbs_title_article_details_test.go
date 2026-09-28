@@ -96,7 +96,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 				"model":"gpt-test",
 				"output":[
 					{"type":"web_search_call","action":{"type":"search","sources":[{"type":"url","url":"https://example.com/source"}]}},
-					{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回話している作品は『テスト作品』である\"}]}]}"}]}
+					{"type":"message","content":[{"type":"output_text","text":"{\"articles\":[{\"event_id\":\"e1\",\"referent_requirement\":\"required\",\"referent_status\":\"resolved\",\"details\":[{\"kind\":\"referent\",\"fact\":\"今回話している作品は『テスト作品』である\"}]}]}"}]}
 				],
 				"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":12,"output_tokens_details":{"reasoning_tokens":2},"total_tokens":32}
 			}`
@@ -140,7 +140,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 		t.Fatalf("reasoning effort=%v, want medium", reasoning["effort"])
 	}
 	prompt, _ := captured["input"].(string)
-	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず", "具体的な命題が検索結果に直接支持", "似た名前の敵・別機種版・移植版"} {
+	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず", "具体的な命題が検索結果に直接支持", "似た名前の敵・別機種版・移植版", "板名やカテゴリ名だけを理由に", "referent_requirement", "referent_status"} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("article detail prompt missing %q", want)
 		}
@@ -151,7 +151,7 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 	if len(draft.WebSearchSources) != 1 || draft.WebSearchSources[0] != "https://example.com/source" {
 		t.Fatalf("web search sources=%v", draft.WebSearchSources)
 	}
-	if len(draft.Articles) != 1 || len(draft.Articles[0].Details) != 1 || draft.Articles[0].Details[0].Kind != "referent" {
+	if len(draft.Articles) != 1 || draft.Articles[0].ReferentRequirement != "required" || draft.Articles[0].ReferentStatus != "resolved" || len(draft.Articles[0].Details) != 1 || draft.Articles[0].Details[0].Kind != "referent" {
 		t.Fatalf("unexpected grounded detail draft: %+v", draft.Articles)
 	}
 }
@@ -191,6 +191,38 @@ func TestArticleDetailDoesNotForceRootWhoseMeaningNeedsNoExternalReferent(t *tes
 	}}}
 	if articleDetailNeedsForcedWebSearch(req, draft) {
 		t.Fatal("board name alone must not force an external referent")
+	}
+}
+
+
+
+func TestArticleDetailNeedsForcedWebSearchToVerifyExistingSemanticReferent(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{
+		BoardName: "何でも雑談",
+		Articles: []BBSTitleArticleDetailSeed{{
+			EventID: "e1", Subject: "天翔記の大名選び", Summary: "天翔記で最初に選ぶ大名について迷っている", DiscourseMode: "thread_start",
+		}},
+	}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "already_in_context",
+		Details: []BBSArticleDetail{{Kind: "question_scope", Fact: "最初に選ぶ勢力の違いだけを比べたい"}},
+	}}}
+	if !articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("required external referent already in subject should still be verified when first pass did not search")
+	}
+	draft.WebSearchCalls = 1
+	if articleDetailNeedsForcedWebSearch(req, draft) {
+		t.Fatal("searched existing referent should not retry again")
+	}
+}
+
+func TestValidateBBSTitleArticleDetailsRejectsContradictoryReferentMetadata(t *testing.T) {
+	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{EventID: "e1", Subject: "近況", Summary: "近況"}}}
+	draft := BBSTitleArticleDetailDraft{Articles: []BBSTitleArticleDetailSet{{
+		EventID: "e1", ReferentRequirement: "required", ReferentStatus: "not_applicable",
+	}}}
+	if err := ValidateBBSTitleArticleDetails(req, draft); err == nil {
+		t.Fatal("required referent cannot be not_applicable")
 	}
 }
 
