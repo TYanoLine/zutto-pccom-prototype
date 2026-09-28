@@ -46,8 +46,10 @@ type BBSArticleDetail struct {
 }
 
 type BBSTitleArticleDetailSet struct {
-	EventID string             `json:"event_id"`
-	Details []BBSArticleDetail `json:"details"`
+	EventID              string             `json:"event_id"`
+	ReferentRequirement  string             `json:"referent_requirement"`
+	ReferentStatus       string             `json:"referent_status"`
+	Details              []BBSArticleDetail `json:"details"`
 }
 
 type BBSTitleArticleDetailDraft struct {
@@ -71,6 +73,19 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 		return BBSTitleArticleDetailDraft{}, err
 	}
 	prompt := `採用済みの記事について、本文を書く前に本当に必要な記事ローカル事実だけをcanonical world factとして補ってください。これは文章の構成案を作る処理ではありません。rootのタイトルはすでに採用済みで変更しません。replyには独立タイトルが無いホストもあります。
+
+各articleについて、まず板名ではなくsubject/summary/ThreadContextそのものの意味から referent_requirement と referent_status を判定してください。
+- referent_requirement=required: 普通の読者がこの投稿の具体的経験・感想・質問を理解するには、特定の実在作品・製品・人物・場所・出来事などの同定が必要。例: 「ボスの攻撃が避けられない」「ギャグ回から急にシリアス」「最後の曲がよかった」「あの機種のキー配置」。
+- referent_requirement=optional: 固有対象を置くと具体的になるが、対象名なしでも投稿の意味が自然に成立する。
+- referent_requirement=none: 外部の固有対象を同定する必要がない。例: 「最近寝不足です」「オフ会どうします？」「名前を覚えるのが苦手」。
+BoardNameは文脈の一部にすぎず、GAME/ANIME等の板名やカテゴリ名だけを理由にrequired/noneを決めてはいけません。将来、板名や板構成は局ごとに自動生成されます。
+
+referent_status:
+- already_in_context: subject/summary/ThreadContext等に具体的対象がすでに明示されている。別の対象へ置換しない。
+- resolved: 今回の処理で具体的対象を選び、必要なら検索で投稿日時点との整合を確認した。
+- unresolved: referent_requiredだが、まだ具体的対象を同定できていない。
+- not_applicable: referent_requiredではなく、対象同定が不要。
+referent_requiredなのに対象が省略されている場合、単に架空の場面だけを足して具体化したつもりにならないでください。
 
 各articleのdetailsは0〜2件です。ただし、タイトルやsummaryが抽象的・一般的な場合でも本文まで抽象論にしないでください。その人物が今回実際に見たもの、試した条件、回数、場所、順序、比較対象、必要なら話題の具体的な実在対象など、投稿を一段具体化する小さな事実を自然に1件程度固定してください。短い感情表明や純粋な相づちとして既に十分な場合だけ0件でも構いません。件数を埋めるための作り話は禁止です。
 
@@ -125,8 +140,10 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 	}, "required": []string{"kind", "fact"}, "additionalProperties": false}
 	articleSchema := map[string]any{"type": "object", "properties": map[string]any{
 		"event_id": map[string]any{"type": "string"},
+		"referent_requirement": map[string]any{"type": "string", "enum": []string{"required", "optional", "none"}},
+		"referent_status": map[string]any{"type": "string", "enum": []string{"already_in_context", "resolved", "unresolved", "not_applicable"}},
 		"details":  map[string]any{"type": "array", "items": detailSchema, "minItems": 0, "maxItems": 2},
-	}, "required": []string{"event_id", "details"}, "additionalProperties": false}
+	}, "required": []string{"event_id", "referent_requirement", "referent_status", "details"}, "additionalProperties": false}
 	schema := map[string]any{"type": "object", "properties": map[string]any{
 		"articles": map[string]any{"type": "array", "items": articleSchema, "minItems": len(req.Articles), "maxItems": len(req.Articles)},
 	}, "required": []string{"articles"}, "additionalProperties": false}
@@ -145,11 +162,14 @@ replyでThreadContextがある場合、先行記事・先行replyを読んだ上
 	forcedPrompt := prompt + `
 
 FORCED WEB SEARCH RETRY:
-前回の候補はWeb検索を一度も使わず、GAME系root記事の具体的なreferentも確定しませんでした。この再試行ではWeb検索を最低1回使ってください。
-- subject/summaryが省略している具体的な作品名を、投稿日時点で日本で成立する実在作品から1件選び、referent detailとして必ず返してください。
-- referentを選ぶためだけに作品固有の未確認仕様を発明してはいけません。
-- observation等に作品固有のボス名、面名、仕様、ストーリー、数値を入れるなら、その命題自体も検索結果に直接支持されている必要があります。
-- 安全な作品固有情報を確認できない場合でも、referentは確認済み作品名までに留め、もう1件のdetailは外部史実を主張しない本人の記事ローカル経験にしてください。
+前回の意味判定で、このroot記事は特定の外部referentがないと具体的経験・感想・質問として成立しにくいと判定されました。この再試行ではWeb検索を最低1回使ってください。
+- BoardNameや板カテゴリから対象を決めてはいけません。subject/summary/既存contextが何を前提にしているかから対象を解決してください。
+- 前回referent_status=already_in_contextなら、subject/summary/ThreadContextにあるその対象をまず検証し、史実上成立する限り別作品・別製品へ置換しないでください。
+- 前回referent_status=unresolvedなら、元のsubject/summaryを自然に成立させる具体的対象を、投稿日時点で日本で成立する実在対象から選んでください。単に年代条件だけを満たす無関係な有名対象を選んではいけません。
+- 最終結果では referent_requirement=required とし、referent detailに解決した対象を入れ、referent_statusは already_in_context または resolved にしてください。
+- referentを選ぶためだけに対象固有の未確認仕様を発明してはいけません。
+- observation等に対象固有のボス名、面名、仕様、ストーリー、数値を入れるなら、その命題自体も検索結果に直接支持されている必要があります。
+- 安全な対象固有情報を確認できない場合でも、referentは確認済み対象名までに留め、もう1件のdetailは外部史実を主張しない本人の記事ローカル経験にしてください。
 - 元の記事意図・人物・投稿日時は変えないでください。
 `
 	draft.ForcedWebSearchRetry = true
@@ -260,34 +280,27 @@ func decodeBBSTitleArticleDetailResult(req BBSTitleArticleDetailRequest, result 
 }
 
 func articleDetailNeedsForcedWebSearch(req BBSTitleArticleDetailRequest, draft BBSTitleArticleDetailDraft) bool {
-	if draft.WebSearchCalls != 0 || !articleDetailBoardRequiresConcreteReferentExperiment(req.BoardName) {
-		return false
-	}
-	detailsByEvent := make(map[string][]BBSArticleDetail, len(draft.Articles))
+	articlesByEvent := make(map[string]BBSTitleArticleDetailSet, len(draft.Articles))
 	for _, article := range draft.Articles {
-		detailsByEvent[article.EventID] = article.Details
+		articlesByEvent[article.EventID] = article
 	}
 	for _, seed := range req.Articles {
 		if !strings.EqualFold(strings.TrimSpace(seed.DiscourseMode), "thread_start") {
 			continue
 		}
-		hasReferent := false
-		for _, detail := range detailsByEvent[seed.EventID] {
-			if strings.EqualFold(strings.TrimSpace(detail.Kind), "referent") {
-				hasReferent = true
-				break
-			}
+		article, ok := articlesByEvent[seed.EventID]
+		if !ok || strings.TrimSpace(article.ReferentRequirement) != "required" {
+			continue
 		}
-		if !hasReferent {
+		status := strings.TrimSpace(article.ReferentStatus)
+		if status == "unresolved" {
+			return true
+		}
+		if (status == "already_in_context" || status == "resolved") && draft.WebSearchCalls == 0 {
 			return true
 		}
 	}
 	return false
-}
-
-func articleDetailBoardRequiresConcreteReferentExperiment(boardName string) bool {
-	name := strings.ToLower(strings.TrimSpace(boardName))
-	return name == "game" || name == "ｇａｍｅ" || strings.Contains(name, "ゲーム")
 }
 
 func mergeTokenUsage(a, b TokenUsage) TokenUsage {
