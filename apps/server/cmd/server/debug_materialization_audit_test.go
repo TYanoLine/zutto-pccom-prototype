@@ -44,8 +44,8 @@ func TestRunDebugMaterializationAuditStartsAndCollectsCompletedJob(t *testing.T)
 				"situation_mode": "title-first",
 				"historical_texture": "model-memory",
 				"era_gate": "observe-only",
-				"board_count": "4",
-				"shell_limit": "3",
+				"board_count": "6",
+				"shell_limit": "4",
 			} {
 				if got := r.URL.Query().Get(key); got != want {
 					t.Fatalf("%s=%q want %q", key, got, want)
