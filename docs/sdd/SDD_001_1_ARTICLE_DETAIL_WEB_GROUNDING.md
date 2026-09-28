@@ -77,23 +77,28 @@ The Article Detail structured Responses API call uses:
 
 The application records the number of `web_search_call` output items and returned source URLs as non-world diagnostic metadata. When `DEBUG_LOG_BBS_ARTICLE_DETAILS=1`, it also logs the final validated Article Detail payload immediately before persistence so a grounding error can be distinguished from a later prose-worker invention.
 
-## Forced-search retry experiment
+## Semantic referent requirement and forced-search retry
 
 The first pass continues to use `tool_choice=auto`.
 
-During the current GAME-board experiment, if all of the following are true:
+Each Article Detail result also returns non-diegetic control metadata:
 
-- the article is a semantic root (`discourse_mode=thread_start`);
-- the first Article Detail pass made zero Web searches; and
-- that root still has no `referent` detail,
+- `referent_requirement=required|optional|none`
+- `referent_status=already_in_context|resolved|unresolved|not_applicable`
 
-the planner performs one bounded retry with `tool_choice=required`.
+The requirement is determined from the semantic content of the accepted subject, summary, and thread context. Board names and board categories are context only and must never be hard-coded as the trigger. This is required because boards and their names may be generated independently for each host.
 
-The retry must search at least once and is instructed to select one historically valid real work as the root's concrete referent while preserving the already-selected article intent. Unsupported work-specific boss names, stage names, mechanics, plot facts, numbers, and version details remain forbidden unless directly supported by the search evidence.
+`required` means that an ordinary reader needs a specific real-world work/product/person/place/event in order for the concrete experience, opinion, or question to make sense. For example, "ボスの攻撃が避けられない" or "ギャグ回から急にシリアス" normally require a target, while "最近寝不足です" does not.
 
-Replies do not trigger this retry merely because they lack a referent; they are expected to inherit the root/thread context.
+For semantic roots (`discourse_mode=thread_start`), the planner performs one bounded retry with `tool_choice=required` when a required external referent is still unresolved, or when it is marked as already present/resolved but the first pass performed no Web search.
 
-This is intentionally scoped to GAME-board evaluation first. The trigger should be generalized only after live samples show that the rule improves concrete naturalness without forcing irrelevant proper nouns into ordinary roots.
+If the specific referent is already present in the subject/summary/thread context, the retry must verify and preserve that referent rather than replacing it with another famous period-appropriate target. If the referent is omitted, the retry may select a historically valid target only when it naturally makes the already-selected article intent true; satisfying the date constraint alone is not enough.
+
+The retry must search at least once. Unsupported target-specific boss names, stage names, mechanics, plot facts, numbers, and version details remain forbidden unless directly supported by the search evidence.
+
+Replies do not trigger a forced search merely because they rely on a referent; they normally inherit the already-canonical root/thread context. They may still use optional Web search in the first pass when they introduce a new external fact.
+
+The semantic requirement/status fields are operational metadata only and are not persisted as fictional world facts or rendered in BBS prose.
 
 ## Failure behavior
 
