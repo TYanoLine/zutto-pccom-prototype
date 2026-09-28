@@ -1,6 +1,9 @@
 package llm
 
-import (\n\t"strings"\n\t"testing"\n)
+import (
+	"strings"
+	"testing"
+)
 
 func TestArticleDetailNeedsForcedWebSearchForRequiredRootWithMissingGrounding(t *testing.T) {
 	req := BBSTitleArticleDetailRequest{Articles: []BBSTitleArticleDetailSeed{{
