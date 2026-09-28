@@ -152,6 +152,7 @@ FORCED WEB SEARCH RETRY:
 - 安全な作品固有情報を確認できない場合でも、referentは確認済み作品名までに留め、もう1件のdetailは外部史実を主張しない本人の記事ローカル経験にしてください。
 - 元の記事意図・人物・投稿日時は変えないでください。
 `
+	draft.ForcedWebSearchRetry = true
 	forcedResult, err := p.responseTextWithJSONSchemaRequiredWebSearch(ctx, forcedPrompt, "low", "medium", 4200, "bbs_title_article_details", schema)
 	if err != nil {
 		return draft, nil
