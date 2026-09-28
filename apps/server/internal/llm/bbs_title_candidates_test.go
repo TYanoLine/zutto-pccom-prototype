@@ -302,7 +302,7 @@ func TestAssessBBSReferentTextureUsesSemanticScope(t *testing.T) {
 			}
 			response := `{
 				"model":"gpt-test",
-				"output":[{"type":"message","content":[{"type":"output_text","text":"{"level":"regular","reason":"scope ordinarily discusses identifiable works"}"}]}],
+				"output":[{"type":"message","content":[{"type":"output_text","text":"{\\\"level\\\":\\\"regular\\\",\\\"reason\\\":\\\"scope ordinarily discusses identifiable works\\\"}"}]}],
 				"usage":{"input_tokens":10,"input_tokens_details":{"cached_tokens":0},"output_tokens":8,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":18}
 			}`
 			return &http.Response{
