@@ -127,10 +127,7 @@ world-selected roots:
 avoid:
 %s`, historicalPolicy, req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
 
-	maxTokens := 600 + len(req.Events)*190
-	if maxTokens > 8000 {
-		maxTokens = 8000
-	}
+	maxTokens := bbsWorldSituationMaxTokens(len(req.Events))
 	producer := p.withWorldWindowHTTPTimeout()
 	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_situations", bbsWorldSituationProposalSchema(req.Events))
 	if err != nil {
@@ -138,7 +135,10 @@ avoid:
 	}
 	var wire bbsWorldSituationProposalWire
 	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &wire); err != nil {
-		return BBSWorldSituationProposalDraft{}, fmt.Errorf("decode BBS world-situation JSON: %w", err)
+		return BBSWorldSituationProposalDraft{}, fmt.Errorf(
+			"decode BBS world-situation JSON: %w (output_chars=%d output_tokens=%d max_tokens=%d)",
+			err, len([]rune(result.Text)), result.Usage.OutputTokens, maxTokens,
+		)
 	}
 	if len(wire.Situations) != len(req.Events) {
 		return BBSWorldSituationProposalDraft{}, fmt.Errorf("situation proposer returned %d situations, want %d", len(wire.Situations), len(req.Events))
@@ -189,6 +189,24 @@ avoid:
 		out = append(out, draft)
 	}
 	return BBSWorldSituationProposalDraft{Situations: out, Usage: result.Usage}, nil
+}
+
+func bbsWorldSituationMaxTokens(eventCount int) int {
+	if eventCount < 1 {
+		return 1200
+	}
+	// Typed Situation JSON contains several short world-fact fields per event.
+	// The previous 190-token/event allowance was observed truncating otherwise
+	// valid structured JSON for 8-12 event production chunks. This is only an
+	// output ceiling; actual billed/generated tokens remain whatever the model uses.
+	maxTokens := 800 + eventCount*420
+	if maxTokens < 2400 {
+		maxTokens = 2400
+	}
+	if maxTokens > 10000 {
+		maxTokens = 10000
+	}
+	return maxTokens
 }
 
 func bbsWorldSituationProposalSchema(events []BBSWorldWindowEvent) map[string]any {
