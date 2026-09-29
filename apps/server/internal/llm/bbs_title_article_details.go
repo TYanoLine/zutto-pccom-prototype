@@ -84,6 +84,7 @@ func (p StructuredOpenAIProvider) MaterializeBBSTitleArticleDetails(ctx context.
 これは文章構成やタイトル作成ではありません。subject/summary/persona/thread contextは変更しません。
 
 判定:
+- 返すメタデータは referent_requirement / referent_status / referent_grounding。本文へ書く世界事実ではなく生成制御用。
 - referent_requirement=required: 一つの特定作品・製品・場所等を別対象へ替えると経験内容そのものが変わる。
 - optional: 特定対象がなくても話題が成立する。
 - none: 外部対象を同定する必要がない個人的・局内・日常話題。
