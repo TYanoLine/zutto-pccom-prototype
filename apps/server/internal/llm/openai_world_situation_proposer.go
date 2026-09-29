@@ -84,6 +84,7 @@ func (p StructuredOpenAIProvider) GenerateBBSWorldSituationProposals(ctx context
 	if len(req.HistoricalFacts) > 0 {
 		historicalFacts = "- " + strings.Join(req.HistoricalFacts, "\n- ")
 	}
+	historicalPolicy := bbsWorldSituationHistoricalPolicy(req)
 	recent := strings.TrimSpace(req.RecentBBSState)
 	if recent == "" {
 		recent = "(none supplied)"
@@ -98,7 +99,7 @@ func (p StructuredOpenAIProvider) GenerateBBSWorldSituationProposals(ctx context
 - 各rootは独立。別rootの出来事を共有させない。
 - 人間の日常行動として意味の通る、小さく具体的な出来事にする。
 - 新しい恒久的な所有歴・購入歴・職歴・家族事情・長期嗜好を作らない。
-- 実在固有名詞は、allowed historical facts または existing_facts で世界側が明示した対象だけ使う。そこから未提示の仕様・発売日・価格・内容を足さない。
+- %s
 - 同じbatchやavoid listで、同種の出来事・対象・distinctive detailを言い換えて繰り返さない。
 - JSON形はdiscourse_modeごとに違う。その形に必要な世界事実だけを書く。ask_peers以外に質問を作らない。
 
@@ -124,7 +125,7 @@ world-selected roots:
 %s
 
 avoid:
-%s`, req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
+%s`, historicalPolicy, req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
 
 	maxTokens := 600 + len(req.Events)*190
 	if maxTokens > 8000 {
@@ -247,4 +248,15 @@ func bbsWorldSituationProposalSchema(events []BBSWorldWindowEvent) map[string]an
 		"required":             []string{"situations"},
 		"additionalProperties": false,
 	}
+}
+
+
+func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {
+	if req.AllowModelHistoricalMemory {
+		if req.PreferConcreteHistoricalNames {
+			return "When the selected Situation naturally has a real contemporary target, PREFER that concrete historical name from your own historical knowledge only when confident it existed and was knowable in Japan by the event date. This concretization creates new canonical world state for this event; no earlier actor-use fact is required for the modest occurrence itself. This is not a quota. Do not change the Situation merely to insert a name, and do not put a generic 'do not name the title/product/device' rule in must_not."
+		}
+		return "You may use your own historical knowledge for a real contemporary name only when confident it existed and was knowable in Japan by the event date; otherwise stay generic. Do not add unsupported specifications, dates, prices or story/mechanic details."
+	}
+	return "Do not introduce a new real product/work/service/company/person/place/event name unless SUPPLIED HISTORICAL TEXTURE (allowed historical facts) or existing_facts explicitly permits it. Do not add unsupported specifications, dates, prices or content."
 }
