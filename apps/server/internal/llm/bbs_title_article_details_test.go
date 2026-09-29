@@ -140,9 +140,14 @@ func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(
 		t.Fatalf("reasoning effort=%v, want medium", reasoning["effort"])
 	}
 	prompt, _ := captured["input"].(string)
-	for _, want := range []string{"Web検索ツール", "投稿日時点", "記事意図を変えず", "具体的な命題が検索結果に直接支持", "似た名前の敵・別機種版・移植版", "板名やカテゴリ名だけを理由に", "反実仮想テスト", "食事の場面が妙にうまそう", "referent_requirement", "referent_status", "referent_grounding", "world_local"} {
+	for _, want := range []string{"Web検索", "投稿日時点", "subject/summary", "referent_requirement", "referent_status", "referent_grounding", "world_local", "具体命題"} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("article detail prompt missing %q", want)
+			t.Fatalf("article detail prompt missing concise grounding rule %q", want)
+		}
+	}
+	for _, legacy := range []string{"反実仮想テスト", "食事の場面が妙にうまそう", "似た名前の敵・別機種版・移植版"} {
+		if strings.Contains(prompt, legacy) {
+			t.Fatalf("legacy Article Detail micromanagement survived refresh: %q", legacy)
 		}
 	}
 	if draft.WebSearchCalls != 1 {
@@ -296,9 +301,9 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 		t.Fatalf("retry tool_choice=%v, want required", got)
 	}
 	forcedPrompt, _ := captured[1]["input"].(string)
-	for _, want := range []string{"FORCED WEB SEARCH RETRY", "BoardNameや板カテゴリから対象を決めてはいけません", "referent_requirement", "referent_status", "referent_grounding"} {
+	for _, want := range []string{"REQUIRED REFERENT RETRY", "Web検索を最低1回", "subject/summary/thread context", "requiredをunresolvedのまま返さない"} {
 		if !strings.Contains(forcedPrompt, want) {
-			t.Fatalf("forced retry prompt missing %q: %s", want, forcedPrompt)
+			t.Fatalf("forced retry prompt missing concise recovery rule %q: %s", want, forcedPrompt)
 		}
 	}
 	if !draft.ForcedWebSearchRetry {
