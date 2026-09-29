@@ -108,7 +108,8 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 		"世界日付は 1996-08-29",
 		"everyday_baseline=[自宅のパソコンと通信環境は普段使いの道具]",
 		"ヘッダを読み上げない",
-		"最初の文から用件そのものに入って",
+		"本文は用件から自然に始める",
+		"canonical Situation はすでに世界で起きた事実",
 		"当時の本人として普通に書く",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
