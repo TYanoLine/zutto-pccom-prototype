@@ -202,6 +202,7 @@ func (r *Repository) developmentPlanTitleFirstWithState(host world.Host, window 
 				boardEraValidator = developmentJevTitleEraValidator{
 					advice:      jevAdvice,
 					observeOnly: developmentTitleEraObserveOnly(m.Renderer),
+					claimFree:   developmentClaimFreeCandidates(pool),
 				}
 			}
 		}

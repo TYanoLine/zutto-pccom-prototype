@@ -62,3 +62,7 @@ matcherが `research` 候補を仮採用した場合のみ、その最終subject
 - 採否理由
 
 このPoCは通常世界へ書き戻さない。最終的な史実品質は、Era Router の分類精度、人物matcherの選択品質、Historical Knowledge Engine が返す検証済みFactの品質を別々に評価する。
+
+## claim-free 候補のWeb史料確認省略
+
+100件のnested-claimプールでは、`historical_claims[]` を持たない候補は「時点依存の実在物を含まない」と生成側が宣言したものとして扱う。Jev一次振り分けが `research` を返してもNGでない限り `ok` に落とし、根拠のない自由形式Web検索(legacy lookup)を走らせない。20件などの旧プールにはclaim分類が無いためこの省略は適用しない。
