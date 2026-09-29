@@ -272,6 +272,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			Motivation:       "world_selected_situation",
 			Stance:           state.draft.Stance,
 			Goal:             productionDiscourseGoal(seed.mode),
+			AnchorKey:        seed.domain,
 			DiscourseMode:    seed.mode,
 			SituationKind:    seed.sparse.kind,
 			SituationSummary: state.summary,
