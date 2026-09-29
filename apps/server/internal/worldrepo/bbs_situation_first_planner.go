@@ -176,8 +176,10 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		WorldDate:       worldDate,
 		WindowStart:     windowStart.Format(time.RFC3339),
 		WindowEnd:       windowEnd.Format(time.RFC3339),
-		HistoricalFacts: productionHistoricalFacts(materializer, decision),
-		RecentBBSState:  productionRecentSituationContext(req.RecentPosts),
+		HistoricalFacts:               productionHistoricalFacts(materializer, decision),
+		AllowModelHistoricalMemory:    materializer.ModelHistoricalMemory,
+		PreferConcreteHistoricalNames: materializer.PreferConcreteHistoricalNames,
+		RecentBBSState:                productionRecentSituationContext(req.RecentPosts),
 		Events:          events,
 		AvoidSituations: productionRecentSituationAvoid(req.RecentPosts),
 	})
