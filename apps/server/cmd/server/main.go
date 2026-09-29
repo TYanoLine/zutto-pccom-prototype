@@ -577,6 +577,7 @@ func main() {
 	mux.HandleFunc("/api/debug/article-worker-ab", newArticleWorkerABHandler(runtimeStore, openAIMaterializer, geminiRenderer, cfg.GeminiKey != ""))
 	mux.HandleFunc("/api/debug/minimal-bbs-poc", newMinimalBBSPoCHandler(cfg.OpenAIKey))
 	mux.HandleFunc("/api/debug/minimal-situation-title-batch-poc", newMinimalSituationTitleBatchPoCHandler(runtimeStore, cfg.OpenAIKey))
+	mux.HandleFunc("/api/debug/minimal-typed-situation-title-batch-poc", newMinimalTypedSituationTitleBatchPoCHandler(runtimeStore, cfg.OpenAIKey))
 	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
 	mux.HandleFunc("/api/debug/bbs-title-jev-poc", newBBSTitleJevPoCHandler(runtimeStore, openAIRenderer, cfg.JevKey, cfg.JevModel, cfg.WorldDate))
 	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
