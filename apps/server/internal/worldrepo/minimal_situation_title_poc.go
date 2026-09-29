@@ -29,19 +29,39 @@ type DevelopmentMinimalRootSlot struct {
 // DevelopmentMinimalRootSlots recreates the current board's world-selected root
 // slots without committing posts or invoking any title/body planner.
 func (r *Repository) DevelopmentMinimalRootSlots(host world.Host, board world.Board, limit int) []DevelopmentMinimalRootSlot {
+	return r.DevelopmentMinimalRootSlotsWindow(host, board, limit, developmentInteractiveActivityLookbackDays, developmentMaxPostsPerBoardCatchup)
+}
+
+// DevelopmentMinimalRootSlotsWindow is diagnostic-only. It reuses the same
+// deterministic world visit/write/topology selection as production while allowing
+// a larger observation window and catch-up cap for statistical PoCs. Production
+// callers keep the normal 120-day/28-post bounds above.
+func (r *Repository) DevelopmentMinimalRootSlotsWindow(host world.Host, board world.Board, limit, lookbackDays, maxPosts int) []DevelopmentMinimalRootSlot {
 	if limit < 1 {
 		return nil
 	}
-	if limit > 24 {
-		limit = 24
+	if limit > 100 {
+		limit = 100
+	}
+	if lookbackDays < 1 {
+		lookbackDays = 1
+	}
+	if lookbackDays > 730 {
+		lookbackDays = 730
+	}
+	if maxPosts < developmentMaxPostsPerBoardCatchup {
+		maxPosts = developmentMaxPostsPerBoardCatchup
+	}
+	if maxPosts > 600 {
+		maxPosts = 600
 	}
 	personas, _ := r.MaterializationPersonas(host)
 	if len(personas) == 0 {
 		return nil
 	}
 	behaviorAdvice := r.developmentJevBehaviorAdvice(host, []world.Board{board}, personas)
-	visits := developmentVisitsForBoardDaysWithAdvice(host, board, personas, r.WorldDate, developmentInteractiveActivityLookbackDays, behaviorAdvice)
-	shells, _ := r.selectDevelopmentTimelineShellsWithAdvice(host, board, visits, behaviorAdvice)
+	visits := developmentVisitsForBoardDaysWithAdvice(host, board, personas, r.WorldDate, lookbackDays, behaviorAdvice)
+	shells, _ := selectDevelopmentTimelineShellsWithBehaviorAdviceLimit(host, board, visits, behaviorAdvice, maxPosts)
 	prior := filterBoard(r.Base.ListPosts(host.ID), board.ID)
 
 	out := make([]DevelopmentMinimalRootSlot, 0, limit)

@@ -49,6 +49,14 @@ func TestMinimalBatchPromptsStaySituationFirstAndSmall(t *testing.T) {
 	if !strings.Contains(postPrompt, "終盤で失敗したあと") {
 		t.Fatalf("post prompt does not carry detailed Situation")
 	}
+	for _, prompt := range []string{situationPrompt, postPrompt} {
+		if strings.Contains(prompt, "ゲームについて小さな出来事を話す") {
+			t.Fatalf("verbose cause summary leaked into compact prompt: %s", prompt)
+		}
+		if strings.Contains(prompt, "The actor recently had one small concrete experience.") {
+			t.Fatalf("redundant situation summary leaked into compact prompt: %s", prompt)
+		}
+	}
 }
 
 func TestMinimalBatchSchemasRequireEveryEvent(t *testing.T) {

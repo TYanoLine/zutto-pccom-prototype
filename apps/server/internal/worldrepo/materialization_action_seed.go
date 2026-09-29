@@ -120,6 +120,13 @@ func selectDevelopmentTimelineShellsWithWriteProbabilities(host world.Host, boar
 }
 
 func selectDevelopmentTimelineShellsWithBehaviorAdvice(host world.Host, board world.Board, visits []demoPostCandidate, advice developmentBehaviorAdvice) ([]developmentTimelineShell, developmentSelectionStats) {
+	return selectDevelopmentTimelineShellsWithBehaviorAdviceLimit(host, board, visits, advice, developmentMaxPostsPerBoardCatchup)
+}
+
+func selectDevelopmentTimelineShellsWithBehaviorAdviceLimit(host world.Host, board world.Board, visits []demoPostCandidate, advice developmentBehaviorAdvice, maxPosts int) ([]developmentTimelineShell, developmentSelectionStats) {
+	if maxPosts < 1 {
+		maxPosts = developmentMaxPostsPerBoardCatchup
+	}
 	stats := developmentSelectionStats{Visits: len(visits)}
 	personas := developmentPersonasFromVisits(visits)
 	stats.JevPersonas = advice.boardPairCount(board.ID, personas)
@@ -141,7 +148,7 @@ func selectDevelopmentTimelineShellsWithBehaviorAdvice(host world.Host, board wo
 	roots := make([]developmentTimelineShell, 0, len(writerVisits))
 
 	for visitOrdinal, candidate := range visits {
-		if len(shells) >= developmentMaxPostsPerBoardCatchup {
+		if len(shells) >= maxPosts {
 			break
 		}
 		if !writerVisits[developmentVisitKey(candidate)] {

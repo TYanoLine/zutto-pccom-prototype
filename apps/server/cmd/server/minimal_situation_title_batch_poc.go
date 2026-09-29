@@ -97,8 +97,34 @@ func minimalBatchPostSchema(slots []worldrepo.DevelopmentMinimalRootSlot) map[st
 	}
 }
 
+type minimalPromptSlot struct {
+	EventID        string   `json:"event_id"`
+	AuthorHandle   string   `json:"author_handle"`
+	CreatedAt      string   `json:"created_at"`
+	DiscourseMode  string   `json:"discourse_mode"`
+	PersonaProfile string   `json:"persona_profile"`
+	SituationKind  string   `json:"situation_kind"`
+	SituationFacts []string `json:"situation_facts"`
+}
+
+func minimalPromptSlots(slots []worldrepo.DevelopmentMinimalRootSlot) []minimalPromptSlot {
+	out := make([]minimalPromptSlot, 0, len(slots))
+	for _, slot := range slots {
+		out = append(out, minimalPromptSlot{
+			EventID:        slot.EventID,
+			AuthorHandle:   slot.AuthorHandle,
+			CreatedAt:      slot.CreatedAt,
+			DiscourseMode:  slot.DiscourseMode,
+			PersonaProfile: slot.PersonaProfile,
+			SituationKind:  slot.SituationKind,
+			SituationFacts: append([]string(nil), slot.SituationFacts...),
+		})
+	}
+	return out
+}
+
 func minimalSituationPrompt(host world.Host, board world.Board, slots []worldrepo.DevelopmentMinimalRootSlot) string {
-	data, _ := json.MarshalIndent(slots, "", "  ")
+	data, _ := json.MarshalIndent(minimalPromptSlots(slots), "", "  ")
 	return fmt.Sprintf(`1996年前後の日本の草の根パソコン通信世界です。
 以下はWorld Engineがすでに選んだ独立したroot投稿枠です。
 各枠について、その人物が実際に書き込みたくなる直前の「具体的な現在のシチュエーション」を1件だけ作ってください。
@@ -109,7 +135,7 @@ func minimalSituationPrompt(host world.Host, board world.Board, slots []worldrep
 掲示板: %s
 
 守ること:
-- actor、日時、板、cause、discourse_mode、与えられたsituation facetの意味を変えない。
+- actor、日時、板、discourse_mode、与えられたsituation facetの意味を変えない。
 - 人間の日常行動として、何が起きたかが具体的に想像できる小さな出来事にする。
 - 別root同士を同じ出来事として結び付けず、設定されていない恒久的な人物設定を足さない。
 - このPoCでは新しい実在ゲーム名・製品名・人物名・地名を追加しない。固有名詞なしでも出来事自体は具体的にする。
@@ -120,11 +146,12 @@ WORLD SLOTS:
 
 func minimalPostPrompt(host world.Host, board world.Board, slots []worldrepo.DevelopmentMinimalRootSlot, situations map[string]minimalBatchSituation) string {
 	type row struct {
-		Slot      worldrepo.DevelopmentMinimalRootSlot `json:"slot"`
-		Situation minimalBatchSituation                 `json:"situation"`
+		Slot      minimalPromptSlot     `json:"slot"`
+		Situation minimalBatchSituation `json:"situation"`
 	}
-	rows := make([]row, 0, len(slots))
-	for _, slot := range slots {
+	compact := minimalPromptSlots(slots)
+	rows := make([]row, 0, len(compact))
+	for _, slot := range compact {
 		rows = append(rows, row{Slot: slot, Situation: situations[slot.EventID]})
 	}
 	data, _ := json.MarshalIndent(rows, "", "  ")
@@ -177,6 +204,26 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 			}
 			count = n
 		}
+		offset := 0
+		if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil || n < 0 || n > 80 {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "offset must be 0..80"})
+				return
+			}
+			offset = n
+		}
+		lookbackDays := 365
+		if raw := strings.TrimSpace(r.URL.Query().Get("lookback_days")); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil || n < 30 || n > 730 {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "lookback_days must be 30..730"})
+				return
+			}
+			lookbackDays = n
+		}
 
 		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
 		if phone == "" {
@@ -184,7 +231,7 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 		}
 		boardID := strings.TrimSpace(r.URL.Query().Get("board"))
 		if boardID == "" {
-			boardID = "20/1"
+			boardID = "4"
 		}
 		host, err := repo.HostByPhone(phone)
 		if err != nil {
@@ -206,12 +253,27 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 			return
 		}
 
-		slots := repo.DevelopmentMinimalRootSlots(host, board, count)
-		if len(slots) == 0 {
+		needed := offset + count
+		maxPosts := needed * 6
+		if maxPosts < 120 {
+			maxPosts = 120
+		}
+		allSlots := repo.DevelopmentMinimalRootSlotsWindow(host, board, needed, lookbackDays, maxPosts)
+		if len(allSlots) <= offset {
 			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "no world-selected root slots"})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"error": "not enough world-selected root slots",
+				"available": len(allSlots),
+				"requested_offset": offset,
+				"requested_count": count,
+			})
 			return
 		}
+		end := offset + count
+		if end > len(allSlots) {
+			end = len(allSlots)
+		}
+		slots := append([]worldrepo.DevelopmentMinimalRootSlot(nil), allSlots[offset:end]...)
 
 		situationPrompt := minimalSituationPrompt(host, board, slots)
 		stage1Ctx, stage1Cancel := context.WithTimeout(r.Context(), 120*time.Second)
@@ -260,6 +322,9 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 			"host": host.Name,
 			"board": board,
 			"count": len(rows),
+			"offset": offset,
+			"lookback_days": lookbackDays,
+			"sample_available_through": len(allSlots),
 			"situation_stage": map[string]any{"model": stage1.Model, "latency_ms": stage1.LatencyMS, "usage": stage1.Usage},
 			"post_stage": map[string]any{"model": stage2.Model, "latency_ms": stage2.LatencyMS, "usage": stage2.Usage},
 			"rows": rows,

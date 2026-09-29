@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     batch ? '/api/debug/minimal-situation-title-batch-poc' : '/api/debug/minimal-bbs-poc',
     BACKEND_BASE
   );
-  for (const key of batch ? ['model', 'phone', 'board', 'count'] : ['model']) {
+  for (const key of batch ? ['model', 'phone', 'board', 'count', 'offset', 'lookback_days'] : ['model']) {
     const value = incoming.searchParams.get(key);
     if (value !== null) upstream.searchParams.set(key, value);
   }
