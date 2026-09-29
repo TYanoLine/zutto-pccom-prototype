@@ -254,7 +254,7 @@ func bbsWorldSituationProposalSchema(events []BBSWorldWindowEvent) map[string]an
 func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {
 	if req.AllowModelHistoricalMemory {
 		if req.PreferConcreteHistoricalNames {
-			return "When the selected Situation naturally has a real contemporary target, PREFER that concrete historical name from your own historical knowledge only when confident it existed and was knowable in Japan by the event date. This concretization creates new canonical world state for this event; no earlier actor-use fact is required for the modest occurrence itself. This is not a quota. Do not change the Situation merely to insert a name, and do not put a generic 'do not name the title/product/device' rule in must_not."
+			return "When the selected Situation naturally has a real contemporary target, PREFER that concrete historical name from your own historical knowledge only when confident it existed and was knowable in Japan by the event date. This concretization creates new canonical world state for this event; no earlier actor-use fact is required for the modest occurrence itself. This is not a quota. Do not change the Situation merely to insert a name. Do not put a generic 'do not name the title/product/device' rule in must_not."
 		}
 		return "You may use your own historical knowledge for a real contemporary name only when confident it existed and was knowable in Japan by the event date; otherwise stay generic. Do not add unsupported specifications, dates, prices or story/mechanic details."
 	}
