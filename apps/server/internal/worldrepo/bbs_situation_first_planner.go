@@ -172,7 +172,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		WorldDate:       worldDate,
 		WindowStart:     windowStart.Format(time.RFC3339),
 		WindowEnd:       windowEnd.Format(time.RFC3339),
-		HistoricalFacts: usableClaims(decision),
+		HistoricalFacts: productionHistoricalFacts(materializer, decision),
 		RecentBBSState:  productionRecentSituationContext(req.RecentPosts),
 		Events:          events,
 		AvoidSituations: productionRecentSituationAvoid(req.RecentPosts),
@@ -290,6 +290,25 @@ func (p repositoryBBSBatchPlanner) personaForSituation(slot bbsengine.Slot) worl
 		}
 	}
 	return world.Persona{ID: slot.AuthorPersonaID, Handle: slot.Author}
+}
+
+func productionHistoricalFacts(materializer LLMMaterializer, decision worldengine.EvidenceDecision) []string {
+	combined := append([]string(nil), usableClaims(decision)...)
+	combined = append(combined, materializer.HistoricalTexture...)
+	out := make([]string, 0, len(combined))
+	seen := map[string]bool{}
+	for _, fact := range combined {
+		fact = strings.TrimSpace(fact)
+		if fact == "" || seen[fact] {
+			continue
+		}
+		seen[fact] = true
+		out = append(out, fact)
+		if len(out) >= 32 {
+			break
+		}
+	}
+	return out
 }
 
 func productionBoardDomain(board world.Board, persona world.Persona) string {
