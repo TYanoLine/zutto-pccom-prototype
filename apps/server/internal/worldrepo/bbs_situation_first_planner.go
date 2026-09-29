@@ -14,6 +14,12 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
+const (
+	productionSituationChunkSize     = 12
+	productionSituationChunkAttempts = 2
+	productionTitleChunkSize         = 20
+)
+
 type productionSituationSeed struct {
 	eventID string
 	slot    bbsengine.Slot
@@ -310,27 +316,46 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		})
 	}
 
-	titleDraft, err := titlePlanner.GenerateBBSSituationTitles(ctx, llm.BBSSituationTitleRequest{
-		HostName:       req.Host.Name,
-		HostRegion:     req.Host.Region,
-		BoardID:        req.Board.ID,
-		BoardName:      req.Board.Name,
-		BoardScope:     req.Board.SemanticScope,
-		WorldDate:      worldDate,
-		RecentSubjects: rootSubjects(req.RecentPosts),
-		Articles:       titleSeeds,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("word BBS Situation titles: %w", err)
-	}
-	storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation-title", GenerationUsage{
-		InputTokens: titleDraft.Usage.InputTokens, CachedInputTokens: titleDraft.Usage.CachedInputTokens,
-		OutputTokens: titleDraft.Usage.OutputTokens, ReasoningTokens: titleDraft.Usage.ReasoningTokens,
-		TotalTokens: titleDraft.Usage.TotalTokens, Model: titleDraft.Usage.Model,
-	})
-	titleByEvent := make(map[string]string, len(titleDraft.Titles))
-	for _, title := range titleDraft.Titles {
-		titleByEvent[title.EventID] = strings.TrimSpace(title.Subject)
+	titleByEvent := make(map[string]string, len(titleSeeds))
+	recentSubjects := append([]string(nil), rootSubjects(req.RecentPosts)...)
+	for chunkStart := 0; chunkStart < len(titleSeeds); chunkStart += productionTitleChunkSize {
+		chunkEnd := chunkStart + productionTitleChunkSize
+		if chunkEnd > len(titleSeeds) {
+			chunkEnd = len(titleSeeds)
+		}
+		titleDraft, err := titlePlanner.GenerateBBSSituationTitles(ctx, llm.BBSSituationTitleRequest{
+			HostName:       req.Host.Name,
+			HostRegion:     req.Host.Region,
+			BoardID:        req.Board.ID,
+			BoardName:      req.Board.Name,
+			BoardScope:     req.Board.SemanticScope,
+			WorldDate:      worldDate,
+			RecentSubjects: append([]string(nil), recentSubjects...),
+			Articles:       titleSeeds[chunkStart:chunkEnd],
+		})
+		if err != nil {
+			return nil, fmt.Errorf("word BBS Situation titles chunk %d..%d: %w", chunkStart, chunkEnd, err)
+		}
+		storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation-title", GenerationUsage{
+			InputTokens: titleDraft.Usage.InputTokens, CachedInputTokens: titleDraft.Usage.CachedInputTokens,
+			OutputTokens: titleDraft.Usage.OutputTokens, ReasoningTokens: titleDraft.Usage.ReasoningTokens,
+			TotalTokens: titleDraft.Usage.TotalTokens, Model: titleDraft.Usage.Model,
+		})
+		if len(titleDraft.Titles) != chunkEnd-chunkStart {
+			return nil, fmt.Errorf("title chunk %d..%d returned %d titles, want %d", chunkStart, chunkEnd, len(titleDraft.Titles), chunkEnd-chunkStart)
+		}
+		for _, title := range titleDraft.Titles {
+			eventID := strings.TrimSpace(title.EventID)
+			subject := strings.TrimSpace(title.Subject)
+			if eventID == "" || subject == "" {
+				return nil, fmt.Errorf("title chunk %d..%d returned empty event or subject", chunkStart, chunkEnd)
+			}
+			if _, exists := titleByEvent[eventID]; exists {
+				return nil, fmt.Errorf("title planner duplicated event %s", eventID)
+			}
+			titleByEvent[eventID] = subject
+			recentSubjects = append(recentSubjects, subject)
+		}
 	}
 
 	out := make([]bbsengine.PlannedPost, 0, len(seeds))
