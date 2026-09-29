@@ -19,6 +19,8 @@ func (p GeminiArticleWorkerRouter) GenerateBoardPost(ctx context.Context, req Bo
 }
 
 var _ BoardPostRenderer = GeminiArticleWorkerRouter{}
+var _ BBSWorldSituationProposer = GeminiArticleWorkerRouter{}
+var _ BBSSituationTitlePlanner = GeminiArticleWorkerRouter{}
 var _ BBSTitleCandidatePlanner = GeminiArticleWorkerRouter{}
 var _ BBSTitleEraValidator = GeminiArticleWorkerRouter{}
 var _ BBSTitleArticleDetailPlanner = GeminiArticleWorkerRouter{}
