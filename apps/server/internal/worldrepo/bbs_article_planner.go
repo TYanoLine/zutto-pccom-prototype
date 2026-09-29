@@ -171,18 +171,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	}
 
 	if hasSituationProposer && hasSituationTitles {
-		planned, err := p.planSituationFirstBatch(ctx, materializer, decision, situationProposer, situationTitlePlanner, req, titleAsOf)
-		if err == nil {
-			return planned, nil
-		}
-		if !hasLegacyTitles {
-			return nil, err
-		}
-		// Situation-first is the preferred planner, but a transient structured-output
-		// failure must not make an otherwise readable BBS board inaccessible. Fall
-		// back atomically to the retained legacy planner for this observation only.
-		// No partial Situation-first posts have been committed at this point.
-		log.Printf("BBS situation-first fallback: host=%s board=%s err=%v", req.Host.ID, req.Board.ID, err)
+		return p.planSituationFirstBatch(ctx, materializer, decision, situationProposer, situationTitlePlanner, req, titleAsOf)
 	}
 
 	planned := make(map[int]bbsengine.PlannedPost, len(req.Slots))
@@ -269,3 +258,1062 @@ func (p repositoryBBSBatchPlanner) planRootTitles(
 			BoardName:      req.Board.Name,
 			AuthorHandle:   slot.Author,
 			CreatedAt:      slot.CreatedAt.Format(time.RFC3339),
+			Action:         "thread_start",
+			AnchorKey:      "board:" + req.Board.ID,
+			CauseKind:      "board_activity_window",
+			CauseSummary:   "World Engine selected a root-post opportunity in this board/time window.",
+			DiscourseMode:  "thread_start",
+			PersonaProfile: profile,
+			ExistingFacts:  facts,
+		}
+		events = append(events, event)
+		slotByEvent[eventID] = slot
+	}
+
+	remaining := append([]llm.BBSWorldWindowEvent(nil), events...)
+	adopted := map[string]bbsengine.PlannedPost{}
+	verifiedSpecificReferentEvents := map[string]bool{}
+	historicalVerificationDisabled := p.repo.debugBBSTitleHistoricalVerificationDisabled()
+	requestedVerifiedReferentTarget := verifiedReferentTargetForBoard(len(rootSlots), req.Board.VerifiedReferentRate)
+	enforcedVerifiedReferentTarget := requestedVerifiedReferentTarget
+	if historicalVerificationDisabled {
+		// Debug bypass disables only verification/research and the blocking gate.
+		// Keep the normal concrete/claim-bearing candidate mix so the experiment
+		// still measures title/body quality under realistic specificity pressure.
+		enforcedVerifiedReferentTarget = 0
+	}
+	contextual, hasContextual := materializer.Renderer.(llm.BBSContextualTitleCandidatePlanner)
+	// PeriodReferents/HistoricalTexture are existence/reference evidence, not a
+	// topic menu. Supplying the whole bootstrap catalog here strongly biases broad
+	// boards toward whatever few products happen to be pre-seeded. Candidate
+	// generation receives only board-specific resolved evidence; named candidates
+	// can still be proposed and verified later through Historical KB.
+	historicalFacts := usableClaims(decision)
+	var researchDeadline time.Time
+	backgroundResearchQueued := 0
+	maxPoolAttempts := sharedTitleLargePoolMaxAttempts
+	if !hasContextual {
+		maxPoolAttempts = sharedLegacyTitlePoolAttemptLimit(len(rootSlots))
+	}
+
+	for attempt := 0; attempt < maxPoolAttempts && len(remaining) > 0; attempt++ {
+		var pool llm.BBSTitleCandidates
+		var err error
+		poolStarted := time.Now()
+		poolTarget := sharedTitleLegacyPoolTargetSize
+		if hasContextual {
+			poolTarget = sharedContextualTitlePoolSize(len(remaining))
+			claimCandidateTarget := claimBearingCandidateTarget(
+				requestedVerifiedReferentTarget-len(verifiedSpecificReferentEvents),
+				poolTarget,
+				len(remaining),
+			)
+			if baseline := baselineClaimBearingCandidateTarget(poolTarget, len(remaining)); claimCandidateTarget < baseline {
+				claimCandidateTarget = baseline
+			}
+			pool, err = contextual.GenerateContextualBBSTitleCandidates(ctx, llm.BBSContextualTitleCandidateRequest{
+				WorldDate:                   worldDate,
+				BoardName:                   req.Board.Name,
+				BoardScope:                  req.Board.SemanticScope,
+				RecentBBSState:              recentState,
+				RecentSubjects:              recentSubjects,
+				AvoidSubjects:               avoid,
+				HistoricalFacts:             historicalFacts,
+				EraRules:                    materializer.eraRules(),
+				RemainingNeeded:             len(remaining),
+				CandidateCount:              poolTarget,
+				VerifiedReferentTarget:      requestedVerifiedReferentTarget,
+				ClaimBearingCandidateTarget: claimCandidateTarget,
+			})
+		} else {
+			pool, err = titlePlanner.GenerateBBSTitleCandidates(ctx, worldDate, req.Board.Name)
+		}
+		log.Printf("BBS timing: host=%s board=%s phase=title_pool attempt=%d duration=%s titles=%d target=%d remaining=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(poolStarted), len(pool.Titles), poolTarget, len(remaining), err != nil)
+		if err != nil {
+			// The structured provider already retries transient transport/rate
+			// failures with backoff. A pool attempt means a new semantic pool,
+			// not another burst of identical HTTP retries.
+			return nil, fmt.Errorf("generate title-first candidate pool: %w", err)
+		}
+
+		titles := uniqueUsableTitles(pool.Titles, avoid)
+		if len(titles) == 0 {
+			continue
+		}
+		dominantLeads := dominantTitleLeadKeys(titles)
+		cachedVerifiedClaims := map[string]bool{}
+		cacheProbeStarted := time.Now()
+		cacheProbes := 0
+		if !historicalVerificationDisabled {
+			for _, title := range titles {
+				claims := historicalClaimsForTitle(pool, title)
+				if len(claims) == 0 {
+					continue
+				}
+				cacheProbes++
+				if outcome := p.repo.developmentLookupTitleEra(ctx, worldDate, title, claims); outcome.status == "verified" {
+					if titleHasVisibleSpecificReferent(title, claims) {
+						cachedVerifiedClaims[title] = true
+					}
+				}
+			}
+			if cacheProbes > 0 {
+				log.Printf("BBS title quality: host=%s board=%s phase=claim_cache_probe attempt=%d duration=%s probes=%d hits=%d target=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheProbeStarted), cacheProbes, len(cachedVerifiedClaims), requestedVerifiedReferentTarget)
+			}
+		}
+		titles = orderTitleCandidatesForQuality(pool, titles, dominantLeads, cachedVerifiedClaims)
+		claimingCandidates := 0
+		dominantCandidates := 0
+		deFrameCandidates := 0
+		for _, title := range titles {
+			if len(historicalClaimsForTitle(pool, title)) > 0 {
+				claimingCandidates++
+			}
+			if titleHasDominantLead(title, dominantLeads) {
+				dominantCandidates++
+			}
+			if titleUsesDominantDeFrame(title, dominantLeads) {
+				deFrameCandidates++
+			}
+		}
+		log.Printf("BBS title quality: host=%s board=%s phase=pool attempt=%d usable=%d claim_candidates=%d dominant_lead=%d dominant_de_frame=%d", req.Host.ID, req.Board.ID, attempt+1, len(titles), claimingCandidates, dominantCandidates, deFrameCandidates)
+		avoid = append(avoid, titles...)
+
+		// Era routing is intentionally claim-driven. The generator's nested
+		// historical_claims field is only a routing hint: claim-free titles do not
+		// require Historical KB, while claim-bearing titles must be verified if
+		// they become tentative winners. Jev remains responsible only for
+		// candidate × world-event/persona fit in this stage.
+		available := append([]string(nil), titles...)
+		for len(available) > 0 && len(remaining) > 0 {
+			fitTitles := available
+			if len(fitTitles) > sharedTitleFitBatchSize {
+				fitTitles = fitTitles[:sharedTitleFitBatchSize]
+			}
+			fitEvents := remaining
+			if len(fitEvents) > sharedTitleFitBatchSize {
+				fitEvents = fitEvents[:sharedTitleFitBatchSize]
+			}
+
+			reviewer := titlePlanner
+			jevStarted := time.Now()
+			jevAdvice, jevAttempted, jevErr := p.repo.developmentJevTitleFitAdvice(
+				ctx, req.Host, req.Board, worldDate, fitTitles, fitEvents, recentState, historicalFacts,
+			)
+			log.Printf("BBS timing: host=%s board=%s phase=jev_fit attempt=%d duration=%s used=%t err=%t titles=%d events=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(jevStarted), jevAttempted, jevErr != nil, len(fitTitles), len(fitEvents))
+			if jevAttempted && jevErr == nil && len(jevAdvice.Specificity) > 0 {
+				scored := 0
+				below := 0
+				for candidate := 1; candidate <= len(fitTitles); candidate++ {
+					if score, ok := jevAdvice.Specificity[candidate]; ok {
+						scored++
+						if score < developmentJevTitleSpecificityThreshold {
+							below++
+						}
+					}
+				}
+				low := 0
+				mid := 0
+				high := 0
+				for candidate := 1; candidate <= len(fitTitles); candidate++ {
+					score, ok := jevAdvice.Specificity[candidate]
+					if !ok {
+						continue
+					}
+					switch {
+					case score < .25:
+						low++
+					case score < .60:
+						mid++
+					default:
+						high++
+					}
+				}
+				log.Printf("BBS title quality: host=%s board=%s phase=jev_specificity attempt=%d scored=%d below_floor=%d floor=%.2f buckets_lt25=%d buckets_25_60=%d buckets_ge60=%d", req.Host.ID, req.Board.ID, attempt+1, scored, below, developmentJevTitleSpecificityThreshold, low, mid, high)
+			}
+			if jevErr != nil {
+				jevAttempted = false
+			}
+			if jevAttempted {
+				qualityBonus := make(map[int]float64, len(fitTitles))
+				for i, title := range fitTitles {
+					candidate := i + 1
+					bonus := 0.0
+					if !titleHasDominantLead(title, dominantLeads) {
+						bonus += .08
+					} else if titleUsesDominantDeFrame(title, dominantLeads) {
+						bonus -= .03
+					}
+					if specificity, ok := jevAdvice.Specificity[candidate]; ok {
+						// The hard floor removes generic roots. This bonus then
+						// prefers the clearest surviving topic without requiring
+						// a proper noun or a board-name-specific rule.
+						bonus += .15 * specificity
+					}
+					if len(historicalClaimsForTitle(pool, title)) > 0 {
+						// Prefer already-verified referents strongly enough to survive
+						// ranking, while unverified claims get only a small nudge. Neither
+						// bonus can rescue a candidate below the semantic fit floor.
+						if cachedVerifiedClaims[title] {
+							bonus += .18
+						} else if len(verifiedSpecificReferentEvents) < requestedVerifiedReferentTarget {
+							bonus += .03
+						}
+					}
+					qualityBonus[candidate] = bonus
+					for _, event := range fitEvents {
+						slot := slotByEvent[event.EventID]
+						if !titleTemporalCompatible(title, slot.CreatedAt) {
+							jevAdvice.Fit[worldengine.TitleCandidatePairKey(candidate, event.EventID)] = 0
+						}
+					}
+				}
+				reviewer = developmentJevTitlePlanner{
+					titles:           append([]string(nil), fitTitles...),
+					advice:           jevAdvice,
+					fitFloor:         developmentJevTitleFitThreshold,
+					specificityFloor: developmentJevTitleSpecificityThreshold,
+					rankingOnly:      attempt == maxPoolAttempts-1,
+					specificityBonus: qualityBonus,
+				}
+			}
+
+			reviewReq := llm.BBSTitleReviewRequest{
+				BoardName:      req.Board.Name,
+				Titles:         fitTitles,
+				Events:         fitEvents,
+				RecentBBSState: recentState,
+			}
+			reviewStarted := time.Now()
+			review, err := reviewer.ReviewBBSTitleCandidates(ctx, reviewReq)
+			log.Printf("BBS timing: host=%s board=%s phase=title_review attempt=%d duration=%s titles=%d events=%d err=%t", req.Host.ID, req.Board.ID, attempt+1, time.Since(reviewStarted), len(fitTitles), len(fitEvents), err != nil)
+			if err != nil {
+				if attempt+1 < maxPoolAttempts {
+					break
+				}
+				return nil, fmt.Errorf("review title-first candidates: %w", err)
+			}
+
+			// Every candidate that won a slot in this round is consumed from this
+			// pool, even if later rejected by duplicate/era research. This is the
+			// key candidate-first fallback: the next-best candidate can then be
+			// tried for the still-unfilled world slot without asking the wording
+			// model to invent a new pool.
+			consumed := map[string]bool{}
+			candidates := make([]llm.BBSTitleDecision, 0)
+			for _, d := range review.Decisions {
+				subject := strings.TrimSpace(d.Subject)
+				if d.EventID == "" || subject == "" {
+					continue
+				}
+				consumed[subject] = true
+				if strings.TrimSpace(d.Summary) == "" {
+					continue
+				}
+				if _, exists := adopted[d.EventID]; exists {
+					continue
+				}
+				slot, exists := slotByEvent[d.EventID]
+				if !exists || !titleTemporalCompatible(subject, slot.CreatedAt) {
+					continue
+				}
+				if titleTooSimilarToAny(subject, recentSubjects) || titleTooSimilarToAdopted(subject, adopted) {
+					continue
+				}
+				if !titleBatchNaturalnessAllows(subject, adopted, dominantLeads, len(rootSlots)) {
+					continue
+				}
+				candidates = append(candidates, d)
+			}
+			if len(consumed) == 0 {
+				available = available[len(fitTitles):]
+				continue
+			}
+
+			researchJobs := make([]developmentTitleEraResearchJob, 0)
+			researchDecision := map[int]llm.BBSTitleDecision{}
+			jobID := 1
+			claimFreeAdoptedThisRound := 0
+			for _, d := range candidates {
+				claims := historicalClaimsForTitle(pool, d.Subject)
+				if len(claims) == 0 || historicalVerificationDisabled {
+					// Q2's verified-referent floor is a blocking batch gate, not
+					// telemetry. Reserve enough still-unfilled world slots for
+					// claim-bearing candidates until the configured target is met.
+					// This prevents an otherwise good claim-free ranking from filling
+					// the last slots and stranding the board one referent short.
+					unfilledAfterPriorFree := len(remaining) - claimFreeAdoptedThisRound
+					if !historicalVerificationDisabled && !claimFreeAdoptionAllowed(unfilledAfterPriorFree, len(verifiedSpecificReferentEvents), enforcedVerifiedReferentTarget) {
+						continue
+					}
+					adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+					claimFreeAdoptedThisRound++
+					continue
+				}
+				slot := slotByEvent[d.EventID]
+				researchJobs = append(researchJobs, developmentTitleEraResearchJob{
+					candidate: jobID,
+					title:     d.Subject,
+					claims:    claims,
+					asOf:      slot.CreatedAt.Format(time.DateOnly),
+				})
+				researchDecision[jobID] = d
+				jobID++
+			}
+			if len(researchJobs) > 0 {
+				// Always check the persistent KB first. Cache hits are local DB
+				// reads and must not consume the foreground Web-research budget.
+				cacheStarted := time.Now()
+				misses := make([]developmentTitleEraResearchJob, 0, len(researchJobs))
+				cacheHits := 0
+				cacheNG := 0
+				for _, job := range researchJobs {
+					lookupAsOf := strings.TrimSpace(job.asOf)
+					if lookupAsOf == "" {
+						lookupAsOf = worldDate
+					}
+					outcome := p.repo.developmentLookupTitleEra(ctx, lookupAsOf, job.title, job.claims)
+					switch outcome.status {
+					case "verified":
+						d := researchDecision[job.candidate]
+						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+						if titleHasVisibleSpecificReferent(job.title, job.claims) {
+							verifiedSpecificReferentEvents[d.EventID] = true
+						}
+						cacheHits++
+					case "ng":
+						cacheNG++
+					default:
+						misses = append(misses, job)
+					}
+				}
+				log.Printf("BBS timing: host=%s board=%s phase=title_kb_lookup attempt=%d duration=%s jobs=%d hits=%d ng=%d misses=%d", req.Host.ID, req.Board.ID, attempt+1, time.Since(cacheStarted), len(researchJobs), cacheHits, cacheNG, len(misses))
+				researchJobs = misses
+			}
+
+			if len(researchJobs) > 0 {
+				// Research is persistent world infrastructure, not a disposable
+				// request-time check. Start a bounded detached batch so a slow Web
+				// lookup can still populate Historical KB after the UI wait ends.
+				queueAllowance := sharedTitleBackgroundResearchJobs - backgroundResearchQueued
+				queuedJobs := researchJobs
+				if queueAllowance <= 0 {
+					queuedJobs = nil
+				} else if len(queuedJobs) > queueAllowance {
+					queuedJobs = queuedJobs[:queueAllowance]
+				}
+				var researchCh <-chan map[int]developmentTitleEraOutcome
+				if len(queuedJobs) > 0 {
+					researchCh = p.repo.developmentResearchTitleEraBatchDetached(req.Host, req.Board, worldDate, queuedJobs)
+					backgroundResearchQueued += len(queuedJobs)
+				}
+
+				// Foreground waiting is still capped once per board. Expiring this
+				// budget only stops waiting; it no longer cancels detached research.
+				remainingResearch := sharedTitleResearchRemaining(&researchDeadline, time.Now())
+				if remainingResearch > 0 && researchCh != nil {
+					researchStarted := time.Now()
+					timer := time.NewTimer(remainingResearch)
+					var outcomes map[int]developmentTitleEraOutcome
+					select {
+					case outcomes = <-researchCh:
+						if !timer.Stop() {
+							select {
+							case <-timer.C:
+							default:
+							}
+						}
+						log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d completed=true remaining_budget=%s", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(queuedJobs), time.Until(researchDeadline))
+					case <-timer.C:
+						log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=%s jobs=%d completed=false background_continues=true", req.Host.ID, req.Board.ID, attempt+1, time.Since(researchStarted), len(queuedJobs))
+					}
+					for id, outcome := range outcomes {
+						if outcome.status != "verified" {
+							continue
+						}
+						d, ok := researchDecision[id]
+						if !ok {
+							continue
+						}
+						adopted[d.EventID] = adoptedRoot(slotByEvent[d.EventID], d)
+						job := researchJobs[0]
+						for _, candidateJob := range queuedJobs {
+							if candidateJob.candidate == id {
+								job = candidateJob
+								break
+							}
+						}
+						if titleHasVisibleSpecificReferent(job.title, job.claims) {
+							verifiedSpecificReferentEvents[d.EventID] = true
+						}
+					}
+				} else {
+					log.Printf("BBS timing: host=%s board=%s phase=title_research attempt=%d duration=0s jobs=%d queued_background=%d skipped_wait=%t", req.Host.ID, req.Board.ID, attempt+1, len(researchJobs), len(queuedJobs), remainingResearch <= 0)
+				}
+			}
+
+			nextAvailable := make([]string, 0, len(available))
+			for _, title := range available {
+				if !consumed[title] {
+					nextAvailable = append(nextAvailable, title)
+				}
+			}
+			available = nextAvailable
+
+			nextRemaining := make([]llm.BBSWorldWindowEvent, 0, len(remaining))
+			for _, event := range remaining {
+				if _, ok := adopted[event.EventID]; !ok {
+					nextRemaining = append(nextRemaining, event)
+				}
+			}
+			remaining = nextRemaining
+		}
+	}
+
+	// Do not synthesize board-name paraphrases such as "ＰＣ－９８について".
+	// A contextual call normally gets one adaptive large pool (remaining roots
+	// plus bounded reserve), with one fresh large pool allowed only as recovery.
+	// If bounded generation still cannot fill the
+	// world-selected roots, abort without committing partial/canned subjects so a
+	// later observation can retry cleanly.
+	if len(remaining) > 0 {
+		return nil, fmt.Errorf("title-first batch left %d of %d root subjects unresolved after %d candidate pools; canned title fallback is disabled", len(remaining), len(rootSlots), maxPoolAttempts)
+	}
+
+	finalTitles := make([]string, 0, len(adopted))
+	for _, post := range adopted {
+		finalTitles = append(finalTitles, post.Subject)
+	}
+	finalDominant := dominantTitleLeadKeys(finalTitles)
+	dominantFinal := 0
+	deFrameFinal := 0
+	temporalFailures := 0
+	for eventID, post := range adopted {
+		if titleHasDominantLead(post.Subject, finalDominant) {
+			dominantFinal++
+		}
+		if titleUsesDominantDeFrame(post.Subject, finalDominant) {
+			deFrameFinal++
+		}
+		slot := slotByEvent[eventID]
+		if !titleTemporalCompatible(post.Subject, slot.CreatedAt) {
+			temporalFailures++
+		}
+	}
+	specificityPass := enforcedVerifiedReferentTarget == 0 || len(verifiedSpecificReferentEvents) >= enforcedVerifiedReferentTarget
+	log.Printf("BBS title quality: host=%s board=%s phase=adopted roots=%d verified_specific_roots=%d verified_specific_requested=%d verified_specific_enforced=%d specificity_pass=%t dominant_lead=%d dominant_de_frame=%d temporal_failures=%d", req.Host.ID, req.Board.ID, len(adopted), len(verifiedSpecificReferentEvents), requestedVerifiedReferentTarget, enforcedVerifiedReferentTarget, specificityPass, dominantFinal, deFrameFinal, temporalFailures)
+	if !specificityPass {
+		return nil, fmt.Errorf("title quality gate: verified referent roots=%d, want at least %d", len(verifiedSpecificReferentEvents), enforcedVerifiedReferentTarget)
+	}
+	if temporalFailures > 0 {
+		return nil, fmt.Errorf("title quality gate: %d adopted titles conflict with their assigned slot date", temporalFailures)
+	}
+
+	out := make([]bbsengine.PlannedPost, 0, len(rootSlots))
+	for _, slot := range rootSlots {
+		eventID := fmt.Sprintf("slot-%d", slot.Index)
+		post, ok := adopted[eventID]
+		if !ok {
+			return nil, fmt.Errorf("title-first batch omitted root slot %d", slot.Index)
+		}
+		out = append(out, post)
+	}
+	return out, nil
+}
+
+func historicalClaimsForTitle(pool llm.BBSTitleCandidates, title string) []llm.BBSTitleHistoricalClaim {
+	candidate := 0
+	for i, item := range pool.Titles {
+		if item == title {
+			candidate = i + 1
+			break
+		}
+	}
+	if candidate == 0 {
+		return nil
+	}
+	out := make([]llm.BBSTitleHistoricalClaim, 0)
+	for _, claim := range pool.HistoricalClaims {
+		if claim.Candidate == candidate {
+			out = append(out, claim)
+		}
+	}
+	// Structured generation remains the primary claim classifier, but obvious
+	// named station references are cheap enough to catch deterministically. This
+	// closes a real observed miss ("博多駅...") without turning ordinary broad
+	// region names or generic "駅前" wording into Web research.
+	for _, inferred := range inferredNamedStationClaims(candidate, title) {
+		duplicate := false
+		for _, existing := range out {
+			if strings.EqualFold(strings.TrimSpace(existing.Subject), strings.TrimSpace(inferred.Subject)) &&
+				strings.TrimSpace(existing.Kind) == strings.TrimSpace(inferred.Kind) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			out = append(out, inferred)
+		}
+	}
+	return out
+}
+
+func inferredNamedStationClaims(candidate int, title string) []llm.BBSTitleHistoricalClaim {
+	runes := []rune(strings.TrimSpace(title))
+	out := make([]llm.BBSTitleHistoricalClaim, 0, 1)
+	generic := map[string]bool{
+		"最寄り": true, "最寄りの": true, "近所": true, "近所の": true,
+		"近く": true, "近くの": true, "地元": true, "地元の": true,
+	}
+	isTokenRune := func(r rune) bool {
+		return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '・' || r == 'ー'
+	}
+	for i, r := range runes {
+		if r != '駅' || i == 0 {
+			continue
+		}
+		start := i
+		for start > 0 && i-start < 12 && isTokenRune(runes[start-1]) {
+			start--
+		}
+		prefix := strings.TrimSpace(string(runes[start:i]))
+		if len([]rune(prefix)) < 2 || generic[prefix] {
+			continue
+		}
+		subject := prefix + "駅"
+		out = append(out, llm.BBSTitleHistoricalClaim{
+			Candidate: candidate,
+			Subject:   subject,
+			Kind:      "general",
+			Need:      "この固有駅名が割当先の投稿日時までに日本で実在していたか",
+		})
+	}
+	return out
+}
+
+func titleHasVisibleSpecificReferent(title string, claims []llm.BBSTitleHistoricalClaim) bool {
+	normalize := func(s string) string {
+		var b strings.Builder
+		for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+			if unicode.IsSpace(r) || strings.ContainsRune("！？?!。、・「」『』（）()[]【】〜～・", r) {
+				continue
+			}
+			b.WriteRune(r)
+		}
+		return b.String()
+	}
+	titleKey := normalize(title)
+	if titleKey == "" {
+		return false
+	}
+	broadOnly := map[string]bool{
+		"福岡": true, "福岡市": true, "博多": true, "天神": true,
+	}
+	genericPhrases := []string{
+		"市内の", "市内で", "近所の", "近所で", "地域の", "地域で",
+		"周辺の", "周辺で", "公共の", "一般の",
+	}
+	genericOnly := map[string]bool{
+		"地下鉄": true, "バス": true, "路線バス": true, "タクシー": true,
+		"病院": true, "医院": true, "図書館": true, "駐車場": true,
+		"駐輪場": true, "書店": true, "本屋": true, "郵便局": true,
+		"薬局": true, "銀行": true, "商店街": true, "公園": true,
+	}
+	for _, claim := range claims {
+		subject := strings.TrimSpace(claim.Subject)
+		key := normalize(subject)
+		if key == "" || broadOnly[key] || genericOnly[key] {
+			continue
+		}
+		generic := false
+		for _, phrase := range genericPhrases {
+			if strings.Contains(subject, phrase) {
+				generic = true
+				break
+			}
+		}
+		if generic {
+			continue
+		}
+		// The referent must be visible in the actual BBS subject. A broad
+		// research abstraction such as "福岡市内の病院" must not satisfy the
+		// texture gate for a title like "休日に診てもらえる病院".
+		if strings.Contains(titleKey, key) {
+			return true
+		}
+	}
+	return false
+}
+
+func orderTitleCandidatesForQuality(pool llm.BBSTitleCandidates, titles []string, dominant map[string]bool, preferredClaims map[string]bool) []string {
+	// Preserve the generated claim-free/claim-bearing ratio while spreading
+	// claim-bearing candidates through the 20-title Jev chunks. The previous
+	// four-bucket round-robin accidentally turned a 20% claim pool into roughly
+	// 50% claim traffic and caused avoidable synchronous research.
+	type groups struct {
+		nonDominant []string
+		dominant    []string
+	}
+	free := groups{}
+	claim := groups{}
+	preferred := groups{}
+	for _, title := range titles {
+		dominantLead := titleHasDominantLead(title, dominant)
+		if preferredClaims[title] {
+			if dominantLead {
+				preferred.dominant = append(preferred.dominant, title)
+			} else {
+				preferred.nonDominant = append(preferred.nonDominant, title)
+			}
+			continue
+		}
+		if len(historicalClaimsForTitle(pool, title)) > 0 {
+			if dominantLead {
+				claim.dominant = append(claim.dominant, title)
+			} else {
+				claim.nonDominant = append(claim.nonDominant, title)
+			}
+			continue
+		}
+		if dominantLead {
+			free.dominant = append(free.dominant, title)
+		} else {
+			free.nonDominant = append(free.nonDominant, title)
+		}
+	}
+
+	alternate := func(g groups) []string {
+		out := make([]string, 0, len(g.nonDominant)+len(g.dominant))
+		for len(g.nonDominant) > 0 || len(g.dominant) > 0 {
+			if len(g.nonDominant) > 0 {
+				out = append(out, g.nonDominant[0])
+				g.nonDominant = g.nonDominant[1:]
+			}
+			if len(g.dominant) > 0 {
+				out = append(out, g.dominant[0])
+				g.dominant = g.dominant[1:]
+			}
+		}
+		return out
+	}
+	freeTitles := alternate(free)
+	claimTitles := append(alternate(preferred), alternate(claim)...)
+	total := len(freeTitles) + len(claimTitles)
+	out := make([]string, 0, total)
+	fi, ci, accumulator := 0, 0, 0
+	for len(out) < total {
+		useClaim := false
+		if ci < len(claimTitles) {
+			if fi >= len(freeTitles) {
+				useClaim = true
+			} else {
+				accumulator += len(claimTitles)
+				if accumulator >= total {
+					useClaim = true
+					accumulator -= total
+				}
+			}
+		}
+		if useClaim {
+			out = append(out, claimTitles[ci])
+			ci++
+			continue
+		}
+		if fi < len(freeTitles) {
+			out = append(out, freeTitles[fi])
+			fi++
+			continue
+		}
+		out = append(out, claimTitles[ci])
+		ci++
+	}
+	return out
+}
+
+func claimFreeAdoptionAllowed(unfilled, verifiedCount, verifiedTarget int) bool {
+	if verifiedTarget <= verifiedCount {
+		return true
+	}
+	deficit := verifiedTarget - verifiedCount
+	return unfilled > deficit
+}
+
+func verifiedReferentTargetForBoard(rootCount int, rate float64) int {
+	if rootCount <= 0 || rate <= 0 {
+		return 0
+	}
+	target := int(float64(rootCount) * rate)
+	if float64(target) < float64(rootCount)*rate {
+		target++
+	}
+	if target < 1 {
+		target = 1
+	}
+	if target > rootCount {
+		target = rootCount
+	}
+	return target
+}
+
+func baselineClaimBearingCandidateTarget(candidateCount, remainingNeeded int) int {
+	if candidateCount <= 0 {
+		return 0
+	}
+	// Keep a stable supply of real-world named candidates even when a board has
+	// no station-specific VerifiedReferentRate. This is a candidate-pool
+	// diversity floor, not an adoption quota: board scope and the semantic
+	// specificity/fit gates still decide whether any of them are suitable.
+	target := candidateCount / 5
+	if target < 1 {
+		target = 1
+	}
+	// Preserve enough claim-free candidates to fill every remaining world slot
+	// if historical research is unavailable or rejects every named candidate.
+	maxClaims := candidateCount - remainingNeeded
+	if maxClaims < 0 {
+		maxClaims = 0
+	}
+	if target > maxClaims {
+		target = maxClaims
+	}
+	return target
+}
+
+func claimBearingCandidateTarget(verifiedDeficit, candidateCount, remainingNeeded int) int {
+	if verifiedDeficit <= 0 || candidateCount <= 0 {
+		return 0
+	}
+	target := verifiedDeficit * 4
+	if target < 20 && candidateCount >= 40 {
+		target = 20
+	}
+	maxClaims := candidateCount - remainingNeeded
+	if maxClaims < 0 {
+		maxClaims = 0
+	}
+	if target > maxClaims {
+		target = maxClaims
+	}
+	if target > candidateCount {
+		target = candidateCount
+	}
+	return target
+}
+
+func dominantTitleLeadKeys(titles []string) map[string]bool {
+	counts := map[string]int{}
+	for _, title := range titles {
+		if lead := titleLeadToken(title); lead != "" {
+			counts[lead]++
+		}
+	}
+	threshold := len(titles) / 20
+	if threshold < 4 {
+		threshold = 4
+	}
+	out := map[string]bool{}
+	for lead, count := range counts {
+		if count >= threshold {
+			out[lead] = true
+		}
+	}
+	return out
+}
+
+func titleLeadToken(title string) string {
+	runes := []rune(strings.TrimSpace(title))
+	if len(runes) < 3 {
+		return ""
+	}
+	max := len(runes)
+	if max > 8 {
+		max = 8
+	}
+	for i := 2; i < max; i++ {
+		switch runes[i] {
+		case 'で', 'の', 'へ', 'に':
+			return string(runes[:i])
+		}
+		if i+1 < max {
+			pair := string(runes[i : i+2])
+			if pair == "から" || pair == "まで" {
+				return string(runes[:i])
+			}
+		}
+	}
+	return ""
+}
+
+func titleHasDominantLead(title string, dominant map[string]bool) bool {
+	return dominant[titleLeadToken(title)]
+}
+
+func titleUsesDominantDeFrame(title string, dominant map[string]bool) bool {
+	lead := titleLeadToken(title)
+	if !dominant[lead] || lead == "" {
+		return false
+	}
+	runes := []rune(strings.TrimSpace(title))
+	lr := []rune(lead)
+	return len(runes) > len(lr) && runes[len(lr)] == 'で'
+}
+
+func titleBatchNaturalnessAllows(title string, adopted map[string]bbsengine.PlannedPost, dominant map[string]bool, rootCount int) bool {
+	if rootCount < 20 || len(dominant) == 0 {
+		return true
+	}
+	if titleHasDominantLead(title, dominant) {
+		used := 0
+		for _, post := range adopted {
+			if titleHasDominantLead(post.Subject, dominant) {
+				used++
+			}
+		}
+		// Q2 requires <80% for the repeated broad/opening-token family.
+		maxAllowed := ceilDiv(rootCount*4, 5) - 1
+		if used >= maxAllowed {
+			return false
+		}
+	}
+	if titleUsesDominantDeFrame(title, dominant) {
+		used := 0
+		for _, post := range adopted {
+			if titleUsesDominantDeFrame(post.Subject, dominant) {
+				used++
+			}
+		}
+		// Q2 requires <60% for the obvious "<lead>で…" frame.
+		maxAllowed := ceilDiv(rootCount*3, 5) - 1
+		if used >= maxAllowed {
+			return false
+		}
+	}
+	return true
+}
+
+func ceilDiv(n, d int) int {
+	if d <= 0 {
+		return 0
+	}
+	return (n + d - 1) / d
+}
+
+func titleTemporalCompatible(title string, at time.Time) bool {
+	if at.IsZero() {
+		return true
+	}
+	month := int(at.Month())
+	containsAny := func(words ...string) bool {
+		for _, word := range words {
+			if strings.Contains(title, word) {
+				return true
+			}
+		}
+		return false
+	}
+	monthIn := func(months ...int) bool {
+		for _, allowed := range months {
+			if month == allowed {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Deliberately narrow, high-confidence Japanese seasonal constraints. Jev's
+	// slot-date fit handles softer cases; these deterministic guards block only
+	// obvious contradictions such as "夏物" in December.
+	switch {
+	case containsAny("夏物", "夏休み", "暑中", "夏祭り", "暑さ", "猛暑", "真夏", "夏日"):
+		return monthIn(5, 6, 7, 8, 9)
+	case containsAny("盆踊り", "お盆"):
+		return monthIn(7, 8)
+	case containsAny("夕立"):
+		return monthIn(6, 7, 8, 9)
+	case containsAny("花火", "海水浴"):
+		return monthIn(6, 7, 8)
+	case containsAny("冬物", "冬休み", "雪かき", "寒さ", "寒波", "冷え込み"):
+		return monthIn(11, 12, 1, 2, 3)
+	case containsAny("梅雨"):
+		return monthIn(5, 6, 7)
+	case containsAny("花見", "桜"):
+		return monthIn(3, 4)
+	case containsAny("紅葉"):
+		return monthIn(10, 11)
+	case containsAny("クリスマス"):
+		return monthIn(11, 12)
+	case containsAny("正月", "年賀", "初詣"):
+		return monthIn(12, 1)
+	}
+	return true
+}
+
+func adoptedRoot(slot bbsengine.Slot, d llm.BBSTitleDecision) bbsengine.PlannedPost {
+	return bbsengine.PlannedPost{
+		SlotIndex:        slot.Index,
+		Subject:          d.Subject,
+		Topic:            d.Subject,
+		Motivation:       "world_selected_board_activity",
+		Goal:             "share or ask about the adopted subject",
+		SituationSummary: d.Summary,
+	}
+}
+
+func (p repositoryBBSBatchPlanner) personaTitleContext(personaID string) (string, []string) {
+	if p.repo == nil || personaID == "" {
+		return "", nil
+	}
+	var profile string
+	if store, ok := p.repo.Base.(world.PersonaStore); ok {
+		if persona, found := store.PersonaByID(personaID); found {
+			profile = personaSummary(persona)
+		}
+	}
+	facts := []string{}
+	if store, ok := p.repo.Base.(world.PersonaFactStore); ok {
+		for _, fact := range store.ListPersonaFacts(personaID) {
+			facts = append(facts, fact.Key+"="+fact.Value)
+		}
+	}
+	return profile, facts
+}
+
+func rootSubjects(posts []world.Post) []string {
+	out := make([]string, 0, len(posts))
+	for _, post := range posts {
+		if world.IsSemanticRoot(post) && strings.TrimSpace(post.Subject) != "" {
+			out = append(out, strings.TrimSpace(post.Subject))
+		}
+	}
+	return out
+}
+
+func uniqueUsableTitles(titles, avoid []string) []string {
+	out := make([]string, 0, len(titles))
+	seen := map[string]bool{}
+	for _, title := range titles {
+		title = strings.TrimSpace(title)
+		key := normalizeTitleForSimilarity(title)
+		if title == "" || seen[key] || titleTooSimilarToAny(title, avoid) {
+			continue
+		}
+		seen[key] = true
+		out = append(out, title)
+	}
+	return out
+}
+
+func titleTooSimilarToAdopted(title string, adopted map[string]bbsengine.PlannedPost) bool {
+	for _, post := range adopted {
+		if titleSimilarity(title, post.Subject) >= .78 {
+			return true
+		}
+	}
+	return false
+}
+
+func titleTooSimilarToAny(title string, others []string) bool {
+	for _, other := range others {
+		if titleSimilarity(title, other) >= .78 {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeTitleForSimilarity(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(s)) {
+		if unicode.IsSpace(r) || strings.ContainsRune("！？?!。、・「」『』（）()[]【】〜～", r) {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func titleSimilarity(a, b string) float64 {
+	a = normalizeTitleForSimilarity(a)
+	b = normalizeTitleForSimilarity(b)
+	if a == "" || b == "" {
+		return 0
+	}
+	if a == b {
+		return 1
+	}
+	grams := func(s string) map[string]bool {
+		r := []rune(s)
+		out := map[string]bool{}
+		if len(r) == 1 {
+			out[s] = true
+			return out
+		}
+		for i := 0; i+1 < len(r); i++ {
+			out[string(r[i:i+2])] = true
+		}
+		return out
+	}
+	ga, gb := grams(a), grams(b)
+	union := map[string]bool{}
+	inter := 0
+	for g := range ga {
+		union[g] = true
+		if gb[g] {
+			inter++
+		}
+	}
+	for g := range gb {
+		union[g] = true
+	}
+	if len(union) == 0 {
+		return 0
+	}
+	return float64(inter) / float64(len(union))
+}
+
+func planningBBSStateWithBodyExcerpts(posts []world.Post, titleLimit, bodyLimit int) string {
+	base := strings.TrimSpace(planningBBSState(posts, titleLimit))
+	if len(posts) == 0 || bodyLimit <= 0 {
+		return base
+	}
+	ordered := append([]world.Post(nil), posts...)
+	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].CreatedAt.Equal(ordered[j].CreatedAt) {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].CreatedAt.Before(ordered[j].CreatedAt)
+	})
+	withBody := make([]world.Post, 0, bodyLimit)
+	for i := len(ordered) - 1; i >= 0 && len(withBody) < bodyLimit; i-- {
+		if strings.TrimSpace(ordered[i].Body) != "" {
+			withBody = append(withBody, ordered[i])
+		}
+	}
+	if len(withBody) == 0 {
+		return base
+	}
+	var b strings.Builder
+	if base != "" {
+		b.WriteString(base)
+		b.WriteString("\n")
+	}
+	b.WriteString("RECENT BODY EXCERPTS (context only):\n")
+	for i := len(withBody) - 1; i >= 0; i-- {
+		post := withBody[i]
+		body := compactBBSExcerpt(post.Body, 220)
+		fmt.Fprintf(&b, "MSG %04d %s %s / %s: %s\n", post.ID, post.CreatedAt.Format("01/02 15:04"), post.Author, post.Subject, body)
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func compactBBSExcerpt(s string, maxRunes int) string {
+	s = strings.ReplaceAll(s, "\r\n", " / ")
+	s = strings.ReplaceAll(s, "\n", " / ")
+	s = strings.ReplaceAll(s, "\r", " / ")
+	s = strings.Join(strings.Fields(s), " ")
+	r := []rune(s)
+	if maxRunes > 0 && len(r) > maxRunes {
+		return string(r[:maxRunes]) + "…"
+	}
+	return s
+}
