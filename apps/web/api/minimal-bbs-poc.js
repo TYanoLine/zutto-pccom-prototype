@@ -9,12 +9,18 @@ export default async function handler(req, res) {
   }
 
   const incoming = new URL(req.url || '/api/minimal-bbs-poc', 'https://minimal-bbs-poc.local');
-  const upstream = new URL('/api/debug/minimal-bbs-poc', BACKEND_BASE);
-  const model = incoming.searchParams.get('model');
-  if (model !== null) upstream.searchParams.set('model', model);
+  const batch = incoming.searchParams.get('mode') === 'batch';
+  const upstream = new URL(
+    batch ? '/api/debug/minimal-situation-title-batch-poc' : '/api/debug/minimal-bbs-poc',
+    BACKEND_BASE
+  );
+  for (const key of batch ? ['model', 'phone', 'board', 'count'] : ['model']) {
+    const value = incoming.searchParams.get(key);
+    if (value !== null) upstream.searchParams.set(key, value);
+  }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000);
+  const timeout = setTimeout(() => controller.abort(), batch ? 180000 : 120000);
   try {
     const response = await fetch(upstream, {
       method: 'GET',
