@@ -14,6 +14,12 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
+const (
+	productionSituationChunkSize     = 12
+	productionSituationChunkAttempts = 2
+	productionTitleChunkSize         = 20
+)
+
 type productionSituationSeed struct {
 	eventID string
 	slot    bbsengine.Slot
@@ -169,41 +175,118 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			windowEnd = slot.CreatedAt
 		}
 	}
-	situationDraft, err := proposer.GenerateBBSWorldSituationProposals(ctx, llm.BBSWorldSituationProposalRequest{
-		HostName:        req.Host.Name,
-		HostRegion:      req.Host.Region,
-		HostSoftware:    req.Host.Software,
-		WorldDate:       worldDate,
-		WindowStart:     windowStart.Format(time.RFC3339),
-		WindowEnd:       windowEnd.Format(time.RFC3339),
-		HistoricalFacts:               productionHistoricalFacts(materializer, decision),
-		AllowModelHistoricalMemory:    materializer.ModelHistoricalMemory,
-		PreferConcreteHistoricalNames: materializer.PreferConcreteHistoricalNames,
-		RecentBBSState:                productionRecentSituationContext(req.RecentPosts),
-		Events:          events,
-		AvoidSituations: productionRecentSituationAvoid(req.RecentPosts),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("plan BBS world Situations: %w", err)
+
+	seedByEvent := make(map[string]productionSituationSeed, len(seeds))
+	for _, seed := range seeds {
+		seedByEvent[seed.eventID] = seed
 	}
-	storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation", GenerationUsage{
-		InputTokens: situationDraft.Usage.InputTokens, CachedInputTokens: situationDraft.Usage.CachedInputTokens,
-		OutputTokens: situationDraft.Usage.OutputTokens, ReasoningTokens: situationDraft.Usage.ReasoningTokens,
-		TotalTokens: situationDraft.Usage.TotalTokens, Model: situationDraft.Usage.Model,
-	})
-	if len(situationDraft.Situations) != len(seeds) {
-		return nil, fmt.Errorf("situation planner returned %d roots, want %d", len(situationDraft.Situations), len(seeds))
-	}
-	byEvent := make(map[string]llm.BBSWorldSituationDraft, len(situationDraft.Situations))
-	novelty := map[string]string{}
-	for _, value := range situationDraft.Situations {
-		if strings.TrimSpace(value.EventID) == "" {
-			return nil, fmt.Errorf("situation planner returned empty event id")
+	byEvent := make(map[string]llm.BBSWorldSituationDraft, len(seeds))
+	noveltyOwners := map[string]string{}
+	avoidSituations := append([]string(nil), productionRecentSituationAvoid(req.RecentPosts)...)
+
+	for chunkStart := 0; chunkStart < len(events); chunkStart += productionSituationChunkSize {
+		chunkEnd := chunkStart + productionSituationChunkSize
+		if chunkEnd > len(events) {
+			chunkEnd = len(events)
 		}
-		if _, exists := byEvent[value.EventID]; exists {
-			return nil, fmt.Errorf("situation planner duplicated event %s", value.EventID)
+		chunkEvents := events[chunkStart:chunkEnd]
+		accepted := false
+		var lastErr error
+		for attempt := 1; attempt <= productionSituationChunkAttempts && !accepted; attempt++ {
+			situationDraft, err := proposer.GenerateBBSWorldSituationProposals(ctx, llm.BBSWorldSituationProposalRequest{
+				HostName:                       req.Host.Name,
+				HostRegion:                     req.Host.Region,
+				HostSoftware:                   req.Host.Software,
+				WorldDate:                      worldDate,
+				WindowStart:                    windowStart.Format(time.RFC3339),
+				WindowEnd:                      windowEnd.Format(time.RFC3339),
+				HistoricalFacts:                productionHistoricalFacts(materializer, decision),
+				AllowModelHistoricalMemory:     materializer.ModelHistoricalMemory,
+				PreferConcreteHistoricalNames:  materializer.PreferConcreteHistoricalNames,
+				RecentBBSState:                 productionRecentSituationContext(req.RecentPosts),
+				Events:                         chunkEvents,
+				AvoidSituations:                append([]string(nil), avoidSituations...),
+			})
+			if err != nil {
+				lastErr = fmt.Errorf("chunk %d..%d attempt %d: %w", chunkStart, chunkEnd, attempt, err)
+				continue
+			}
+			storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation", GenerationUsage{
+				InputTokens: situationDraft.Usage.InputTokens, CachedInputTokens: situationDraft.Usage.CachedInputTokens,
+				OutputTokens: situationDraft.Usage.OutputTokens, ReasoningTokens: situationDraft.Usage.ReasoningTokens,
+				TotalTokens: situationDraft.Usage.TotalTokens, Model: situationDraft.Usage.Model,
+			})
+			if len(situationDraft.Situations) != len(chunkEvents) {
+				lastErr = fmt.Errorf("chunk %d..%d returned %d situations, want %d", chunkStart, chunkEnd, len(situationDraft.Situations), len(chunkEvents))
+				continue
+			}
+
+			chunkByEvent := make(map[string]llm.BBSWorldSituationDraft, len(chunkEvents))
+			chunkNovelty := map[string]string{}
+			valid := true
+			for _, value := range situationDraft.Situations {
+				eventID := strings.TrimSpace(value.EventID)
+				seed, known := seedByEvent[eventID]
+				if eventID == "" || !known {
+					lastErr = fmt.Errorf("chunk %d..%d returned invalid event %q", chunkStart, chunkEnd, eventID)
+					valid = false
+					break
+				}
+				if _, exists := chunkByEvent[eventID]; exists {
+					lastErr = fmt.Errorf("chunk %d..%d duplicated event %q", chunkStart, chunkEnd, eventID)
+					valid = false
+					break
+				}
+				if err := validateProductionTypedSituation(seed.mode, value); err != nil {
+					lastErr = fmt.Errorf("%s: %w", eventID, err)
+					valid = false
+					break
+				}
+				key := developmentNormalizeSituationKey(value.NoveltyKey)
+				if key == "" {
+					lastErr = fmt.Errorf("%s returned empty normalized novelty key", eventID)
+					valid = false
+					break
+				}
+				if owner := noveltyOwners[key]; owner != "" {
+					lastErr = fmt.Errorf("situation novelty duplicates earlier chunk: %s and %s", owner, eventID)
+					avoidSituations = append(avoidSituations, "DO NOT REUSE novelty_key="+key)
+					valid = false
+					break
+				}
+				if owner := chunkNovelty[key]; owner != "" {
+					lastErr = fmt.Errorf("situation novelty duplicates same chunk: %s and %s", owner, eventID)
+					avoidSituations = append(avoidSituations, "DO NOT REUSE novelty_key="+key)
+					valid = false
+					break
+				}
+				chunkByEvent[eventID] = value
+				chunkNovelty[key] = eventID
+			}
+			if !valid {
+				continue
+			}
+			for _, event := range chunkEvents {
+				value, ok := chunkByEvent[event.EventID]
+				if !ok {
+					lastErr = fmt.Errorf("chunk %d..%d omitted %s", chunkStart, chunkEnd, event.EventID)
+					valid = false
+					break
+				}
+				byEvent[event.EventID] = value
+				key := developmentNormalizeSituationKey(value.NoveltyKey)
+				noveltyOwners[key] = event.EventID
+				avoidSituations = append(avoidSituations,
+					"already accepted novelty_key="+key+" occurrence="+strings.TrimSpace(value.Occurrence),
+				)
+			}
+			if valid {
+				accepted = true
+			}
 		}
-		byEvent[value.EventID] = value
+		if !accepted {
+			return nil, fmt.Errorf("plan BBS world Situations: %w", lastErr)
+		}
 	}
 
 	titleSeeds := make([]llm.BBSSituationTitleSeed, 0, len(seeds))
@@ -219,14 +302,6 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if !ok {
 			return nil, fmt.Errorf("situation planner omitted %s", seed.eventID)
 		}
-		if err := validateProductionTypedSituation(seed.mode, draft); err != nil {
-			return nil, fmt.Errorf("%s: %w", seed.eventID, err)
-		}
-		key := developmentNormalizeSituationKey(draft.NoveltyKey)
-		if owner := novelty[key]; owner != "" {
-			return nil, fmt.Errorf("situation novelty duplicates %s and %s", owner, seed.eventID)
-		}
-		novelty[key] = seed.eventID
 		summary, facts := productionSituationCanonicalState(seed, draft)
 		states[seed.eventID] = rootState{seed: seed, draft: draft, summary: summary, facts: facts}
 		titleSeeds = append(titleSeeds, llm.BBSSituationTitleSeed{
@@ -241,27 +316,46 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		})
 	}
 
-	titleDraft, err := titlePlanner.GenerateBBSSituationTitles(ctx, llm.BBSSituationTitleRequest{
-		HostName:       req.Host.Name,
-		HostRegion:     req.Host.Region,
-		BoardID:        req.Board.ID,
-		BoardName:      req.Board.Name,
-		BoardScope:     req.Board.SemanticScope,
-		WorldDate:      worldDate,
-		RecentSubjects: rootSubjects(req.RecentPosts),
-		Articles:       titleSeeds,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("word BBS Situation titles: %w", err)
-	}
-	storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation-title", GenerationUsage{
-		InputTokens: titleDraft.Usage.InputTokens, CachedInputTokens: titleDraft.Usage.CachedInputTokens,
-		OutputTokens: titleDraft.Usage.OutputTokens, ReasoningTokens: titleDraft.Usage.ReasoningTokens,
-		TotalTokens: titleDraft.Usage.TotalTokens, Model: titleDraft.Usage.Model,
-	})
-	titleByEvent := make(map[string]string, len(titleDraft.Titles))
-	for _, title := range titleDraft.Titles {
-		titleByEvent[title.EventID] = strings.TrimSpace(title.Subject)
+	titleByEvent := make(map[string]string, len(titleSeeds))
+	recentSubjects := append([]string(nil), rootSubjects(req.RecentPosts)...)
+	for chunkStart := 0; chunkStart < len(titleSeeds); chunkStart += productionTitleChunkSize {
+		chunkEnd := chunkStart + productionTitleChunkSize
+		if chunkEnd > len(titleSeeds) {
+			chunkEnd = len(titleSeeds)
+		}
+		titleDraft, err := titlePlanner.GenerateBBSSituationTitles(ctx, llm.BBSSituationTitleRequest{
+			HostName:       req.Host.Name,
+			HostRegion:     req.Host.Region,
+			BoardID:        req.Board.ID,
+			BoardName:      req.Board.Name,
+			BoardScope:     req.Board.SemanticScope,
+			WorldDate:      worldDate,
+			RecentSubjects: append([]string(nil), recentSubjects...),
+			Articles:       titleSeeds[chunkStart:chunkEnd],
+		})
+		if err != nil {
+			return nil, fmt.Errorf("word BBS Situation titles chunk %d..%d: %w", chunkStart, chunkEnd, err)
+		}
+		storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation-title", GenerationUsage{
+			InputTokens: titleDraft.Usage.InputTokens, CachedInputTokens: titleDraft.Usage.CachedInputTokens,
+			OutputTokens: titleDraft.Usage.OutputTokens, ReasoningTokens: titleDraft.Usage.ReasoningTokens,
+			TotalTokens: titleDraft.Usage.TotalTokens, Model: titleDraft.Usage.Model,
+		})
+		if len(titleDraft.Titles) != chunkEnd-chunkStart {
+			return nil, fmt.Errorf("title chunk %d..%d returned %d titles, want %d", chunkStart, chunkEnd, len(titleDraft.Titles), chunkEnd-chunkStart)
+		}
+		for _, title := range titleDraft.Titles {
+			eventID := strings.TrimSpace(title.EventID)
+			subject := strings.TrimSpace(title.Subject)
+			if eventID == "" || subject == "" {
+				return nil, fmt.Errorf("title chunk %d..%d returned empty event or subject", chunkStart, chunkEnd)
+			}
+			if _, exists := titleByEvent[eventID]; exists {
+				return nil, fmt.Errorf("title planner duplicated event %s", eventID)
+			}
+			titleByEvent[eventID] = subject
+			recentSubjects = append(recentSubjects, subject)
+		}
 	}
 
 	out := make([]bbsengine.PlannedPost, 0, len(seeds))
