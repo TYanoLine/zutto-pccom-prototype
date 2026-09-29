@@ -84,7 +84,6 @@ func (p StructuredOpenAIProvider) GenerateBBSSituationTitles(ctx context.Context
 	if len(wire.Titles) != len(req.Articles) {
 		return BBSSituationTitleDraft{}, fmt.Errorf("situation title planner returned %d titles, want %d", len(wire.Titles), len(req.Articles))
 	}
-	seen := map[string]bool{}
 	out := make([]BBSSituationTitle, 0, len(req.Articles))
 	for _, article := range req.Articles {
 		subject, ok := wire.Titles[article.EventID]
@@ -95,11 +94,6 @@ func (p StructuredOpenAIProvider) GenerateBBSSituationTitles(ctx context.Context
 		if utf8.RuneCountInString(subject) > 36 || strings.ContainsAny(subject, "\r\n") || hasReplySubjectPrefix(subject) {
 			return BBSSituationTitleDraft{}, fmt.Errorf("invalid situation title for %q: %q", article.EventID, subject)
 		}
-		key := strings.ToLower(subject)
-		if seen[key] {
-			return BBSSituationTitleDraft{}, fmt.Errorf("duplicate situation title %q", subject)
-		}
-		seen[key] = true
 		out = append(out, BBSSituationTitle{EventID: article.EventID, Subject: subject})
 	}
 	return BBSSituationTitleDraft{Titles: out, Usage: result.Usage}, nil
