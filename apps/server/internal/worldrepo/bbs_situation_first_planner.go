@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
+	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -136,6 +137,9 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		}
 		existing = append(existing, "SITUATION KIND SELECTED BY WORLD: "+facet.kind)
 		existing = append(existing, sparse.facts...)
+		for _, fact := range productionEventPeriodFacts(req.Host, req.Board, persona, domain, slot.CreatedAt) {
+			existing = append(existing, "ALLOWED HISTORICAL REFERENT FOR THIS EVENT DATE: "+fact)
+		}
 
 		seeds = append(seeds, productionSituationSeed{
 			eventID: eventID, slot: slot, mode: mode, domain: domain,
@@ -293,9 +297,8 @@ func (p repositoryBBSBatchPlanner) personaForSituation(slot bbsengine.Slot) worl
 	return world.Persona{ID: slot.AuthorPersonaID, Handle: slot.Author}
 }
 
-func productionHistoricalFacts(materializer LLMMaterializer, decision worldengine.EvidenceDecision) []string {
+func productionHistoricalFacts(_ LLMMaterializer, decision worldengine.EvidenceDecision) []string {
 	combined := append([]string(nil), usableClaims(decision)...)
-	combined = append(combined, materializer.HistoricalTexture...)
 	out := make([]string, 0, len(combined))
 	seen := map[string]bool{}
 	for _, fact := range combined {
@@ -308,6 +311,49 @@ func productionHistoricalFacts(materializer LLMMaterializer, decision worldengin
 		if len(out) >= 32 {
 			break
 		}
+	}
+	return out
+}
+
+func productionEventPeriodFacts(host world.Host, board world.Board, persona world.Persona, domain string, at time.Time) []string {
+	items := historicalkb.PeriodReferents(at.Format(time.DateOnly))
+	candidates := make([]string, 0, len(items))
+	for _, item := range items {
+		claim := strings.TrimSpace(item.Claim)
+		lower := strings.ToLower(item.Name + " " + claim)
+		relevant := false
+		switch domain {
+		case "games":
+			for _, marker := range []string{"ゲーム", "ソフト", "rpg", "シューティング", "playstation", "セガサターン", "スーパーファミコン", "ゲームボーイ", "アクション"} {
+				if strings.Contains(lower, strings.ToLower(marker)) { relevant = true; break }
+			}
+		case "software":
+			for _, marker := range []string{"windows", "一太郎", "ワープロ", "ソフト"} {
+				if strings.Contains(lower, marker) { relevant = true; break }
+			}
+		case "communications", "modem":
+			for _, marker := range []string{"nifty", "パソコン通信", "pc-9801"} {
+				if strings.Contains(lower, marker) { relevant = true; break }
+			}
+		case "hardware":
+			for _, marker := range []string{"pc-9801", "セガサターン", "playstation", "音源機器"} {
+				if strings.Contains(lower, marker) { relevant = true; break }
+			}
+		case "music":
+			relevant = strings.Contains(lower, "sc-55") || strings.Contains(lower, "音源")
+		}
+		if relevant && claim != "" {
+			candidates = append(candidates, claim)
+		}
+	}
+	if len(candidates) <= 6 {
+		return candidates
+	}
+	start := int(demoStableUnit(host.ID, board.ID, persona.ID, at.Format(time.RFC3339), "event-period-referents-v1") * float64(len(candidates)))
+	if start >= len(candidates) { start = len(candidates)-1 }
+	out := make([]string, 0, 6)
+	for i := 0; i < 6; i++ {
+		out = append(out, candidates[(start+i)%len(candidates)])
 	}
 	return out
 }
