@@ -43,7 +43,7 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	}
 	referentRule := ""
 	if requiredReferent != "" {
-		referentRule = fmt.Sprintf("\n- canonical referent %q が本文理解に必要なら自然な位置で明示する。別対象へ置き換えない。", requiredReferent)
+		referentRule = fmt.Sprintf("\n- canonical referent「%s」が本文理解に必要なら自然な位置で明示する。別対象へ置き換えない。", requiredReferent)
 	}
 	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
 	kind := strings.TrimSpace(req.Kind)
@@ -79,12 +79,13 @@ canonical Situation / thread facts:
 - supplied historical facts と canonical Situation にない実在固有名詞、仕様、価格、発売時期、攻略情報などを追加しない。
 - personaのwriting傾向があれば従う。文章をFAQ・解説・結論付きの整った記事へ無理に仕上げない。
 - 当時の本人として普通に書く。現代からの懐古・時代解説・AI/プロンプト/DB等のメタ発言は禁止。
+- 世界日付は %s。この日より未来の知識や出来事を使わない。
 - 非引用部分は%d〜%d文字を目安にする。水増ししない。%s
 - %s
 - 時代制約: %s
 
 JSONだけを返す:
-{"author":"...","subject":"%s","body":"..."}`, req.WorldDate, req.HostName, req.BoardTopic, subject, persona, intent, facts, parent, minChars, maxChars, referentRule, quoteRule, eraRules, subject)
+{"author":"...","subject":"%s","body":"..."}`, req.WorldDate, req.HostName, req.BoardTopic, subject, persona, intent, facts, parent, req.WorldDate, minChars, maxChars, referentRule, quoteRule, eraRules, subject)
 }
 
 func compactBoardPostEraRules(raw string) string {
