@@ -54,6 +54,7 @@ type PlannedPost struct {
 	Motivation       string
 	Stance           string
 	Goal             string
+	AnchorKey        string
 	DiscourseMode    string
 	SituationKind    string
 	SituationSummary string
@@ -400,6 +401,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			Body:            "",
 			Intent: world.PostIntent{
 				Action:           ActionWorldCatchup,
+				AnchorKey:        strings.TrimSpace(draft.AnchorKey),
 				CauseKind:        "board_activity_window",
 				DiscourseMode:    discourseMode,
 				SourcePostID:     responseToID,
