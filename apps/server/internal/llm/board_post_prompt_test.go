@@ -24,50 +24,46 @@ func TestBuildBoardPostPromptOmitsInfrastructureMetadata(t *testing.T) {
 func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
 	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます"})
 	for _, want := range []string{
-		"本文に全部書くチェックリストではありません",
-		"多少雑でも構いません",
-		"この1件だけを切り出して完全に理解できる文章にする必要はありません",
-		"毎回「みなさんはどうですか？」型で締めない",
-		"本文で全detailを列挙する義務はありません",
-		"writing= を最優先",
-		"同じ三文構成に揃えない",
-		"一文だけでも、多段落でも",
-		"具体的な操作手順",
-		"将来の予定を「自然な補足」として作らない",
-		"utterance_attention",
-		"元記事を要約してから返事を始めない",
-		"完全な解説記事やチュートリアルへ仕上げない",
-		"10〜20文字程度ごと",
-		"端末側の80桁級表示",
+		"canonical Situation はすでに世界で起きた事実",
+		"事実を全部説明する必要はない",
+		"本文は用件から自然に始める",
+		"ask_peersだけが質問を主目的",
+		"文章をFAQ・解説・結論付きの整った記事へ無理に仕上げない",
+		"writing=勢いのある短文が多い。",
+		"世界日付は 1996-06-07",
 	} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("missing conversational guidance %q", want)
+			t.Fatalf("missing concise Situation-rendering guidance %q", want)
 		}
 	}
-	if strings.Contains(prompt, "1〜3文でもよく") {
-		t.Fatalf("fixed sentence-count hint should not survive: %s", prompt)
+	for _, legacy := range []string{"utterance_attention", "10〜20文字程度ごと", "端末側の80桁級表示", "同じ三文構成"} {
+		if strings.Contains(prompt, legacy) {
+			t.Fatalf("legacy prose micromanagement survived refresh: %q", legacy)
+		}
 	}
 }
 
-func TestBuildBoardPostPromptSeparatesSemanticAndSurfaceSubjectForTitleFirstRoot(t *testing.T) {
+func TestBuildBoardPostPromptKeepsCanonicalSubjectInsteadOfRewritingIt(t *testing.T) {
 	prompt := BuildBoardPostPrompt(BoardPostRequest{
 		BoardTopic:       "パソコン通信・モデム",
 		WorldDate:        "1996-08-29",
 		AuthorHandle:     "NORI",
 		PersonaProfile:   "writing=短く要点を書くこともある",
 		CanonicalSubject: "Windows 95でモデムが認識されません",
-		PostIntent:       "surface_subject_mode=title_first_root\ndiscourse_mode=ask_peers\ncanonical_event=Windows 95でモデムが認識されず相談する",
+		PostIntent:       "discourse_mode=ask_peers\noccurrence=Windows 95でモデムが認識されず相談する",
 	})
 	for _, want := range []string{
-		"意味判定用タイトル",
-		"表示件名",
-		"短縮、口語化、省略",
-		"モデムが見えない…",
-		"固定パターン化しない",
-		"36文字以内・1行",
+		"件名: Windows 95でモデムが認識されません",
+		"canonical Situation / thread facts",
+		`{"author":"...","subject":"Windows 95でモデムが認識されません","body":"..."}`,
 	} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("surface-subject guidance missing %q: %s", want, prompt)
+			t.Fatalf("canonical subject contract missing %q: %s", want, prompt)
+		}
+	}
+	for _, legacy := range []string{"意味判定用タイトル", "短縮、口語化、省略", "固定パターン化しない"} {
+		if strings.Contains(prompt, legacy) {
+			t.Fatalf("legacy title-rewrite guidance survived refresh: %q", legacy)
 		}
 	}
 }
