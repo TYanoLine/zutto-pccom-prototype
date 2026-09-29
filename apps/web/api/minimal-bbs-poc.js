@@ -10,8 +10,13 @@ export default async function handler(req, res) {
 
   const incoming = new URL(req.url || '/api/minimal-bbs-poc', 'https://minimal-bbs-poc.local');
   const batch = incoming.searchParams.get('mode') === 'batch';
+  const typedV2 = batch && incoming.searchParams.get('profile') === 'typed-v2';
   const upstream = new URL(
-    batch ? '/api/debug/minimal-situation-title-batch-poc' : '/api/debug/minimal-bbs-poc',
+    typedV2
+      ? '/api/debug/minimal-typed-situation-title-batch-poc'
+      : batch
+        ? '/api/debug/minimal-situation-title-batch-poc'
+        : '/api/debug/minimal-bbs-poc',
     BACKEND_BASE
   );
   for (const key of batch ? ['model', 'phone', 'board', 'count', 'offset', 'lookback_days'] : ['model']) {
