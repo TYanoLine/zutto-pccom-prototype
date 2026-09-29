@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	productionSituationChunkSize     = 12
-	productionSituationChunkAttempts = 2
+	productionSituationChunkSize     = 6
+	productionSituationChunkAttempts = 3
 	productionTitleChunkSize         = 20
 )
 
