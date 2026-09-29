@@ -138,54 +138,74 @@ The fresh `topic-first` experiment selects researched targets before Situation p
 
 Root subjects are generated as the text that the selected actor would actually type into the historical BBS subject field, rather than as a modern headline or article-summary task.
 
-For the shared production batch path, standalone roots use the same
-**candidate-first** principle as the title-first Lab. The World Engine fixes the
-actor, board, timestamp and root/reply topology but does not pre-commit a detailed
-topic merely to manufacture a title.
+For the shared production batch path, standalone roots now use a
+**Situation-first** pipeline. The wording model is not asked to invent a topic
+while simultaneously satisfying subject-line, persona, historical and diversity
+constraints.
 
-The title model receives the board, world date, recent board state, recent/avoid
-subjects and bounded historical referents and normally proposes one large
-uncommitted pool sized from the remaining roots plus bounded reserve capacity
-(currently 60..100 candidates). The pool has two independent diversity pressures:
-it must keep enough claim-free candidates to fill the world slots safely, while
-also reserving a bounded supply of claim-bearing named real-world candidates
-even when the station has no hand-authored per-board referent quota. This latter
-rule is only a candidate-supply floor, not a requirement that every board adopt
-brands, works or place names.
+The normal root path is:
 
-Concrete root quality is not left to the generator prompt. During Jev fit
-evaluation, every candidate also receives a **root specificity** probability.
-The hard floor is intentionally low and blocks only clear topicless or
-hidden-referent failures; higher specificity is primarily a ranking preference.
-This prevents the quality gate itself from selecting only long, sentence-like
-subjects. The classifier asks a board-name-independent question: can a reader
-identify the post's topic/referent from the root title plus genuinely shared
-board/recent context, without inventing an unnamed hidden target? Thus broad-board
-subjects such as `台詞の間が好き`, `お気に入りの見開き`,
-`次号の展開を予想` or `クリア時間を比べたい` remain low-scoring when no
-work/game is identified, while terse fragments and noun phrases remain valid when
-their topic is already identifiable. Proper nouns are not required: a concrete
-world-local incident can satisfy the same gate.
+```text
+world-selected actor / time / board / root topology
+ -> routing domain + discourse_mode
+ -> mode-compatible Situation kind
+ -> structured Situation realization
+      -> one small concrete occurrence
+      -> typed facts matching the discourse mode
+ -> accept Situation as canonical world state
+ -> subject wording from that fixed Situation
+ -> commit PostIntent + subject
+ -> body wording remains lazy until article observation
+```
 
-If a large pool still leaves world-selected roots unresolved, one fresh large
-pool is allowed as bounded recovery. Canned subjects such as
-`ＰＣ－９８について` are not permitted. Exhausting the bounded generated pools
-fails the batch atomically so it can be retried later rather than committing
-generic filler.
+The typed Situation shape is part of the semantic contract:
 
-Jev evaluates candidate specificity and each candidate × already-selected world
-slot fit. Code performs deterministic one-title/one-slot matching. Candidates
-with named real-world references are historically researched only after
-tentative selection unless a debug experiment explicitly bypasses that research;
-the semantic specificity gate remains active independently of that debug switch.
-A candidate becomes canonical only after it survives these gates. This preserves
-the creative breadth of the generation pass without giving the wording model
-authority to rewrite actor/time/topology or to defer missing topic identity to
-the later Article Detail prose stage.
+- `share_observation` carries an observation;
+- `share_experience` carries experience + result;
+- `state_opinion` carries stance + basis;
+- `share_tip` carries attempted actions + result + a small practical point;
+- `ask_peers` carries attempted actions + an unresolved question.
 
-The same header pass commits semantic state but not the article body. The body
-worker receives the canonical subject, concrete matter, claims and other intent
-fields later, when the article is actually read.
+Only `ask_peers` has a question field. This deliberately moves conversational
+intent out of prose micromanagement and into world state: the body renderer does
+not need a growing list of instructions such as “do not end every post with a
+question”.
+
+Situation kinds are selected before prose and are diversity-weighted against the
+retained board window. GAME currently has a richer mode-aware vocabulary covering
+ordinary play, retry/progress, manuals and notes, passwords/saves, lending and
+storage, local multiplayer, household timing/volume and other mundane game-life
+situations. The vocabulary is world/event scaffolding, not a title or body
+template bank. Other routing domains use their own sparse Situation facets and can
+be expanded independently without changing the rendering contract.
+
+Historical proper nouns are also world input rather than free wording-model
+decoration. Curated period referents are filtered against **each event's own
+timestamp** before they can be supplied to that event. This prevents a long
+catch-up batch from leaking later products backward while still allowing later
+events in the same history to know things that had become available by then.
+Additional Historical KB evidence remains a separate evidence path. The Situation
+and subject renderers must not manufacture unsupported specifications, dates,
+prices, story facts or ownership/use history from an existence claim.
+
+Once the Situation is canonical, the subject pass has one responsibility:
+write the short root subject that this actor would naturally type for that
+Situation. It may be terse or fragmentary and need not resemble a modern search
+headline. It must not invent a different event or repair missing world state by
+adding a new target. Recent subjects are soft repetition context, not a ban on
+natural duplicate subjects.
+
+New Situation-first roots set `ArticleDetailsMaterialized=true` when committed,
+because the article-local facts already exist before the subject. They therefore
+skip the legacy “infer Article Detail back from the adopted title” pass. That
+detail pass remains only for older title-first state and reply/compatibility cases
+where a small article-local fact or externally grounded referent is genuinely
+missing.
+
+The previous large title-candidate/Jev pipeline remains in code as a compatibility
+fallback for renderers that do not implement Situation proposal + Situation-title
+wording. It is no longer the preferred normal path for capable production
+renderers.
 
 The production structured planner includes a compact calibration derived from preserved Japanese PC-communication subject-line corpora. The evidence shows that subject fields can be terse, fragmentary, person-directed, context-dependent, declarative, announcement-like, playful, or interrogative. Questions are therefore not the default form, and subjects do not need to summarize the body or make sense to an outsider without board context.
 
@@ -203,7 +223,12 @@ Once committed, `PostIntent` keeps the causal provenance alongside the human-rea
 action
 anchor_key          (internal routing domain)
 cause_kind
+discourse_mode
 source_post_id      (when applicable)
+situation_kind
+situation_summary
+situation_facts     (typed canonical article-local facts)
+article_details_materialized
 topic
 motivation
 stance
