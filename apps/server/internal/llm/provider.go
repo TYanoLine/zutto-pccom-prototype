@@ -189,11 +189,25 @@ type BBSWorldSituationProposalRequest struct {
 type BBSWorldSituationDraft struct {
 	EventID          string   `json:"event_id"`
 	ObjectClass      string   `json:"object_class"`
-	ChangeClass      string   `json:"change_class"`
+	ChangeClass      string   `json:"change_class,omitempty"`
 	Occurrence       string   `json:"occurrence"`
-	ActorObservation string   `json:"actor_observation"`
-	Impact           string   `json:"impact"`
-	Uncertainty      string   `json:"uncertainty"`
+
+	// The following fields are discourse-mode typed world facts. Only the fields
+	// appropriate to the already-selected discourse mode should be populated.
+	Observation      string   `json:"observation,omitempty"`
+	Experience       string   `json:"experience,omitempty"`
+	Result           string   `json:"result,omitempty"`
+	Stance           string   `json:"stance,omitempty"`
+	Basis            string   `json:"basis,omitempty"`
+	AttemptedActions string   `json:"attempted_actions,omitempty"`
+	PracticalPoint   string   `json:"practical_point,omitempty"`
+	Question         string   `json:"question,omitempty"`
+
+	// Compatibility projections used by older development paths. New
+	// situation-first production persists the typed fields above.
+	ActorObservation string   `json:"actor_observation,omitempty"`
+	Impact           string   `json:"impact,omitempty"`
+	Uncertainty      string   `json:"uncertainty,omitempty"`
 	NoveltyKey       string   `json:"novelty_key"`
 	MustNot          []string `json:"must_not"`
 }
@@ -201,6 +215,42 @@ type BBSWorldSituationDraft struct {
 type BBSWorldSituationProposalDraft struct {
 	Situations []BBSWorldSituationDraft `json:"situations"`
 	Usage      TokenUsage               `json:"-"`
+}
+
+type BBSSituationTitleSeed struct {
+	EventID          string   `json:"event_id"`
+	AuthorHandle     string   `json:"author_handle"`
+	CreatedAt        string   `json:"created_at"`
+	DiscourseMode    string   `json:"discourse_mode"`
+	PersonaProfile   string   `json:"persona_profile,omitempty"`
+	SituationKind    string   `json:"situation_kind"`
+	SituationSummary string   `json:"situation_summary"`
+	SituationFacts   []string `json:"situation_facts"`
+}
+
+type BBSSituationTitleRequest struct {
+	HostName       string
+	HostRegion     string
+	BoardID        string
+	BoardName      string
+	BoardScope     string
+	WorldDate      string
+	RecentSubjects []string
+	Articles       []BBSSituationTitleSeed
+}
+
+type BBSSituationTitle struct {
+	EventID  string `json:"event_id"`
+	Subject  string `json:"subject"`
+}
+
+type BBSSituationTitleDraft struct {
+	Titles []BBSSituationTitle `json:"titles"`
+	Usage  TokenUsage          `json:"-"`
+}
+
+type BBSSituationTitlePlanner interface {
+	GenerateBBSSituationTitles(context.Context, BBSSituationTitleRequest) (BBSSituationTitleDraft, error)
 }
 
 // BBSWorldSituationProposer sees multiple independent roots at once so it can

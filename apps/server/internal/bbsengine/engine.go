@@ -54,7 +54,12 @@ type PlannedPost struct {
 	Motivation       string
 	Stance           string
 	Goal             string
+	AnchorKey        string
+	DiscourseMode    string
+	SituationKind    string
 	SituationSummary string
+	SituationFacts   []string
+	ArticleDetailsMaterialized bool
 	Claims           []string
 }
 
@@ -358,18 +363,33 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			return fmt.Errorf("bbs article batch slot %d is incomplete", slot.Index)
 		}
 
-		situationFacts := []string{
-			"world_adoption=title_candidate",
-			"world_adopted_summary=" + draft.SituationSummary,
-		}
-		if subject != "" {
-			situationFacts = append(situationFacts,
-				"title_first_subject="+subject,
-				"subject_contract=Keep the adopted title verbatim. Do not replace it with a different topic.",
-			)
+		situationFacts := append([]string(nil), draft.SituationFacts...)
+		situationKind := strings.TrimSpace(draft.SituationKind)
+		discourseMode := strings.TrimSpace(draft.DiscourseMode)
+		if len(situationFacts) == 0 {
+			// Legacy title-first compatibility.
+			situationFacts = []string{
+				"world_adoption=title_candidate",
+				"world_adopted_summary=" + draft.SituationSummary,
+			}
+			if subject != "" {
+				situationFacts = append(situationFacts,
+					"title_first_subject="+subject,
+					"subject_contract=Keep the adopted title verbatim. Do not replace it with a different topic.",
+				)
+			}
+			if situationKind == "" {
+				situationKind = "title_first"
+			}
 		}
 		if isReply {
 			situationFacts = append(situationFacts, fmt.Sprintf("responds_to_post_id=%d", responseToID))
+			if discourseMode == "" {
+				discourseMode = "reply"
+			}
+		}
+		if discourseMode == "" {
+			discourseMode = "thread_start"
 		}
 
 		saved := e.Store.AddPost(host.ID, world.Post{
@@ -381,12 +401,14 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			Body:            "",
 			Intent: world.PostIntent{
 				Action:           ActionWorldCatchup,
+				AnchorKey:        strings.TrimSpace(draft.AnchorKey),
 				CauseKind:        "board_activity_window",
-				DiscourseMode:    func() string { if isReply { return "reply" }; return "thread_start" }(),
+				DiscourseMode:    discourseMode,
 				SourcePostID:     responseToID,
-				SituationKind:    "title_first",
+				SituationKind:    situationKind,
 				SituationSummary: draft.SituationSummary,
 				SituationFacts:   situationFacts,
+				ArticleDetailsMaterialized: draft.ArticleDetailsMaterialized,
 				Topic:            draft.Topic,
 				Motivation:       draft.Motivation,
 				Stance:           draft.Stance,

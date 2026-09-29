@@ -88,8 +88,13 @@ func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
 	default:
 		return false
 	}
-	_, ok := materializer.Renderer.(llm.BBSTitleCandidatePlanner)
-	return ok
+	_, hasSituation := materializer.Renderer.(llm.BBSWorldSituationProposer)
+	_, hasSituationTitles := materializer.Renderer.(llm.BBSSituationTitlePlanner)
+	if hasSituation && hasSituationTitles {
+		return true
+	}
+	_, hasLegacyTitles := materializer.Renderer.(llm.BBSTitleCandidatePlanner)
+	return hasLegacyTitles
 }
 
 // PlanBBSBatch intentionally keeps the World/wording boundary narrow.
@@ -118,9 +123,11 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	default:
 		return nil, fmt.Errorf("shared BBS article engine requires LLMMaterializer")
 	}
-	titlePlanner, ok := materializer.Renderer.(llm.BBSTitleCandidatePlanner)
-	if !ok {
-		return nil, fmt.Errorf("configured renderer does not support title-first candidate planning")
+	situationProposer, hasSituationProposer := materializer.Renderer.(llm.BBSWorldSituationProposer)
+	situationTitlePlanner, hasSituationTitles := materializer.Renderer.(llm.BBSSituationTitlePlanner)
+	titlePlanner, hasLegacyTitles := materializer.Renderer.(llm.BBSTitleCandidatePlanner)
+	if !(hasSituationProposer && hasSituationTitles) && !hasLegacyTitles {
+		return nil, fmt.Errorf("configured renderer supports neither situation-first nor legacy title planning")
 	}
 
 	worldDate := req.WorldNow.Format(time.DateOnly)
@@ -161,6 +168,10 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 		if err != nil {
 			return nil, fmt.Errorf("resolve BBS title historical context: %w", err)
 		}
+	}
+
+	if hasSituationProposer && hasSituationTitles {
+		return p.planSituationFirstBatch(ctx, materializer, decision, situationProposer, situationTitlePlanner, req, titleAsOf)
 	}
 
 	planned := make(map[int]bbsengine.PlannedPost, len(req.Slots))
