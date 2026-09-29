@@ -70,8 +70,8 @@ func TestGenerateBoardPostCarriesPeriodNativeConversationFrame(t *testing.T) {
 		"当時の本人として普通に書く",
 		"現代から振り返る説明",
 		"ヘッダを読み上げない",
-		"記事の書き方を説明せず",
-		"文章は自然なら短くて構いません",
+		"canonical Situation はすでに世界で起きた事実",
+		"事実を全部説明する必要はない",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
 			t.Fatalf("body prompt missing compact period-native rule %q:\n%s", want, capturedPrompt)
