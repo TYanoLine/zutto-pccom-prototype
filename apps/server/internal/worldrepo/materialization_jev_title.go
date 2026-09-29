@@ -180,6 +180,10 @@ func (p developmentJevTitlePlanner) ReviewBBSTitleCandidates(_ context.Context, 
 type developmentJevTitleEraValidator struct {
 	advice      worldengine.TitleCandidateAdviceDecision
 	observeOnly bool
+	// claimFree marks candidates (1-based) from a nested-claim pool that declared
+	// no real-world referent. Jev "research" for those would only trigger a
+	// legacy free-form Web lookup with nothing concrete to verify.
+	claimFree map[int]bool
 }
 
 func (v developmentJevTitleEraValidator) ValidateBBSTitleEra(_ context.Context, req llm.BBSTitleEraRequest) (llm.BBSTitleEraReview, error) {
@@ -196,6 +200,10 @@ func (v developmentJevTitleEraValidator) ValidateBBSTitleEra(_ context.Context, 
 			status = llm.BBSTitleEraOK
 		default:
 			status = llm.BBSTitleEraResearch
+		}
+		if status == llm.BBSTitleEraResearch && v.claimFree[candidate] {
+			status = llm.BBSTitleEraOK
+			reason += "; claim-free候補のためWeb史料確認を省略"
 		}
 		if v.observeOnly {
 			reason = fmt.Sprintf("LAB observe-only: original=%s; %s", status, reason)
@@ -293,4 +301,20 @@ func (r *Repository) developmentJevTitleAdviceMode(
 		return decision, true, fmt.Errorf("Jev title advice omitted era candidates: got %d want %d", len(decision.Era), len(titles))
 	}
 	return decision, true, nil
+}
+
+// developmentClaimFreeCandidates returns candidates of a large nested-claim
+// pool that own no historical claim. Smaller legacy pools carry no per-candidate
+// claim classification, so nothing is treated as claim-free there.
+func developmentClaimFreeCandidates(pool llm.BBSTitleCandidates) map[int]bool {
+	if len(pool.Titles) < 100 {
+		return nil
+	}
+	out := map[int]bool{}
+	for i, title := range pool.Titles {
+		if len(historicalClaimsForTitle(pool, title)) == 0 {
+			out[i+1] = true
+		}
+	}
+	return out
 }
