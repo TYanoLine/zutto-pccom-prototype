@@ -43,7 +43,7 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	}
 	referentRule := ""
 	if requiredReferent != "" {
-		referentRule = fmt.Sprintf("\n- canonical referent「%s」が本文理解に必要なら自然な位置で明示する。別対象へ置き換えない。", requiredReferent)
+		referentRule = fmt.Sprintf("\n- canonical referent「%s」。表示件名がこの対象名を明示していない場合、本文の自然な位置で対象名を少なくとも一度明示する。対象を別の作品・製品・店等へ置き換えない。", requiredReferent)
 	}
 	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
 	kind := strings.TrimSpace(req.Kind)
@@ -73,7 +73,7 @@ canonical Situation / thread facts:
 ルール:
 - canonical Situation はすでに世界で起きた事実。内容・人物・対象・因果を変えず、書かれていない新しい出来事を足さない。
 - 事実を全部説明する必要はない。この人物がその瞬間に実際に口にしそうな部分だけを書く。
-- ヘッダは読者に見えているので、件名・投稿者・日時・掲示板を本文で読み上げない。用件から自然に始める。
+- ヘッダを読み上げない。件名・投稿者・日時・掲示板は読者に見えているので、本文は用件から自然に始める。
 - discourse_mode と typed Situation の形をそのまま文章行為にする。ask_peersだけが質問を主目的にし、それ以外へ「みなさんは？」等の質問を付け足さない。
 - replyなら親記事の文脈へ反応する。root/replyを変更しない。
 - supplied historical facts と canonical Situation にない実在固有名詞、仕様、価格、発売時期、攻略情報などを追加しない。
