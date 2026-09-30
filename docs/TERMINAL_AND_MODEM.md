@@ -58,8 +58,11 @@ colors, full-width continuation cells, cursor positions, and host commands.
   status row at the top. The row shows `オフライン` while idle; during call
   setup it shows `発信中…`, `呼出中…`, or `接続処理中…`, and during
   carrier recovery it shows `再接続中…`. These in-progress labels pulse
-  subtly so muted users can still tell that the call is advancing. Reduced-motion
-  preferences disable the animation without changing the text. Once the carrier
+  subtly and include a compact three-bar activity indicator whose bars light in
+  sequence, so muted users can still tell that the call is advancing. The
+  indicator is absent while idle and after a stable connection is established.
+  Reduced-motion preferences keep the indicator visible but static and disable
+  the label pulse without changing the text. Once the carrier
   is established, the row switches to the connected host name (or local-test
   name), alongside current session elapsed time and current-session pseudo
   telephone charge. The name may ellipsize, while elapsed time and charge remain
