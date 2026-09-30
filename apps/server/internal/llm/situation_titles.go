@@ -25,8 +25,8 @@ func (p StructuredOpenAIProvider) GenerateBBSSituationTitles(ctx context.Context
 		return BBSSituationTitleDraft{}, err
 	}
 	recent, _ := json.Marshal(req.RecentSubjects)
-	prompt := fmt.Sprintf(`1996年前後の日本の草の根パソコン通信BBSです。
-以下の各記事について、すでに確定しているSituationを表す自然なroot件名だけを書いてください。
+	prompt := fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、すでに正本化されたSituationからBBSの記事一覧に表示するroot件名を作ります。
+Situationはすでに世界で起きた事実です。各人物がそのSituationについて件名欄へ自然に書く短い件名を1つずつ付けてください。件名のために別の出来事や対象を作る必要はありません。
 
 局: %s
 地域: %s
@@ -34,17 +34,13 @@ func (p StructuredOpenAIProvider) GenerateBBSSituationTitles(ctx context.Context
 板の範囲: %s
 世界日付: %s
 
-ルール:
-- Situationと人物プロフィールは事実です。件名のために新しい出来事・対象・評価・固有名詞を足さない。
-- 本人が件名欄へ普通に入力しそうな日本語にする。説明文や検索見出しに整える必要はない。
-- 36文字以内、1行、Re:なし。
-- 同じバッチや直近件名と同じ言い回しを機械的に繰り返さない。
-
-直近のroot件名:
+recent root subjects（文脈・重複回避の材料）:
 %s
 
-確定済み記事:
-%s`, req.HostName, req.HostRegion, req.BoardName, req.BoardScope, req.WorldDate, string(recent), string(input))
+canonical articles:
+%s
+
+出力する件名は36文字以内・1行・Re:なしです。`, req.HostName, req.HostRegion, req.BoardName, req.BoardScope, req.WorldDate, string(recent), string(input))
 
 	properties := make(map[string]any, len(req.Articles))
 	required := make([]string, 0, len(req.Articles))
