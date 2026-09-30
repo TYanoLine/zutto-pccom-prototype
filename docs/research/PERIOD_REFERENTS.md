@@ -21,7 +21,7 @@
 
 ## オンデマンド調査で育つHistorical KB
 
-通常のタイトル生成では、PeriodReferents未収録の実在名を候補段階で禁止しない。候補はまだworld factではなく、OpenAIは各候補と同時に `historical_claims` を返す。claimはタイトル全文ではなく、`PC-9821Xa` のような再利用可能なsubjectと、`product_availability` / `technical_capability` 等のknowledge kind、最小限の確認事項を持つ。
+通常のタイトル生成では、PeriodReferents未収録の実在名を候補段階で禁止しない。候補はまだworld factではなく、Azure OpenAIは各候補と同時に `historical_claims` を返す。claimはタイトル全文ではなく、`PC-9821Xa` のような再利用可能なsubjectと、`product_availability` / `technical_capability` 等のknowledge kind、最小限の確認事項を持つ。
 
 採用候補の流れは次の順序に固定する。
 

@@ -7,7 +7,7 @@ Updated: 2026-09-28
 
 Keep accepted BBS subjects unchanged while allowing Article Detail generation to become concrete enough that the resulting article/append clearly refers to a plausible 1996-era situation.
 
-The Article Detail planner may use OpenAI Responses API built-in `web_search` when external historical facts are needed.
+The Article Detail planner may use Azure OpenAI Responses API built-in `web_search` when external historical facts are needed.
 
 ## Relationship to SDD-001
 
@@ -65,7 +65,7 @@ A reply should inherit the current thread context. If the root already establish
 
 Web search remains available when the reply needs an additional external fact that is not already canonical.
 
-## OpenAI integration
+## Azure OpenAI integration
 
 The Article Detail structured Responses API call uses:
 

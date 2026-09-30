@@ -11,7 +11,7 @@ At the start of this experiment, the title-first BBS planner generated title can
 1. title-era routing (`safe_without_research` / `research` / `logically_impossible`), and
 2. title-to-world-event/persona fit.
 
-The experiment asked whether a single large OpenAI title pool can emit both concrete candidate titles and their historical-research hints accurately enough that the first Jev role is no longer necessary.
+The experiment asked whether a single large Azure OpenAI title pool can emit both concrete candidate titles and their historical-research hints accurately enough that the first Jev role is no longer necessary.
 
 The second role (persona/event fit) is a separate question and was **not** measured by this PoC, because the PoC sent no world events to Jev.
 
@@ -19,7 +19,7 @@ World date: `1996-08-26`.
 
 ## PoC shape
 
-The debug endpoint `/api/debug/bbs-title-jev-poc` generates 100 candidate titles in one structured OpenAI call, then asks Jev to perform title-era routing over the same candidates.
+The debug endpoint `/api/debug/bbs-title-jev-poc` generates 100 candidate titles in one structured Azure OpenAI call, then asks Jev to perform title-era routing over the same candidates.
 
 This endpoint remains a diagnostic harness. After the experiment, the shared production planner was changed to request `CandidateCount == 100` for contextual title generation; the 20-candidate shape remains only as a compatibility default for other callers.
 
@@ -130,7 +130,7 @@ The production Jev integration also scores title × world-event/persona fit and 
 
 Before removing Jev entirely, compare its fit decisions with either:
 
-- the existing OpenAI `ReviewBBSTitleCandidates` path, or
+- the existing Azure OpenAI `ReviewBBSTitleCandidates` path, or
 - a large-pool structured generation/review design that includes the already-fixed world-event slots without allowing the model to rewrite them.
 
 The production planner now follows that scoped conclusion: the **era-routing role has been removed from Jev**, while the **fit/assignment role remains** and is evaluated separately.
@@ -144,7 +144,7 @@ As of the production change following this PoC:
 - claim-free candidates bypass title-era Historical KB lookup;
 - claim-bearing tentative winners require Historical KB/research verification;
 - Jev is invoked in fit-only mode and does not ask title-era questions;
-- Jev/OpenAI fit review is bounded to at most 20 titles × 20 remaining world events per fit batch;
+- Jev/Azure OpenAI fit review is bounded to at most 20 titles × 20 remaining world events per fit batch;
 - a second 100-title generation is recovery only, not the normal path.
 
 This is intentionally a title-planning decision, not a conclusion that Jev is unnecessary elsewhere.
