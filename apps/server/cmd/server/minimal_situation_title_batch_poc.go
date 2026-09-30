@@ -172,7 +172,7 @@ INPUT:
 %s`, host.Name, host.Region, board.Name, string(data))
 }
 
-func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey string) http.HandlerFunc {
+func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, endpoint, apiKey, defaultModel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
@@ -182,16 +182,14 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 		}
 		if strings.TrimSpace(apiKey) == "" {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "OPENAI_API_KEY is not configured"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "AZURE_OPENAI_API_KEY is not configured"})
 			return
 		}
 		model := strings.TrimSpace(r.URL.Query().Get("model"))
+		if model == "" { model = strings.TrimSpace(defaultModel) }
 		if model == "" {
-			model = "gpt-6-luna"
-		}
-		if model != "gpt-6-luna" && model != "gpt-5.6-luna" {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "model must be gpt-6-luna or gpt-5.6-luna"})
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "AZURE_OPENAI_MODEL is not configured"})
 			return
 		}
 		count := 20
@@ -278,7 +276,7 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 		situationPrompt := minimalSituationPrompt(host, board, slots)
 		stage1Ctx, stage1Cancel := context.WithTimeout(r.Context(), 120*time.Second)
 		defer stage1Cancel()
-		stage1, err := callMinimalOpenAIJSON(stage1Ctx, apiKey, model, situationPrompt, "minimal_bbs_situations", minimalBatchSituationSchema(slots), 5200)
+		stage1, err := callMinimalAzureOpenAIJSON(stage1Ctx, endpoint, apiKey, model, situationPrompt, "minimal_bbs_situations", minimalBatchSituationSchema(slots), 5200)
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "situation generation: " + err.Error()})
@@ -294,7 +292,7 @@ func newMinimalSituationTitleBatchPoCHandler(repo *worldrepo.Repository, apiKey 
 		postPrompt := minimalPostPrompt(host, board, slots, situationWire.Situations)
 		stage2Ctx, stage2Cancel := context.WithTimeout(r.Context(), 120*time.Second)
 		defer stage2Cancel()
-		stage2, err := callMinimalOpenAIJSON(stage2Ctx, apiKey, model, postPrompt, "minimal_bbs_posts", minimalBatchPostSchema(slots), 7600)
+		stage2, err := callMinimalAzureOpenAIJSON(stage2Ctx, endpoint, apiKey, model, postPrompt, "minimal_bbs_posts", minimalBatchPostSchema(slots), 7600)
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
 			_ = json.NewEncoder(w).Encode(map[string]any{"error": "post generation: " + err.Error()})

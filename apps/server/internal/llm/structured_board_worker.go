@@ -32,8 +32,3 @@ func (p StructuredOpenAIProvider) GenerateBoardPost(ctx context.Context, req Boa
 	return p.OpenAIProvider.GenerateBoardPost(ctx, prepareStructuredBoardPostRequest(req))
 }
 
-type StructuredGeminiProvider struct{ GeminiProvider }
-
-func (p StructuredGeminiProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
-	return p.GeminiProvider.GenerateBoardPost(ctx, prepareStructuredBoardPostRequest(req))
-}
