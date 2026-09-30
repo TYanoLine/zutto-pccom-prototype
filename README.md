@@ -82,8 +82,10 @@ The prototype runs without an API key. `internal/llm/openai.go` shows the provid
 ```bash
 export AZURE_OPENAI_ENDPOINT=https://YOUR-RESOURCE-NAME.openai.azure.com
 export AZURE_OPENAI_API_KEY=...
-export AZURE_OPENAI_MODEL=...
+# Use the Azure deployment name (not necessarily the underlying model ID).
+export AZURE_OPENAI_MODEL=zutto-pccom-gpt-6-luna
 # Optional, if the image PoC is used:
+# Requires a separate image model deployment on the Azure resource.
 export AZURE_OPENAI_IMAGE_MODEL=...
 ```
 

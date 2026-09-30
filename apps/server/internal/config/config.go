@@ -32,7 +32,7 @@ func Load() Config {
 		Addr:                        env("ADDR", ":8080"),
 		AzureOpenAIEndpoint:         os.Getenv("AZURE_OPENAI_ENDPOINT"),
 		AzureOpenAIKey:              os.Getenv("AZURE_OPENAI_API_KEY"),
-		AzureOpenAIModel:            env("AZURE_OPENAI_MODEL", "gpt-6-luna"),
+		AzureOpenAIModel:            env("AZURE_OPENAI_MODEL", "zutto-pccom-gpt-6-luna"),
 		AzureOpenAIImageModel:       env("AZURE_OPENAI_IMAGE_MODEL", "gpt-image-1"),
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),

@@ -2,6 +2,19 @@ package config
 
 import "testing"
 
+func TestAzureOpenAIDefaultModelUsesDeploymentName(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_MODEL", "")
+	t.Setenv("AZURE_OPENAI_IMAGE_MODEL", "")
+
+	cfg := Load()
+	if cfg.AzureOpenAIModel != "zutto-pccom-gpt-6-luna" {
+		t.Fatalf("AzureOpenAIModel=%q want deployment name %q", cfg.AzureOpenAIModel, "zutto-pccom-gpt-6-luna")
+	}
+	if cfg.AzureOpenAIImageModel != "gpt-image-1" {
+		t.Fatalf("AzureOpenAIImageModel=%q want %q", cfg.AzureOpenAIImageModel, "gpt-image-1")
+	}
+}
+
 func TestHistoricalReferencesDefaultOff(t *testing.T) {
 	t.Setenv("HISTORICAL_REFERENCES_ENABLED", "")
 	if Load().HistoricalReferencesEnabled {
