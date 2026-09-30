@@ -9,11 +9,15 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
-// OpenAIProvider intentionally uses net/http so the starter remains decoupled
-// from SDK release cadence. Codex can replace this with openai-go/v3 later.
+// OpenAIProvider targets Azure OpenAI's OpenAI-compatible v1 REST surface.
+// It intentionally uses net/http so provider authentication and endpoint
+// selection remain explicit at the infrastructure boundary.
 type OpenAIProvider struct {
+	Endpoint string
 	APIKey string
 	Model  string
 	Client *http.Client
@@ -185,7 +189,7 @@ func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity stri
 
 func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbosity string, maxOutputTokens int) (responseTextResult, error) {
 	if p.APIKey == "" {
-		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
+		return responseTextResult{}, errors.New("AZURE_OPENAI_API_KEY is not set")
 	}
 	client := p.Client
 	if client == nil {
@@ -196,19 +200,18 @@ func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbo
 	}
 	payload := map[string]any{"model": p.Model, "input": prompt, "text": map[string]any{"verbosity": verbosity}, "max_output_tokens": maxOutputTokens}
 	body, _ := json.Marshal(payload)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
-	if err != nil {
-		return responseTextResult{}, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
-	httpReq.Header.Set("Content-Type", "application/json")
+	endpoint, err := azureopenai.URL(p.Endpoint, "responses")
+	if err != nil { return responseTextResult{}, err }
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil { return responseTextResult{}, err }
+	if err := azureopenai.ApplyAPIKey(httpReq, p.APIKey); err != nil { return responseTextResult{}, err }
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return responseTextResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return responseTextResult{}, fmt.Errorf("openai responses API returned %s", resp.Status)
+		return responseTextResult{}, fmt.Errorf("Azure OpenAI responses API returned %s", resp.Status)
 	}
 	var decoded struct {
 		Model  string `json:"model"`
@@ -251,7 +254,7 @@ func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbo
 			}
 		}
 	}
-	return responseTextResult{}, errors.New("no output_text in OpenAI response")
+	return responseTextResult{}, errors.New("no output_text in Azure OpenAI response")
 }
 
 func validateBBSTimelineIntentDraft(req BBSTimelineIntentRequest, d BBSTimelineIntentDraft) error {

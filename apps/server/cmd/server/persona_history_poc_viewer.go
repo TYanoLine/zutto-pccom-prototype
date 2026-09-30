@@ -45,7 +45,7 @@ button{background:#12301e;color:#e8ffed;border:1px solid #4a9362;padding:10px 14
 <div>
 <div class="eyebrow">PERSONA HISTORY GROWTH PoC</div>
 <h1>5人が「投稿した結果」で人物史を持ちはじめる</h1>
-<p>初期状態は年齢・職業・関心・活動傾向だけ。投稿本文はOpenAIで生成し、その本文を別の抽出パスが読み、明示的な自己申告や観測可能な行動だけをhistory候補にします。採用されたhistoryは次ラウンドの投稿生成へ渡されます。</p>
+<p>初期状態は年齢・職業・関心・活動傾向だけ。投稿本文はAzure OpenAIで生成し、その本文を別の抽出パスが読み、明示的な自己申告や観測可能な行動だけをhistory候補にします。採用されたhistoryは次ラウンドの投稿生成へ渡されます。</p>
 </div>
 <a href="/poc/persona-timeline">TIME PoC</a>
 </div>

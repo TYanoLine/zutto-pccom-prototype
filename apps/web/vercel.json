@@ -5,7 +5,6 @@
     { "source": "/poc/image-artifact", "destination": "/" },
     { "source": "/poc/materialization-lab-viewer", "destination": "/" },
     { "source": "/poc/persona-lab", "destination": "/" },
-    { "source": "/poc/persona-timeline", "destination": "/" },
-    { "source": "/poc/gemini-article-viewer", "destination": "/" }
+    { "source": "/poc/persona-timeline", "destination": "/" }
   ]
 }

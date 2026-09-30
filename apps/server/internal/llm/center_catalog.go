@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
 type CenterName struct { Name string `json:"name"` }
 
-type CenterCatalogGenerator struct { APIKey string; Model string; Client *http.Client }
+type CenterCatalogGenerator struct { Endpoint string; APIKey string; Model string; Client *http.Client }
 
 func (g CenterCatalogGenerator) Generate(ctx context.Context, count int, worldDate string) ([]CenterName, error) {
 	prompt := fmt.Sprintf(`Create exactly %d fictional names for independent Japanese dial-up personal BBS host stations that could plausibly appear together in one Japanese BBS telephone directory around %s.
@@ -69,7 +71,7 @@ Return JSON only as {"centers":[{"name":"..."}]}. There must be exactly %d uniqu
 }
 
 func (g CenterCatalogGenerator) generateWithPrompt(ctx context.Context, count int, prompt string) ([]CenterName, error) {
-	if g.APIKey == "" { return nil, errors.New("OPENAI_API_KEY is not set") }
+	if g.APIKey == "" { return nil, errors.New("AZURE_OPENAI_API_KEY is not set") }
 	if count <= 0 { return nil, errors.New("center count must be positive") }
 	// A fresh world currently asks Luna for 100 unique station names in one
 	// structured response. Production observations have exceeded 60 seconds,
@@ -87,8 +89,9 @@ func (g CenterCatalogGenerator) generateWithPrompt(ctx context.Context, count in
 		}},
 	}
 	body, err := json.Marshal(payload); if err != nil { return nil, err }
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body)); if err != nil { return nil, err }
-	req.Header.Set("Authorization", "Bearer "+g.APIKey); req.Header.Set("Content-Type", "application/json")
+	endpoint, err := azureopenai.URL(g.Endpoint, "responses"); if err != nil { return nil, err }
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body)); if err != nil { return nil, err }
+	if err := azureopenai.ApplyAPIKey(req, g.APIKey); err != nil { return nil, err }
 	resp, err := client.Do(req); if err != nil { return nil, err }; defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, readErr := io.ReadAll(io.LimitReader(resp.Body, 16*1024)); detail := strings.TrimSpace(string(b))

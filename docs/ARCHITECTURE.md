@@ -40,7 +40,7 @@ HostProgram registry
       |
       +---- shared BBS/world services ---- WorldEngine ---- PostgreSQL
       |                                      |
-      |                                      +--------- OpenAIProvider
+      |                                      +--------- Azure OpenAI provider
       |
       +---- output byte/text stream
 ```
@@ -82,7 +82,7 @@ terminal/host action
       -> read last_simulated_at + simulation_version
       -> acquire narrow per-scope lease if stale
       -> WorldEngine catch-up
-      -> optional OpenAIProvider prose/enrichment
+      -> optional Azure OpenAI provider prose/enrichment
       -> validate + COMMIT
       -> release lease
  -> HostProgram renders committed state
@@ -135,7 +135,7 @@ World/observation clock
 
 The shared planner keeps actor/time/root-vs-reply topology world-owned, then
 uses a **title-first candidate pool** for root wording. The normal contextual
-OpenAI path generates **100 uncommitted subjects in one structured call** using
+Azure OpenAI path generates **100 uncommitted subjects in one structured call** using
 the world date, recent board history, avoid-list and bounded historical
 referents. Each candidate carries its own nested `historical_claims[]` so a
 claim cannot drift onto a different title by array index. The prompt asks for a
@@ -155,7 +155,7 @@ chunks of at most 20 titles × 20 remaining world events; Jev's era questions ar
 suppressed for this path. The topic-identity hard floor is deliberately low so it
 blocks clear topicless/hidden-referent roots without preferring complete sentences;
 higher specificity is a ranking signal. If Jev fit is unavailable, the existing
-OpenAI title reviewer remains the fallback. Code performs the one-title/one-slot
+Azure OpenAI title reviewer remains the fallback. Code performs the one-title/one-slot
 assignment.
 
 Only after fit, duplicate checks and any required historical verification does
@@ -372,6 +372,6 @@ Current code intentionally still has shortcuts, including:
 - incomplete real line-occupancy/NPC scheduler
 - simplified terminal/ANSI behavior
 - atmospheric rather than fully historical telephone tariffs
-- OpenAI provider boundary present but AI not yet part of normal host posting behavior
+- Azure OpenAI provider boundary present but AI not yet part of normal host posting behavior
 
 These shortcuts are adapter/prototype boundaries and must not become domain rules.

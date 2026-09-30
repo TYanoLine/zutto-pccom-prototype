@@ -16,7 +16,7 @@ A runnable vertical-slice starter for a 1996 Japanese PC-98-style persistent AI 
 - one sample BBS with read/write/users/logout commands
 - posts survive reconnects for the lifetime of the Go process
 - PostgreSQL schema scaffold
-- optional OpenAI Responses API provider scaffold
+- optional Azure OpenAI Responses API provider scaffold
 - product/architecture/Codex handoff docs
 
 ## Prerequisites
@@ -75,16 +75,19 @@ docker compose up -d postgres
 
 The running server still uses its in-memory store. Connecting pgx is an intentional next milestone; see `CODEX.md`.
 
-## OpenAI
+## Azure OpenAI
 
 The prototype runs without an API key. `internal/llm/openai.go` shows the provider boundary and Responses API call shape. Configure later with:
 
 ```bash
-export OPENAI_API_KEY=...
-export OPENAI_MODEL=...
+export AZURE_OPENAI_ENDPOINT=https://YOUR-RESOURCE-NAME.openai.azure.com
+export AZURE_OPENAI_API_KEY=...
+export AZURE_OPENAI_MODEL=...
+# Optional, if the image PoC is used:
+export AZURE_OPENAI_IMAGE_MODEL=...
 ```
 
-Do not make OpenAI conversation state the world database. See `docs/LLM_POLICY.md`.
+Do not make Azure OpenAI conversation state the world database. See `docs/LLM_POLICY.md`.
 
 ## Important prototype compromises
 

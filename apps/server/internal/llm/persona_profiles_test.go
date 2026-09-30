@@ -17,6 +17,7 @@ func TestGeneratePersonaProfilesKeepsPresentationBoundary(t *testing.T) {
 	}`
 	var prompt string
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {

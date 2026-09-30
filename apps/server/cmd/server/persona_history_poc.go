@@ -125,7 +125,7 @@ func (l *personaHistoryLab) handleStart(w http.ResponseWriter, r *http.Request) 
 	}
 	if !l.available || l.generator == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "OpenAI persona-history generation is not configured"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Azure OpenAI persona-history generation is not configured"})
 		return
 	}
 	if !publicLabAdmission.start(w, r, publicLabPhone, 1) {

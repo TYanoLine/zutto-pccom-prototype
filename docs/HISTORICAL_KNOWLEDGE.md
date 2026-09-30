@@ -10,7 +10,7 @@ This PoC adds a persistent operator-review workflow without making historical re
 
 1. An operator opens `/admin/research`.
 2. A topic/question is submitted.
-3. The server asks the OpenAI Responses API to research it with the built-in `web_search` tool.
+3. The server asks the Azure OpenAI Responses API to research it with the built-in `web_search` tool.
 4. The model must return a usable provisional answer, confidence, and a list of information it could not verify.
 5. Search citations returned by the Responses API are stored with the case.
 6. The whole case is persisted in PostgreSQL and is global rather than tied to a generated user world.

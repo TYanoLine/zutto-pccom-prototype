@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
 type minimalBBSPoCOutput struct {
@@ -63,7 +65,7 @@ Huカードの保管場所が統一されておらず、ケースに入ったも
 - 件名と本文だけをJSONで返す。`
 }
 
-func newMinimalBBSPoCHandler(apiKey string) http.HandlerFunc {
+func newMinimalBBSPoCHandler(endpoint, apiKey, defaultModel string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
@@ -73,16 +75,14 @@ func newMinimalBBSPoCHandler(apiKey string) http.HandlerFunc {
 		}
 		if strings.TrimSpace(apiKey) == "" {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "OPENAI_API_KEY is not configured"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "AZURE_OPENAI_API_KEY is not configured"})
 			return
 		}
 		model := strings.TrimSpace(r.URL.Query().Get("model"))
+		if model == "" { model = strings.TrimSpace(defaultModel) }
 		if model == "" {
-			model = "gpt-6-luna"
-		}
-		if model != "gpt-6-luna" && model != "gpt-5.6-luna" {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "model must be gpt-6-luna or gpt-5.6-luna"})
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "AZURE_OPENAI_MODEL is not configured"})
 			return
 		}
 
@@ -118,13 +118,22 @@ func newMinimalBBSPoCHandler(apiKey string) http.HandlerFunc {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 		defer cancel()
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
+		url, err := azureopenai.URL(endpoint, "responses")
+		if err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 		if err != nil {
 			http.Error(w, `{"error":"build request"}`, http.StatusInternalServerError)
 			return
 		}
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-		req.Header.Set("Content-Type", "application/json")
+		if err := azureopenai.ApplyAPIKey(req, apiKey); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
 
 		started := time.Now()
 		resp, err := http.DefaultClient.Do(req)
@@ -137,7 +146,7 @@ func newMinimalBBSPoCHandler(apiKey string) http.HandlerFunc {
 		defer resp.Body.Close()
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			w.WriteHeader(http.StatusBadGateway)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": fmt.Sprintf("openai returned %s", resp.Status), "latency_ms": latency.Milliseconds()})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": fmt.Sprintf("Azure OpenAI returned %s", resp.Status), "latency_ms": latency.Milliseconds()})
 			return
 		}
 
@@ -153,7 +162,7 @@ func newMinimalBBSPoCHandler(apiKey string) http.HandlerFunc {
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
 			w.WriteHeader(http.StatusBadGateway)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "decode OpenAI response: " + err.Error(), "latency_ms": latency.Milliseconds()})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "decode Azure OpenAI response: " + err.Error(), "latency_ms": latency.Milliseconds()})
 			return
 		}
 		var text string

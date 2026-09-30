@@ -216,7 +216,7 @@ func (l *personaLab) handleStartProfiles(w http.ResponseWriter, r *http.Request)
 	}
 	if !l.profileGeneration || l.generator == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "OpenAI profile generation is not configured"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Azure OpenAI profile generation is not configured"})
 		return
 	}
 	count, seed, profile := personaLabParams(r)

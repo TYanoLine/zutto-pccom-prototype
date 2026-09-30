@@ -195,11 +195,11 @@ Once the World Engine selects a root-post slot (actor, board, timestamp, action/
 
 ### Title-first semantic advisor
 
-When Jev is configured, the development title-first path also uses System One as a fast semantic classifier after OpenAI has generated the 20 candidate titles for a board. One bounded Jev request per board estimates two era-routing probabilities for each candidate (`safe_without_research`, `logically_impossible`) and a compatibility probability for each candidate × already-selected world root slot.
+When Jev is configured, the development title-first path also uses System One as a fast semantic classifier after Azure OpenAI has generated the 20 candidate titles for a board. One bounded Jev request per board estimates two era-routing probabilities for each candidate (`safe_without_research`, `logically_impossible`) and a compatibility probability for each candidate × already-selected world root slot.
 
 These probabilities still do not create world facts. Code applies conservative thresholds, performs deterministic one-title/one-slot matching, and persists only the resulting World-side adoption. Ambiguous named products/works/services remain `research`; selected `research` candidates still require the separate Historical Knowledge/Web evidence path in strict mode. A high Jev fit score cannot bypass that verification. In Lab `observe-only` mode, the original Jev era classification is recorded but the diagnostic gate remains permissive exactly as before.
 
-If Jev is unavailable, malformed, or times out, title-first falls back to the existing OpenAI Era Validator and title-slot reviewer for that board. Candidate wording generation, Article Detail materialization, and final article prose remain outside the Jev title advisor.
+If Jev is unavailable, malformed, or times out, title-first falls back to the existing Azure OpenAI Era Validator and title-slot reviewer for that board. Candidate wording generation, Article Detail materialization, and final article prose remain outside the Jev title advisor.
 
 ## Diegetic present
 

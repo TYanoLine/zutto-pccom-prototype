@@ -19,7 +19,7 @@ import (
 
 // materializationLab is a development-only, non-canonical experiment harness.
 // It clones the current development host into an isolated MemoryStore and runs
-// the real materialization pipeline against the clone. OpenAI credentials stay
+// the real materialization pipeline against the clone. Azure OpenAI credentials stay
 // server-side on Render and no experiment write can reach the canonical store.
 type materializationLab struct {
 	store         debugExportStore

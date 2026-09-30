@@ -11,7 +11,7 @@ Vercelでは `/api/materialization-lab-fresh`。完了後は `/poc/materializati
 - 最初の生成には「<世界日付>のパソコン通信botを再現します。以下条件の掲示板における記事タイトル候補を20個作ってください。掲示板名『<板名>』具体的な固有名詞を含めても良いです。」のみを使用する。人物・投稿理由・件名の文体指示を混ぜない。1995年固定ではなく実際の世界日付を使う。
 - 独立rootの投稿枠がある板ごとに、人物・投稿理由・canonical situationを見せずに20候補を自由生成する。タイトル候補はまだ世界事実ではなく、具体的な固有名詞や個人経験を含む「世界エンジンへの提案」として扱う。
 - Jevが設定されている場合、候補20件を板単位で1回のSystem One requestへまとめ、各候補のEra一次振り分け（外部史料確認なしで安全か／world_dateだけで論理的に不可能か）と、候補×world-selected投稿枠の人物・役割・cause・discourse整合度を確率で評価する。Jevはタイトルを生成・修正せず、event_idや世界事実を直接確定しない。
-- World側がJev確率へ保守的な閾値を適用し、Eraを `ok / research / ng` に変換する。`research` は候補のまま保持し、人物枠へ仮採用された候補だけWeb史料確認する。strict時の史実最終判定は従来どおりHistorical Knowledge/Web evidenceであり、Jevの確率では代替しない。Jev利用不能・不正応答・timeout時は、その板だけ既存OpenAI Era Validator / title-slot reviewerへfallbackする。
+- World側がJev確率へ保守的な閾値を適用し、Eraを `ok / research / ng` に変換する。`research` は候補のまま保持し、人物枠へ仮採用された候補だけWeb史料確認する。strict時の史実最終判定は従来どおりHistorical Knowledge/Web evidenceであり、Jevの確率では代替しない。Jev利用不能・不正応答・timeout時は、その板だけ既存Azure OpenAI Era Validator / title-slot reviewerへfallbackする。
 - 人物・投稿枠への割当はJevの適合確率を材料にWorld側コードが決定的に1候補1枠で行う。既存PersonaFactsと明確に矛盾する候補は低適合として採用しないが、既存Factsにないという理由だけで個人経験を一律拒否しない。採用summaryはタイトルから直接読み取れる最小限に限定し、Jevに新しい出来事を文章生成させない。
 - 採用が確定した時点で、タイトルとreview summaryがその投稿の `title_first` canonical world eventになる。**採用タイトルはそのまま実スレッドの件名として固定し、本文workerによる改題を許さない。** summaryはタイトルから直接読み取れる最小限の出来事だけを正本化し、タイトルにない機種・場所・原因・購入経路・進捗等は追加しない。本文workerはこの採用済みeventと既存Persona/BBS factsの範囲だけを文章化する。
 - title-first LABでは、新規rootは採用済みタイトルからだけ作る。既存rootの `continuation_progress` を独立した別rootへ昇格させず、候補一覧にない抽象件名を増やさない。採用rootにはWorld/Jevが選んだ返信機会から0〜3件のreplyだけを付ける。
@@ -47,7 +47,7 @@ Vercel経由では `/api/materialization-lab-fresh`。完了後は `/poc/materia
 
 開発者・AIエージェントがHTTP経由で実際の生成処理を起動し、結果を比較するための開発専用IF。端末操作を人に繰り返してもらわず、生成 → 結果照合 → 修正 → 再生成を行う。
 
-各labは既存の開発ホストを独立したMemoryStoreへ複製し、その中で生成する。実験の記事・人物事実を保存済みデモ世界へ書き戻さない。OpenAIの認証情報はサーバー側に保持され、実際のproviderを使うため実行にはLLM利用が発生し得る。世界の正本や通常の世界進行スケジューラとして使わない。
+各labは既存の開発ホストを独立したMemoryStoreへ複製し、その中で生成する。実験の記事・人物事実を保存済みデモ世界へ書き戻さない。Azure OpenAIの認証情報はサーバー側に保持され、実際のproviderを使うため実行にはLLM利用が発生し得る。世界の正本や通常の世界進行スケジューラとして使わない。
 
 ## 記事本文の共有具体化
 
@@ -119,7 +119,7 @@ freshでは次を照合する。
 - `failures`、`empty_post_ids`、`post_count` と `body_count` に欠落がないか。0件同士の一致だけで品質検証成功としない。
 - `planning_diagnostic` と `status_text` に異常がないか。
 - `duration_ms` と `usage` による実行時間・利用量。
-- title-firstでは `title_first_timing` を確認する。`jev_title_evaluation_ms/calls/input_tokens/model/fallbacks` がJev評価の実測、`era_routing_ms` / `assignment_review_ms` はJev成功時には主にローカルadapter/検証時間となる。fallbackが発生した板では従来OpenAI評価時間がここへ再び現れる。
+- title-firstでは `title_first_timing` を確認する。`jev_title_evaluation_ms/calls/input_tokens/model/fallbacks` がJev評価の実測、`era_routing_ms` / `assignment_review_ms` はJev成功時には主にローカルadapter/検証時間となる。fallbackが発生した板では従来Azure OpenAI評価時間がここへ再び現れる。
 - `articles` に含まれる件名・本文・投稿者・日時・board/parentと、`source_post_id` / `responds_to_post_id` による返信・因果関係。
 - **現在の会話ビューPoCでは** `producer_episode`、`producer_referents`、`producer_actor_knowledge`、`producer_audience_context`、`producer_contribution`、`producer_must_not` は空であることが正常。Producer briefの整合性ではなく、world-selected shellに反していないか、返信が実際のthread/source本文を自然に受けているか、独立rootが別rootを勝手に共有文脈として扱っていないか、同一人物の発言が継続しているかを確認する。これらのProducer fieldは旧方式との比較用にレスポンス形状へ残している。
 

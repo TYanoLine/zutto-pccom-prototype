@@ -86,6 +86,7 @@ func TestArticleDetailFactIsRenderingMetadataAllowsEventTiming(t *testing.T) {
 func TestMaterializeBBSTitleArticleDetailsEnablesOptionalWebSearchAndReportsUse(t *testing.T) {
 	var captured map[string]any
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -251,6 +252,7 @@ func TestMaterializeBBSTitleArticleDetailsRetriesWithRequiredSearchForSemanticRo
 	var captured []map[string]any
 	call := 0
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {

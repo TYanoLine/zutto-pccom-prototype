@@ -44,9 +44,16 @@ func TestGenerateBoardPostCapturesResponsesUsage(t *testing.T) {
 		}
 	}`
 	provider := OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.String() != "https://test.openai.azure.com/openai/v1/responses" {
+				t.Fatalf("url=%q", req.URL.String())
+			}
+			if req.Header.Get("api-key") != "test-key" || req.Header.Get("Authorization") != "" {
+				t.Fatalf("unexpected Azure auth headers: api-key=%q authorization=%q", req.Header.Get("api-key"), req.Header.Get("Authorization"))
+			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Status:     "200 OK",
@@ -75,6 +82,7 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 	}`
 	var capturedPrompt string
 	provider := OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {

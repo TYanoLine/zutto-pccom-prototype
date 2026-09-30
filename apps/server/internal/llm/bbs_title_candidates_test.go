@@ -147,6 +147,7 @@ func TestContextualTitleCandidatesAllowUncommittedNamesAndUseLowReasoning(t *tes
 	}
 	var captured map[string]any
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -239,6 +240,7 @@ func TestLargeTitlePoolStructurallySeparatesClaimFreeAndClaimBearingCandidates(t
 	}
 	var captured map[string]any
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model: "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {

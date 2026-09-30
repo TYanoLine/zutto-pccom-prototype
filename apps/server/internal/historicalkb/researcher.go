@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
 type ResearchBudget struct {
@@ -19,6 +21,7 @@ type ResearchBudget struct {
 }
 
 type Researcher struct {
+	Endpoint string
 	APIKey string
 	Model  string
 	Client *http.Client
@@ -27,7 +30,7 @@ type Researcher struct {
 
 func (r Researcher) Research(ctx context.Context, topic, question, worldDate, priorContext string) (ResearchResult, error) {
 	if r.APIKey == "" {
-		return ResearchResult{}, errors.New("OPENAI_API_KEY is not set")
+		return ResearchResult{}, errors.New("AZURE_OPENAI_API_KEY is not set")
 	}
 	b := r.Budget
 	if b.MaxToolCalls <= 0 {
@@ -56,19 +59,18 @@ func (r Researcher) Research(ctx context.Context, topic, question, worldDate, pr
 		"text":              researchResultTextConfig(),
 	}
 	body, _ := json.Marshal(payload)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
-	if err != nil {
-		return ResearchResult{}, err
-	}
-	req.Header.Set("Authorization", "Bearer "+r.APIKey)
-	req.Header.Set("Content-Type", "application/json")
+	endpoint, err := azureopenai.URL(r.Endpoint, "responses")
+	if err != nil { return ResearchResult{}, err }
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil { return ResearchResult{}, err }
+	if err := azureopenai.ApplyAPIKey(req, r.APIKey); err != nil { return ResearchResult{}, err }
 	resp, err := client.Do(req)
 	if err != nil {
 		return ResearchResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return ResearchResult{}, fmt.Errorf("openai responses API returned %s", resp.Status)
+		return ResearchResult{}, fmt.Errorf("Azure OpenAI responses API returned %s", resp.Status)
 	}
 	var decoded struct {
 		Status            string `json:"status"`
@@ -95,7 +97,7 @@ func (r Researcher) Research(ctx context.Context, topic, question, worldDate, pr
 		if decoded.IncompleteDetails != nil && strings.TrimSpace(decoded.IncompleteDetails.Reason) != "" {
 			reason = strings.TrimSpace(decoded.IncompleteDetails.Reason)
 		}
-		return ResearchResult{}, fmt.Errorf("openai research response incomplete: %s", reason)
+		return ResearchResult{}, fmt.Errorf("Azure OpenAI research response incomplete: %s", reason)
 	}
 	var text string
 	var sources []SourceEvidence
@@ -114,7 +116,7 @@ func (r Researcher) Research(ctx context.Context, topic, question, worldDate, pr
 		}
 	}
 	if text == "" {
-		return ResearchResult{}, errors.New("no output_text in OpenAI response")
+		return ResearchResult{}, errors.New("no output_text in Azure OpenAI response")
 	}
 	var result ResearchResult
 	if err := json.Unmarshal([]byte(strings.TrimSpace(text)), &result); err != nil {
