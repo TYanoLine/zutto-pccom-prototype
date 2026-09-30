@@ -19,6 +19,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 
 	var capturedPrompt string
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -114,6 +115,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 func TestStructuredOpenAIReasoningEffortIsOptionalAndExplicit(t *testing.T) {
 	var gotReasoning any
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -150,6 +152,7 @@ func TestStructuredOpenAIReasoningEffortIsOptionalAndExplicit(t *testing.T) {
 func TestStructuredOpenAIRetriesTransient429(t *testing.T) {
 	attempts := 0
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -202,6 +205,7 @@ func TestStructuredOpenAIQuota429DoesNotRetry(t *testing.T) {
 
 	attempts := 0
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -240,6 +244,7 @@ func TestStructuredOpenAIRate429HonorsResetHeaderAndRetries(t *testing.T) {
 	attempts := 0
 	start := time.Now()
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
