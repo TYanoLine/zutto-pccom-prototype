@@ -112,7 +112,7 @@ func (g Generator) respondJSON(ctx context.Context,prompt string,out any) error 
 	req,err:=http.NewRequestWithContext(ctx,http.MethodPost,endpoint,bytes.NewReader(body)); if err!=nil{return err}
 	if err:=azureopenai.ApplyAPIKey(req,g.APIKey); err!=nil{return err}
 	resp,err:=client.Do(req); if err!=nil{return err}; defer resp.Body.Close()
-	if resp.StatusCode<200||resp.StatusCode>=300{return fmt.Errorf("Azure Azure OpenAI responses API returned %s",resp.Status)}
+	if resp.StatusCode<200||resp.StatusCode>=300{return fmt.Errorf("Azure OpenAI responses API returned %s",resp.Status)}
 	var decoded struct{Output []struct{Content []struct{Type string `json:"type"`; Text string `json:"text"`} `json:"content"`} `json:"output"`}
 	if err:=json.NewDecoder(resp.Body).Decode(&decoded);err!=nil{return err}
 	var text string
