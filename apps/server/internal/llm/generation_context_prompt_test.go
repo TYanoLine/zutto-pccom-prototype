@@ -29,7 +29,7 @@ func TestSituationPromptExplainsServiceAndUsesPostPurposeAsMaterial(t *testing.T
 			capturedPrompt, _ = payload["input"].(string)
 			response := `{
 				"model":"gpt-test",
-				"output":[{"content":[{"type":"output_text","text":"{\\\"situations\\\":{\\\"slot-1\\\":{\\\"object_class\\\":\\\"game\\\",\\\"change_class\\\":\\\"stuck\\\",\\\"occurrence\\\":\\\"サクラ大戦を進めていて先へ進む手掛かりに迷った\\\",\\\"attempted_actions\\\":\\\"何度か選択肢を変えて試した\\\",\\\"question\\\":\\\"他の会員がどう進めたか聞きたい\\\",\\\"novelty_key\\\":\\\"sakura-progress-question\\\",\\\"must_not\\\":[]}}}"}]}],
+				"output":[{"content":[{"type":"output_text","text":"{\"situations\":{\"slot-1\":{\"object_class\":\"game\",\"change_class\":\"stuck\",\"occurrence\":\"サクラ大戦を進めていて先へ進む手掛かりに迷った\",\"attempted_actions\":\"何度か選択肢を変えて試した\",\"question\":\"他の会員がどう進めたか聞きたい\",\"novelty_key\":\"sakura-progress-question\",\"must_not\":[]}}}"}]}],
 				"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":0},"output_tokens":20,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":50}
 			}`
 			return &http.Response{
@@ -94,7 +94,7 @@ func TestSituationTitlePromptExplainsDownstreamDisplayPurpose(t *testing.T) {
 			capturedPrompt, _ = payload["input"].(string)
 			response := `{
 				"model":"gpt-test",
-				"output":[{"content":[{"type":"output_text","text":"{\\\"titles\\\":{\\\"slot-1\\\":\\\"サクラ大戦、ここからどう進めた？\\\"}}"}]}],
+				"output":[{"content":[{"type":"output_text","text":"{\"titles\":{\"slot-1\":\"サクラ大戦、ここからどう進めた？\"}}"}]}],
 				"usage":{"input_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens":10,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":30}
 			}`
 			return &http.Response{
