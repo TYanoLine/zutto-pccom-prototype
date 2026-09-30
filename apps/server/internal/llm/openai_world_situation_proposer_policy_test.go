@@ -7,18 +7,22 @@ import (
 
 func TestBBSWorldSituationHistoricalPolicyModelMemory(t *testing.T) {
 	got := bbsWorldSituationHistoricalPolicy(BBSWorldSituationProposalRequest{AllowModelHistoricalMemory: true})
-	if !strings.Contains(got, "own historical knowledge") {
-		t.Fatalf("model-memory permission missing: %s", got)
+	for _, want := range []string{"世界日時点", "実在名", "材料"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("model-memory material guidance missing %q: %s", want, got)
+		}
 	}
-	if strings.Contains(got, "unless SUPPLIED HISTORICAL TEXTURE") {
-		t.Fatalf("dictionary-only rule leaked into model-memory: %s", got)
+	if strings.Contains(got, "historical material または existing_facts") {
+		t.Fatalf("dictionary-only boundary leaked into model-memory: %s", got)
 	}
 }
 
 func TestBBSWorldSituationHistoricalPolicyDefault(t *testing.T) {
 	got := bbsWorldSituationHistoricalPolicy(BBSWorldSituationProposalRequest{})
-	if !strings.Contains(got, "unless SUPPLIED HISTORICAL TEXTURE") {
-		t.Fatalf("default sourced boundary changed: %s", got)
+	for _, want := range []string{"historical material", "existing_facts", "材料"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("default sourced boundary missing %q: %s", want, got)
+		}
 	}
 }
 
@@ -27,19 +31,12 @@ func TestBBSWorldSituationHistoricalPolicyConcreteNamePreference(t *testing.T) {
 		AllowModelHistoricalMemory:    true,
 		PreferConcreteHistoricalNames: true,
 	})
-	if !strings.Contains(got, "PREFER that concrete historical name") {
-		t.Fatalf("concrete-name preference missing: %s", got)
+	for _, want := range []string{"実在の対象が自然なら", "具体名", "世界日時点"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("concrete-name material guidance missing %q: %s", want, got)
+		}
 	}
-	if !strings.Contains(got, "not a quota") {
-		t.Fatalf("anti-quota boundary missing: %s", got)
-	}
-	if !strings.Contains(got, "creates new canonical world state") {
-		t.Fatalf("canonicalization boundary missing: %s", got)
-	}
-	if !strings.Contains(got, "no earlier actor-use fact is required") {
-		t.Fatalf("new actor occurrence permission missing: %s", got)
-	}
-	if !strings.Contains(got, "Do not put a generic 'do not name") {
-		t.Fatalf("must_not anti-suppression rule missing: %s", got)
+	if len([]rune(got)) > 80 {
+		t.Fatalf("historical material guidance became verbose: %s", got)
 	}
 }
