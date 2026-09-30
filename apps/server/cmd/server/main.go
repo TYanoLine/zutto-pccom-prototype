@@ -36,7 +36,7 @@ func main() {
 		log.Fatalf("create world clock: %v", err)
 	}
 	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
-	catalogGenerator := llm.CenterCatalogGenerator{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
+	catalogGenerator := llm.CenterCatalogGenerator{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
 
 	var catalogStore *worldcatalog.Store
 	var historyStore *historicalkb.Store
@@ -67,7 +67,7 @@ func main() {
 		defer freshArchive.Close()
 	}
 
-	researcher := historicalkb.Researcher{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
+	researcher := historicalkb.Researcher{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
@@ -83,15 +83,12 @@ func main() {
 		worldEngine.TitleAdvisor = jevAdvisor
 		personaAdvisor = jevAdvisor
 	}
-	// Candidate wording, article details, and final prose use the OpenAI renderer.
-	// When Jev is configured, title-first Era routing and persona/slot compatibility
-	// use Jev System One as a bounded semantic advisor with deterministic World-side
-	// matching and OpenAI fallback. Gemini remains available for the dedicated A/B endpoint.
-	openAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
-	geminiRenderer := llm.StructuredGeminiProvider{GeminiProvider: llm.GeminiProvider{APIKey: cfg.GeminiKey, Model: cfg.GeminiModel, Client: &http.Client{Timeout: 90 * time.Second}}}
-	postRenderer := llm.GeminiArticleWorkerRouter{StructuredOpenAIProvider: openAIRenderer, ArticleWorker: geminiRenderer}
+	// Candidate wording, article details, final prose, and bounded historical research
+	// use Azure OpenAI. Jev remains an independent bounded semantic advisor for the
+	// existing title/action/persona routes.
+	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
+	postRenderer := azureOpenAIRenderer
 	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
-	openAIMaterializer := worldrepo.LLMMaterializer{Renderer: openAIRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugDisableBBSTitleHistoricalVerification(cfg.DebugDisableBBSTitleHistoricalVerification)
@@ -100,8 +97,8 @@ func main() {
 	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
 	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
 	materializationLab.freshArchive = freshArchive
-	personaLab := newPersonaLab(openAIRenderer, personaAdvisor, cfg.WorldDate, cfg.OpenAIKey != "")
-	personaHistoryLab := newPersonaHistoryLab(openAIRenderer, cfg.WorldDate, cfg.OpenAIKey != "")
+	personaLab := newPersonaLab(azureOpenAIRenderer, personaAdvisor, cfg.WorldDate, cfg.AzureOpenAIKey != "")
+	personaHistoryLab := newPersonaHistoryLab(azureOpenAIRenderer, cfg.WorldDate, cfg.AzureOpenAIKey != "")
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -138,10 +135,10 @@ func main() {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"worldId": catalog.WorldID, "centers": catalog.Centers, "created": catalog.Created, "source": func() string {
 			if catalog.Created {
-				return "openai"
+				return "azure_openai"
 			}
 			return "postgres"
-		}(), "model": cfg.OpenAIModel})
+		}(), "model": cfg.AzureOpenAIModel})
 	}
 
 	debugAuthorized := func(r *http.Request) bool {
@@ -574,12 +571,11 @@ func main() {
 	mux.HandleFunc("/api/debug/materialization-lab-allbody", materializationLab.allBodyHandler())
 	mux.HandleFunc("/api/debug/materialization-lab-fresh", materializationLab.freshHandler())
 	mux.HandleFunc("/api/debug/materialization-lab-fresh-view", materializationLab.freshViewerHandler())
-	mux.HandleFunc("/api/debug/article-worker-ab", newArticleWorkerABHandler(runtimeStore, openAIMaterializer, geminiRenderer, cfg.GeminiKey != ""))
-	mux.HandleFunc("/api/debug/minimal-bbs-poc", newMinimalBBSPoCHandler(cfg.OpenAIKey))
-	mux.HandleFunc("/api/debug/minimal-situation-title-batch-poc", newMinimalSituationTitleBatchPoCHandler(runtimeStore, cfg.OpenAIKey))
-	mux.HandleFunc("/api/debug/minimal-typed-situation-title-batch-poc", newMinimalTypedSituationTitleBatchPoCHandler(runtimeStore, cfg.OpenAIKey))
+	mux.HandleFunc("/api/debug/minimal-bbs-poc", newMinimalBBSPoCHandler(cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
+	mux.HandleFunc("/api/debug/minimal-situation-title-batch-poc", newMinimalSituationTitleBatchPoCHandler(runtimeStore, cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
+	mux.HandleFunc("/api/debug/minimal-typed-situation-title-batch-poc", newMinimalTypedSituationTitleBatchPoCHandler(runtimeStore, cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
 	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
-	mux.HandleFunc("/api/debug/bbs-title-jev-poc", newBBSTitleJevPoCHandler(runtimeStore, openAIRenderer, cfg.JevKey, cfg.JevModel, cfg.WorldDate))
+	mux.HandleFunc("/api/debug/bbs-title-jev-poc", newBBSTitleJevPoCHandler(runtimeStore, azureOpenAIRenderer, cfg.JevKey, cfg.JevModel, cfg.WorldDate))
 	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
 	mux.HandleFunc("/api/debug/persona-timeline", newPersonaTimelinePocHandler())
 	mux.HandleFunc("/api/debug/persona-history", personaHistoryLab.handler())
@@ -597,14 +593,14 @@ func main() {
 	mux.HandleFunc("/api/admin/research/supplement", supplementResearch)
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
-	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.OpenAIKey))
+	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIImageModel))
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(historicalkb.AdminPageHTML))
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "debug_autorun_materialization_audit": cfg.DebugAutoRunMaterializationAudit, "world_repository": true, "world_post_renderer": "openai-article-worker-with-jev-title-advisor", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "debug_autorun_materialization_audit": cfg.DebugAutoRunMaterializationAudit, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
