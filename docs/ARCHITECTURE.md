@@ -40,7 +40,7 @@ HostProgram registry
       |
       +---- shared BBS/world services ---- WorldEngine ---- PostgreSQL
       |                                      |
-      |                                      +--------- Azure OpenAIProvider
+      |                                      +--------- Azure OpenAI provider
       |
       +---- output byte/text stream
 ```
@@ -82,7 +82,7 @@ terminal/host action
       -> read last_simulated_at + simulation_version
       -> acquire narrow per-scope lease if stale
       -> WorldEngine catch-up
-      -> optional Azure OpenAIProvider prose/enrichment
+      -> optional Azure OpenAI provider prose/enrichment
       -> validate + COMMIT
       -> release lease
  -> HostProgram renders committed state

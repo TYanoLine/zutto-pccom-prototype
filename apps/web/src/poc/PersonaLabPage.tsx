@@ -153,7 +153,7 @@ export default function PersonaLabPage() {
       <div>
         <div className="eyebrow">DEVELOPMENT PERSONA LAB</div>
         <h1>会員Identity生成 + 非同期人格具現化 PoC</h1>
-        <p>大量の会員骨格はLLMなしで生成し、必要人数だけOpenAIで「別人として振る舞える」構造化人格へ具現化します。Jevで未来情報を監査し、固有性・文章類似度・速度まで比較します。永続世界には書き込みません。</p>
+        <p>大量の会員骨格はLLMなしで生成し、必要人数だけAzure OpenAIで「別人として振る舞える」構造化人格へ具現化します。Jevで未来情報を監査し、固有性・文章類似度・速度まで比較します。永続世界には書き込みません。</p>
       </div>
       <a href="/">端末へ戻る</a>
     </header>
@@ -196,7 +196,7 @@ export default function PersonaLabPage() {
           <div><b>{us(data.run.timing.formatting_us)}</b><span>骨格プロフィール整形</span></div>
           <div><b>{us(data.run.timing.quality_us)}</b><span>品質診断</span></div>
         </div>
-        <p className="note">ここまでは完全ローカルです。下の実験だけがOpenAI/Jevを呼びます。</p>
+        <p className="note">ここまでは完全ローカルです。下の実験だけがAzure OpenAI/Jevを呼びます。</p>
       </section>
 
       <section className="panel profileExperiment">
@@ -217,7 +217,7 @@ export default function PersonaLabPage() {
           </div>
         </div>
         <div className="experimentAvailability">
-          <span className={data.semantics.profile_generation_available?'ok':'warn'}>OpenAI {data.semantics.profile_generation_available?'READY':'UNAVAILABLE'}</span>
+          <span className={data.semantics.profile_generation_available?'ok':'warn'}>Azure OpenAI {data.semantics.profile_generation_available?'READY':'UNAVAILABLE'}</span>
           <span className={data.semantics.jev_profile_audit_available?'ok':'warn'}>Jev {data.semantics.jev_profile_audit_available?'READY':'UNAVAILABLE'}</span>
           <span>未来flag閾値 50%</span>
         </div>
@@ -242,7 +242,7 @@ export default function PersonaLabPage() {
           </div>
           {profileJob.error && <div className="error">{profileJob.error}</div>}
           {!!profileJob.batches?.length && <div className="batchTable"><table>
-            <thead><tr><th>batch</th><th>人数</th><th>OpenAI</th><th>tokens</th><th>Jev</th><th>Jev input</th><th>状態</th></tr></thead>
+            <thead><tr><th>batch</th><th>人数</th><th>Azure OpenAI</th><th>tokens</th><th>Jev</th><th>Jev input</th><th>状態</th></tr></thead>
             <tbody>{profileJob.batches.map(b=><tr key={b.batch}>
               <td>#{b.batch}</td><td>{b.count}</td><td>{ms(b.llm_duration_ms)}</td><td>{b.llm_total_tokens.toLocaleString()}</td>
               <td>{ms(b.jev_duration_ms)}</td><td>{b.jev_input_tokens.toLocaleString()}</td><td>{b.jev_error?<span className="warn">ERROR</span>:<span className="ok">OK</span>}</td>
