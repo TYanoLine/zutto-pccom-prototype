@@ -53,8 +53,14 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
   0%, 100% { opacity: 1; }
   50% { opacity: 0.52; }
 }
+@keyframes mobile-connection-activity {
+  0%, 55%, 100% { opacity: 0.22; transform: scaleY(0.55); }
+  20% { opacity: 1; transform: scaleY(1); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .mobile-statusbar__name--working { animation: none !important; }
+  .mobile-statusbar__name--working,
+  .mobile-statusbar__activity span { animation: none !important; }
+  .mobile-statusbar__activity span { opacity: 0.72; transform: none; }
 }
 .screen-wrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; align-items: stretch; justify-content: stretch; padding: 12px 24px; background: #090909; }
 .terminal-display { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; max-width: none; flex-direction: column; }
@@ -88,6 +94,11 @@ code { color: #ddd; }
   .shell { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
   .desktop-topbar, .desktop-statusbar, .titlebar, .statusbar, .quick-help, .dev-shortcuts { display: none !important; }
   .mobile-statusbar { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
+  .mobile-statusbar__connection { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; }
+  .mobile-statusbar__activity { display: inline-flex; flex: 0 0 14px; height: 10px; align-items: center; gap: 2px; margin-right: 5px; }
+  .mobile-statusbar__activity span { display: block; width: 3px; height: 8px; background: currentColor; opacity: 0.22; transform: scaleY(0.55); transform-origin: center; animation: mobile-connection-activity 0.9s ease-in-out infinite; }
+  .mobile-statusbar__activity span:nth-child(2) { animation-delay: 0.15s; }
+  .mobile-statusbar__activity span:nth-child(3) { animation-delay: 0.3s; }
   .mobile-statusbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-statusbar__name--working { animation: mobile-connection-working 1.4s ease-in-out infinite; }
   .mobile-statusbar__stats { flex: 0 0 auto; color: #ddd; font-variant-numeric: tabular-nums; }
