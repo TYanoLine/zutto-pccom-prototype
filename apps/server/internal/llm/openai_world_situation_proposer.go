@@ -37,6 +37,7 @@ type compactSituationEvent struct {
 	CreatedAt      string   `json:"created_at"`
 	AnchorKey      string   `json:"anchor_key"`
 	DiscourseMode  string   `json:"discourse_mode"`
+	PostPurpose    string   `json:"post_purpose"`
 	PersonaProfile string   `json:"persona_profile,omitempty"`
 	ExistingFacts  []string `json:"existing_facts,omitempty"`
 }
@@ -52,6 +53,7 @@ func compactSituationEvents(events []BBSWorldWindowEvent) []compactSituationEven
 			CreatedAt:      event.CreatedAt,
 			AnchorKey:      event.AnchorKey,
 			DiscourseMode:  event.DiscourseMode,
+			PostPurpose:    bbsSituationPostPurpose(event.DiscourseMode),
 			PersonaProfile: event.PersonaProfile,
 			ExistingFacts:  append([]string(nil), event.ExistingFacts...),
 		})
@@ -90,41 +92,28 @@ func (p StructuredOpenAIProvider) GenerateBBSWorldSituationProposals(ctx context
 		recent = "(none supplied)"
 	}
 
-	prompt := fmt.Sprintf(`1996年前後の日本の草の根パソコン通信世界について、すでに存在が決まったroot投稿ごとの「投稿直前の具体的Situation」を作ってください。
-これは記事本文ではなく、本文より先に正本化する世界事実です。
+	prompt := fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界を、利用者が見ていない間も続いている永続世界としてシミュレーションしています。
+あなたの出力は、World Engineがすでに選んだroot投稿枠について「投稿直前に世界で起きていたSituation」として正本化され、後段のBBS件名と記事本文を生成する材料になります。記事本文そのものではありません。
 
-固定事項:
-- actor、日時、掲示板、routing domain、discourse_modeは入力どおり。
-- existing_facts に Situation facet / scope boundary /人物の既存事実/世界が選んだ対象があれば、それを変えない。
-- 各rootは独立。別rootの出来事を共有させない。
-- 人間の日常行動として意味の通る、小さく具体的な出来事にする。
-- 新しい恒久的な所有歴・購入歴・職歴・家族事情・長期嗜好を作らない。
-- %s
-- 同じbatchやavoid listで、同種の出来事・対象・distinctive detailを言い換えて繰り返さない。
-- JSON形はdiscourse_modeごとに違う。その形に必要な世界事実だけを書く。ask_peers以外に質問を作らない。
-
-discourse_modeの意味:
-- share_observation: 観察したこと
-- share_experience: 本人が経験したことと結果
-- state_opinion: 本人の意見と、その根拠になったSituation
-- share_tip: 本人が試したこと・結果・小さな実用ポイント
-- ask_peers: 本人がすでに試したことと、他の会員に聞きたい未解決の問い
+world-selected roots には、投稿者、日時、掲示板、投稿目的、人物情報、既存世界事実が材料として入っています。それらを自然につないで、各rootに小さく具体的なSituationを1件ずつ作ってください。
+入力された世界事実は前提として扱い、別rootの出来事とは混ぜないでください。
+historical material policy: %s
 
 世界日付: %s
 局: %s
 地域: %s
 期間: %s .. %s
 
-allowed historical facts:
+historical material:
 %s
 
-直近BBS状態（重複回避の参考。ここから新事実を作らない）:
+recent BBS state（文脈・重複回避の材料）:
 %s
 
 world-selected roots:
 %s
 
-avoid:
+recent/avoid material:
 %s`, historicalPolicy, req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
 
 	maxTokens := bbsWorldSituationMaxTokens(len(req.Events))
@@ -269,12 +258,29 @@ func bbsWorldSituationProposalSchema(events []BBSWorldWindowEvent) map[string]an
 }
 
 
+func bbsSituationPostPurpose(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case "share_observation":
+		return "自分が観察したことを他の会員へ伝える"
+	case "share_experience":
+		return "自分に起きたことと結果を他の会員へ話す"
+	case "state_opinion":
+		return "自分の意見と、そのきっかけになったSituationを述べる"
+	case "share_tip":
+		return "自分で試して分かった小さな実用情報を共有する"
+	case "ask_peers":
+		return "自分で試したところまでを示し、未解決の点を他の会員へ聞く"
+	default:
+		return "このSituationについて他の会員へ伝える"
+	}
+}
+
 func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) string {
 	if req.AllowModelHistoricalMemory {
 		if req.PreferConcreteHistoricalNames {
-			return "When the selected Situation naturally has a real contemporary target, PREFER that concrete historical name from your own historical knowledge only when confident it existed and was knowable in Japan by the event date. This concretization creates new canonical world state for this event; no earlier actor-use fact is required for the modest occurrence itself. This is not a quota. Do not change the Situation merely to insert a name. Do not put a generic 'do not name the title/product/device' rule in must_not."
+			return "実在の対象が自然なら、世界日時点の日本で存在を確信できる具体名も材料として使えます。"
 		}
-		return "You may use your own historical knowledge for a real contemporary name only when confident it existed and was knowable in Japan by the event date; otherwise stay generic. Do not add unsupported specifications, dates, prices or story/mechanic details."
+		return "必要なら、世界日時点の日本で存在を確信できる実在名を材料として使えます。"
 	}
-	return "Do not introduce a new real product/work/service/company/person/place/event name unless SUPPLIED HISTORICAL TEXTURE (allowed historical facts) or existing_facts explicitly permits it. Do not add unsupported specifications, dates, prices or content."
+	return "実在名は historical material または existing_facts に与えられたものを材料として使ってください。"
 }
