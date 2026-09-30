@@ -52,7 +52,8 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	}
 	eraRules := compactBoardPostEraRules(req.EraRules)
 
-	return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、すでに正本化された記事Situationを、その人物がBBSへ実際に投稿した本文として文章化します。\nあなたの出力は会員が読む記事本文として保存・表示されます。入力されたcanonical Situationとthread factsが本文の材料です。
+	return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、すでに正本化された記事Situationを、その人物がBBSへ実際に投稿した本文として文章化します。
+あなたの出力は会員が読む記事本文として保存・表示されます。入力されたcanonical Situationとthread factsが本文の材料です。
 
 世界日付: %s
 局: %s
