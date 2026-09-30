@@ -14,7 +14,7 @@ The world is not a chatbot wrapped in a terminal. It is a persistent network sim
 - Historical host software families include TurboBBS, KTBBS, BIG-Model, 絵理香K版, mmm, RT-BBS and VS, with more possible as research permits.
 - Historical host packages are separate runtimes/state machines. Shared lower layers are allowed, but software-specific UI/commands/semantics must not be flattened into one generic profile runtime.
 - Internal canonical text: UTF-8. Serial/terminal boundary later uses CP932/Shift_JIS bytes.
-- LLM: OpenAI Responses API family behind an internal provider interface when AI is enabled.
+- LLM: Azure OpenAI Responses API family behind an internal provider interface when AI is enabled.
 - Canonical world state lives in PostgreSQL, never in an LLM conversation/session.
 
 ## Host discovery

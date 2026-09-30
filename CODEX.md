@@ -55,10 +55,10 @@ Read, in order:
 - Lurkers and inactive accounts.
 - Only call an LLM after an action has statistically been selected.
 
-### M4 — OpenAI production path
+### M4 — Azure OpenAI production path
 
-- Replace direct REST example with official `openai-go/v3` if project Go version supports the desired SDK release.
-- Use Responses API.
+- Use Azure OpenAI's OpenAI-compatible v1 Responses API through the provider boundary.
+- Keep the Azure resource endpoint, API key, and deployment names configurable through environment settings.
 - Use Structured Outputs for fact-producing calls.
 - Add validation/anachronism checks.
 - Keep model IDs configurable by generation class.
