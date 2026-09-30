@@ -10,10 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"zutto-pccom/apps/server/internal/azureopenai"
 	"zutto-pccom/apps/server/internal/historicalkb"
 )
 
 type Generator struct {
+	Endpoint string
 	APIKey string
 	Model string
 	WorldDate string
@@ -106,16 +108,17 @@ func (g Generator) respondJSON(ctx context.Context,prompt string,out any) error 
 	client:=g.Client; if client==nil {client=&http.Client{Timeout:45*time.Second}}
 	payload:=map[string]any{"model":g.Model,"input":prompt,"text":map[string]any{"verbosity":"low"}}
 	body,_:=json.Marshal(payload)
-	req,err:=http.NewRequestWithContext(ctx,http.MethodPost,"https://api.openai.com/v1/responses",bytes.NewReader(body)); if err!=nil{return err}
-	req.Header.Set("Authorization","Bearer "+g.APIKey); req.Header.Set("Content-Type","application/json")
+	endpoint,err:=azureopenai.URL(g.Endpoint,"responses"); if err!=nil{return err}
+	req,err:=http.NewRequestWithContext(ctx,http.MethodPost,endpoint,bytes.NewReader(body)); if err!=nil{return err}
+	if err:=azureopenai.ApplyAPIKey(req,g.APIKey); err!=nil{return err}
 	resp,err:=client.Do(req); if err!=nil{return err}; defer resp.Body.Close()
-	if resp.StatusCode<200||resp.StatusCode>=300{return fmt.Errorf("openai responses API returned %s",resp.Status)}
+	if resp.StatusCode<200||resp.StatusCode>=300{return fmt.Errorf("Azure Azure OpenAI responses API returned %s",resp.Status)}
 	var decoded struct{Output []struct{Content []struct{Type string `json:"type"`; Text string `json:"text"`} `json:"content"`} `json:"output"`}
 	if err:=json.NewDecoder(resp.Body).Decode(&decoded);err!=nil{return err}
 	var text string
 	for _,o:=range decoded.Output {for _,c:=range o.Content {if c.Type=="output_text" {text+=c.Text}}}
 	text=strings.TrimSpace(text); text=strings.TrimPrefix(text,"```json"); text=strings.TrimPrefix(text,"```"); text=strings.TrimSuffix(text,"```")
-	if text=="" {return errors.New("no output_text in OpenAI response")}
+	if text=="" {return errors.New("no output_text in Azure OpenAI response")}
 	return json.Unmarshal([]byte(strings.TrimSpace(text)),out)
 }
 

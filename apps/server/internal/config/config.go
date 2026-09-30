@@ -7,10 +7,10 @@ import (
 
 type Config struct {
 	Addr                        string
-	OpenAIKey                   string
-	OpenAIModel                 string
-	GeminiKey                   string
-	GeminiModel                 string
+	AzureOpenAIEndpoint         string
+	AzureOpenAIKey              string
+	AzureOpenAIModel            string
+	AzureOpenAIImageModel       string
 	JevKey                      string
 	JevModel                    string
 	WorldDate                   string
@@ -30,10 +30,10 @@ func Load() Config {
 	}
 	return Config{
 		Addr:                        env("ADDR", ":8080"),
-		OpenAIKey:                   os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:                 env("OPENAI_MODEL", "gpt-6-luna"),
-		GeminiKey:                   os.Getenv("GEMINI_API_KEY"),
-		GeminiModel:                 env("GEMINI_MODEL", "gemini-3.8-flash"),
+		AzureOpenAIEndpoint:         os.Getenv("AZURE_OPENAI_ENDPOINT"),
+		AzureOpenAIKey:              os.Getenv("AZURE_OPENAI_API_KEY"),
+		AzureOpenAIModel:            env("AZURE_OPENAI_MODEL", "gpt-6-luna"),
+		AzureOpenAIImageModel:       env("AZURE_OPENAI_IMAGE_MODEL", "gpt-image-1"),
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),

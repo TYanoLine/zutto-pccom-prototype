@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
 // StructuredOpenAIProvider keeps the normal OpenAIProvider behavior for prose
@@ -39,9 +41,9 @@ type structuredOpenAIAPIError struct {
 
 func (e *structuredOpenAIAPIError) Error() string {
 	if e == nil {
-		return "openai structured API error"
+		return "Azure OpenAI structured API error"
 	}
-	parts := []string{fmt.Sprintf("openai structured responses API returned %s", e.Status)}
+	parts := []string{fmt.Sprintf("Azure OpenAI structured responses API returned %s", e.Status)}
 	if e.Type != "" {
 		parts = append(parts, "type="+e.Type)
 	}
@@ -270,7 +272,7 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx contex
 
 func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any, webSearchToolChoice string) (responseTextResult, error) {
 	if p.APIKey == "" {
-		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
+		return responseTextResult{}, errors.New("AZURE_OPENAI_API_KEY is not set")
 	}
 	client := p.Client
 	if client == nil {
@@ -305,12 +307,11 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.
 	if err != nil {
 		return responseTextResult{}, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
-	if err != nil {
-		return responseTextResult{}, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
-	httpReq.Header.Set("Content-Type", "application/json")
+	endpoint, err := azureopenai.URL(p.Endpoint, "responses")
+	if err != nil { return responseTextResult{}, err }
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil { return responseTextResult{}, err }
+	if err := azureopenai.ApplyAPIKey(httpReq, p.APIKey); err != nil { return responseTextResult{}, err }
 	resp, err := doStructuredOpenAIRequest(ctx, client, httpReq)
 	if err != nil {
 		return responseTextResult{}, err
