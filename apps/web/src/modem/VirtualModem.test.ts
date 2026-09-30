@@ -79,6 +79,29 @@ describe('VirtualModem standalone lifecycle', () => {
     modem.dispose();
   });
 
+  it('shows NO CARRIER when the server rejects a dial after line setup', () => {
+    const socket = new FakeSocket();
+    const terminal = new TerminalCore();
+    const statuses: string[] = [];
+    const modem = new VirtualModem(terminal, 'ws://test', {
+      socketFactory: () => socket,
+      audio: silentAudio,
+      dialDelayMs: 0,
+    });
+    modem.onStatus = status => statuses.push(status);
+
+    modem.submitLine('ATDT0920000196');
+    socket.open();
+    vi.runOnlyPendingTimers();
+    socket.receive({ type: 'dial_result', result: 'no_carrier' });
+
+    const screen = terminal.viewportRows().map(row => row.map(cell => cell.ch).join('')).join('\n');
+    expect(screen).toContain('NO CARRIER');
+    expect(statuses.at(-1)).toBe('NO CARRIER');
+    expect(socket.closed).toBe(true);
+    modem.dispose();
+  });
+
   it('supports ATDL as dial-last-number and opens a fresh call transport', () => {
     const sockets: FakeSocket[] = [];
     const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
