@@ -49,6 +49,13 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .desktop-menu-section > span { margin-bottom: 2px; color: #aaa; font-size: 12px; }
 .desktop-menu-section button { width: 100%; text-align: left; }
 .mobile-statusbar, .mobile-modem-status { display: none; }
+@keyframes mobile-connection-working {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.52; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mobile-statusbar__name--working { animation: none !important; }
+}
 .screen-wrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; align-items: stretch; justify-content: stretch; padding: 12px 24px; background: #090909; }
 .terminal-display { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; max-width: none; flex-direction: column; }
 .terminal-viewport-shell { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; }
@@ -82,6 +89,7 @@ code { color: #ddd; }
   .desktop-topbar, .desktop-statusbar, .titlebar, .statusbar, .quick-help, .dev-shortcuts { display: none !important; }
   .mobile-statusbar { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
   .mobile-statusbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-statusbar__name--working { animation: mobile-connection-working 1.4s ease-in-out infinite; }
   .mobile-statusbar__stats { flex: 0 0 auto; color: #ddd; font-variant-numeric: tabular-nums; }
   .mobile-modem-status { flex: 0 0 auto; width: 100%; border-bottom: 1px solid #354535; }
   .mobile-modem-status--lamps { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); height: 32px; padding: 2px 6px 3px; background: #0b100b; }
