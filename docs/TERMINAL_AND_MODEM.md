@@ -55,9 +55,15 @@ colors, full-width continuation cells, cursor positions, and host commands.
   terminal buffer. The default mobile fit view is slightly inset so text is not
   unnecessarily large while all 80 columns remain visible.
 - Mobile uses the full dynamic viewport height with one compact connection
-  status row at the top. The row shows the connected network name (or OFFLINE),
-  current session elapsed time and current-session pseudo telephone charge. The
-  network name may ellipsize, while elapsed time and charge remain visible.
+  status row at the top. The row shows `オフライン` while idle; during call
+  setup it shows `発信中…`, `呼出中…`, or `接続処理中…`, and during
+  carrier recovery it shows `再接続中…`. These in-progress labels pulse
+  subtly so muted users can still tell that the call is advancing. Reduced-motion
+  preferences disable the animation without changing the text. Once the carrier
+  is established, the row switches to the connected host name (or local-test
+  name), alongside current session elapsed time and current-session pseudo
+  telephone charge. The name may ellipsize, while elapsed time and charge remain
+  visible.
   Directly below it, an optional modem-status strip defaults to `ランプ` and
   can be switched from `機能` among `ランプ`, `デジタル`, and `OFF`.
   `OFF` removes only the modem-status strip; the connection/time/charge row
