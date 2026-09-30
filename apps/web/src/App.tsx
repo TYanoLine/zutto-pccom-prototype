@@ -292,7 +292,12 @@ export default function App() {
     </header>
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
     <div className="mobile-statusbar" aria-label="接続状態">
-      <span className={`mobile-statusbar__name${mobileConnectionStatus.working ? ' mobile-statusbar__name--working' : ''}`}>{mobileConnectionStatus.label}</span>
+      <span className="mobile-statusbar__connection">
+        {mobileConnectionStatus.working && <span className="mobile-statusbar__activity" aria-hidden="true">
+          <span /><span /><span />
+        </span>}
+        <span className={`mobile-statusbar__name${mobileConnectionStatus.working ? ' mobile-statusbar__name--working' : ''}`}>{mobileConnectionStatus.label}</span>
+      </span>
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
     <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
