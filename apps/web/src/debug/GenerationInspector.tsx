@@ -40,7 +40,6 @@ export function generationTraceEndpoint(wsURL: string): string | null {
 
 export async function fetchGenerationTrace(
   wsURL: string,
-  token: string,
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<GenerationTraceSnapshot> {
@@ -49,10 +48,9 @@ export async function fetchGenerationTrace(
   const response = await fetcher(endpoint, {
     method: 'GET',
     cache: 'no-store',
-    headers: { 'X-Zutto-Debug-Token': token },
     signal,
   });
-  if (response.status === 403) throw new Error('認証できません。サーバー側の DEBUG_RESET_TOKEN を確認してください。');
+  if (response.status === 403) throw new Error('サーバー側でHAKATA生成ログが無効になっています。');
   if (!response.ok) throw new Error(`生成ログ取得失敗: HTTP ${response.status}`);
   const result: unknown = await response.json();
   if (!result || typeof result !== 'object' || !Array.isArray((result as GenerationTraceSnapshot).runs)) {
@@ -69,19 +67,15 @@ type Props = {
   onRunningChange: (running: boolean) => void;
 };
 
-// This is a modern, operator-only overlay. It never writes to the PC-98
+// This is a modern HAKATA evaluation overlay. It never writes to the PC-98
 // terminal, changes host-program navigation or starts LLM generation.
 export function GenerationInspector({ wsURL, active, open, onClose, onRunningChange }: Props) {
-  // Deliberately in component memory only: never put the server token in an URL,
-  // Vite environment variable, localStorage, or logs.
-  const [tokenInput, setTokenInput] = useState('');
-  const [token, setToken] = useState('');
   const [snapshot, setSnapshot] = useState<GenerationTraceSnapshot>({ runs: [], running: false });
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState('');
 
   useEffect(() => {
-    if (!active || !token || !generationTraceEndpoint(wsURL)) {
+    if (!active || !generationTraceEndpoint(wsURL)) {
       onRunningChange(false);
       return;
     }
@@ -91,7 +85,7 @@ export function GenerationInspector({ wsURL, active, open, onClose, onRunningCha
       if (busy || controller.signal.aborted) return;
       busy = true;
       try {
-        const next = await fetchGenerationTrace(wsURL, token, fetch, controller.signal);
+        const next = await fetchGenerationTrace(wsURL, fetch, controller.signal);
         if (!controller.signal.aborted) {
           setSnapshot(next);
           setError('');
@@ -110,7 +104,7 @@ export function GenerationInspector({ wsURL, active, open, onClose, onRunningCha
     void refresh();
     const timer = window.setInterval(() => void refresh(), 2500);
     return () => { controller.abort(); window.clearInterval(timer); };
-  }, [active, token, wsURL, onRunningChange]);
+  }, [active, wsURL, onRunningChange]);
 
   if (!open) return null;
   return <div className="generation-inspector-backdrop">
@@ -119,18 +113,9 @@ export function GenerationInspector({ wsURL, active, open, onClose, onRunningCha
         <div><strong>HAKATA 生成デバッグ</strong><small>Situation → 件名 → 記事本文 / 2.5秒ごとに更新</small></div>
         <button type="button" onClick={onClose} aria-label="生成デバッグを閉じる">閉じる ×</button>
       </header>
-      {!token ? <form className="generation-inspector__unlock" onSubmit={e => {
-        e.preventDefault();
-        if (tokenInput.trim()) { setToken(tokenInput.trim()); setTokenInput(''); setError(''); }
-      }}>
-        <p>この画面にはLLMへ送った全文プロンプトと応答が含まれます。閲覧にはサーバーのデバッグ認証キーが必要です。</p>
-        <label>デバッグキー <input type="password" autoComplete="off" value={tokenInput} onChange={e => setTokenInput(e.target.value)} /></label>
-        <button type="submit" disabled={!tokenInput.trim()}>表示する</button>
-      </form> : <>
         <div className="generation-inspector__toolbar">
           <span className={snapshot.running ? 'generation-inspector__live' : ''}>{snapshot.running ? '● 生成中…' : '生成待機中 / 履歴表示'}</span>
           <span>最終更新: {lastUpdated || '取得中…'}</span>
-          <button type="button" onClick={() => { setToken(''); setSnapshot({ runs: [], running: false }); onRunningChange(false); }}>認証解除</button>
         </div>
         {error && <p className="generation-inspector__error" role="alert">{error}</p>}
         <div className="generation-inspector__history">
@@ -154,8 +139,7 @@ export function GenerationInspector({ wsURL, active, open, onClose, onRunningCha
             </details>)}
           </details>)}
         </div>
-      </>}
-      <footer>この記録はプロセス内の一時診断情報です。再起動で消去され、生成処理や世界状態は変更しません。</footer>
+      <footer>品質評価中は認証不要で閲覧できます。プロンプトには投稿文脈が含まれる場合があります。再起動で履歴は消え、世界状態は変更しません。</footer>
     </section>
   </div>;
 }
