@@ -87,6 +87,7 @@ func main() {
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetDebugLogHAKATAGenerated(cfg.DebugLogHAKATAGenerated)
+	runtimeStore.SetGenerationTraceEnabled(cfg.DebugResetToken != "" && cfg.DebugHakataLLMTrace)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 
