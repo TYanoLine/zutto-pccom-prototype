@@ -47,6 +47,86 @@ func TestProductionBoardDomainUsesBoardMeaningBeforePersonaInterest(t *testing.T
 	}
 }
 
+func TestProductionBoardDomainUsesAffirmativeScopeNotExcludedWords(t *testing.T) {
+	// These scopes mirror the actual Erika-K board catalog. Negative exclusions
+	// later in the description must not be mistaken for the board's topic.
+	cases := []struct {
+		board world.Board
+		want  string
+	}{
+		{
+			board: world.Board{ID: "20/2", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", SemanticScope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。"},
+			want: "anime_manga",
+		},
+		{
+			board: world.Board{ID: "20/1", Name: "ＧＡＭＥ", SemanticScope: "家庭用・PC等のゲームについての感想、攻略上の詰まり、対戦、貸し借り、購入相談など。ゲーム以外のPC一般話題を持ち込まない。"},
+			want: "games",
+		},
+		{
+			board: world.Board{ID: "60/3", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ", SemanticScope: "ソフトウェア、データ、ファイル、ツール利用の情報交換。ハードやゲームそのものへ逸れすぎない。"},
+			want: "software",
+		},
+		{
+			board: world.Board{ID: "68/1", Name: "深夜雑談", SemanticScope: "深夜に接続している会員のゆるい雑談。日常、眠気、仕事・学校、食事、テレビ、音楽、趣味など幅広く、PC/ゲーム専用ではない。"},
+			want: "chat",
+		},
+		{
+			board: world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ", SemanticScope: "PC-98系やモデム、通信環境についての具体的な相談・情報交換。"},
+			want: "modem",
+		},
+	}
+	persona := world.Persona{Interests: map[string]float64{"games": .99, "music": .75}}
+	for _, tc := range cases {
+		if got := productionBoardDomain(tc.board, persona); got != tc.want {
+			t.Errorf("board=%s routed to %q, want %q", tc.board.ID, got, tc.want)
+		}
+	}
+}
+
+func TestProductionAnimeMangaHasRelevantActivityForEveryDiscourseMode(t *testing.T) {
+	facets := productionAnimeMangaSituationFacets()
+	for _, mode := range developmentRootDiscourseModes {
+		host := world.Host{ID: "hakata-canal-net"}
+		board := world.Board{ID: "20/2", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", SemanticScope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。"}
+		persona := world.Persona{ID: "test-member", Interests: map[string]float64{"games": .9}}
+		domain := productionBoardDomain(board, persona)
+		if domain != "anime_manga" {
+			t.Fatalf("anime/manga board domain=%q", domain)
+		}
+		facet, ok := chooseProductionSituationFacet(host, board, persona, time.Date(1996, 7, 27, 19, 15, 0, 0, time.Local), 1, domain, mode, nil)
+		if !ok || !(strings.HasPrefix(facet.kind, "anime_") || strings.HasPrefix(facet.kind, "manga_")) {
+			t.Errorf("mode=%s chose unrelated facet: %+v", mode, facet)
+		}
+		matching := false
+		for _, candidate := range facets {
+			if candidate.kind == facet.kind && developmentModeFacetAllowed(candidate, mode) {
+				matching = true
+			}
+		}
+		if !matching {
+			t.Errorf("mode=%s chose an incompatible facet %q", mode, facet.kind)
+		}
+	}
+}
+
+func TestAnimeBoardPeriodMaterialDoesNotInheritGameCatalog(t *testing.T) {
+	host := world.Host{ID: "hakata"}
+	board := world.Board{Name: "ANIME/MANGA", SemanticScope: "アニメ、漫画の感想。ゲームは主題にしない。"}
+	persona := world.Persona{ID: "m", Interests: map[string]float64{"games": 1}}
+	domain := productionBoardDomain(board, persona)
+	if domain != "anime_manga" {
+		t.Fatalf("domain=%q, want anime_manga", domain)
+	}
+	material := productionEventPeriodFacts(host, board, persona, domain, time.Date(1996, 7, 27, 19, 15, 0, 0, time.Local))
+	for _, claim := range material {
+		for _, game := range []string{"バイオハザード", "ポケットモンスター", "ファイナルファンタジー", "PlayStation"} {
+			if strings.Contains(claim, game) {
+				t.Fatalf("game catalog claim leaked into anime/manga board: %q", claim)
+			}
+		}
+	}
+}
+
 func TestProductionGameFacetSelectionSpreadsKindsWithinWindow(t *testing.T) {
 	host := world.Host{ID: "h"}
 	board := world.Board{ID: "g", Name: "ゲーム"}
