@@ -22,6 +22,18 @@ Small wording drift is acceptable when it does not alter canonical facts. A gene
 
 Board topic classification is part of the **World-side material selection**, not an LLM wording rule. Route from the board's affirmative name/topic statement, not from keywords appearing later in exclusionary scope notes. ANIME/MANGA, GAME, software and open-ended chat can therefore receive distinct activity directions; period references are selected using that resolved domain. Do not try to repair an incorrectly selected domain by adding prohibitions to the generation prompt.
 
+Within the production GAME domain, World samples both everyday-play activities and
+activities about identifiable individual games. The latter have higher selection
+weight because the larger pool of generic play habits otherwise crowds out
+named-work conversation. Their input is a concrete *activity focus*, never a
+preselected title dictionary or a hard quota of proper nouns per board. The
+Situation proposer may resolve an appropriate game from its date-valid model
+knowledge, and canonical acceptance still precedes title and freeform prose.
+Game-agnostic topics (sharing a TV, taking turns, organizing saves, etc.)
+remain legitimate and must not acquire an arbitrary named game just for
+specificity. Use the existing generation inspector and committed-content logs
+to evaluate the resulting mix and detect unsupported historical details.
+
 For production root Situations, pass World-selected **activity focus**, actor, time, board, persona context, and previously established canonical facts as materials. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
 
 ## Persona persistence

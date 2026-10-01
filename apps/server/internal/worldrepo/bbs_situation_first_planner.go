@@ -461,6 +461,13 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 	for i, facet := range candidates {
 		// Strongly downweight kinds already used in the same retained window.
 		weight := 1.0 / float64(1+counts[facet.kind]*4)
+		if domain == "games" && strings.HasPrefix(facet.kind, "games_particular_work_") {
+			// GAME previously had 23 everyday-play activities but just four
+			// work-specific ones. Give particular games a realistic chance to
+			// become the *World-selected* activity, without a title quota or
+			// demanding a proper noun in unrelated everyday-play posts.
+			weight *= 4
+		}
 		weights[i] = weight
 		total += weight
 	}
@@ -559,39 +566,68 @@ func productionAnimeMangaSituationFacets() []developmentModeSituationFacet {
 	}
 }
 
-// productionGameTopicFacets are broad *activity* directions, not a named-title
-// dictionary. They give ordinary BBS conversation about particular works a
-// chance alongside gameplay-habit posts. The proposer still chooses any exact
-// referent before the Situation is materialized, using event-date evidence.
+// Work-specific activities are world-selected interests in *particular*
+// games. Unlike ordinary play-habit activities, their identity matters to the
+// selected event. The proposer resolves a date-valid title before canonical
+// acceptance; the later title/body workers only express that accepted event.
+// This is not a product catalog or a quota for proper nouns in every post.
 func productionGameTopicFacets() []developmentModeSituationFacet {
 	return []developmentModeSituationFacet{
 		{
 			developmentSituationFacet: developmentSituationFacet{
-				kind:  "games_particular_work_impression",
-				focus: "the member's impression of a game",
+				kind: "games_particular_work_impression",
+				focus: "the member's impression of a specific game they played, identified by its title and a distinctive experience in that game",
 			},
 			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
 		},
 		{
 			developmentSituationFacet: developmentSituationFacet{
-				kind:  "games_particular_work_interest",
-				focus: "interest in a game the member has encountered or heard about",
+				kind: "games_particular_work_interest",
+				focus: "a particular game the member encountered in a magazine, shop, or conversation, identified by title, and what caught their attention",
 			},
 			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
 		},
 		{
 			developmentSituationFacet: developmentSituationFacet{
-				kind:  "games_particular_work_choice",
-				focus: "choosing or comparing games",
+				kind: "games_particular_work_choice",
+				focus: "a real choice between particular named games the member knows about, based on what they actually know or tried",
 			},
 			modes: developmentModeSet("state_opinion", "ask_peers"),
 		},
 		{
 			developmentSituationFacet: developmentSituationFacet{
-				kind:  "games_particular_work_tip",
-				focus: "a practical finding from playing a game",
+				kind: "games_particular_work_tip",
+				focus: "a small tested finding in one identifiable game, tied to its own gameplay rather than general advice",
 			},
 			modes: developmentModeSet("share_experience", "share_tip"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "games_particular_work_scene",
+				focus: "one memorable stage, battle, or moment from a particular named game the member recently played",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "games_particular_work_mechanic",
+				focus: "a distinctive rule, control, or gameplay mechanic in one particular game the member has actually played",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "share_tip", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "games_particular_work_character",
+				focus: "a particular game character, dialogue, or story development in a named game the member has encountered",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "games_particular_work_comparison",
+				focus: "the member comparing a distinctive experience with two particular games they know, keeping the games' identities separate",
+			},
+			modes: developmentModeSet("share_experience", "state_opinion", "ask_peers"),
 		},
 	}
 }
