@@ -88,7 +88,7 @@ terminal/host action
  -> HostProgram renders committed state
 ```
 
-A successful CONNECT is the host observation boundary. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. CONNECT starts independent board-header catch-up jobs in the background for that host.
+A successful CONNECT is the host observation boundary. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. In the current lightweight Erika-K mode, CONNECT and login do not start speculative board-header generation; only an explicit leaf-board read does.
 
 Host-program reads are synchronization barriers over the narrowest required scope. A board/index request waits only for that board's header job; a thread/article read waits for the selected thread body job. If the needed data finished while the caller was navigating login/menu screens, the read returns immediately. A slow board must not hold unrelated boards behind a host-wide barrier, and the terminal never needs a modern "AI generation progress" workflow.
 
@@ -103,8 +103,11 @@ station-specific board activity metadata, World computes a prose-free
 counts plus the retained-history window.
 
 A HostProgram may render those counts in its own native board menu before any
-subjects/bodies exist. Opening the board then materializes the already-decided
-retained root/reply slots; reading an article still materializes only its body.
+subjects/bodies exist. In the current lightweight interactive policy, opening a
+previously unobserved board materializes up to 10 root headers only. The full
+retained counts remain prose-free World state; older root and reply details are
+not generated merely to display a ten-line index. Reading an article still
+materializes only the requested body's thread.
 
 This prevents an observer from causing a previously empty board to acquire
 history merely by entering it. The current numeric model is experimental
@@ -336,21 +339,18 @@ again, clears completed observation leases, and enables immediate
 first-observation generation. During this temporary mode, user-written test posts
 also do not survive the next call.
 
-CONNECT itself must not fan out generation over every empty board. After login,
-the runtime starts one deliberately small speculative board-header job. Entering
-a forum may prefetch only its first child board. When the user actually requests
-a leaf-board index, that command joins/starts exactly that board's shared job and
-**waits until its headers are committed**; ordinary UI must never show an empty
-placeholder that later requires BX/refresh to reveal completed generation.
+CONNECT, login and forum navigation do not prefetch any board articles in the
+current lightweight Erika-K runtime. Only an explicit leaf-board index read
+starts/joins the demanded board's shared observation job. The command waits for
+its headers rather than displaying an empty placeholder requiring refresh.
 
-The initial board batch materializes canonical headers + semantic state only.
-For the HAKATA generator-evaluation station, the first observed leaf board is
-materialized as a **28-day accumulated history with 40 visible root articles**.
-Reply events are added on top of those roots and may target roots selected earlier
-in the same simulated window, so the index can show APE activity instead of
-forty unrelated threads compressed into one six-hour cadence. This is an
-evaluation fixture, not a historical claim about a universal posting rate, and
-does not change the ordinary 3..7-event catch-up batch size used by other hosts.
+The initial board batch now materializes **at most 10 root headers** per
+previously unobserved board, with **no speculative append/reply generation**.
+World's prose-free retained activity counts are preserved independently; this
+is an intentionally limited interactive view, not a rewriting of the station's
+earlier simulated history. Article bodies remain lazy. Explicit diagnostics/Lab
+can still request larger batches, and ordinary incremental catch-up remains
+separate from this initial interactive limit.
 Title vocabulary and historical verification for a multi-date catch-up window
 are conservatively gated by its earliest event date so a later release cannot
 leak backward into an older article. Article bodies remain empty until BR/read
