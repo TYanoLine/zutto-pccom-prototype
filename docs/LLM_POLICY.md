@@ -139,6 +139,28 @@ The normal production path is observation-driven. Do not run broad periodic LLM 
 
 When a stale scope has been unobserved for a long time, prefer a bounded catch-up request that summarizes/selects important transitions over replaying every hour or day with separate LLM calls. Persist durable selected facts first; generate individual prose only for details that become visible or otherwise necessary.
 
+### Temporary HAKATA title-led prose evaluation
+
+For the fictional HAKATA quality-evaluation station only, the reversible
+`HAKATA_FREEFORM_BODY=1` trial keeps the production World-selected posting
+slots, accepted Situation, title and canonical persistence unchanged, but
+passes a compact **view** of that accepted state to the final body worker.
+The displayed subject, real board name, world date, author and any essential
+accepted referent remain fixed. A single adopted Situation summary is normally
+the only additional root fact; replies also receive their response purpose
+and a bounded relevant thread/parent context. The model can phrase the post
+naturally without copying the entire typed Situation/producer fields or treating
+them as a checklist. This is a wording experiment, not authorization to change
+canonical world events or historically established facts.
+
+This temporary HAKATA path **skips optional Article Detail and historical
+knowledge research calls during body reads**; initial Situation and subject
+generation still happen exactly as before. Existing saved facts, titles and
+bodies are never cleared or rewritten by enabling this flag. The standard
+detail-first path remains the default for all other hosts and for HAKATA when
+`HAKATA_FREEFORM_BODY=0`. An experiment result that invents a contradictory
+event is a quality defect, not a new canonical fact.
+
 ### Article detail before prose
 
 For an already-selected article whose body is not yet materialized, the shared

@@ -88,6 +88,7 @@ func main() {
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetDebugLogHAKATAGenerated(cfg.DebugLogHAKATAGenerated)
 	runtimeStore.SetGenerationTraceEnabled(cfg.DebugHakataLLMTrace)
+	runtimeStore.SetHAKATAFreeformBody(cfg.HakataFreeformBody)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 

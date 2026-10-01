@@ -52,6 +52,13 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if req.Persona != nil {
 		author = req.Persona.Handle
 		personaProfile = personaSummary(*req.Persona)
+		if req.FreeformFromSubject {
+			personaProfile = freeformPersonaSummary(*req.Persona)
+		}
+	}
+	intent := intentSummary(req.Intent)
+	if req.FreeformFromSubject {
+		intent = freeformIntentSummary(req.Intent)
 	}
 	draft, err := m.Renderer.GenerateBoardPost(ctx, llm.BoardPostRequest{
 		HostName:         req.Host.Name,
@@ -59,12 +66,13 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		HostSoftware:     req.Host.Software,
 		BoardID:          req.BoardID,
 		BoardTopic:       req.BoardTopic,
+		FreeformFromSubject: req.FreeformFromSubject,
 		WorldDate:        req.WorldDate,
 		HistoricalFacts:  facts,
 		EraRules:         m.eraRules(),
 		AuthorHandle:     author,
 		PersonaProfile:   personaProfile,
-		PostIntent:       intentSummary(req.Intent),
+		PostIntent:       intent,
 		CanonicalSubject: req.CanonicalSubject,
 		Kind:             string(req.Kind),
 		ParentSubject: func() string {

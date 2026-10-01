@@ -31,6 +31,7 @@ type BoardPostRequest struct {
 	HostSoftware     string
 	BoardID          string
 	BoardTopic       string
+	FreeformFromSubject bool
 	WorldDate        string
 	HistoricalFacts  []string
 	EraRules         string

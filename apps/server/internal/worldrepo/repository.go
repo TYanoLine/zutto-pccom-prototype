@@ -31,6 +31,7 @@ type BoardMaterializationRequest struct {
 	Host                       world.Host
 	BoardID                    string
 	BoardTopic                 string
+	FreeformFromSubject        bool
 	WorldDate                  string
 	Persona                    *world.Persona
 	Intent                     world.PostIntent
@@ -51,6 +52,7 @@ type Repository struct {
 	bbsArticles          *bbsengine.Engine
 	debugLogBBSArticleDetails                  bool
 	debugLogHAKATAGenerated                    bool
+	hakataFreeformBody                        bool
 	generationTrace                           *generationTraceStore
 
 	mu                     sync.Mutex

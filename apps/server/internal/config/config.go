@@ -17,6 +17,7 @@ type Config struct {
 	DebugLogBBSArticleDetails                    bool
 	DebugLogHAKATAGenerated                     bool
 	DebugHakataLLMTrace                         bool
+	HakataFreeformBody                          bool
 	DatabaseURL                                  string
 	DebugResetToken             string
 }
@@ -38,6 +39,7 @@ func Load() Config {
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
 		DebugLogHAKATAGenerated:                   envBool("DEBUG_LOG_HAKATA_GENERATED", true),
 		DebugHakataLLMTrace:                       envBool("DEBUG_HAKATA_LLM_TRACE", true),
+		HakataFreeformBody:                        envBool("HAKATA_FREEFORM_BODY", true),
 		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
 	}
