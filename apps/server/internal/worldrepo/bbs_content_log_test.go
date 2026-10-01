@@ -139,6 +139,4 @@ func TestHAKATAAuditNeverLogsHumanBody(t *testing.T) {
 	if len(records) != 0 {
 		t.Fatalf("logged human content: %+v", records)
 	}
-	// Keep context referenced by the test suite's fake evidence implementation.
-	_ = context.Background()
 }
