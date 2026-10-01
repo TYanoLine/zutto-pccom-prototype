@@ -37,6 +37,12 @@ Article Detail logging remains a separate opt-in diagnostic; Situation-first
 root headers normally have their detail completion bit set upstream.
 
 
+## HAKATA title-led body trial
+
+When HAKATA_FREEFORM_BODY=1 (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.
+
+For HAKATA only, this mode skips extra Article Detail and historical-evidence research before prose. The trace therefore shows initial Situation and title calls and each body call/retry, but no invented placeholder for the skipped stages. All other stations retain their existing process. Set HAKATA_FREEFORM_BODY=0 and redeploy to restore the earlier process for subsequent article reads.
+
 ## HAKATA live generation inspector (temporary evaluation mode)
 
 While connected to **HAKATA CANAL NET**, the modern browser application shows
