@@ -26,7 +26,7 @@ func (p StructuredOpenAIProvider) GenerateBBSSituationTitles(ctx context.Context
 	}
 	recent, _ := json.Marshal(req.RecentSubjects)
 	prompt := fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、すでに正本化されたSituationからBBSの記事一覧に表示するroot件名を作ります。
-Situationはすでに世界で起きた事実です。各人物がそのSituationについて件名欄へ自然に書く短い件名を1つずつ付けてください。件名のために別の出来事や対象を作る必要はありません。
+各人物が、確定済みSituationの話題をBBS一覧で伝える短い件名を1つずつ付けてください。
 
 局: %s
 地域: %s
