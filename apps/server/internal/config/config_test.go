@@ -70,7 +70,7 @@ func TestHAKATAGeneratedContentLoggingCanBeDisabled(t *testing.T) {
 
 func TestHakataPromptTraceFlagDefaultsOnAndCanBeDisabled(t *testing.T) {
 	t.Setenv("DEBUG_HAKATA_LLM_TRACE", "")
-	if !Load().DebugHakataLLMTrace { t.Fatal("HAKATA trace should be available when a debug token is configured") }
+	if !Load().DebugHakataLLMTrace { t.Fatal("HAKATA evaluation trace should be enabled without a debug token") }
 	t.Setenv("DEBUG_HAKATA_LLM_TRACE", "0")
 	if Load().DebugHakataLLMTrace { t.Fatal("HAKATA trace flag should be disableable") }
 }
