@@ -3,7 +3,7 @@ import { shortBuildCommit } from './ServerBuildInfo';
 
 export type BuildInfoState = 'loading' | 'ready' | 'unavailable' | 'not-configured';
 
-type Props = {
+export type BuildInfoPanelProps = {
   clientCommit: string;
   clientRef: string;
   clientBuildTime: string;
@@ -19,7 +19,7 @@ function readableDate(value: string): string {
 
 export function BuildInfoPanel({
   clientCommit, clientRef, clientBuildTime, server, serverState, onRetry,
-}: Props) {
+}: BuildInfoPanelProps) {
   const comparable = serverState === 'ready' && server && server.commit !== 'unknown' && clientCommit !== 'unknown';
   const match = comparable && server.commit === clientCommit;
   return <section className="build-info" aria-label="バージョン情報">
