@@ -176,6 +176,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	diagnostic := joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
+			r.logBBSGeneratedContent("body_committed", host, board, updated)
 			return updated, true, true, diagnostic
 		}
 	}
