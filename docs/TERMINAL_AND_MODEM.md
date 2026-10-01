@@ -66,7 +66,12 @@ colors, full-width continuation cells, cursor positions, and host commands.
   is established, the row switches to the connected host name (or local-test
   name), alongside current session elapsed time and current-session pseudo
   telephone charge. The name may ellipsize, while elapsed time and charge remain
-  visible.
+  visible. The mobile connection row owns the top safe-area padding (rather
+  than relying on shell padding), so its text and three-bar activity indicator
+  remain below the device status area and the modem strip naturally follows
+  it. iOS standalone presentation uses a 48px minimum top clearance when the
+  reported safe-area inset is zero; ordinary browser presentation keeps the
+  browser-reported inset to avoid double padding.
   Directly below it, an optional modem-status strip defaults to `ランプ` and
   can be switched from `機能` among `ランプ`, `デジタル`, and `OFF`.
   `OFF` removes only the modem-status strip; the connection/time/charge row
