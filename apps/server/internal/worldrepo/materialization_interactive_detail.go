@@ -108,11 +108,12 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	if ps, ok := r.Base.(world.PersonaStore); ok && selected.AuthorPersonaID != "" {
 		if persona, found := ps.PersonaByID(selected.AuthorPersonaID); found {
 			personaProfile = personaSummary(persona)
-			facts := r.existingPersonaFactsByID([]world.Persona{persona})
-			for _, fact := range facts[persona.ID] {
+			if factStore, ok := r.Base.(world.PersonaFactStore); ok {
+				for _, fact := range factStore.ListPersonaFacts(persona.ID) {
 				if fact.MaterializedAt.IsZero() || !fact.MaterializedAt.After(selected.CreatedAt) {
 					existingFacts = append(existingFacts, fact.Key+"="+fact.Value)
 				}
+			}
 			}
 		}
 	}
@@ -121,7 +122,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	semanticSubject := strings.TrimSpace(selected.Subject)
 	if semanticSubject == "" {
 		if sourceID := world.ResponseTargetID(selected); sourceID != 0 {
-			if source, ok := developmentConversationFindPost(r.Base.ListPosts(host.ID), sourceID); ok {
+			if source, ok := findCanonicalPostByID(r.Base.ListPosts(host.ID), sourceID); ok {
 				semanticSubject = semanticContextSubject(source)
 			}
 		}
@@ -143,7 +144,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	request := llm.BBSTitleArticleDetailRequest{
 		BoardName:      board.Name,
 		WorldDate:      selected.CreatedAt.Format("2006-01-02"),
-		RecentBBSState: planningBBSState(filterBoard(r.Base.ListPosts(host.ID), board.ID), 48),
+		RecentBBSState: productionRecentSituationContext(filterBoard(r.Base.ListPosts(host.ID), board.ID)),
 		Articles: []llm.BBSTitleArticleDetailSeed{{
 			EventID:        eventID,
 			IsReply:        world.ResponseTargetID(selected) != 0,

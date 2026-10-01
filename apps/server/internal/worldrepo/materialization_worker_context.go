@@ -31,7 +31,7 @@ func (r *Repository) materializationArticleWorkerContext(host world.Host, board 
 			b.WriteString("\n")
 		}
 	}
-	if source, ok := developmentConversationFindPost(all, responseToID); ok {
+	if source, ok := findCanonicalPostByID(all, responseToID); ok {
 		add(source)
 	}
 	for _, prior := range r.materializationThreadPredecessors(host.ID, board.ID, selected) {

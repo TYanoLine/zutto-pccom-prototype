@@ -1,7 +1,6 @@
 package worldrepo
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 )

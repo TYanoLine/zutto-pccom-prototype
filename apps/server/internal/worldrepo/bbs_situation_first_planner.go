@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/llm"
@@ -226,7 +227,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 					valid = false
 					break
 				}
-				key := developmentNormalizeSituationKey(value.NoveltyKey)
+				key := normalizeSituationNoveltyKey(value.NoveltyKey)
 				if key == "" {
 					lastErr = fmt.Errorf("%s returned empty normalized novelty key", eventID)
 					valid = false
@@ -258,7 +259,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 					break
 				}
 				byEvent[event.EventID] = value
-				key := developmentNormalizeSituationKey(value.NoveltyKey)
+				key := normalizeSituationNoveltyKey(value.NoveltyKey)
 				noveltyOwners[key] = event.EventID
 				avoidSituations = append(avoidSituations,
 					"already accepted novelty_key="+key+" occurrence="+strings.TrimSpace(value.Occurrence),
@@ -757,4 +758,13 @@ func productionDiscourseGoal(mode string) string {
 	default:
 		return ""
 	}
+}
+
+func normalizeSituationNoveltyKey(value string) string {
+    value = strings.ToLower(strings.TrimSpace(value))
+    var b strings.Builder
+    for _,r := range value {
+        if unicode.IsLetter(r) || unicode.IsDigit(r) { b.WriteRune(r) }
+    }
+    return b.String()
 }
