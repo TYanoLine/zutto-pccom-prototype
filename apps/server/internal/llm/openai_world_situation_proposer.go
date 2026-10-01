@@ -117,8 +117,10 @@ recent/avoid material:
 %s`, historicalPolicy, req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, historicalFacts, recent, string(eventsJSON), string(avoidJSON))
 
 	maxTokens := bbsWorldSituationMaxTokens(len(req.Events))
+	traceFinish := beginDebugTrace(ctx, "Situation", prompt)
 	producer := p.withWorldWindowHTTPTimeout()
 	result, err := producer.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_world_situations", bbsWorldSituationProposalSchema(req.Events))
+	traceFinish(result.Text, err)
 	if err != nil {
 		return BBSWorldSituationProposalDraft{}, err
 	}
