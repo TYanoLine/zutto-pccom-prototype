@@ -449,18 +449,24 @@ func productionEventPeriodFacts(host world.Host, board world.Board, persona worl
 }
 
 func productionBoardDomain(board world.Board, persona world.Persona) string {
-	text := strings.ToLower(strings.TrimSpace(board.Name + " " + board.SemanticScope))
+	// The board's name and leading topic statement describe what belongs here.
+	// Later scope sentences often describe other boards ("ゲームを主題にしない"),
+	// so substring matching the entire scope would invert their meaning.
+	topic := strings.TrimSpace(strings.SplitN(board.SemanticScope, "。", 2)[0])
+	text := strings.ToLower(strings.TrimSpace(board.Name + " " + topic))
 	checks := []struct {
 		words  []string
 		domain string
 	}{
+		{[]string{"アニメ", "漫画", "マンガ", "anime", "manga", "ａｎｉｍｅ", "ｍａｎｇａ"}, "anime_manga"},
 		{[]string{"ゲーム", "game"}, "games"},
-		{[]string{"音楽", "music"}, "music"},
-		{[]string{"ソフト", "software"}, "software"},
+		{[]string{"ソフト", "software", "windows", "ワープロ"}, "software"},
 		{[]string{"モデム", "modem"}, "modem"},
 		{[]string{"パソコン通信", "通信", "bbs"}, "communications"},
-		{[]string{"地域", "local"}, "local"},
-		{[]string{"ハード", "hardware"}, "hardware"},
+		{[]string{"地域", "博多", "天神", "オフ会", "local"}, "local"},
+		{[]string{"ハード", "hardware", "pc-98", "pc88", "msx"}, "hardware"},
+		{[]string{"雑談", "chat"}, "chat"},
+		{[]string{"音楽", "music"}, "music"},
 	}
 	for _, check := range checks {
 		for _, word := range check.words {
@@ -480,13 +486,20 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 
 func chooseProductionSituationFacet(host world.Host, board world.Board, persona world.Persona, at time.Time, slotIndex int, domain, mode string, counts map[string]int) (developmentSituationFacet, bool) {
 	candidates := make([]developmentSituationFacet, 0)
-	if domain == "games" {
+	switch domain {
+	case "games":
 		for _, rich := range append(developmentRichGameSituationFacets(), productionGameTopicFacets()...) {
 			if developmentModeFacetAllowed(rich, mode) {
 				candidates = append(candidates, rich.developmentSituationFacet)
 			}
 		}
-	} else {
+	case "anime_manga":
+		for _, topic := range productionAnimeMangaSituationFacets() {
+			if developmentModeFacetAllowed(topic, mode) {
+				candidates = append(candidates, topic.developmentSituationFacet)
+			}
+		}
+	default:
 		candidates = append(candidates, developmentSituationFacets(domain)...)
 	}
 	if len(candidates) == 0 {
@@ -512,6 +525,70 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 		roll -= weights[i]
 	}
 	return candidates[len(candidates)-1], true
+}
+
+// Anime/manga is a distinct board interest, not a games subcategory. These
+// are World activity focuses, leaving concrete series, occurrences and wording
+// to Situation generation with the event's date and persona materials.
+func productionAnimeMangaSituationFacets() []developmentModeSituationFacet {
+	return []developmentModeSituationFacet{
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_episode_reaction",
+				focus: "the member's reaction to an anime episode they watched",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "manga_recent_reading",
+				focus: "something the member noticed while reading a manga",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_character_interest",
+				focus: "the member's interest in a character or a story development from anime or manga",
+			},
+			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_work_interest",
+				focus: "an anime or manga series that has caught the member's interest",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_comparison",
+				focus: "the member's comparison of two anime or manga works, or of an anime and its source manga",
+			},
+			modes: developmentModeSet("share_experience", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_favorite_detail",
+				focus: "a particular scene, drawing or piece of storytelling the member wants to discuss",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_peer_recommendation",
+				focus: "a specific kind of anime or manga the member is interested in discussing with fellow readers or viewers",
+			},
+			modes: developmentModeSet("ask_peers", "share_tip", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_personal_finding",
+				focus: "a useful small discovery related to following or reading an anime or manga series",
+			},
+			modes: developmentModeSet("share_tip", "share_experience"),
+		},
+	}
 }
 
 // productionGameTopicFacets are broad *activity* directions, not a named-title
