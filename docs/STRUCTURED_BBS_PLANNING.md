@@ -202,10 +202,9 @@ detail pass remains only for older title-first state and reply/compatibility cas
 where a small article-local fact or externally grounded referent is genuinely
 missing.
 
-The previous large title-candidate/Jev pipeline remains in code as a compatibility
-fallback for renderers that do not implement Situation proposal + Situation-title
-wording. It is no longer the preferred normal path for capable production
-renderers.
+The previous large title-candidate/Jev pipeline and its experimental
+endpoints have been deleted. The shared BBS engine uses Situation proposal
+and Situation-title wording as its only live planning path.
 
 The production structured planner includes a compact calibration derived from preserved Japanese PC-communication subject-line corpora. The evidence shows that subject fields can be terse, fragmentary, person-directed, context-dependent, declarative, announcement-like, playful, or interrogative. Questions are therefore not the default form, and subjects do not need to summarize the body or make sense to an outsider without board context.
 
