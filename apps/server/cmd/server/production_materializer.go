@@ -12,6 +12,7 @@ func newProductionMaterializer(renderer llm.BoardPostRenderer) worldrepo.LLMMate
 	return worldrepo.LLMMaterializer{
 		Renderer:              renderer,
 		Fallback:              worldrepo.FallbackMaterializer{},
-		ModelHistoricalMemory: true,
+		ModelHistoricalMemory:          true,
+		ProductionMinimalHistoricalPrompt: true,
 	}
 }
