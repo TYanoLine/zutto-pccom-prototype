@@ -62,7 +62,7 @@ func worldAdoptedSummary(facts []string, fallback string) string {
 
 // materializeArticleDetails fixes article-local facts before prose generation.
 // It is shared by normal host reads, development inspection and isolated Lab runs.
-func (r *Repository) materializeArticleDetails(host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
+func (r *Repository) materializeArticleDetails(traceCtx context.Context, host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
 	if strings.TrimSpace(selected.Body) != "" || selected.Intent.ArticleDetailsMaterialized {
 		return selected, "", nil
 	}
