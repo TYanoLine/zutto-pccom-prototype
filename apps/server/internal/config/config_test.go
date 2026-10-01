@@ -74,3 +74,10 @@ func TestHakataPromptTraceFlagDefaultsOnAndCanBeDisabled(t *testing.T) {
 	t.Setenv("DEBUG_HAKATA_LLM_TRACE", "0")
 	if Load().DebugHakataLLMTrace { t.Fatal("HAKATA trace flag should be disableable") }
 }
+
+func TestHAKATAFreeformBodyDefaultAndOptOut(t *testing.T) {
+	t.Setenv("HAKATA_FREEFORM_BODY", "")
+	if !Load().HakataFreeformBody { t.Fatal("title-led body experiment should default on in HAKATA") }
+	t.Setenv("HAKATA_FREEFORM_BODY", "0")
+	if Load().HakataFreeformBody { t.Fatal("title-led body experiment should be reversible") }
+}
