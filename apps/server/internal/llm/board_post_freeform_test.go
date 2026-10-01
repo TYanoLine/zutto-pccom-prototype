@@ -2,6 +2,7 @@ package llm
 
 import (
     "strings"
+    "strconv"
     "testing"
 )
 
@@ -74,7 +75,7 @@ func TestHAKATAFreeformPromptEscapesSubjectJSON(t *testing.T){
         BoardTopic:"GAME",
         CanonicalSubject:`「test"quote」`,
     })
-    if !strings.Contains(prompt,`"author":"KOJI\\"1"`) || !strings.Contains(prompt,`"subject":"「test\\"quote」"`){
+    if !strings.Contains(prompt, `"author":`+strconv.Quote(`KOJI"1`)) || !strings.Contains(prompt, `"subject":`+strconv.Quote(`「test"quote」`)){
         t.Fatalf("unsafe JSON template: %s",prompt)
     }
 }
