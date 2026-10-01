@@ -121,78 +121,34 @@ host runtimes own menus, commands, board topology, threading/append presentation
 limits, and access rules; they do not each implement a separate "AI posting"
 algorithm.
 
-The canonical direction is:
+The production path is Situation-first:
 
 ```text
 World/observation clock
- -> shared BBS article engine
-      -> decide bounded catch-up window
-      -> fix actor/time/root-vs-reply slots before prose
-      -> load recent canonical board history
-      -> generate a board-level title pool in one batch
-      -> realize multiple selected slots together
-      -> validate diversity / era / causal consistency
-      -> commit canonical posts
- -> host program renders those committed posts in its own grammar
+ -> shared BBS engine fixes actor, date, board and root/reply topology
+ -> World selects the activity focus and discourse mode
+ -> LLM proposes concrete Situations under those World facts
+ -> validate Situations and distinct occurrences
+ -> LLM writes titles for accepted Situations
+ -> atomically commit canonical headers and identities
+ -> Erika-K (or another host) renders those headers in its own format
+ -> on article read, complete and persist article-local detail before body prose
 ```
 
-The shared planner keeps actor/time/root-vs-reply topology world-owned, then
-uses a **title-first candidate pool** for root wording. The normal contextual
-Azure OpenAI path generates **100 uncommitted subjects in one structured call** using
-the world date, recent board history, avoid-list and bounded historical
-referents. Each candidate carries its own nested `historical_claims[]` so a
-claim cannot drift onto a different title by array index. The prompt asks for a
-large concrete claim-free reserve while still preserving board/period texture
-through claim-bearing real names where appropriate.
+The live planner does not use retired 20/100-title candidate pools,
+title-era Jev candidate scoring, the Materialization demo host, or Lab
+generation endpoints. Normal generation does not automatically inject
+historical catalogs. World date and canonical state remain binding, and
+unavailable generation leaves the board retryable without invented fallback
+subjects.
 
-Title-era routing is claim-driven rather than Jev-driven. Claim-free candidates
-do not go to Historical KB merely because a classifier is uncertain. If a
-tentative winner carries one or more historical claims, those claims must be
-verified by Historical KB/research before adoption. The generator's claim marker
-is a routing hint, never historical proof.
-
-Jev is currently retained only for candidate × already-selected world-slot /
-persona fit plus a candidate-level topic-identity score. To keep that fit request
-bounded, the adaptive title pool (currently 60..100 candidates) is evaluated in
-chunks of at most 20 titles × 20 remaining world events; Jev's era questions are
-suppressed for this path. The topic-identity hard floor is deliberately low so it
-blocks clear topicless/hidden-referent roots without preferring complete sentences;
-higher specificity is a ranking signal. If Jev fit is unavailable, the existing
-Azure OpenAI title reviewer remains the fallback. Code performs the one-title/one-slot
-assignment.
-
-Only after fit, duplicate checks and any required historical verification does
-the selected subject and its minimal summary become canonical world state. The
-system does **not** first invent a detailed canonical topic and then force the
-subject to echo it; specificity is proposed broadly and filtered before adoption.
-
-Title generation and adoption are additionally governed by
-`docs/BBS_TITLE_QUALITY_GATES.md`. That document distinguishes blocking
-structural/world-correctness gates from provisional batch-naturalness thresholds
-and corpus-authenticity audit criteria.
-
-After a selected post is read, normal host navigation and direct development
-inspection use the same article-detail/body pipeline.
-`PostIntent.ArticleDetailsMaterialized` is canonical article state independent of
-detail count: a persisted zero-detail result is complete, while planner,
-validation, or persistence failure stops body rendering and remains retryable.
-Host programs continue to own their append/title presentation and failure text.
-
-The planner uses up to 48 recent board posts as title/flow context and may include
-short excerpts from recent bodies when available. A contextual generation
-normally needs one 100-title pool; one additional fresh 100-title pool is allowed
-only as recovery if fit/duplicate/research attrition still leaves world-selected
-roots unresolved. Failed/duplicate/too-similar candidates are discarded.
-
-Header planning does not pre-render article bodies. It commits only the canonical
-header/topology/semantic brief required to show the index. Body prose remains
-lazy and is materialized when the article is read.
-
-A host software identifier must not select a different article-generation
-algorithm. Host-program-specific code may supply topology or representation
-constraints only. The isolated materialization-demo host remains a diagnostic
-harness and is not a production host-program exception to this rule.
-
+An explicit leaf-board read realizes at most ten initial root headers with
+lazy article bodies. Returning to an already populated board index reuses
+committed headers rather than requesting additional titles. The current HAKATA
+quality-evaluation configuration deliberately clears articles on every new
+successful CONNECT, but never changes titles merely because an article is read.
+All historical host runtime commands, prompts and append representation remain
+owned by the individual host program.
 
 ### Semantic response vs host-native reply representation
 
@@ -348,9 +304,9 @@ The initial board batch now materializes **at most 10 root headers** per
 previously unobserved board, with **no speculative append/reply generation**.
 World's prose-free retained activity counts are preserved independently; this
 is an intentionally limited interactive view, not a rewriting of the station's
-earlier simulated history. Article bodies remain lazy. Explicit development diagnostics
-can still request larger batches, and ordinary incremental catch-up remains
-separate from this initial interactive limit.
+earlier simulated history. Article bodies remain lazy. The normal world-engine incremental catch-up is
+separate from this lightweight initial index and is not triggered merely by
+returning from an article.
 Title vocabulary and historical verification for a multi-date catch-up window
 are conservatively gated by its earliest event date so a later release cannot
 leak backward into an older article. Article bodies remain empty until BR/read
