@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import indexHtml from '../index.html?raw';
-import styles from './styles.css?raw';
+
+const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');
 
 describe('mobile safe-area layout', () => {
-  it('keeps the viewport inside Safari\'s native safe area', () => {
+  it("keeps the viewport inside Safari's native safe area", () => {
     expect(indexHtml).toContain('viewport-fit=auto');
     expect(indexHtml).not.toContain('viewport-fit=cover');
   });
