@@ -108,7 +108,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		topicLabel = board.Name
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	ctx, cancel := context.WithTimeout(traceCtx, 35*time.Second)
 	defer cancel()
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 		Kind:        historicalkb.KnowledgeCulturalSignal,
