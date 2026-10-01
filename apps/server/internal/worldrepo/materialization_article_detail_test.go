@@ -18,6 +18,7 @@ type articleDetailTestRenderer struct {
 	detailCalls int
 	bodyCalls   int
 	beforeBody  func()
+	bodySubjectOverride string
 }
 
 type emptyArticleDetailPlanner struct{}
@@ -49,7 +50,9 @@ func (r *articleDetailTestRenderer) GenerateBoardPost(_ context.Context, req llm
 	if r.beforeBody != nil {
 		r.beforeBody()
 	}
-	return llm.BoardPostDraft{Author: req.AuthorHandle, Subject: req.CanonicalSubject, Body: "記事本文です。"}, nil
+	subject := req.CanonicalSubject
+	if r.bodySubjectOverride != "" { subject = r.bodySubjectOverride }
+	return llm.BoardPostDraft{Author: req.AuthorHandle, Subject: subject, Body: "記事本文です。"}, nil
 }
 
 type failArticleDetailUpdateStore struct {
@@ -66,7 +69,7 @@ func TestSharedArticleDetailsPersistZeroAndSkipRepeat(t *testing.T) {
 	for _, details := range [][]llm.BBSArticleDetail{nil, {{Kind: "observation", Fact: "画面の端に表示が残った"}}, {{Kind: "sequence", Fact: "先に設定を見てから接続した"}, {Kind: "comparison", Fact: "昼より夜の方が少し遅かった"}}} {
 		t.Run(fmt.Sprintf("details-%d", len(details)), func(t *testing.T) {
 			base := world.NewMemoryStore()
-			host, err := base.HostByPhone("0450000196")
+			host, err := base.HostByPhone("0450000001")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,7 +130,7 @@ func TestSharedArticleDetailFailureDoesNotRenderBody(t *testing.T) {
 			if tt.failSave {
 				store = &failArticleDetailUpdateStore{MemoryStore: base}
 			}
-			host, err := base.HostByPhone("0450000196")
+			host, err := base.HostByPhone("0450000001")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -167,7 +170,7 @@ func TestSharedArticleDetailFailureDoesNotRenderBody(t *testing.T) {
 
 func TestExistingBodySkipsDetailPlanningForLegacyArticles(t *testing.T) {
 	base := world.NewMemoryStore()
-	host, err := base.HostByPhone("0450000196")
+	host, err := base.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +186,7 @@ func TestExistingBodySkipsDetailPlanningForLegacyArticles(t *testing.T) {
 
 func TestLegacyDetailsWithoutCompletionBitAreMigratedWithoutReplacement(t *testing.T) {
 	base := world.NewMemoryStore()
-	host, err := base.HostByPhone("0450000196")
+	host, err := base.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,4 +206,22 @@ func TestLegacyDetailsWithoutCompletionBitAreMigratedWithoutReplacement(t *testi
 type articleTestEvidence struct {}
 func (articleTestEvidence) ResolveEvidence(context.Context,worldengine.EvidenceRequest) (worldengine.EvidenceDecision,error) {
 	return worldengine.EvidenceDecision{},nil
+}
+
+func TestLiveArticleReadPreservesPreviouslyPublishedSubject(t *testing.T) {
+	base:=world.NewMemoryStore()
+	host,err:=base.HostByPhone("0920000196")
+	if err!=nil {t.Fatal(err)}
+	renderer:=&articleDetailTestRenderer{bodySubjectOverride:"ＧＡＭＥ"}
+	repo:=New(base,articleTestEvidence{},LLMMaterializer{Renderer:renderer},"1996-07-27")
+	root:=base.AddPost(host.ID,world.Post{BoardID:"20/1",Author:"MIKI",Subject:"マリオRPGの場面転換",Intent:world.PostIntent{SituationSummary:"スーパーマリオRPGを遊んだ感想"}})
+	got,found,created,diagnostic:=repo.MaterializationArticleWithDebug(host,world.Board{ID:"20/1",Name:"ＧＡＭＥ"},root.ID)
+	if !found||!created||strings.Contains(diagnostic,"error stage=") {
+		t.Fatalf("body materialization failed: found=%t created=%t err=%s",found,created,diagnostic)
+	}
+	stored,ok:=repo.findMaterializationPost(host.ID,"20/1",root.ID)
+	if !ok||stored.Subject!=root.Subject||got.Subject!=root.Subject||stored.Body=="" {
+		t.Fatalf("reading article changed canonical published subject: got=%+v persisted=%+v",got,stored)
+	}
+	if renderer.bodyCalls!=1 {t.Fatalf("body render calls=%d",renderer.bodyCalls)}
 }

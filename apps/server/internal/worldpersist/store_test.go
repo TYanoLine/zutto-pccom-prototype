@@ -33,11 +33,11 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000196"}}, backend)
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000001"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
-	host, _ := store.HostByPhone("0450000196")
+	host, _ := store.HostByPhone("0450000001")
 	host.Name = "PERSISTED"
 	store.SaveHost(host)
 	store.SaveBoards(host.ID, []world.Board{{ID: "3", Name: "地域の話題"}})
@@ -54,7 +54,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	}
 
 	fresh := world.NewMemoryStore()
-	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0450000196"}}, backend)
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0450000001"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	if !status.Enabled || !status.Loaded {
 		t.Fatalf("status=%+v", status)
 	}
-	gotHost, _ := restored.HostByPhone("0450000196")
+	gotHost, _ := restored.HostByPhone("0450000001")
 	if gotHost.Name != "PERSISTED" {
 		t.Fatalf("host=%+v", gotHost)
 	}
@@ -83,7 +83,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	}
 
 	freshAgain := world.NewMemoryStore()
-	restoredAgain, err := newStore(ctx, freshAgain, []HostTarget{{Phone: "0450000196"}}, backend)
+	restoredAgain, err := newStore(ctx, freshAgain, []HostTarget{{Phone: "0450000001"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000196"}}, backend)
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000001"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	targets := []HostTarget{
-		{Phone: "0450000196"},
+		{Phone: "0450000001"},
 		{Phone: "0920000196", KeepSeedHostConfig: true},
 	}
 

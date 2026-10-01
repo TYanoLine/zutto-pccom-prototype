@@ -277,6 +277,11 @@ func TestCompletedBoardObservationCanBeSafelyRearmed(t *testing.T) {
 	repo.clearCompletedObservationJobsLocked(host.ID)
 	removed:=base.ClearHostPosts(host.ID)
 	repo.observationMu.Unlock()
+	// Generic-host fallback uses a one-time realization marker as well as
+	// observation leases. Re-arm both here, as the debug reset path does.
+	repo.mu.Lock()
+	delete(repo.materialized,host.ID+"|"+board.ID)
+	repo.mu.Unlock()
 	if removed!=1 {t.Fatalf("cleared %d posts, want 1",removed)}
 	again,err:=repo.WaitForBoardHeaders(context.Background(),host,board)
 	if err!=nil||len(again)!=1||materializer.calls.Load()!=2 {
