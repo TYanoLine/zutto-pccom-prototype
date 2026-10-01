@@ -74,3 +74,66 @@ func TestProductionGameFacetSelectionSpreadsKindsWithinWindow(t *testing.T) {
 		t.Fatalf("one Situation kind dominated 50-root window: max=%d kinds=%#v", max, seen)
 	}
 }
+
+func TestProductionSituationUsesFocusWithoutDiagnosticAnonymousExample(t *testing.T) {
+	rich := developmentRichGameSituationFacets()
+	var password developmentSituationFacet
+	for _, candidate := range rich {
+		if candidate.kind == "games_password_recording" {
+			password = candidate.developmentSituationFacet
+			break
+		}
+	}
+	if password.kind == "" {
+		t.Fatal("expected diagnostic password facet")
+	}
+	// The diagnostic PoC intentionally describes an unnamed game, but that
+	// experimental constraint must not leak into production generation.
+	if !strings.Contains(password.boundary, "unnamed game") {
+		t.Fatal("diagnostic fixture unexpectedly changed")
+	}
+	got := productionSituationFocus(password, "share_observation")
+	if got.kind != password.kind || got.summary != password.focus {
+		t.Fatalf("focus not preserved: %+v", got)
+	}
+	material := strings.Join(got.facts, "\n")
+	for _, forbidden := range []string{
+		password.boundary, password.occurrences[0], "never name",
+		"No real title", "unnamed game",
+	} {
+		if strings.Contains(material, forbidden) {
+			t.Fatalf("diagnostic anonymous-game instruction leaked into production: %q in %q", forbidden, material)
+		}
+	}
+	if !strings.Contains(material, "date-valid") || !strings.Contains(material, "ownership") {
+		t.Fatalf("production must admit supported referents without asserting ownership: %q", material)
+	}
+}
+
+func TestProductionGameTopicFacetsAreBroadAndModeCompatible(t *testing.T) {
+	extra := productionGameTopicFacets()
+	if len(extra) < 3 {
+		t.Fatalf("too few production work-specific activity focuses: %d", len(extra))
+	}
+	for _, candidate := range extra {
+		if candidate.kind == "" || candidate.focus == "" {
+			t.Fatalf("topic facet lacks a World activity focus: %+v", candidate)
+		}
+		if len(candidate.occurrences) != 0 || candidate.boundary != "" {
+			t.Fatalf("production-only activity focus is prescribing a diagnostic incident: %+v", candidate)
+		}
+		if len(candidate.modes) == 0 {
+			t.Fatalf("topic facet missing mode compatibility: %+v", candidate)
+		}
+	}
+}
+
+func TestProductionFocusDoesNotImplyEveryPostNeedsAWorkName(t *testing.T) {
+	facet := developmentSituationFacet{kind: "chat_hobby", focus: "a short hobby update"}
+	got := productionSituationFocus(facet, "ask_peers")
+	material := strings.Join(got.facts, "\n")
+	if !strings.Contains(material, "not a naming quota") ||
+		!strings.Contains(material, "answerable uncertainty") {
+		t.Fatalf("production focus lost optional naming or peer question nuance: %s", material)
+	}
+}
