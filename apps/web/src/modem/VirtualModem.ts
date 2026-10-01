@@ -465,6 +465,18 @@ export class VirtualModem {
       else finish();
       return;
     }
+    if (msg.result === 'no_carrier') {
+      this.ringing = false;
+      this.negotiating = false;
+      this.connected = false;
+      this.emitTelemetry();
+      this.terminal.write('\r\nNO CARRIER\r\n');
+      this.onStatus?.('NO CARRIER');
+      this.releaseSocket('no carrier');
+      this.scheduleAutoRedial();
+      return;
+    }
+
     if (msg.result === 'connect') {
       this.clearRetryTimer();
       this.connected = true;
