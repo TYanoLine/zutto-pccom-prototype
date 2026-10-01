@@ -73,11 +73,17 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	defer func() {
 		if strings.Contains(diagnostic, "error stage=") {
 			traceDone(fmt.Errorf("%s", diagnostic))
-		} else if !generated && result.Body == "" {
-			traceDone(fmt.Errorf("body was not committed"))
-		} else {
-			traceDone(nil)
+			return
 		}
+		// The renderer can return text even if an underlying store write fails.
+		// Only call the trace successful after confirming canonical persistence.
+		if result.Body != "" {
+			if saved, ok := r.findMaterializationPost(host.ID, board.ID, selected.ID); ok && saved.Body != "" {
+				traceDone(nil)
+				return
+			}
+		}
+		traceDone(fmt.Errorf("article body was not committed"))
 	}()
 	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(traceCtx, host, board, selected)
 	if detailErr != nil {
