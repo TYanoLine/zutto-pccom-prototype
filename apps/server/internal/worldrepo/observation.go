@@ -166,7 +166,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		existing := filterBoard(r.Base.ListPosts(host.ID), board.ID)
 		if len(existing) == 0 {
 			if state, ok := r.BoardActivity(host, board); ok && state.RetainedRoots > 0 {
-				err = r.bbsArticles.CatchUpInitialBoardActivity(context.Background(), host, board, state)
+				err = r.bbsArticles.CatchUpInitialBoardActivity(ctx, host, board, state)
 			} else {
 				err = r.bbsArticles.CatchUp(context.Background(), host, board)
 			}
