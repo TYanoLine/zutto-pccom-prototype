@@ -10,6 +10,16 @@ This document is product behavior, not merely prompt advice.
 - Agreement, praise and curiosity require persona/world justification.
 - Silence is a valid result and should usually be decided before the LLM is called.
 
+## Prompt construction
+
+Prefer **purpose + materials + schema/validation** over long prompt rule stacks.
+
+For fact-producing generation, tell the model briefly what service it is operating inside, what artifact it is producing, and how that artifact will be used downstream. Put the concrete world inputs that should shape the answer into structured request material: actor, world date, board, posting purpose, canonical facts, selected referents, recent context, and other already-decided state.
+
+Do not turn quality preferences into growing lists of prohibitions when the same behavior can be obtained by improving those inputs. Keep prompt-level rules for hard boundaries that cannot safely be inferred from materials alone, such as canonical-state ownership, historical ceiling, reply/source identity, and output-format requirements. Enforce machine-checkable invariants in schemas and validators rather than restating them repeatedly in prose.
+
+Small wording drift is acceptable when it does not alter canonical facts. A generator may choose a natural expression that differs from an expected phrasing; validation should reject contradictions or unauthorized world changes, not harmless stylistic variation.
+
 ## Persona persistence
 
 Persist opinions/interests/relationships independently of prose. Interests describe things this person actually tends to care or talk about, not every tool/environment they happen to use. Example:
