@@ -67,7 +67,6 @@ func main() {
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
-	var personaAdvisor personaFutureAdvisor
 	if cfg.JevKey != "" {
 		jevAdvisor := worldengine.JevAdvisor{
 			APIKey: cfg.JevKey,
@@ -77,7 +76,6 @@ func main() {
 		worldEngine.WriteAdvisor = jevAdvisor
 		worldEngine.BehaviorAdvisor = jevAdvisor
 		worldEngine.TitleAdvisor = jevAdvisor
-		personaAdvisor = jevAdvisor
 	}
 	// Candidate wording, article details, final prose, and bounded historical research
 	// use Azure OpenAI. Jev remains an independent bounded semantic advisor for the
@@ -87,12 +85,8 @@ func main() {
 	postMaterializer := newProductionMaterializer(postRenderer)
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
-	runtimeStore.SetDebugDisableBBSTitleHistoricalVerification(cfg.DebugDisableBBSTitleHistoricalVerification)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetWorldNow(clock.Now)
-	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
-	personaLab := newPersonaLab(azureOpenAIRenderer, personaAdvisor, cfg.WorldDate, cfg.AzureOpenAIKey != "")
-	personaHistoryLab := newPersonaHistoryLab(azureOpenAIRenderer, cfg.WorldDate, cfg.AzureOpenAIKey != "")
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -135,29 +129,6 @@ func main() {
 		}(), "model": cfg.AzureOpenAIModel})
 	}
 
-	debugAuthorized := func(r *http.Request) bool {
-		if cfg.DebugResetToken == "" {
-			return false
-		}
-		got := r.Header.Get("X-Zutto-Debug-Token")
-		return len(got) == len(cfg.DebugResetToken) && subtle.ConstantTimeCompare([]byte(got), []byte(cfg.DebugResetToken)) == 1
-	}
-	debugGuard := func(w http.ResponseWriter, r *http.Request, method, unauthorized string) bool {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method != method {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return false
-		}
-		if catalogStore == nil {
-			http.Error(w, `{"error":"persistent world database is not configured"}`, http.StatusServiceUnavailable)
-			return false
-		}
-		if !debugAuthorized(r) {
-			http.Error(w, `{"error":"`+unauthorized+`"}`, http.StatusForbidden)
-			return false
-		}
-		return true
-	}
 	adminGuard := func(w http.ResponseWriter, _ *http.Request) bool {
 		w.Header().Set("Content-Type", "application/json")
 		if historyStore == nil {
@@ -165,71 +136,6 @@ func main() {
 			return false
 		}
 		return true
-	}
-
-	inspectWorld := func(w http.ResponseWriter, r *http.Request) {
-		if !debugGuard(w, r, http.MethodGet, "debug access is disabled or unauthorized") {
-			return
-		}
-		worldKey := r.URL.Query().Get("key")
-		if !worldcatalog.ValidWorldKey(worldKey) {
-			http.Error(w, `{"error":"invalid world key"}`, http.StatusBadRequest)
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		defer cancel()
-		inspection, err := catalogStore.InspectWorld(ctx, worldKey)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(inspection)
-	}
-
-	resetWorld := func(w http.ResponseWriter, r *http.Request) {
-		if !debugGuard(w, r, http.MethodPost, "debug reset is disabled or unauthorized") {
-			return
-		}
-		worldKey := r.URL.Query().Get("key")
-		if !worldcatalog.ValidWorldKey(worldKey) {
-			http.Error(w, `{"error":"invalid world key"}`, http.StatusBadRequest)
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		defer cancel()
-		if err := catalogStore.ResetWorld(ctx, worldKey); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "reset": "world", "next": "call /api/world/bootstrap with the same key to generate a new canonical world"})
-	}
-
-	resetHost := func(w http.ResponseWriter, r *http.Request) {
-		if !debugGuard(w, r, http.MethodPost, "debug reset is disabled or unauthorized") {
-			return
-		}
-		worldKey, hostID := r.URL.Query().Get("key"), r.URL.Query().Get("host")
-		if !worldcatalog.ValidWorldKey(worldKey) || hostID == "" {
-			http.Error(w, `{"error":"invalid world key or host"}`, http.StatusBadRequest)
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 75*time.Second)
-		defer cancel()
-		center, err := catalogStore.ResetHost(ctx, worldKey, hostID, func(ctx context.Context) (string, error) {
-			names, err := generateNames(ctx, 1)
-			if err != nil {
-				return "", err
-			}
-			return names[0], nil
-		})
-		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "reset": "host", "center": center})
 	}
 
 	resetBBSArticles := func(w http.ResponseWriter, r *http.Request) {
@@ -560,20 +466,6 @@ func main() {
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
-	mux.HandleFunc("/api/debug/export", newDebugExportHandler(store))
-	mux.HandleFunc("/api/debug/minimal-bbs-poc", newMinimalBBSPoCHandler(cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
-	mux.HandleFunc("/api/debug/minimal-situation-title-batch-poc", newMinimalSituationTitleBatchPoCHandler(runtimeStore, cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
-	mux.HandleFunc("/api/debug/minimal-typed-situation-title-batch-poc", newMinimalTypedSituationTitleBatchPoCHandler(runtimeStore, cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
-	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
-	mux.HandleFunc("/api/debug/bbs-title-jev-poc", newBBSTitleJevPoCHandler(runtimeStore, azureOpenAIRenderer, cfg.JevKey, cfg.JevModel, cfg.WorldDate))
-	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
-	mux.HandleFunc("/api/debug/persona-timeline", newPersonaTimelinePocHandler())
-	mux.HandleFunc("/api/debug/persona-history", personaHistoryLab.handler())
-	mux.HandleFunc("/poc/persona-history", newPersonaHistoryPocViewerHandler())
-	mux.HandleFunc("/poc/persona-timeline", newPersonaTimelinePocViewerHandler())
-	mux.HandleFunc("/api/debug/world", inspectWorld)
-	mux.HandleFunc("/api/debug/world/reset", resetWorld)
-	mux.HandleFunc("/api/debug/host/reset", resetHost)
 	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
 	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
 	mux.HandleFunc("/api/admin/research", listResearch)
@@ -583,14 +475,13 @@ func main() {
 	mux.HandleFunc("/api/admin/research/supplement", supplementResearch)
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
-	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIImageModel))
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(historicalkb.AdminPageHTML))
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != ""})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}

@@ -21,6 +21,8 @@ The current distributions for host-program family, line count, founding date, po
 
 The host-program family labels name historically researched families, but their present selection weights are not historically validated. Replace the weights when primary or strong secondary evidence is available. Host-program-specific menus, commands, board models, mail, chat, file transfer, unread tracking, and other behavior remain responsibilities of separate host runtimes; the skeleton must not create a fictional shared host UI.
 
-## Debug reset safety
+## HAKATA generator-evaluation exception
 
-Destructive reset endpoints are disabled unless `DEBUG_RESET_TOKEN` is configured on the server. The token is accepted only in the `X-Zutto-Debug-Token` request header and must never be exposed through a `VITE_` environment variable.
+Successful reconnects temporarily reset this fixed station's article sample,
+allowing repeated quality checks. Other persistent-world data and hosts are not
+reset through that station-specific mechanism.

@@ -50,7 +50,7 @@ Ordinary already-established conditions belong in baseline/world context, not au
 
 Examples include the person's normal computer/terminal environment, ordinary BBS membership, normal commute or neighborhood, usual communication method, routine work/school state, and other facts that contemporary residents normally leave implicit. A machine family may be useful as internal world metadata while being completely unremarkable to the person using it every day.
 
-The current prototype exposes this distinction as `Persona.EverydayContext`. The field is intentionally small and human-readable for the PoC; production persistence may normalize it differently. Its semantic contract matters more than its storage form:
+The current prototype exposes this distinction as `Persona.EverydayContext`. The field remains small and human-readable; production persistence may normalize it differently. Its semantic contract matters more than its storage form:
 
 - baseline is a contradiction/interpretation constraint;
 - baseline normally remains unspoken;

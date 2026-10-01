@@ -573,9 +573,10 @@ func (r *Runtime) renderBoardIndex() string {
 	}
 	board := worldBoard(node)
 	posts := r.observedBoardPosts(r.boardPath)
-	if observer, ok := r.Store.(world.HostObservationStore); ok {
-		// Predictive work may already be running from login/forum navigation. If
-		// this exact board is not ready, join/start only its shared job and wait;
+	if observer, ok := r.Store.(world.HostObservationStore); ok && len(posts) == 0 {
+		// A leaf board that already has visible canonical headers is ready.
+		// Do not start a fresh catch-up merely by returning from an article:
+		// that would waste provider capacity on unrelated pending board reads.
 		// never expose an empty placeholder that requires the user to refresh.
 		//
 		// Title/header materialization can depend on external model/research

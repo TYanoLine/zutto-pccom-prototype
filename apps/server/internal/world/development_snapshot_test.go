@@ -8,7 +8,7 @@ import (
 
 func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 	store := NewMemoryStore()
-	host, err := store.HostByPhone("0450000196")
+	host, err := store.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestLegacyPostIntentWithoutDetailCompletionDefaultsToIncomplete(t *testing.
 
 func TestDevelopmentSnapshotDetachesPostIntentSlices(t *testing.T) {
 	store := NewMemoryStore()
-	host, err := store.HostByPhone("0450000196")
+	host, err := store.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}

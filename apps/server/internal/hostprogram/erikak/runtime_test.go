@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"testing"
 
 	"zutto-pccom/apps/server/internal/world"
@@ -317,7 +318,6 @@ func TestLeafBoardReadRetriesOneTransientHeaderFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base.AddPost(host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "お知らせ", Body: "本文"})
 	store := &flakyBoardObservationStore{MemoryStore: base, failures: 1}
 	runtime := New(host, store)
 	loginGuest(t, runtime)
@@ -327,7 +327,7 @@ func TestLeafBoardReadRetriesOneTransientHeaderFailure(t *testing.T) {
 	if disconnect {
 		t.Fatal("board read disconnected after a transient header failure")
 	}
-	if strings.Contains(out, "? BOARD READ ERROR") || !strings.Contains(out, "お知らせ") {
+	if strings.Contains(out, "? BOARD READ ERROR") || !strings.Contains(out, "MSG はありません") {
 		t.Fatalf("transient header failure leaked into Erika-K UI: %q", out)
 	}
 	if store.waitCalls != 2 {
@@ -470,5 +470,27 @@ func TestThreadShowsAppendFailureWhenSharedDetailPipelineFails(t *testing.T) {
 	out := runtime.renderThread(root.ID)
 	if !strings.Contains(out, "セーブの場所") || !strings.Contains(out, "(アペンドの読み込みに失敗しました)") {
 		t.Fatalf("shared detail failure did not preserve the header and show host failure text: %q", out)
+	}
+}
+
+func TestExistingPC98HeadersDoNotLaunchMoreGenerationOnIndexReturn(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil { t.Fatal(err) }
+	board, ok := BoardByPath("70/1")
+	if !ok { t.Fatal("PC-98 board missing") }
+	saved := base.AddPost(host.ID, world.Post{BoardID: board.ID, Author: "MIKI", Subject: "PC-98の起動ディスク", Body: "本文", CreatedAt: time.Date(1996, 7, 17, 21, 0, 0, 0, time.Local)})
+	store := &noWaitObservationStore{MemoryStore: base}
+	runtime := New(host, store)
+	runtime.boardPath = board.ID
+	runtime.state = "board"
+	for i:=0; i<2; i++ {
+		out := runtime.renderBoardIndex()
+		if !strings.Contains(out, saved.Subject) || !strings.Contains(out, "最新10インデックス") {
+			t.Fatalf("PC-98 existing headers missing after return: %q", out)
+		}
+	}
+	if len(store.begun) != 0 || len(store.waited) != 0 {
+		t.Fatalf("existing board index started redundant LLM catch-up: begun=%#v waited=%#v", store.begun, store.waited)
 	}
 }

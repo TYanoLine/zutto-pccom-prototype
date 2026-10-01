@@ -58,8 +58,9 @@ func TestProductionBoardDomainUsesAffirmativeScopeNotExcludedWords(t *testing.T)
 		},
 		{
 			board: world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ", SemanticScope: "PC-98系やモデム、通信環境についての具体的な相談・情報交換。"},
-			want: "modem",
+			want: "pc98_modem",
 		},
+		{board: world.Board{ID:"70/1",Name:"ＰＣ－９８",SemanticScope:"PC-98系機種の利用、設定、周辺機器、ソフト利用など。"}, want:"pc98"},
 	}
 	persona := world.Persona{Interests: map[string]float64{"games": .99, "music": .75}}
 	for _, tc := range cases {
@@ -142,37 +143,17 @@ func TestProductionGameFacetSelectionSpreadsKindsWithinWindow(t *testing.T) {
 	}
 }
 
-func TestProductionSituationUsesFocusWithoutDiagnosticAnonymousExample(t *testing.T) {
-	rich := developmentRichGameSituationFacets()
-	var password developmentSituationFacet
-	for _, candidate := range rich {
-		if candidate.kind == "games_password_recording" {
-			password = candidate.developmentSituationFacet
-			break
+func TestProductionSituationUsesActivityFocusOnly(t *testing.T) {
+	choices := developmentRichGameSituationFacets()
+	if len(choices) < 20 {t.Fatalf("insufficient production GAME activity variety: %d",len(choices))}
+	for _,choice := range choices {
+		input:=productionSituationFocus(choice.developmentSituationFacet)
+		if input.kind!=choice.kind||input.summary!=choice.focus||len(input.facts)!=1||
+			input.facts[0]!="activity_focus="+choice.focus {
+			t.Fatalf("non-World scenario rule leaked into production: %+v",input)
 		}
 	}
-	if password.kind == "" {
-		t.Fatal("expected diagnostic password facet")
-	}
-	// The diagnostic PoC intentionally describes an unnamed game, but that
-	// experimental constraint must not leak into production generation.
-	if !strings.Contains(password.boundary, "unnamed game") {
-		t.Fatal("diagnostic fixture unexpectedly changed")
-	}
-	got := productionSituationFocus(password)
-	if got.kind != password.kind || got.summary != password.focus {
-		t.Fatalf("focus not preserved: %+v", got)
-	}
-	// The production material has one World-selected focus, not a list of
-	// instructions controlling the model's topic or prose.
-	if len(got.facts) != 1 || got.facts[0] != "activity_focus="+password.focus {
-		t.Fatalf("production material includes diagnostic constraints: %#v", got.facts)
-	}
-	if strings.Contains(strings.Join(got.facts, "\n"), password.boundary) {
-		t.Fatalf("diagnostic anonymous-game condition leaked into production: %#v", got.facts)
-	}
 }
-
 func TestProductionGameTopicFacetsAreBroadAndModeCompatible(t *testing.T) {
 	extra := productionGameTopicFacets()
 	if len(extra) < 3 {
@@ -181,9 +162,6 @@ func TestProductionGameTopicFacetsAreBroadAndModeCompatible(t *testing.T) {
 	for _, candidate := range extra {
 		if candidate.kind == "" || candidate.focus == "" {
 			t.Fatalf("topic facet lacks a World activity focus: %+v", candidate)
-		}
-		if len(candidate.occurrences) != 0 || candidate.boundary != "" {
-			t.Fatalf("production-only activity focus is prescribing a diagnostic incident: %+v", candidate)
 		}
 		if len(candidate.modes) == 0 {
 			t.Fatalf("topic facet missing mode compatibility: %+v", candidate)
@@ -199,5 +177,21 @@ func TestProductionFocusIsIdenticalMaterialAcrossPostingModes(t *testing.T) {
 	}
 	if len(got.facts) != 1 || got.facts[0] != "activity_focus=a short hobby update" {
 		t.Fatalf("production added an unnecessary prompt rule: %#v", got.facts)
+	}
+}
+
+func TestPC98FacetsAreBoardSpecificAcrossPostingModes(t *testing.T) {
+	host := world.Host{ID:"hakata-canal-net"}
+	persona := world.Persona{ID:"test",Interests:map[string]float64{"games":1}}
+	for _,tc := range []struct{board world.Board; want string}{
+		{world.Board{ID:"70/1",Name:"ＰＣ－９８",SemanticScope:"PC-98系機種の利用、設定、周辺機器、ソフト利用など。"},"pc98"},
+		{world.Board{ID:"60/1",Name:"ＰＣ－９８／ＭＯＤＥＭ",SemanticScope:"PC-98系やモデム、通信環境についての相談。"},"pc98_modem"},
+	}{
+		domain:=productionBoardDomain(tc.board,persona)
+		if domain!=tc.want {t.Errorf("%s domain=%q want=%q",tc.board.ID,domain,tc.want)}
+		for _,mode:=range developmentRootDiscourseModes {
+			facet,ok:=chooseProductionSituationFacet(host,tc.board,persona,time.Date(1996,7,27,20,0,0,0,time.Local),1,domain,mode,nil)
+			if !ok || !strings.HasPrefix(facet.kind,"pc98_") {t.Errorf("board=%s mode=%s facet=%+v ok=%v",tc.board.ID,mode,facet,ok)}
+		}
 	}
 }

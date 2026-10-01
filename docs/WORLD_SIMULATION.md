@@ -188,17 +188,16 @@ The local simulation remains the majority prior. Jev contributes a bounded minor
 
 Advisory responses are transient operational inputs, not canonical world state. Jev probabilities are quantized to 0.05 steps before entering deterministic sampling so small provider jitter does not routinely alter retry outcomes. Once a resulting action is materialized, the database remains canonical. A future general production world engine should persist or otherwise version advisor snapshots across retry-sensitive simulation leases if advisory decisions extend beyond this bounded development materialization path.
 
-### World-selected roots are not optional prose candidates
+### World-selected roots and canonical subject stability
 
-Once the World Engine selects a root-post slot (actor, board, timestamp, action/cause), title-first realization may choose or regenerate wording but must not silently replace that event with a canned board-name paraphrase merely because a candidate pool or semantic fit pass was poor. The shared production path replenishes bounded 20-title pools and, when ordinary pools still leave roots unresolved, switches to additional era-safe generated pools that avoid unsupported external historical claims while remaining concrete. If bounded generated refills are still exhausted, the batch fails atomically and may be retried later; it does **not** commit subjects such as "ＰＣ－９８について". Interactive title-first diagnostics follow the same no-canned-fallback rule. Reply survival therefore depends on canonical topology, not on whether an unrelated title candidate happened to score above a semantic threshold.
-
-### Title-first semantic advisor
-
-When Jev is configured, the development title-first path also uses System One as a fast semantic classifier after Azure OpenAI has generated the 20 candidate titles for a board. One bounded Jev request per board estimates two era-routing probabilities for each candidate (`safe_without_research`, `logically_impossible`) and a compatibility probability for each candidate × already-selected world root slot.
-
-These probabilities still do not create world facts. Code applies conservative thresholds, performs deterministic one-title/one-slot matching, and persists only the resulting World-side adoption. Ambiguous named products/works/services remain `research`; selected `research` candidates still require the separate Historical Knowledge/Web evidence path in strict mode. A high Jev fit score cannot bypass that verification. The retired `observe-only` experiment did not change the production historical-verification boundary.
-
-If Jev is unavailable, malformed, or times out, title-first falls back to the existing Azure OpenAI Era Validator and title-slot reviewer for that board. Candidate wording generation, Article Detail materialization, and final article prose remain outside the Jev title advisor.
+The shared production pipeline uses only Situation-first planning: World fixes
+actor, board, time, cause and reply topology, then selects an activity focus.
+The model supplies still-unknown concrete occurrences and titles before those
+details are committed. The planner validates all required slots and fails the
+batch if generation cannot supply valid subjects; a generic board-name fallback
+must not be committed. Once a subject is shown in a board index, body rendering
+cannot replace it with the body's generated subject. Host-specific append
+semantics remain intact.
 
 ## Diegetic present
 

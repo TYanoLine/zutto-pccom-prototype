@@ -1,9 +1,8 @@
 {
   "rewrites": [
-    { "source": "/admin/research", "destination": "/" },
-    { "source": "/poc/knowledge-bbs", "destination": "/" },
-    { "source": "/poc/image-artifact", "destination": "/" },
-    { "source": "/poc/persona-lab", "destination": "/" },
-    { "source": "/poc/persona-timeline", "destination": "/" }
+    {
+      "source": "/admin/research",
+      "destination": "/"
+    }
   ]
 }

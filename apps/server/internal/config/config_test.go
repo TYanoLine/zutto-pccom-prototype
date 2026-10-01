@@ -4,14 +4,10 @@ import "testing"
 
 func TestAzureOpenAIDefaultModelUsesDeploymentName(t *testing.T) {
 	t.Setenv("AZURE_OPENAI_MODEL", "")
-	t.Setenv("AZURE_OPENAI_IMAGE_MODEL", "")
 
 	cfg := Load()
 	if cfg.AzureOpenAIModel != "zutto-pccom-gpt-6-luna" {
 		t.Fatalf("AzureOpenAIModel=%q want deployment name %q", cfg.AzureOpenAIModel, "zutto-pccom-gpt-6-luna")
-	}
-	if cfg.AzureOpenAIImageModel != "gpt-image-1" {
-		t.Fatalf("AzureOpenAIImageModel=%q want %q", cfg.AzureOpenAIImageModel, "gpt-image-1")
 	}
 }
 
@@ -40,21 +36,6 @@ func TestHistoricalReferencesCanBeEnabledAndDisabled(t *testing.T) {
 				t.Fatalf("value=%q got=%v want=%v", tc.value, got, tc.want)
 			}
 		})
-	}
-}
-
-
-func TestDebugDisableBBSTitleHistoricalVerificationDefaultOff(t *testing.T) {
-	t.Setenv("DEBUG_DISABLE_BBS_TITLE_HISTORICAL_VERIFICATION", "")
-	if Load().DebugDisableBBSTitleHistoricalVerification {
-		t.Fatal("title historical verification debug bypass must default to OFF")
-	}
-}
-
-func TestDebugDisableBBSTitleHistoricalVerificationCanBeEnabled(t *testing.T) {
-	t.Setenv("DEBUG_DISABLE_BBS_TITLE_HISTORICAL_VERIFICATION", "1")
-	if !Load().DebugDisableBBSTitleHistoricalVerification {
-		t.Fatal("debug title historical verification bypass was not enabled")
 	}
 }
 

@@ -263,78 +263,50 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 	close(materializer.release["a"])
 }
 
-func TestResetRearmsCompletedBoardObservation(t *testing.T) {
-	base := world.NewMemoryStore()
-	materializer := &blockingObservationMaterializer{}
-	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	board := world.Board{ID: "main", Name: "フリートーク"}
-
-	repo.BeginHostObservation(host, []world.Board{board})
-	posts, err := repo.WaitForBoardHeaders(context.Background(), host, board)
-	if err != nil || len(posts) != 1 {
-		t.Fatalf("initial observation failed: posts=%+v err=%v", posts, err)
-	}
-	if got := materializer.calls.Load(); got != 1 {
-		t.Fatalf("initial materialization calls=%d", got)
-	}
-
-	cleared, _, ok := repo.ResetMaterializationConversation(host)
-	if !ok || cleared != 1 {
-		t.Fatalf("reset failed: cleared=%d ok=%v", cleared, ok)
-	}
-	if repo.boardObservationJob(host.ID, board.ID) != nil {
-		t.Fatal("completed board observation marker survived reset")
-	}
-
-	posts, err = repo.WaitForBoardHeaders(context.Background(), host, board)
-	if err != nil || len(posts) != 1 {
-		t.Fatalf("post-reset observation failed: posts=%+v err=%v", posts, err)
-	}
-	if got := materializer.calls.Load(); got != 2 {
-		t.Fatalf("reset did not start a fresh observation: calls=%d", got)
+func TestCompletedBoardObservationCanBeSafelyRearmed(t *testing.T) {
+	base:=world.NewMemoryStore()
+	materializer:=&blockingObservationMaterializer{}
+	repo:=New(base,observationTestEvidence{},materializer,"1996-08-26")
+	host,err:=repo.HostByPhone("0450000001");if err!=nil{t.Fatal(err)}
+	board:=world.Board{ID:"main",Name:"フリートーク"}
+	repo.BeginHostObservation(host,[]world.Board{board})
+	first,err:=repo.WaitForBoardHeaders(context.Background(),host,board)
+	if err!=nil||len(first)!=1{t.Fatalf("initial observation: posts=%v err=%v",first,err)}
+	repo.observationMu.Lock()
+	if repo.observationRunningLocked(host.ID) {repo.observationMu.Unlock();t.Fatal("completed worker still running")}
+	repo.clearCompletedObservationJobsLocked(host.ID)
+	removed:=base.ClearHostPosts(host.ID)
+	repo.observationMu.Unlock()
+	// Generic-host fallback uses a one-time realization marker as well as
+	// observation leases. Re-arm both here, as the debug reset path does.
+	repo.mu.Lock()
+	delete(repo.materialized,host.ID+"|"+board.ID)
+	repo.mu.Unlock()
+	if removed!=1 {t.Fatalf("cleared %d posts, want 1",removed)}
+	again,err:=repo.WaitForBoardHeaders(context.Background(),host,board)
+	if err!=nil||len(again)!=1||materializer.calls.Load()!=2 {
+		t.Fatalf("fresh observation failed: posts=%v err=%v calls=%d",again,err,materializer.calls.Load())
 	}
 }
 
-func TestResetRefusesWhileBoardObservationIsRunning(t *testing.T) {
-	base := world.NewMemoryStore()
-	materializer := &blockingObservationMaterializer{
-		started: make(chan struct{}),
-		release: make(chan struct{}),
-	}
-	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	board := world.Board{ID: "main", Name: "フリートーク"}
-
-	repo.BeginHostObservation(host, []world.Board{board})
-	select {
-	case <-materializer.started:
-	case <-time.After(time.Second):
-		t.Fatal("observation did not start")
-	}
-	if !repo.MaterializationObservationRunning(host.ID) {
-		t.Fatal("running observation was not reported")
-	}
-	if cleared, facts, ok := repo.ResetMaterializationConversation(host); ok || cleared != 0 || facts != 0 {
-		t.Fatalf("reset should be refused while worker runs: cleared=%d facts=%d ok=%v", cleared, facts, ok)
-	}
-
+func TestRunningBoardObservationBlocksCanonicalReset(t *testing.T) {
+	base:=world.NewMemoryStore()
+	materializer:=&blockingObservationMaterializer{started:make(chan struct{}),release:make(chan struct{})}
+	repo:=New(base,observationTestEvidence{},materializer,"1996-08-26")
+	host,err:=repo.HostByPhone("0450000001");if err!=nil{t.Fatal(err)}
+	board:=world.Board{ID:"main",Name:"フリートーク"}
+	repo.BeginHostObservation(host,[]world.Board{board})
+	select { case <-materializer.started: case <-time.After(time.Second): t.Fatal("observation never started") }
+	repo.observationMu.Lock()
+	blocked:=repo.observationRunningLocked(host.ID)
+	repo.observationMu.Unlock()
+	if !blocked {t.Fatal("running worker did not block reset")}
 	close(materializer.release)
-	if _, err := repo.WaitForBoardHeaders(context.Background(), host, board); err != nil {
-		t.Fatal(err)
-	}
-	if repo.MaterializationObservationRunning(host.ID) {
-		t.Fatal("completed observation still reported running")
-	}
-	if _, _, ok := repo.ResetMaterializationConversation(host); !ok {
-		t.Fatal("reset should succeed after observation completes")
-	}
+	if _,err:=repo.WaitForBoardHeaders(context.Background(),host,board);err!=nil{t.Fatal(err)}
+	repo.observationMu.Lock()
+	stillRunning:=repo.observationRunningLocked(host.ID)
+	repo.observationMu.Unlock()
+	if stillRunning {t.Fatal("completed worker still blocks reset")}
 }
 
 func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(t *testing.T) {
