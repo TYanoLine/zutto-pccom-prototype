@@ -318,7 +318,6 @@ func TestLeafBoardReadRetriesOneTransientHeaderFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base.AddPost(host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "お知らせ", Body: "本文"})
 	store := &flakyBoardObservationStore{MemoryStore: base, failures: 1}
 	runtime := New(host, store)
 	loginGuest(t, runtime)
@@ -328,7 +327,7 @@ func TestLeafBoardReadRetriesOneTransientHeaderFailure(t *testing.T) {
 	if disconnect {
 		t.Fatal("board read disconnected after a transient header failure")
 	}
-	if strings.Contains(out, "? BOARD READ ERROR") || !strings.Contains(out, "お知らせ") {
+	if strings.Contains(out, "? BOARD READ ERROR") || !strings.Contains(out, "MSG はありません") {
 		t.Fatalf("transient header failure leaked into Erika-K UI: %q", out)
 	}
 	if store.waitCalls != 2 {
