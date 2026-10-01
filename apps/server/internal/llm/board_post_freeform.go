@@ -1,6 +1,7 @@
 package llm
 
 import (
+    "encoding/json"
     "fmt"
     "strings"
 )
@@ -45,6 +46,8 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
     context := ""
     if len(extra) > 0 { context = "\n\n"+strings.Join(extra, "\n\n") }
     minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+    authorJSON, _ := json.Marshal(req.AuthorHandle)
+    subjectJSON, _ := json.Marshal(outputSubject)
     return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、会員が読む記事本文を文章化し、保存・表示します。
 
 世界日付: %s
@@ -60,9 +63,9 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
 時代背景: %s
 
 JSON:
-{"author":"%s","subject":"%s","body":"..."}`,
+{"author":%s,"subject":%s,"body":"..."}`,
         req.WorldDate, req.HostName, req.BoardTopic, displayedSubject,
         persona, context, req.WorldDate, minChars, maxChars,
-        compactBoardPostEraRules(req.EraRules), req.AuthorHandle, outputSubject,
+        compactBoardPostEraRules(req.EraRules), string(authorJSON), string(subjectJSON),
     )
 }
