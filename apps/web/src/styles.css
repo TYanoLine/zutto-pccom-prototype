@@ -100,9 +100,9 @@ code { color: #ddd; }
 .audition-meta { margin-top: 7px; padding: 4px 7px; width: fit-content; max-width: 100%; color: #8f8; background: #101810; border: 1px solid #294229; font-size: 11px; }
 @media (max-width: 680px), (pointer: coarse) {
   body { overflow: hidden; background: #000; }
-  .shell { --mobile-safe-area-top: env(safe-area-inset-top, 0px); display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
+  .shell { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
   .desktop-topbar, .desktop-statusbar, .titlebar, .statusbar, .quick-help, .dev-shortcuts { display: none !important; }
-  .mobile-statusbar { display: flex; flex: 0 0 auto; min-width: 0; min-height: calc(24px + var(--mobile-safe-area-top)); align-items: center; justify-content: space-between; gap: 8px; padding: var(--mobile-safe-area-top) 6px 0; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
+  .mobile-statusbar { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
   .mobile-statusbar__connection { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; }
   .mobile-statusbar__activity { display: inline-flex; flex: 0 0 14px; height: 10px; align-items: center; gap: 2px; margin-right: 5px; }
   .mobile-statusbar__activity span { display: block; width: 3px; height: 8px; background: currentColor; opacity: 0.22; transform: scaleY(0.55); transform-origin: center; animation: mobile-connection-activity 0.9s ease-in-out infinite; }
@@ -307,14 +307,3 @@ code { color: #ddd; }
   .directory-softkeys .softkey-call { background: #163616; color: #cfc; }
 }
 
-/* On some iPhones, Safari tabs report an inset smaller than the OS status-bar overlay.
-   Reserve enough room for the entire connection row even outside standalone mode.
-   Only the row consumes this variable: shell top padding stays at zero. */
-@supports (-webkit-touch-callout: none) {
-  @media (display-mode: standalone) {
-    .shell { --mobile-safe-area-top: max(env(safe-area-inset-top, 0px), 48px); }
-  }
-  @media (max-width: 680px) {
-    .shell { --mobile-safe-area-top: max(env(safe-area-inset-top, 0px), 56px); }
-  }
-}
