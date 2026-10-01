@@ -2,7 +2,6 @@ package worldrepo
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"log"
 	"strings"
