@@ -31,6 +31,7 @@ type BoardMaterializationRequest struct {
 	Host                       world.Host
 	BoardID                    string
 	BoardTopic                 string
+	FreeformFromSubject        bool
 	WorldDate                  string
 	Persona                    *world.Persona
 	Intent                     world.PostIntent
