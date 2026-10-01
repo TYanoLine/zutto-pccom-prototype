@@ -74,3 +74,63 @@ func TestProductionGameFacetSelectionSpreadsKindsWithinWindow(t *testing.T) {
 		t.Fatalf("one Situation kind dominated 50-root window: max=%d kinds=%#v", max, seen)
 	}
 }
+
+func TestProductionSituationUsesFocusWithoutDiagnosticAnonymousExample(t *testing.T) {
+	rich := developmentRichGameSituationFacets()
+	var password developmentSituationFacet
+	for _, candidate := range rich {
+		if candidate.kind == "games_password_recording" {
+			password = candidate.developmentSituationFacet
+			break
+		}
+	}
+	if password.kind == "" {
+		t.Fatal("expected diagnostic password facet")
+	}
+	// The diagnostic PoC intentionally describes an unnamed game, but that
+	// experimental constraint must not leak into production generation.
+	if !strings.Contains(password.boundary, "unnamed game") {
+		t.Fatal("diagnostic fixture unexpectedly changed")
+	}
+	got := productionSituationFocus(password)
+	if got.kind != password.kind || got.summary != password.focus {
+		t.Fatalf("focus not preserved: %+v", got)
+	}
+	// The production material has one World-selected focus, not a list of
+	// instructions controlling the model's topic or prose.
+	if len(got.facts) != 1 || got.facts[0] != "activity_focus="+password.focus {
+		t.Fatalf("production material includes diagnostic constraints: %#v", got.facts)
+	}
+	if strings.Contains(strings.Join(got.facts, "\n"), password.boundary) {
+		t.Fatalf("diagnostic anonymous-game condition leaked into production: %#v", got.facts)
+	}
+}
+
+func TestProductionGameTopicFacetsAreBroadAndModeCompatible(t *testing.T) {
+	extra := productionGameTopicFacets()
+	if len(extra) < 3 {
+		t.Fatalf("too few production work-specific activity focuses: %d", len(extra))
+	}
+	for _, candidate := range extra {
+		if candidate.kind == "" || candidate.focus == "" {
+			t.Fatalf("topic facet lacks a World activity focus: %+v", candidate)
+		}
+		if len(candidate.occurrences) != 0 || candidate.boundary != "" {
+			t.Fatalf("production-only activity focus is prescribing a diagnostic incident: %+v", candidate)
+		}
+		if len(candidate.modes) == 0 {
+			t.Fatalf("topic facet missing mode compatibility: %+v", candidate)
+		}
+	}
+}
+
+func TestProductionFocusIsIdenticalMaterialAcrossPostingModes(t *testing.T) {
+	facet := developmentSituationFacet{kind: "chat_hobby", focus: "a short hobby update"}
+	got := productionSituationFocus(facet)
+	if got.kind != "chat_hobby" || got.summary != "a short hobby update" {
+		t.Fatalf("lost World-selected direction: %+v", got)
+	}
+	if len(got.facts) != 1 || got.facts[0] != "activity_focus=a short hobby update" {
+		t.Fatalf("production added an unnecessary prompt rule: %#v", got.facts)
+	}
+}

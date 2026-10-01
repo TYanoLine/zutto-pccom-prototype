@@ -124,27 +124,21 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if !ok {
 			return nil, fmt.Errorf("no Situation facet for board=%s domain=%s mode=%s", req.Board.ID, domain, mode)
 		}
-		shell := developmentTimelineShell{
-			index:         slot.Index,
-			persona:       persona,
-			createdAt:     slot.CreatedAt,
-			action:        "thread_start",
-			anchorKey:     domain,
-			causeKind:     "board_activity_window",
-			discourseMode: mode,
-		}
-		sparse := developmentComposeSituation(req.Host, req.Board, shell, facet)
+		// Production uses the World-selected activity focus, not the detailed
+		// diagnostic PoC's anonymous-game example and exclusionary boundary.
+		// The proposer chooses the concrete occurrence before it is canonical.
+		sparse := productionSituationFocus(facet)
 		counts[facet.kind]++
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
 		existing := make([]string, 0, len(personaFacts)+len(sparse.facts)+2)
 		for _, fact := range personaFacts {
-			existing = append(existing, "BACKGROUND ONLY: "+fact)
+			existing = append(existing, "persona_context="+fact)
 		}
-		existing = append(existing, "SITUATION KIND SELECTED BY WORLD: "+facet.kind)
+		existing = append(existing, "situation_kind="+facet.kind)
 		existing = append(existing, sparse.facts...)
 		for _, fact := range productionEventPeriodFacts(req.Host, req.Board, persona, domain, slot.CreatedAt) {
-			existing = append(existing, "ALLOWED HISTORICAL REFERENT FOR THIS EVENT DATE: "+fact)
+			existing = append(existing, "period_reference="+fact)
 		}
 
 		seeds = append(seeds, productionSituationSeed{
@@ -487,7 +481,7 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 func chooseProductionSituationFacet(host world.Host, board world.Board, persona world.Persona, at time.Time, slotIndex int, domain, mode string, counts map[string]int) (developmentSituationFacet, bool) {
 	candidates := make([]developmentSituationFacet, 0)
 	if domain == "games" {
-		for _, rich := range developmentRichGameSituationFacets() {
+		for _, rich := range append(developmentRichGameSituationFacets(), productionGameTopicFacets()...) {
 			if developmentModeFacetAllowed(rich, mode) {
 				candidates = append(candidates, rich.developmentSituationFacet)
 			}
@@ -518,6 +512,54 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 		roll -= weights[i]
 	}
 	return candidates[len(candidates)-1], true
+}
+
+// productionGameTopicFacets are broad *activity* directions, not a named-title
+// dictionary. They give ordinary BBS conversation about particular works a
+// chance alongside gameplay-habit posts. The proposer still chooses any exact
+// referent before the Situation is materialized, using event-date evidence.
+func productionGameTopicFacets() []developmentModeSituationFacet {
+	return []developmentModeSituationFacet{
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_impression",
+				focus: "the member's impression of a game",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_interest",
+				focus: "interest in a game the member has encountered or heard about",
+			},
+			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_choice",
+				focus: "choosing or comparing games",
+			},
+			modes: developmentModeSet("state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_tip",
+				focus: "a practical finding from playing a game",
+			},
+			modes: developmentModeSet("share_experience", "share_tip"),
+		},
+	}
+}
+
+// Production passes the World-selected activity focus as material. Diagnostic
+// example incidents and their wording constraints belong to the Lab only.
+// Concrete occurrences are first proposed here, then become canonical state.
+func productionSituationFocus(facet developmentSituationFacet) developmentSparseSituation {
+	return developmentSparseSituation{
+		kind:    facet.kind,
+		summary: facet.focus,
+		facts:   []string{"activity_focus=" + facet.focus},
+	}
 }
 
 func recentSituationKindCounts(posts []world.Post) map[string]int {

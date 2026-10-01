@@ -20,6 +20,8 @@ Do not turn quality preferences into growing lists of prohibitions when the same
 
 Small wording drift is acceptable when it does not alter canonical facts. A generator may choose a natural expression that differs from an expected phrasing; validation should reject contradictions or unauthorized world changes, not harmless stylistic variation.
 
+For production root Situations, pass World-selected **activity focus**, actor, time, board, persona context, and available period references as materials. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic PoC's sample incidents and wording controls in the Lab rather than transferring them into production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
+
 ## Persona persistence
 
 Persist opinions/interests/relationships independently of prose. Interests describe things this person actually tends to care or talk about, not every tool/environment they happen to use. Example:

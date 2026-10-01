@@ -129,7 +129,7 @@ func TestSituationTitlePromptExplainsDownstreamDisplayPurpose(t *testing.T) {
 	for _, want := range []string{
 		"「ずっとパソコン通信」の内部生成",
 		"すでに正本化されたSituationからBBSの記事一覧に表示するroot件名",
-		"件名のために別の出来事や対象を作る必要はありません",
+		"確定済みSituationの話題をBBS一覧で伝える短い件名",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
 			t.Fatalf("title prompt missing %q:\n%s", want, capturedPrompt)
@@ -148,8 +148,8 @@ func TestBoardPostPromptExplainsSavedArticlePurpose(t *testing.T) {
 	})
 	for _, want := range []string{
 		"「ずっとパソコン通信」の内部生成",
-		"会員が読む記事本文として保存・表示",
-		"canonical Situationとthread factsが本文の材料",
+		"会員が読む記事本文として文章化し、保存・表示",
+		"canonical Situation / thread facts",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("body prompt missing %q:\n%s", want, prompt)

@@ -37,68 +37,58 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	if strings.TrimSpace(req.ParentSubject) != "" || strings.TrimSpace(req.ParentBody) != "" {
 		parent = fmt.Sprintf("subject=%s\nbody:\n%s", strings.TrimSpace(req.ParentSubject), strings.TrimSpace(req.ParentBody))
 	}
-	quoteRule := "引用は不要です。"
-	if strings.TrimSpace(req.QuoteText) != "" {
-		quoteRule = fmt.Sprintf("引用する場合は次の原文を > 付きで一字一句そのまま使うこと:\n%s", strings.TrimSpace(req.QuoteText))
+	additional := make([]string, 0, 2)
+	if requiredReferent != "" && !strings.Contains(subject, requiredReferent) {
+		additional = append(additional, "本文で示すcanonical referent: "+requiredReferent)
 	}
-	referentRule := ""
-	if requiredReferent != "" {
-		referentRule = fmt.Sprintf("\n- canonical referent「%s」。表示件名がこの対象名を明示していない場合、本文の自然な位置で対象名を少なくとも一度明示する。対象を別の作品・製品・店等へ置き換えない。", requiredReferent)
+	if quote := strings.TrimSpace(req.QuoteText); quote != "" {
+		additional = append(additional, "引用資料（引用時は原文を > 付きで使用）:\n"+quote)
+	}
+	extra := "(追加なし)"
+	if len(additional) > 0 {
+		extra = strings.Join(additional, "\n")
 	}
 	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
-	kind := strings.TrimSpace(req.Kind)
-	if kind == "" {
-		kind = "new_post"
-	}
-	eraRules := compactBoardPostEraRules(req.EraRules)
 
-	return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、すでに正本化された記事Situationを、その人物がBBSへ実際に投稿した本文として文章化します。
-あなたの出力は会員が読む記事本文として保存・表示されます。入力されたcanonical Situationとthread factsが本文の材料です。
+	return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、確定済みSituationを会員が読む記事本文として文章化し、保存・表示します。
 
 世界日付: %s
 局: %s
 掲示板: %s
-件名: %s
+確定済み件名: %s
 投稿者:
 %s
 
 canonical Situation / thread facts:
 %s
 
-使ってよい公開史実:
+時代資料:
 %s
 
 親記事:
 %s
 
-ルール:
-- canonical Situation はすでに世界で起きた事実。内容・人物・対象・因果を変えず、書かれていない新しい出来事を足さない。
-- 事実を全部説明する必要はない。この人物がその瞬間に実際に口にしそうな部分だけを書く。
-- ヘッダを読み上げない。件名・投稿者・日時・掲示板は読者に見えているので、本文は用件から自然に始める。
-- discourse_mode と typed Situation の形をそのまま文章行為にする。ask_peersだけが質問を主目的にし、それ以外へ「みなさんは？」等の質問を付け足さない。
-- replyなら親記事の文脈へ反応する。root/replyを変更しない。
-- supplied historical facts と canonical Situation にない実在固有名詞、仕様、価格、発売時期、攻略情報などを追加しない。
-- personaのwriting傾向があれば従う。文章をFAQ・解説・結論付きの整った記事へ無理に仕上げない。
-- 当時の本人として普通に書く。現代からの懐古・時代解説・AI/プロンプト/DB等のメタ発言は禁止。
-- 世界日付は %s。この日より未来の知識や出来事を使わない。
-- 非引用部分は%d〜%d文字を目安にする。水増ししない。%s
-- %s
-- 時代制約: %s
+追加の文章化材料:
+%s
 
-JSONだけを返す:
-{"author":"...","subject":"%s","body":"..."}`, req.WorldDate, req.HostName, req.BoardTopic, subject, persona, intent, facts, parent, req.WorldDate, minChars, maxChars, referentRule, quoteRule, eraRules, subject)
+この記事を書いている本人の自然な文章にしてください。投稿目的と人物の書き方を材料に、確定済みの出来事・対象・親記事の文脈を表現します。読者には件名や投稿者が表示されています。
+時代: %s
+本文の目安: %d〜%d文字
+時代背景: %s
+
+JSON:
+{"author":"...","subject":"%s","body":"..."}`, req.WorldDate, req.HostName, req.BoardTopic, subject, persona, intent, facts, parent, extra, req.WorldDate, minChars, maxChars, compactBoardPostEraRules(req.EraRules), subject)
 }
 
 func compactBoardPostEraRules(raw string) string {
-	raw = strings.TrimSpace(raw)
-	first := raw
+	first := strings.TrimSpace(raw)
 	if i := strings.IndexByte(first, '\n'); i >= 0 {
 		first = strings.TrimSpace(first[:i])
 	}
 	if first == "" {
-		first = "世界日付より未来の知識や出来事を使わない。"
+		return "世界日付に沿った当時の本人の視点"
 	}
-	return first + "\n当時の本人として普通に書く。現代から振り返る説明、レトロ・懐古演出、時代解説はしない。"
+	return first
 }
 
 func validateBoardPostWorkerDraft(req BoardPostRequest, d BoardPostDraft) error {
