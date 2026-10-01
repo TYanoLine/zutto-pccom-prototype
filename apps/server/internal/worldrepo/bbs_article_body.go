@@ -189,7 +189,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	if usage.TotalTokens > 0 || usage.Model != "" {
 		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
 	}
-	diagnostic := joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
+	diagnostic = joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
 			r.logBBSGeneratedContent("body_committed", host, board, updated)
