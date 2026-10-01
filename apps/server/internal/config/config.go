@@ -16,6 +16,7 @@ type Config struct {
 	HistoricalReferencesEnabled                  bool
 	DebugLogBBSArticleDetails                    bool
 	DebugLogHAKATAGenerated                     bool
+	DebugHakataLLMTrace                         bool
 	DatabaseURL                                  string
 	DebugResetToken             string
 }
