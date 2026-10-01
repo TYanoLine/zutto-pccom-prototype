@@ -22,6 +22,8 @@ type LLMMaterializer struct {
 	HistoricalReferencesEnabled bool
 	HistoricalTexture           []string
 	CuratedHistoricalReferences bool
+	// ProductionMinimalHistoricalPrompt leaves historical naming to model knowledge and world-date context, without Lab rule stacks.
+	ProductionMinimalHistoricalPrompt bool
 	// ModelHistoricalMemory is a fresh-Lab experiment: allow model knowledge without a referent dictionary.
 	ModelHistoricalMemory bool
 	// PreferConcreteHistoricalNames keeps model-memory dictionary-free while preferring a known real name over a generic label when it naturally fits.
@@ -122,6 +124,9 @@ func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) 
 }
 
 func (m LLMMaterializer) eraRules() string {
+	if m.ProductionMinimalHistoricalPrompt {
+		return "世界日付の日本に暮らす当時の会員の視点。話題に自然に関係する当時の知識を使い、確定済みの世界事実を引き継ぐ。"
+	}
 	if m.SearchGroundedHistoricalReferences {
 		return "HISTORICAL_REFERENCES=SEARCH_GROUNDED_EXPERIMENT. Do not introduce new real product/work/service/company/person/place/event names from model memory. A real name already present in canonical Situation/PostIntent was selected only after bounded historical search and is an allowed canonical referent: preserve it in subject/body instead of generalizing it away. Do not add release dates, prices, specifications, plot, popularity, ownership history or other details unless they are explicitly canonical. Unnamed situations should remain unnamed. Never use anything after the supplied world date.\n" + llm.DiegeticWorldFrame
 	}

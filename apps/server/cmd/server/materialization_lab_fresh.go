@@ -326,6 +326,8 @@ func (l *materializationLab) runFreshAllBody(id string) {
 	}
 	labMaterializer := l.materializer
 	configure := func(m worldrepo.LLMMaterializer) worldrepo.LLMMaterializer {
+		// The Lab keeps its independently selected historical prompting modes.
+		m.ProductionMinimalHistoricalPrompt = false
 		m.CuratedHistoricalReferences = job.HistoricalTexture == "sourced"
 		m.ModelHistoricalMemory = job.HistoricalTexture == "model-memory" || job.HistoricalTexture == "model-memory-concrete"
 		m.PreferConcreteHistoricalNames = job.HistoricalTexture == "model-memory-concrete"

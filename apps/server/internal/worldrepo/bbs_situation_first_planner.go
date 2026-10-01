@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
-	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -131,15 +130,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		counts[facet.kind]++
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
-		existing := make([]string, 0, len(personaFacts)+len(sparse.facts)+2)
-		for _, fact := range personaFacts {
-			existing = append(existing, "persona_context="+fact)
-		}
-		existing = append(existing, "situation_kind="+facet.kind)
-		existing = append(existing, sparse.facts...)
-		for _, fact := range productionEventPeriodFacts(req.Host, req.Board, persona, domain, slot.CreatedAt) {
-			existing = append(existing, "period_reference="+fact)
-		}
+		existing := productionSituationMaterials(personaFacts, sparse)
 
 		seeds = append(seeds, productionSituationSeed{
 			eventID: eventID, slot: slot, mode: mode, domain: domain,
@@ -194,7 +185,6 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 				WorldDate:                      worldDate,
 				WindowStart:                    windowStart.Format(time.RFC3339),
 				WindowEnd:                      windowEnd.Format(time.RFC3339),
-				HistoricalFacts:                productionHistoricalFacts(materializer, decision),
 				AllowModelHistoricalMemory:     materializer.ModelHistoricalMemory,
 				PreferConcreteHistoricalNames:  materializer.PreferConcreteHistoricalNames,
 				RecentBBSState:                 productionRecentSituationContext(req.RecentPosts),
@@ -387,80 +377,25 @@ func (p repositoryBBSBatchPlanner) personaForSituation(slot bbsengine.Slot) worl
 	return world.Persona{ID: slot.AuthorPersonaID, Handle: slot.Author}
 }
 
-func productionHistoricalFacts(_ LLMMaterializer, decision worldengine.EvidenceDecision) []string {
-	combined := append([]string(nil), usableClaims(decision)...)
-	out := make([]string, 0, len(combined))
-	seen := map[string]bool{}
-	for _, fact := range combined {
-		fact = strings.TrimSpace(fact)
-		if fact == "" || seen[fact] {
-			continue
-		}
-		seen[fact] = true
-		out = append(out, fact)
-		if len(out) >= 32 {
-			break
-		}
-	}
-	return out
-}
-
-func productionEventPeriodFacts(host world.Host, board world.Board, persona world.Persona, domain string, at time.Time) []string {
-	items := historicalkb.PeriodReferents(at.Format(time.DateOnly))
-	candidates := make([]string, 0, len(items))
-	for _, item := range items {
-		claim := strings.TrimSpace(item.Claim)
-		lower := strings.ToLower(item.Name + " " + claim)
-		relevant := false
-		switch domain {
-		case "games":
-			for _, marker := range []string{"ゲーム", "ソフト", "rpg", "シューティング", "playstation", "セガサターン", "スーパーファミコン", "ゲームボーイ", "アクション"} {
-				if strings.Contains(lower, strings.ToLower(marker)) { relevant = true; break }
-			}
-		case "software":
-			for _, marker := range []string{"windows", "一太郎", "ワープロ", "ソフト"} {
-				if strings.Contains(lower, marker) { relevant = true; break }
-			}
-		case "communications", "modem":
-			for _, marker := range []string{"nifty", "パソコン通信", "pc-9801"} {
-				if strings.Contains(lower, marker) { relevant = true; break }
-			}
-		case "hardware":
-			for _, marker := range []string{"pc-9801", "セガサターン", "playstation", "音源機器"} {
-				if strings.Contains(lower, marker) { relevant = true; break }
-			}
-		case "music":
-			relevant = strings.Contains(lower, "sc-55") || strings.Contains(lower, "音源")
-		}
-		if relevant && claim != "" {
-			candidates = append(candidates, claim)
-		}
-	}
-	if len(candidates) <= 6 {
-		return candidates
-	}
-	start := int(demoStableUnit(host.ID, board.ID, persona.ID, at.Format(time.RFC3339), "event-period-referents-v1") * float64(len(candidates)))
-	if start >= len(candidates) { start = len(candidates)-1 }
-	out := make([]string, 0, 6)
-	for i := 0; i < 6; i++ {
-		out = append(out, candidates[(start+i)%len(candidates)])
-	}
-	return out
-}
-
 func productionBoardDomain(board world.Board, persona world.Persona) string {
-	text := strings.ToLower(strings.TrimSpace(board.Name + " " + board.SemanticScope))
+	// The board's name and leading topic statement describe what belongs here.
+	// Later scope sentences often describe other boards ("ゲームを主題にしない"),
+	// so substring matching the entire scope would invert their meaning.
+	topic := strings.TrimSpace(strings.SplitN(board.SemanticScope, "。", 2)[0])
+	text := strings.ToLower(strings.TrimSpace(board.Name + " " + topic))
 	checks := []struct {
 		words  []string
 		domain string
 	}{
+		{[]string{"アニメ", "漫画", "マンガ", "anime", "manga", "ａｎｉｍｅ", "ｍａｎｇａ"}, "anime_manga"},
 		{[]string{"ゲーム", "game"}, "games"},
-		{[]string{"音楽", "music"}, "music"},
-		{[]string{"ソフト", "software"}, "software"},
+		{[]string{"ソフト", "software", "windows", "ワープロ"}, "software"},
 		{[]string{"モデム", "modem"}, "modem"},
 		{[]string{"パソコン通信", "通信", "bbs"}, "communications"},
-		{[]string{"地域", "local"}, "local"},
-		{[]string{"ハード", "hardware"}, "hardware"},
+		{[]string{"地域", "博多", "天神", "オフ会", "local"}, "local"},
+		{[]string{"ハード", "hardware", "pc-98", "pc88", "msx"}, "hardware"},
+		{[]string{"雑談", "chat"}, "chat"},
+		{[]string{"音楽", "music"}, "music"},
 	}
 	for _, check := range checks {
 		for _, word := range check.words {
@@ -480,13 +415,20 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 
 func chooseProductionSituationFacet(host world.Host, board world.Board, persona world.Persona, at time.Time, slotIndex int, domain, mode string, counts map[string]int) (developmentSituationFacet, bool) {
 	candidates := make([]developmentSituationFacet, 0)
-	if domain == "games" {
+	switch domain {
+	case "games":
 		for _, rich := range append(developmentRichGameSituationFacets(), productionGameTopicFacets()...) {
 			if developmentModeFacetAllowed(rich, mode) {
 				candidates = append(candidates, rich.developmentSituationFacet)
 			}
 		}
-	} else {
+	case "anime_manga":
+		for _, topic := range productionAnimeMangaSituationFacets() {
+			if developmentModeFacetAllowed(topic, mode) {
+				candidates = append(candidates, topic.developmentSituationFacet)
+			}
+		}
+	default:
 		candidates = append(candidates, developmentSituationFacets(domain)...)
 	}
 	if len(candidates) == 0 {
@@ -512,6 +454,70 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 		roll -= weights[i]
 	}
 	return candidates[len(candidates)-1], true
+}
+
+// Anime/manga is a distinct board interest, not a games subcategory. These
+// are World activity focuses, leaving concrete series, occurrences and wording
+// to Situation generation with the event's date and persona materials.
+func productionAnimeMangaSituationFacets() []developmentModeSituationFacet {
+	return []developmentModeSituationFacet{
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_episode_reaction",
+				focus: "the member's reaction to an anime episode they watched",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "manga_recent_reading",
+				focus: "something the member noticed while reading a manga",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_character_interest",
+				focus: "the member's interest in a character or a story development from anime or manga",
+			},
+			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_work_interest",
+				focus: "an anime or manga series that has caught the member's interest",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_comparison",
+				focus: "the member's comparison of two anime or manga works, or of an anime and its source manga",
+			},
+			modes: developmentModeSet("share_experience", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_favorite_detail",
+				focus: "a particular scene, drawing or piece of storytelling the member wants to discuss",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_peer_recommendation",
+				focus: "a specific kind of anime or manga the member is interested in discussing with fellow readers or viewers",
+			},
+			modes: developmentModeSet("ask_peers", "share_tip", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind: "anime_manga_personal_finding",
+				focus: "a useful small discovery related to following or reading an anime or manga series",
+			},
+			modes: developmentModeSet("share_tip", "share_experience"),
+		},
+	}
 }
 
 // productionGameTopicFacets are broad *activity* directions, not a named-title
@@ -554,6 +560,17 @@ func productionGameTopicFacets() []developmentModeSituationFacet {
 // Production passes the World-selected activity focus as material. Diagnostic
 // example incidents and their wording constraints belong to the Lab only.
 // Concrete occurrences are first proposed here, then become canonical state.
+// These are the complete per-root materials for normal production. Historical
+// catalogs and automatic evidence lists are not part of this input.
+func productionSituationMaterials(personaFacts []string, focus developmentSparseSituation) []string {
+	facts := make([]string, 0, len(personaFacts)+len(focus.facts)+1)
+	for _, fact := range personaFacts {
+		facts = append(facts, "persona_context="+fact)
+	}
+	facts = append(facts, "situation_kind="+focus.kind)
+	return append(facts, focus.facts...)
+}
+
 func productionSituationFocus(facet developmentSituationFacet) developmentSparseSituation {
 	return developmentSparseSituation{
 		kind:    facet.kind,

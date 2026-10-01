@@ -150,7 +150,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
 	if historicalVerificationDisabled {
 		log.Printf("BBS DEBUG: host=%s board=%s title_historical_verification=disabled; claim-bearing titles may be adopted without Historical KB/research", req.Host.ID, req.Board.ID)
 	}
-	if p.repo.Engine != nil && !historicalVerificationDisabled {
+	if p.repo.Engine != nil && materializer.HistoricalReferencesEnabled && !historicalVerificationDisabled {
 		evidenceStarted := time.Now()
 		var err error
 		decision, err = p.repo.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{

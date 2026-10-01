@@ -23,6 +23,8 @@ Vercelでは `/api/materialization-lab-fresh`。完了後は `/poc/materializati
 
 # Materialization Lab — 生成の反復検証IF
 
+通常稼働のBBS生成では、歴史資料カタログの自動注入を行わない。Labの `sourced`、`model-memory`、`search-grounded` などは比較実験専用の明示的な選択肢として残し、通常稼働へ設定を引き継がない。
+
 ## 対象を先に確定する件名検証（topic-first）
 
 次のPOSTで、記事の対象を先に史料で確認・選択し、その後にSituationと件名・本文を生成する。通常世界は変更せず、既存の開始制限・排他・アーカイブを使用する。
