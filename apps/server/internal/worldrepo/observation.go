@@ -155,17 +155,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	defer func() {
 		log.Printf("BBS timing: host=%s board=%s phase=header_materialize_total duration=%s", host.ID, board.ID, time.Since(started))
 	}()
-	// The isolated materialization-demo host remains a diagnostic harness for the
-	// older title-first experiments. Real host runtimes all use the same shared
-	// BBS article engine below; host software only controls how canonical posts
-	// are presented to callers.
-	if host.SoftwareID == "materialization-demo" && developmentInteractiveTitleFirstEnabled(r) {
-		r.materializeInteractiveConversationBoardWindow(host, board)
-		if errText := strings.TrimSpace(r.MaterializationPlanningDiagnostic(host.ID, board.ID)); strings.Contains(errText, "planning_error=") {
-			return fmt.Errorf("observe host %s board %s: %s", host.ID, board.ID, errText)
-		}
-		return nil
-	}
+	// Real hosts share the World-owned on-demand BBS engine.
 
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
 		// If this board has never been materialized, realize the prose-free
@@ -214,7 +204,7 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 		// Persisted canonical data from a previous process is already complete.
 		// Only start a new observation when this board has never materialized.
 		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
-			return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
+			return existing, nil
 		}
 		job = r.beginBoardObservation(host, board)
 	}
@@ -229,7 +219,7 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 			return nil, ctx.Err()
 		}
 	}
-	return r.repairDevelopmentPendingReplySubjects(host.ID, filterBoard(r.Base.ListPosts(host.ID), board.ID)), nil
+	return filterBoard(r.Base.ListPosts(host.ID), board.ID), nil
 }
 
 func (r *Repository) boardObservationJob(hostID, boardID string) *observationJob {

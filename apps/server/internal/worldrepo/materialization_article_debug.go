@@ -45,7 +45,7 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 		return world.Post{}, false, false, ""
 	}
 	if selected.Body != "" {
-		renderContext, contextStats := r.materializationRenderContext(host, board, selected)
+		renderContext, contextStats := r.materializationBBSRenderContext(host, board, selected)
 		_ = renderContext
 		usage, _ := r.MaterializationGenerationUsage(postID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
@@ -73,7 +73,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	if detailErr != nil {
 		return selected, true, false, detailDiagnostic
 	}
-	_, contextStats := r.materializationRenderContext(host, board, selected)
+	_, contextStats := r.materializationBBSRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(selected.ID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
@@ -118,17 +118,11 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	// Subject is host-native surface data and may legitimately be empty on a
 	// response (Erika-K append). Intent.Topic carries the semantic conversation
 	// topic for prose generation without manufacturing a host-visible subject.
+	// The header was accepted by World before the body was requested.
+	// Never let prose generation change an already visible root subject.
 	boardTopic := topicLabel
 	canonicalSubject := selected.Subject
-	if host.SoftwareID == "materialization-demo" && developmentConversationViewPoCEnabled(r) {
-		boardTopic = board.Name
-		canonicalSubject = ""
-	}
-	if canonicalSubject == "" {
-		if fixed := titleFirstSubject(selected.Intent.SituationFacts); fixed != "" {
-			canonicalSubject = fixed
-		}
-	}
+
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = r.materializationArticleWorkerContext(host, board, selected)
 	req := BoardMaterializationRequest{
@@ -171,15 +165,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	if len(posts) == 0 {
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=no post returned", contextStats.String())
 	}
-	if host.SoftwareID == "materialization-demo" && developmentConversationViewPoCEnabled(r) {
-		if target := topicTargetFact(selected.Intent.SituationFacts); world.IsSemanticRoot(selected) && target != "" && !TopicTargetInSubject(posts[0].Subject, target) {
-			if usage.TotalTokens > 0 || usage.Model != "" {
-				developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
-			}
-			return selected, true, false, joinDevelopmentDiagnostics("error stage=subject detail=selected topic target missing", contextStats.String())
-		}
-		selected.Subject = r.developmentConversationRenderedSubject(host.ID, selected, posts[0].Subject)
-	}
+
 	selected.Body = posts[0].Body
 	if selected.Body == "" {
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=empty body returned", contextStats.String())

@@ -143,37 +143,17 @@ func TestProductionGameFacetSelectionSpreadsKindsWithinWindow(t *testing.T) {
 	}
 }
 
-func TestProductionSituationUsesFocusWithoutDiagnosticAnonymousExample(t *testing.T) {
-	rich := developmentRichGameSituationFacets()
-	var password developmentSituationFacet
-	for _, candidate := range rich {
-		if candidate.kind == "games_password_recording" {
-			password = candidate.developmentSituationFacet
-			break
+func TestProductionSituationUsesActivityFocusOnly(t *testing.T) {
+	choices := developmentRichGameSituationFacets()
+	if len(choices) < 20 {t.Fatalf("insufficient production GAME activity variety: %d",len(choices))}
+	for _,choice := range choices {
+		input:=productionSituationFocus(choice.developmentSituationFacet)
+		if input.kind!=choice.kind||input.summary!=choice.focus||len(input.facts)!=1||
+			input.facts[0]!="activity_focus="+choice.focus {
+			t.Fatalf("non-World scenario rule leaked into production: %+v",input)
 		}
 	}
-	if password.kind == "" {
-		t.Fatal("expected diagnostic password facet")
-	}
-	// The diagnostic PoC intentionally describes an unnamed game, but that
-	// experimental constraint must not leak into production generation.
-	if !strings.Contains(password.boundary, "unnamed game") {
-		t.Fatal("diagnostic fixture unexpectedly changed")
-	}
-	got := productionSituationFocus(password)
-	if got.kind != password.kind || got.summary != password.focus {
-		t.Fatalf("focus not preserved: %+v", got)
-	}
-	// The production material has one World-selected focus, not a list of
-	// instructions controlling the model's topic or prose.
-	if len(got.facts) != 1 || got.facts[0] != "activity_focus="+password.focus {
-		t.Fatalf("production material includes diagnostic constraints: %#v", got.facts)
-	}
-	if strings.Contains(strings.Join(got.facts, "\n"), password.boundary) {
-		t.Fatalf("diagnostic anonymous-game condition leaked into production: %#v", got.facts)
-	}
 }
-
 func TestProductionGameTopicFacetsAreBroadAndModeCompatible(t *testing.T) {
 	extra := productionGameTopicFacets()
 	if len(extra) < 3 {
