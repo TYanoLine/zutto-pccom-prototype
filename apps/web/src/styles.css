@@ -48,6 +48,15 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
 .desktop-menu-section { display: grid; gap: 6px; padding-top: 10px; }
 .desktop-menu-section > span { margin-bottom: 2px; color: #aaa; font-size: 12px; }
 .desktop-menu-section button { width: 100%; text-align: left; }
+/* Operational deployment diagnostics live outside the period BBS terminal. */
+.build-info { display: grid; gap: 5px; margin-top: 10px; padding-top: 10px; border-top: 1px solid #414141; color: #bbb; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.build-info__heading { color: #eee; font-size: 12px; font-weight: 700; }
+.build-info code { color: #cfc; }
+.build-info__state { color: #aaa; }
+.build-info__comparison { color: #e0c78e; }
+.build-info button { width: fit-content; }
+.desktop-menu { max-height: min(80vh, 720px); overflow-y: auto; }
+
 .mobile-statusbar, .mobile-modem-status { display: none; }
 .screen-wrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; align-items: stretch; justify-content: stretch; padding: 12px 24px; background: #090909; }
 .terminal-display { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; max-width: none; flex-direction: column; }
@@ -257,6 +266,12 @@ code { color: #ddd; }
   .terminal-function-menu button[aria-pressed="true"] { color: #cfc; background: #163616; border-color: #7a7; }
   .terminal-function-menu button:disabled { color: #777; }
   .terminal-function-section-label { grid-column: 1 / -1; padding: 4px 2px 0; color: #999; font: 10px/1.2 ui-monospace, monospace; }
+  .terminal-function-menu { max-height: calc(100dvh - 110px); overflow-y: auto; }
+  .terminal-build-info { grid-column: 1 / -1; padding: 5px 0; border-top: 1px solid #444; }
+  .terminal-build-info summary { padding: 8px 4px; color: #ddd; font: 12px ui-monospace, monospace; cursor: pointer; }
+  .terminal-build-info .build-info { margin-top: 0; padding: 3px 4px 6px; border-top: 0; font-size: 10px; }
+  .terminal-build-info .build-info button { min-height: 40px; }
+
   .terminal-function-mode-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .terminal-function-mode-row button { min-width: 0; padding-inline: 4px; font-size: 11px; }
   .terminal-tools, .terminal-hint { display: none; }
