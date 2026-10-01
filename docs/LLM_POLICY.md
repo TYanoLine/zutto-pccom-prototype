@@ -20,6 +20,8 @@ Do not turn quality preferences into growing lists of prohibitions when the same
 
 Small wording drift is acceptable when it does not alter canonical facts. A generator may choose a natural expression that differs from an expected phrasing; validation should reject contradictions or unauthorized world changes, not harmless stylistic variation.
 
+For **production root Situation** generation, World may select a broad activity focus (for example, an interest or question about a game), but must not supply a diagnostic PoC's hypothetical occurrence or artificial "unnamed game / no real title" constraint as if it were established world history. The Situation generator chooses the concrete occurrence and, if naturally relevant, a date-valid recognizable subject **before** the Situation is accepted as canonical; the title and article workers may only express accepted facts. Named works are not mandatory for every post, and historical availability must not be confused with proof of ownership, experience or specific product mechanics. This focus-only input policy does not remove the diagnostic fixtures used to compare different prompting conditions.
+
 ## Persona persistence
 
 Persist opinions/interests/relationships independently of prose. Interests describe things this person actually tends to care or talk about, not every tool/environment they happen to use. Example:
