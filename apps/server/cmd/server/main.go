@@ -86,6 +86,7 @@ func main() {
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
+	runtimeStore.SetDebugLogHAKATAGenerated(cfg.DebugLogHAKATAGenerated)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 
