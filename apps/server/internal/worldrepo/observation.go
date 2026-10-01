@@ -172,6 +172,9 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		} else {
 			err = r.bbsArticles.CatchUp(context.Background(), host, board)
 		}
+		// Inspect the store after the attempt, including any posts actually saved
+		// before a later slot failed. Never log uncommitted planner drafts.
+		r.logNewBBSHeaders(host, board, existing)
 		if err != nil {
 			return fmt.Errorf("shared BBS catch-up host %s board %s: %w", host.ID, board.ID, err)
 		}
