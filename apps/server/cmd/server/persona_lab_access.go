@@ -11,7 +11,7 @@ import (
 )
 
 // Test deployment only. These process-local limits are not a billing cap.
-// A single gate is shared by all four HTTP labs, never by canonical RESET.
+// The two independent persona experiments share this process-local rate limit.
 const publicLabPhone = "0450000196"
 const publicLabDailyRuns = 20
 const publicLabInterval = time.Minute
@@ -27,11 +27,11 @@ type labAdmission struct {
 
 var publicLabAdmission labAdmission
 
-func labEnabled() bool { return os.Getenv("MATERIALIZATION_LAB_DISABLED") != "1" }
+func personaLabEnabled() bool { return os.Getenv("PERSONA_LAB_DISABLED") != "1" }
 
 func labRequestAllowed(w http.ResponseWriter, r *http.Request) bool {
-	if !labEnabled() {
-		labAccessError(w, http.StatusServiceUnavailable, "materialization lab disabled")
+	if !personaLabEnabled() {
+		labAccessError(w, http.StatusServiceUnavailable, "persona experiment disabled")
 		return false
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
@@ -76,7 +76,7 @@ func (g *labAdmission) acquire(now time.Time, runs int) (int, int, string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.blocked { return http.StatusServiceUnavailable, 0, "lab blocked after runtime timeout; operator restart required" }
-	if g.active { return http.StatusConflict, 0, "another materialization lab job is active" }
+	if g.active { return http.StatusConflict, 0, "another persona experiment job is active" }
 	if runs < 1 || runs > publicLabDailyRuns { return http.StatusBadRequest, 0, "invalid run count" }
 	now = now.UTC()
 	day := now.Format("2006-01-02")

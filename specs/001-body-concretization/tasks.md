@@ -107,7 +107,7 @@
 
 **Purpose**: 共有エンジン化の文書反映、全回帰確認、利用可能な標本による品質評価を行う。
 
-- [X] T022 [P] 共有エンジン、記事単位の完了状態、Lab は隔離入口であること、Detail 失敗時の中断規則を `docs/sdd/SDD_001_BODY_CONCRETIZATION.md`、`docs/ARCHITECTURE.md`、`docs/LLM_POLICY.md`、`docs/MATERIALIZATION_LAB.md` に反映する
+- [X] T022 [P] 共有エンジン、記事単位の完了状態、Lab は隔離入口であること、Detail 失敗時の中断規則を `docs/sdd/SDD_001_BODY_CONCRETIZATION.md`、`docs/ARCHITECTURE.md`、`docs/LLM_POLICY.md`、`docs/LLM_POLICY.md` に反映する
 - [X] T023 `specs/001-body-concretization/quickstart.md` のコマンドで `worldrepo`、`llm`、`world`、Erika-K、server Lab の対象テストを実行し、失敗があれば対象実装またはテストを修正して実測結果を `specs/001-body-concretization/verification.md` に記録する
 - [X] T024 通常閲覧と同じ共有処理を使う fresh Lab から取得できた抽象件名記事と複数返信スレッドをレビューし、実数・不足理由・意味的反復・一人称事実の根拠・背景の話題化・未来漏洩・1996年境界を `specs/001-body-concretization/quality-sampling.md` に記録する（20件／20〜30本は標本が十分な場合の目安であり最低条件にしない）
 

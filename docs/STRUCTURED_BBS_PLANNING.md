@@ -134,7 +134,7 @@ An already-selected action can express a modest impression, preference or curios
 
 Duplicate detection distinguishes a public work/product identity from a private occurrence. Situation validation permits the same object with different matters but still rejects duplicate novelty keys and near-identical occurrences. Producer referent isolation permits only world-supplied public identities to recur across independent roots; private incidents remain isolated. The sourced ordinary producer supplies date-filtered public names, never a model-declared exemption.
 
-The fresh `topic-first` experiment selects researched targets before Situation proposal and preserves them into the subject/body. It is an opt-in comparison, not a silent migration of saved posts. See `MATERIALIZATION_LAB.md` for the exact invocation and diagnostics.
+The former isolated `topic-first` experiment has been retired. Production continues to preserve World-selected Situation facts into subjects and article bodies.
 
 Root subjects are generated as the text that the selected actor would actually type into the historical BBS subject field, rather than as a modern headline or article-summary task.
 
