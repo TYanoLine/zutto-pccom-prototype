@@ -1,6 +1,7 @@
 package worldrepo
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -8,34 +9,19 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-func TestProductionEventPeriodFactsRespectEventDate(t *testing.T) {
-	host := world.Host{ID: "h"}
-	board := world.Board{ID: "game", Name: "ゲーム"}
-	persona := world.Persona{ID: "p", Handle: "P"}
-	before := productionEventPeriodFacts(host, board, persona, "games", time.Date(1995, 8, 20, 20, 0, 0, 0, time.Local))
-	after := productionEventPeriodFacts(host, board, persona, "games", time.Date(1996, 4, 20, 20, 0, 0, 0, time.Local))
-
-	contains := func(values []string, marker string) bool {
-		for _, value := range values {
-			if strings.Contains(value, marker) {
-				return true
-			}
-		}
-		return false
+func TestProductionSituationMaterialsContainOnlyWorldData(t *testing.T) {
+	focus := productionSituationFocus(developmentSituationFacet{
+		kind: "anime_episode_reaction",
+		focus: "the member's reaction to an anime episode",
+	})
+	got := productionSituationMaterials([]string{"existing_interest=anime"}, focus)
+	want := []string{
+		"persona_context=existing_interest=anime",
+		"situation_kind=anime_episode_reaction",
+		"activity_focus=the member's reaction to an anime episode",
 	}
-	if contains(before, "ポケットモンスター") || contains(before, "バイオハザード") {
-		t.Fatalf("future referent leaked into 1995 event: %#v", before)
-	}
-	// Stable six-item rotation need not include every later title, so check the
-	// historical catalog through multiple event times/identities.
-	foundPokemon := contains(after, "ポケットモンスター")
-	for i := 0; i < 12 && !foundPokemon; i++ {
-		persona.ID = string(rune('a' + i))
-		values := productionEventPeriodFacts(host, board, persona, "games", time.Date(1996, 4, 20, 20, i, 0, 0, time.Local))
-		foundPokemon = contains(values, "ポケットモンスター")
-	}
-	if !foundPokemon {
-		t.Fatal("date-valid 1996 game referents never became available")
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("automatic historical catalog or extra prompting rules leaked: got %#v, want %#v", got, want)
 	}
 }
 
@@ -109,19 +95,20 @@ func TestProductionAnimeMangaHasRelevantActivityForEveryDiscourseMode(t *testing
 	}
 }
 
-func TestAnimeBoardPeriodMaterialDoesNotInheritGameCatalog(t *testing.T) {
-	host := world.Host{ID: "hakata"}
+func TestAnimeBoardMaterialUsesAnimeFocusNotGameCatalog(t *testing.T) {
 	board := world.Board{Name: "ANIME/MANGA", SemanticScope: "アニメ、漫画の感想。ゲームは主題にしない。"}
 	persona := world.Persona{ID: "m", Interests: map[string]float64{"games": 1}}
 	domain := productionBoardDomain(board, persona)
 	if domain != "anime_manga" {
 		t.Fatalf("domain=%q, want anime_manga", domain)
 	}
-	material := productionEventPeriodFacts(host, board, persona, domain, time.Date(1996, 7, 27, 19, 15, 0, 0, time.Local))
-	for _, claim := range material {
-		for _, game := range []string{"バイオハザード", "ポケットモンスター", "ファイナルファンタジー", "PlayStation"} {
-			if strings.Contains(claim, game) {
-				t.Fatalf("game catalog claim leaked into anime/manga board: %q", claim)
+	choices := productionAnimeMangaSituationFacets()
+	if len(choices) == 0 { t.Fatal("missing anime/manga activity choices") }
+	material := productionSituationMaterials(nil, productionSituationFocus(choices[0].developmentSituationFacet))
+	for _, fact := range material {
+		for _, wrong := range []string{"period_reference=", "ALLOWED HISTORICAL", "games_"} {
+			if strings.Contains(fact, wrong) {
+				t.Fatalf("unrelated or automatic reference leaked into anime board: %q", fact)
 			}
 		}
 	}
