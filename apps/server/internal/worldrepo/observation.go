@@ -168,10 +168,10 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 			if state, ok := r.BoardActivity(host, board); ok && state.RetainedRoots > 0 {
 				err = r.bbsArticles.CatchUpInitialBoardActivity(ctx, host, board, state)
 			} else {
-				err = r.bbsArticles.CatchUp(context.Background(), host, board)
+				err = r.bbsArticles.CatchUp(ctx, host, board)
 			}
 		} else {
-			err = r.bbsArticles.CatchUp(context.Background(), host, board)
+			err = r.bbsArticles.CatchUp(ctx, host, board)
 		}
 		// Inspect the store after the attempt, including any posts actually saved
 		// before a later slot failed. Never log uncommitted planner drafts.
