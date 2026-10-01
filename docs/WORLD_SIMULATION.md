@@ -67,7 +67,7 @@ article/thread read
 
 Concurrent users join the same board/thread job rather than launching private generation. A ready board must never wait on unrelated work. No speculative header generation is initiated by the current Erika-K runtime; a read of an empty board starts only its demanded shared job, capped at 10 root headers initially. Internal workers coordinate callers but do not constitute speculative prefetch. Article prose remains lazy after headers are observed.
 
-`ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
+`ALLBODY`, progress polling, and explicit generation status remain development diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
 ### Shared history, not per-user worlds
 
@@ -196,7 +196,7 @@ Once the World Engine selects a root-post slot (actor, board, timestamp, action/
 
 When Jev is configured, the development title-first path also uses System One as a fast semantic classifier after Azure OpenAI has generated the 20 candidate titles for a board. One bounded Jev request per board estimates two era-routing probabilities for each candidate (`safe_without_research`, `logically_impossible`) and a compatibility probability for each candidate × already-selected world root slot.
 
-These probabilities still do not create world facts. Code applies conservative thresholds, performs deterministic one-title/one-slot matching, and persists only the resulting World-side adoption. Ambiguous named products/works/services remain `research`; selected `research` candidates still require the separate Historical Knowledge/Web evidence path in strict mode. A high Jev fit score cannot bypass that verification. In Lab `observe-only` mode, the original Jev era classification is recorded but the diagnostic gate remains permissive exactly as before.
+These probabilities still do not create world facts. Code applies conservative thresholds, performs deterministic one-title/one-slot matching, and persists only the resulting World-side adoption. Ambiguous named products/works/services remain `research`; selected `research` candidates still require the separate Historical Knowledge/Web evidence path in strict mode. A high Jev fit score cannot bypass that verification. The retired `observe-only` experiment did not change the production historical-verification boundary.
 
 If Jev is unavailable, malformed, or times out, title-first falls back to the existing Azure OpenAI Era Validator and title-slot reviewer for that board. Candidate wording generation, Article Detail materialization, and final article prose remain outside the Jev title advisor.
 

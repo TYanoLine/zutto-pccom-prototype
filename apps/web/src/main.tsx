@@ -3,7 +3,6 @@ import App from './App';
 import HistoricalResearchPage from './admin/HistoricalResearchPage';
 import KnowledgeBbsPage from './poc/KnowledgeBbsPage';
 import ImageArtifactPocPage from './poc/ImageArtifactPocPage';
-import MaterializationLabViewerPage from './poc/MaterializationLabViewerPage';
 import PersonaLabPage from './poc/PersonaLabPage';
 import PersonaTimelinePocPage from './poc/PersonaTimelinePocPage';
 
@@ -29,7 +28,6 @@ function Home() {
     <div className="dev-shortcuts" style={{position:'fixed',right:12,bottom:12,zIndex:50,display:'flex',gap:8,flexWrap:'wrap',justifyContent:'flex-end'}}>
       <a href="/poc/persona-timeline" style={devLinkStyle}>PERSONA TIME</a>
       <a href="/poc/persona-lab" style={devLinkStyle}>PERSONA LAB</a>
-      <a href="/poc/materialization-lab-viewer" style={devLinkStyle}>LAB VIEWER</a>
       <a href="/poc/image-artifact" style={devLinkStyle}>IMAGE FILE PoC</a>
     </div>
   </>;
@@ -43,10 +41,8 @@ const Root = path === '/admin/research'
     ? KnowledgeBbsPage
     : path === '/poc/image-artifact'
       ? ImageArtifactPocPage
-      : path === '/poc/materialization-lab-viewer'
-        ? MaterializationLabViewerPage
-        : path === '/poc/persona-lab'
-          ? PersonaLabPage
-          : Home;
+      : path === '/poc/persona-lab'
+        ? PersonaLabPage
+        : Home;
 
 createRoot(document.getElementById('root')!).render(<Root />);

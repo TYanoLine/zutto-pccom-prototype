@@ -171,8 +171,8 @@ Title generation and adoption are additionally governed by
 structural/world-correctness gates from provisional batch-naturalness thresholds
 and corpus-authenticity audit criteria.
 
-After a selected post is read, normal host navigation, direct development
-inspection, and isolated Lab runs use the same article-detail/body pipeline.
+After a selected post is read, normal host navigation and direct development
+inspection use the same article-detail/body pipeline.
 `PostIntent.ArticleDetailsMaterialized` is canonical article state independent of
 detail count: a persisted zero-detail result is complete, while planner,
 validation, or persistence failure stops body rendering and remains retryable.
@@ -348,7 +348,7 @@ The initial board batch now materializes **at most 10 root headers** per
 previously unobserved board, with **no speculative append/reply generation**.
 World's prose-free retained activity counts are preserved independently; this
 is an intentionally limited interactive view, not a rewriting of the station's
-earlier simulated history. Article bodies remain lazy. Explicit diagnostics/Lab
+earlier simulated history. Article bodies remain lazy. Explicit development diagnostics
 can still request larger batches, and ordinary incremental catch-up remains
 separate from this initial interactive limit.
 Title vocabulary and historical verification for a multi-date catch-up window
