@@ -162,6 +162,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		// activity state that already existed before the user opened the board.
 		// This replaces the old HAKATA-only fixed 40-root evaluation batch.
 		var err error
+		ctx, traceDone := r.beginGenerationTrace(context.Background(), host, board, "headers", 0)
 		existing := filterBoard(r.Base.ListPosts(host.ID), board.ID)
 		if len(existing) == 0 {
 			if state, ok := r.BoardActivity(host, board); ok && state.RetainedRoots > 0 {
