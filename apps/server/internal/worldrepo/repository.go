@@ -50,6 +50,7 @@ type Repository struct {
 	worldNow             func() time.Time
 	bbsArticles          *bbsengine.Engine
 	debugLogBBSArticleDetails                  bool
+	debugLogHAKATAGenerated                    bool
 
 	mu                     sync.Mutex
 	materialized           map[string]bool

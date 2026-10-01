@@ -53,3 +53,17 @@ func TestDebugLogBBSArticleDetailsCanBeEnabled(t *testing.T) {
 		t.Fatal("Article Detail debug logging was not enabled")
 	}
 }
+
+func TestHAKATAGeneratedContentLoggingDefaultsOn(t *testing.T) {
+	t.Setenv("DEBUG_LOG_HAKATA_GENERATED", "")
+	if !Load().DebugLogHAKATAGenerated {
+		t.Fatal("HAKATA generator-evaluation content should log by default")
+	}
+}
+
+func TestHAKATAGeneratedContentLoggingCanBeDisabled(t *testing.T) {
+	t.Setenv("DEBUG_LOG_HAKATA_GENERATED", "0")
+	if Load().DebugLogHAKATAGenerated {
+		t.Fatal("HAKATA generated content logging should be disableable")
+	}
+}

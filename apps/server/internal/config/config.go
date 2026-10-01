@@ -15,6 +15,7 @@ type Config struct {
 	WorldDate                   string
 	HistoricalReferencesEnabled                  bool
 	DebugLogBBSArticleDetails                    bool
+	DebugLogHAKATAGenerated                     bool
 	DatabaseURL                                  string
 	DebugResetToken             string
 }
@@ -34,6 +35,7 @@ func Load() Config {
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
+		DebugLogHAKATAGenerated:                   envBool("DEBUG_LOG_HAKATA_GENERATED", true),
 		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
 	}
