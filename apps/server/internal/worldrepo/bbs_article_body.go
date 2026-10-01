@@ -68,8 +68,18 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 	return r.materializeArticleBodyOnce(host, board, selected)
 }
 
-func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (world.Post, bool, bool, string) {
-	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(host, board, selected)
+func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (result world.Post, found bool, generated bool, diagnostic string) {
+	traceCtx, traceDone := r.beginGenerationTrace(context.Background(), host, board, "body", selected.ID)
+	defer func() {
+		if strings.Contains(diagnostic, "error stage=") {
+			traceDone(fmt.Errorf("%s", diagnostic))
+		} else if !generated && result.Body == "" {
+			traceDone(fmt.Errorf("body was not committed"))
+		} else {
+			traceDone(nil)
+		}
+	}()
+	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(traceCtx, host, board, selected)
 	if detailErr != nil {
 		return selected, true, false, detailDiagnostic
 	}
