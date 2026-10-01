@@ -519,7 +519,10 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current - 12); setFunctionMenuOpen(false); }}>履歴↓</button>
           <button type="button" onClick={() => { setScrollOffset(0); setFunctionMenuOpen(false); }} disabled={historyOffset === 0}>最新</button>
-          <BuildInfoPanel {...buildInfo} />
+          <details className="terminal-build-info">
+            <summary>バージョン情報</summary>
+            <BuildInfoPanel {...buildInfo} />
+          </details>
           <button type="button" onClick={() => setFunctionMenuOpen(false)}>閉じる</button>
         </nav>
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
