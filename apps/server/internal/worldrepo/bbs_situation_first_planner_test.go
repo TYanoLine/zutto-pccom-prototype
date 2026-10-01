@@ -58,8 +58,9 @@ func TestProductionBoardDomainUsesAffirmativeScopeNotExcludedWords(t *testing.T)
 		},
 		{
 			board: world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ", SemanticScope: "PC-98系やモデム、通信環境についての具体的な相談・情報交換。"},
-			want: "modem",
+			want: "pc98_modem",
 		},
+		{board: world.Board{ID:"70/1",Name:"ＰＣ－９８",SemanticScope:"PC-98系機種の利用、設定、周辺機器、ソフト利用など。"}, want:"pc98"},
 	}
 	persona := world.Persona{Interests: map[string]float64{"games": .99, "music": .75}}
 	for _, tc := range cases {
@@ -199,5 +200,21 @@ func TestProductionFocusIsIdenticalMaterialAcrossPostingModes(t *testing.T) {
 	}
 	if len(got.facts) != 1 || got.facts[0] != "activity_focus=a short hobby update" {
 		t.Fatalf("production added an unnecessary prompt rule: %#v", got.facts)
+	}
+}
+
+func TestPC98FacetsAreBoardSpecificAcrossPostingModes(t *testing.T) {
+	host := world.Host{ID:"hakata-canal-net"}
+	persona := world.Persona{ID:"test",Interests:map[string]float64{"games":1}}
+	for _,tc := range []struct{board world.Board; want string}{
+		{world.Board{ID:"70/1",Name:"ＰＣ－９８",SemanticScope:"PC-98系機種の利用、設定、周辺機器、ソフト利用など。"},"pc98"},
+		{world.Board{ID:"60/1",Name:"ＰＣ－９８／ＭＯＤＥＭ",SemanticScope:"PC-98系やモデム、通信環境についての相談。"},"pc98_modem"},
+	}{
+		domain:=productionBoardDomain(tc.board,persona)
+		if domain!=tc.want {t.Errorf("%s domain=%q want=%q",tc.board.ID,domain,tc.want)}
+		for _,mode:=range developmentRootDiscourseModes {
+			facet,ok:=chooseProductionSituationFacet(host,tc.board,persona,time.Date(1996,7,27,20,0,0,0,time.Local),1,domain,mode,nil)
+			if !ok || !strings.HasPrefix(facet.kind,"pc98_") {t.Errorf("board=%s mode=%s facet=%+v ok=%v",tc.board.ID,mode,facet,ok)}
+		}
 	}
 }

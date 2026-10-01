@@ -120,12 +120,14 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	// topic for prose generation without manufacturing a host-visible subject.
 	boardTopic := topicLabel
 	canonicalSubject := selected.Subject
-	if developmentConversationViewPoCEnabled(r) {
+	if host.SoftwareID == "materialization-demo" && developmentConversationViewPoCEnabled(r) {
 		boardTopic = board.Name
 		canonicalSubject = ""
 	}
-	if fixed := titleFirstSubject(selected.Intent.SituationFacts); fixed != "" {
-		canonicalSubject = fixed
+	if canonicalSubject == "" {
+		if fixed := titleFirstSubject(selected.Intent.SituationFacts); fixed != "" {
+			canonicalSubject = fixed
+		}
 	}
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = r.materializationArticleWorkerContext(host, board, selected)
@@ -169,7 +171,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	if len(posts) == 0 {
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=renderer detail=no post returned", contextStats.String())
 	}
-	if developmentConversationViewPoCEnabled(r) {
+	if host.SoftwareID == "materialization-demo" && developmentConversationViewPoCEnabled(r) {
 		if target := topicTargetFact(selected.Intent.SituationFacts); world.IsSemanticRoot(selected) && target != "" && !TopicTargetInSubject(posts[0].Subject, target) {
 			if usage.TotalTokens > 0 || usage.Model != "" {
 				developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)

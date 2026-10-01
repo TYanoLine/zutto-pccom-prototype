@@ -389,8 +389,9 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 	}{
 		{[]string{"アニメ", "漫画", "マンガ", "anime", "manga", "ａｎｉｍｅ", "ｍａｎｇａ"}, "anime_manga"},
 		{[]string{"ゲーム", "game"}, "games"},
-		{[]string{"ソフト", "software", "windows", "ワープロ"}, "software"},
+		{[]string{"pc-98", "pc98", "ｐｃ－９８"}, "pc98"},
 		{[]string{"モデム", "modem"}, "modem"},
+		{[]string{"ソフト", "software", "windows", "ワープロ"}, "software"},
 		{[]string{"パソコン通信", "通信", "bbs"}, "communications"},
 		{[]string{"地域", "博多", "天神", "オフ会", "local"}, "local"},
 		{[]string{"ハード", "hardware", "pc-98", "pc88", "msx"}, "hardware"},
@@ -400,6 +401,9 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 	for _, check := range checks {
 		for _, word := range check.words {
 			if strings.Contains(text, word) {
+				if check.domain == "pc98" && (strings.Contains(text, "modem") || strings.Contains(text, "モデム")) {
+					return "pc98_modem"
+				}
 				return check.domain
 			}
 		}
@@ -420,6 +424,19 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 		for _, rich := range append(developmentRichGameSituationFacets(), productionGameTopicFacets()...) {
 			if developmentModeFacetAllowed(rich, mode) {
 				candidates = append(candidates, rich.developmentSituationFacet)
+			}
+		}
+	case "pc98", "pc98_modem":
+		for _, topic := range productionPC98SituationFacets() {
+			if developmentModeFacetAllowed(topic, mode) {
+				candidates = append(candidates, topic.developmentSituationFacet)
+			}
+		}
+		if domain == "pc98_modem" {
+			for _, topic := range productionPC98ModemSituationFacets() {
+				if developmentModeFacetAllowed(topic, mode) {
+					candidates = append(candidates, topic.developmentSituationFacet)
+				}
 			}
 		}
 	case "anime_manga":
@@ -454,6 +471,27 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 		roll -= weights[i]
 	}
 	return candidates[len(candidates)-1], true
+}
+
+// PC-98 boards are about the machine and its actual software/peripherals,
+// not a generic daily observation. Choose broad activity directions as World
+// material and let the Situation model resolve concrete details for the date.
+func productionPC98SituationFacets() []developmentModeSituationFacet {
+	return []developmentModeSituationFacet{
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_software_use", focus:"using a specific application or game on the member's PC-98 and what they noticed"}, modes:developmentModeSet("share_observation","share_experience","state_opinion")},
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_setup_experience", focus:"the member's PC-98 configuration or setup experience"}, modes:developmentModeSet("share_observation","share_experience","share_tip")},
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_peripheral_question", focus:"a particular PC-98 peripheral or connection the member has a question about"}, modes:developmentModeSet("ask_peers","share_experience","state_opinion")},
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_dos_practicality", focus:"an ordinary PC-98 DOS workflow or practical tip"}, modes:developmentModeSet("share_tip","share_experience","ask_peers")},
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_display_sound", focus:"a PC-98 display or sound experience related to what the member uses"}, modes:developmentModeSet("share_observation","state_opinion","ask_peers")},
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_software_choice", focus:"a choice the member is considering about PC-98 software or hardware"}, modes:developmentModeSet("state_opinion","ask_peers","share_experience")},
+	}
+}
+
+func productionPC98ModemSituationFacets() []developmentModeSituationFacet {
+	return []developmentModeSituationFacet{
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_modem_settings",focus:"a PC-98 modem or communications-software setting the member is dealing with"},modes:developmentModeSet("share_observation","share_experience","share_tip","ask_peers")},
+		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_connection_observation",focus:"the member's experience using their PC-98 to connect to a BBS"},modes:developmentModeSet("share_observation","share_experience","state_opinion")},
+	}
 }
 
 // Anime/manga is a distinct board interest, not a games subcategory. These
