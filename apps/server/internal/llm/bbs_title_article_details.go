@@ -121,7 +121,9 @@ details:
 	schema := map[string]any{"type": "object", "properties": map[string]any{
 		"articles": map[string]any{"type": "array", "items": articleSchema, "minItems": len(req.Articles), "maxItems": len(req.Articles)},
 	}, "required": []string{"articles"}, "additionalProperties": false}
+	traceFinish := beginDebugTrace(ctx, "Article Detail", prompt)
 	result, err := p.responseTextWithJSONSchemaWebSearch(ctx, prompt, "low", "medium", 4200, "bbs_title_article_details", schema)
+	traceFinish(result.Text, err)
 	if err != nil {
 		return BBSTitleArticleDetailDraft{}, err
 	}
