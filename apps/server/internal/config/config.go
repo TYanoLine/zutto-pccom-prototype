@@ -37,6 +37,7 @@ func Load() Config {
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
 		DebugLogHAKATAGenerated:                   envBool("DEBUG_LOG_HAKATA_GENERATED", true),
+		DebugHakataLLMTrace:                       envBool("DEBUG_HAKATA_LLM_TRACE", true),
 		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
 	}
