@@ -17,6 +17,7 @@ type Config struct {
 	DebugLogBBSArticleDetails                    bool
 	DebugLogHAKATAGenerated                     bool
 	DebugHakataLLMTrace                         bool
+	HakataFreeformBody                          bool
 	DatabaseURL                                  string
 	DebugResetToken             string
 }
