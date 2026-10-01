@@ -69,9 +69,11 @@ colors, full-width continuation cells, cursor positions, and host commands.
   visible. The mobile connection row owns the top safe-area padding (rather
   than relying on shell padding), so its text and three-bar activity indicator
   remain below the device status area and the modem strip naturally follows
-  it. iOS standalone presentation uses a 48px minimum top clearance when the
-  reported safe-area inset is zero; ordinary browser presentation keeps the
-  browser-reported inset to avoid double padding.
+  it. On narrow iPhones, both Safari tabs and standalone presentation use a
+  56px minimum top clearance because Safari can report an inset too small for
+  its status-bar overlay; wider iOS standalone layouts retain the 48px
+  minimum. This is one top inset applied only to the status row, not an
+  additional shell offset.
   Directly below it, an optional modem-status strip defaults to `ランプ` and
   can be switched from `機能` among `ランプ`, `デジタル`, and `OFF`.
   `OFF` removes only the modem-status strip; the connection/time/charge row

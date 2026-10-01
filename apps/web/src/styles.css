@@ -307,9 +307,14 @@ code { color: #ddd; }
   .directory-softkeys .softkey-call { background: #163616; color: #cfc; }
 }
 
-/* iOS standalone can report a zero top inset while its system status bar still overlays content. */
+/* On some iPhones, Safari tabs report an inset smaller than the OS status-bar overlay.
+   Reserve enough room for the entire connection row even outside standalone mode.
+   Only the row consumes this variable: shell top padding stays at zero. */
 @supports (-webkit-touch-callout: none) {
   @media (display-mode: standalone) {
     .shell { --mobile-safe-area-top: max(env(safe-area-inset-top, 0px), 48px); }
+  }
+  @media (max-width: 680px) {
+    .shell { --mobile-safe-area-top: max(env(safe-area-inset-top, 0px), 56px); }
   }
 }
