@@ -29,6 +29,7 @@ import {
 } from './modem/ModemStatusDisplay';
 import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import './styles.css';
+import { GenerationInspector } from './debug/GenerationInspector';
 
 const APP_VERSION = '0.28';
 const CLIENT_BUILD_COMMIT = (import.meta.env.VITE_BUILD_COMMIT as string | undefined) || 'unknown';
@@ -115,6 +116,8 @@ export default function App() {
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('センター情報読込中...');
   const [commandFocused, setCommandFocused] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
+  const [traceRunning, setTraceRunning] = useState(false);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => {
@@ -277,6 +280,7 @@ export default function App() {
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
+  const hakataTraceVisible = activeCall?.phone === '0920000196' && !standaloneLine;
   const activeCenter = activeCall ? centersRef.current.find(center => center.phone === activeCall.phone) : undefined;
   const connectedMobileName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : null;
   const mobileConnectionStatus = resolveMobileConnectionStatus(modemTelemetry.phase, connectedMobileName);
@@ -299,6 +303,7 @@ export default function App() {
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
         <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
       </span>
+      {hakataTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--desktop${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)}>{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
         <span /><span /><span />
       </button>
@@ -332,6 +337,7 @@ export default function App() {
         </span>}
         <span className={`mobile-statusbar__name${mobileConnectionStatus.working ? ' mobile-statusbar__name--working' : ''}`}>{mobileConnectionStatus.label}</span>
       </span>
+      {hakataTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="HAKATA生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
     <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
@@ -373,5 +379,6 @@ export default function App() {
     <aside className="quick-help"><strong>発信地:</strong> {callerLocation.label}MA ({callerLocation.areaCode})<br /><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
+    <GenerationInspector wsURL={wsURL} active={hakataTraceVisible} open={traceOpen} onClose={() => setTraceOpen(false)} onRunningChange={setTraceRunning} />
   </main>;
 }
