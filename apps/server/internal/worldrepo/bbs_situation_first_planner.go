@@ -124,16 +124,10 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if !ok {
 			return nil, fmt.Errorf("no Situation facet for board=%s domain=%s mode=%s", req.Board.ID, domain, mode)
 		}
-		shell := developmentTimelineShell{
-			index:         slot.Index,
-			persona:       persona,
-			createdAt:     slot.CreatedAt,
-			action:        "thread_start",
-			anchorKey:     domain,
-			causeKind:     "board_activity_window",
-			discourseMode: mode,
-		}
-		sparse := developmentComposeSituation(req.Host, req.Board, shell, facet)
+		// Production uses the World-selected activity focus, not the detailed
+		// diagnostic PoC's anonymous-game example and exclusionary boundary.
+		// The proposer chooses the concrete occurrence before it is canonical.
+		sparse := productionSituationFocus(facet, mode)
 		counts[facet.kind]++
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
@@ -487,7 +481,7 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 func chooseProductionSituationFacet(host world.Host, board world.Board, persona world.Persona, at time.Time, slotIndex int, domain, mode string, counts map[string]int) (developmentSituationFacet, bool) {
 	candidates := make([]developmentSituationFacet, 0)
 	if domain == "games" {
-		for _, rich := range developmentRichGameSituationFacets() {
+		for _, rich := range append(developmentRichGameSituationFacets(), productionGameTopicFacets()...) {
 			if developmentModeFacetAllowed(rich, mode) {
 				candidates = append(candidates, rich.developmentSituationFacet)
 			}
@@ -518,6 +512,64 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 		roll -= weights[i]
 	}
 	return candidates[len(candidates)-1], true
+}
+
+// productionGameTopicFacets are broad *activity* directions, not a named-title
+// dictionary. They give ordinary BBS conversation about particular works a
+// chance alongside gameplay-habit posts. The proposer still chooses any exact
+// referent before the Situation is materialized, using event-date evidence.
+func productionGameTopicFacets() []developmentModeSituationFacet {
+	return []developmentModeSituationFacet{
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_impression",
+				focus: "a personal impression or reaction involving one particular game the member can meaningfully identify",
+			},
+			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_interest",
+				focus: "a concrete game the member is considering, recently encountered, or discussing with peers, with a particular reason it matters",
+			},
+			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_choice",
+				focus: "a practical choice between two games the member knows about or one specific game and a familiar alternative",
+			},
+			modes: developmentModeSet("state_opinion", "ask_peers"),
+		},
+		{
+			developmentSituationFacet: developmentSituationFacet{
+				kind:  "games_particular_work_tip",
+				focus: "a small first-hand finding from the member's own play of a recognizable game, without assuming undocumented mechanics",
+			},
+			modes: developmentModeSet("share_experience", "share_tip"),
+		},
+	}
+}
+
+// A production focus is a World-selected area for the forthcoming root, not a
+// pre-written generic incident. The diagnostic facet's anonymous-game sample
+// occurrences and "never name a title" boundaries are not World facts.
+// Preserve hard world/era constraints while leaving room for the Situation
+// proposer to choose a concrete subject from its date-valid input materials.
+func productionSituationFocus(facet developmentSituationFacet, mode string) developmentSparseSituation {
+	facts := []string{
+		"world_selected_activity_focus=" + facet.focus,
+		"scope_boundary=Keep the World-selected activity focus and posting purpose. A supplied date-valid work or product may be identified naturally when it fits; it is not a naming quota. Availability alone does not prove ownership, experience, product-specific mechanics, or episode details.",
+		"root_independence=Independent root; do not borrow another root's events or another person's experience.",
+	}
+	if mode == "ask_peers" {
+		facts = append(facts, "answerability=Choose a concrete, answerable uncertainty and make its subject recognizable to other members.")
+	}
+	return developmentSparseSituation{
+		kind:    facet.kind,
+		summary: facet.focus,
+		facts:   facts,
+	}
 }
 
 func recentSituationKindCounts(posts []world.Post) map[string]int {
