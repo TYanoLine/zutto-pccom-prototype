@@ -37,23 +37,21 @@ Article Detail logging remains a separate opt-in diagnostic; Situation-first
 root headers normally have their detail completion bit set upstream.
 
 
-## HAKATA live generation inspector (operator-only)
+## HAKATA live generation inspector (temporary evaluation mode)
 
 While connected to **HAKATA CANAL NET**, the modern browser application shows
-a small **生成ログ** button (desktop top bar / mobile status bar). Open it and
-enter the server's existing `DEBUG_RESET_TOKEN` manually. Keep that secret out
-of Vite environment variables, URLs, localStorage, screenshots and reports.
-The React component retains it **only in memory** until authentication is
-cleared or the page is reloaded.
+a small **生成ログ** button (desktop top bar / mobile status bar). Open it to
+inspect the current trace immediately; no key-entry dialog is necessary.
+Capture and polling start automatically during HAKATA evaluation.
 
-`GET /api/debug/bbs/generation-trace` is a read-only, no-store endpoint using
-the `X-Zutto-Debug-Token` header. It returns HTTP 403 unless the configured
-debug secret matches. Capture is enabled for this fictional HAKATA evaluation
-station when the secret exists and `DEBUG_HAKATA_LLM_TRACE` is enabled
-(default `1`, explicitly disable with `0`). No other host's generation
-is traced. It never starts generation or exposes a new Lab API.
+`GET /api/debug/bbs/generation-trace` is a **public, unauthenticated**, read-only,
+no-store endpoint while `DEBUG_HAKATA_LLM_TRACE` is enabled (default `1`, set
+`0` to disable and return HTTP 403). No other host's generation is captured.
+It never starts generation or exposes a new Lab API. The existing
+`DEBUG_RESET_TOKEN` still protects destructive BBS resets and article sample
+inspection; it does not control this trace endpoint.
 
-The panel polls every 2.5 seconds after authentication and displays each
+The panel polls every 2.5 seconds while HAKATA is connected and displays each
 in-progress or recent board-header/body operation, then each *actual* Azure
 OpenAI model call within it:
 
@@ -77,6 +75,10 @@ Only the latest 12 runs and 30 model calls per run are held in a process-local
 bounded buffer. Individual prompt/output fields are capped at 24,000/36,000
 Unicode code points and marked when truncated. Reloading the server clears
 all traces. This display is a *modern development inspector*, not a historical
-host-program screen. Existing posts (especially replies/quotes) or persona
-facts may appear in model prompts. Restrict operator access and disable the
-trace before exposing HAKATA to real user content.
+host-program screen. **WARNING:** anyone who knows or discovers the public
+server URL can retrieve the trace while enabled. Existing posts (including
+human replies/quotes), persona facts, and thread context may appear in model
+prompts. This mode is only appropriate for the current one-person HAKATA
+quality evaluation. Set `DEBUG_HAKATA_LLM_TRACE=0` before enabling real user
+access. Do not mistake the absence of the browser link outside HAKATA for
+server-side access control.
