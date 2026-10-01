@@ -66,14 +66,12 @@ colors, full-width continuation cells, cursor positions, and host commands.
   is established, the row switches to the connected host name (or local-test
   name), alongside current session elapsed time and current-session pseudo
   telephone charge. The name may ellipsize, while elapsed time and charge remain
-  visible. The mobile connection row owns the top safe-area padding (rather
-  than relying on shell padding), so its text and three-bar activity indicator
-  remain below the device status area and the modem strip naturally follows
-  it. On narrow iPhones, both Safari tabs and standalone presentation use a
-  56px minimum top clearance because Safari can report an inset too small for
-  its status-bar overlay; wider iOS standalone layouts retain the 48px
-  minimum. This is one top inset applied only to the status row, not an
-  additional shell offset.
+  visible. Use `viewport-fit=auto` so iOS Safari itself keeps the layout
+  inside its safe display area. The compact status row is 24px tall with
+  no extra top padding or device-specific minimum inset; the modem strip
+  naturally follows it. Do not reintroduce fixed iPhone top clearance on the
+  shell or status row: iOS versions and Safari chrome configurations can
+  already reserve that area, producing large double spacing.
   Directly below it, an optional modem-status strip defaults to `ランプ` and
   can be switched from `機能` among `ランプ`, `デジタル`, and `OFF`.
   `OFF` removes only the modem-status strip; the connection/time/charge row
