@@ -150,7 +150,9 @@ requiredな外部referentが未解決です。Web検索を最低1回使い、sub
 - 元の記事意図・人物・日時を変えない。
 `
 	draft.ForcedWebSearchRetry = true
+	forcedTraceFinish := beginDebugTrace(ctx, "Article Detail 再検索", forcedPrompt)
 	forcedResult, err := p.responseTextWithJSONSchemaRequiredWebSearch(ctx, forcedPrompt, "low", "medium", 4200, "bbs_title_article_details", schema)
+	forcedTraceFinish(forcedResult.Text, err)
 	if err != nil {
 		return draft, nil
 	}
