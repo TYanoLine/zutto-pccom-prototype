@@ -120,3 +120,14 @@ Preserve URLs because some sources are community archives and may disappear. Det
 - Binary transfer protocol reference mentioning Erika K / NMODEM context: https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
 
 Future research should prioritize surviving distribution archives, manuals, help text, source, screenshots, and additional raw connection logs.
+
+
+## Lightweight initial board observation (current runtime)
+
+CONNECT/login and forum navigation do not pre-generate titles. Opening an
+unmaterialized leaf board requests at most 10 root headers for its ten-line
+index; historical append headers and older archive entries are not eagerly
+materialized. Prose-free board activity retains the full simulated counts,
+and bodies are generated only when the corresponding article is opened.
+This is the current performance policy of this fictional sample station,
+not a claim about historical Erika K software.

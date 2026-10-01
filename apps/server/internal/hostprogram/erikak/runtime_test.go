@@ -241,7 +241,7 @@ func TestConnectDoesNotFanOutObservationAcrossEmptyBoards(t *testing.T) {
 	}
 }
 
-func TestBoardCatalogNavigationPrefetchesNarrowlyAndWaitsAtLeaf(t *testing.T) {
+func TestBoardCatalogNavigationDoesNotPrefetchAndWaitsOnlyAtLeaf(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -250,8 +250,8 @@ func TestBoardCatalogNavigationPrefetchesNarrowlyAndWaitsAtLeaf(t *testing.T) {
 	store := &noWaitObservationStore{MemoryStore: base}
 	runtime := New(host, store)
 	loginGuest(t, runtime)
-	if len(store.begun) != 1 || store.begun[0].ID != "4" {
-		t.Fatalf("login prefetch=%+v, want only board 4", store.begun)
+	if len(store.begun) != 0 {
+		t.Fatalf("login must not start background generation: %+v", store.begun)
 	}
 
 	out, disconnect := runtime.HandleLine("BM")
@@ -262,8 +262,8 @@ func TestBoardCatalogNavigationPrefetchesNarrowlyAndWaitsAtLeaf(t *testing.T) {
 	if disconnect || !strings.Contains(out, "コンピュータワールド") {
 		t.Fatalf("forum menu missing: %q", out)
 	}
-	if got := store.begun[len(store.begun)-1]; got.ID != "60/1" {
-		t.Fatalf("forum prefetch=%+v, want first child 60/1", got)
+	if len(store.begun) != 0 {
+		t.Fatalf("forum navigation must not prefetch child boards: %+v", store.begun)
 	}
 	if len(store.waited) != 0 {
 		t.Fatalf("forum navigation should not block on article headers: %+v", store.waited)
@@ -272,12 +272,15 @@ func TestBoardCatalogNavigationPrefetchesNarrowlyAndWaitsAtLeaf(t *testing.T) {
 	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") {
 		t.Fatalf("board index missing: %q", out)
 	}
+	if len(store.begun) != 1 || store.begun[0].ID != "60/1" {
+		t.Fatalf("leaf observation=%+v, want only 60/1", store.begun)
+	}
 	if len(store.waited) != 1 || store.waited[0].ID != "60/1" {
 		t.Fatalf("leaf wait=%+v, want exactly 60/1", store.waited)
 	}
 }
 
-func TestLeafBoardVisitJoinsBackgroundCatchupAndWaitsForHeaders(t *testing.T) {
+func TestLeafBoardVisitStartsDemandedObservationAndWaitsForHeaders(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -289,6 +292,9 @@ func TestLeafBoardVisitJoinsBackgroundCatchupAndWaitsForHeaders(t *testing.T) {
 
 	runtime.HandleLine("BM")
 	runtime.HandleLine("60")
+	if len(store.begun) != 0 {
+		t.Fatalf("navigation unexpectedly started generation: %+v", store.begun)
+	}
 	out, disconnect := runtime.HandleLine("1")
 	if disconnect || !strings.Contains(out, "ＰＣ－９８／ＭＯＤＥＭ") {
 		t.Fatalf("leaf board index missing: %q", out)

@@ -102,40 +102,9 @@ func New(host world.Host, store world.Store) *Runtime {
 }
 
 func (r *Runtime) ObservationBoards() []world.Board {
-	// CONNECT itself does not fan out materialization. Login and navigation start
-	// narrowly-scoped predictive jobs; a board read blocks on its own job if needed.
+	// CONNECT, login and forum navigation do not materialize article headers.
+	// An explicit board-index read starts only that board's shared job.
 	return nil
-}
-
-func (r *Runtime) beginBoardPrefetch(boards []world.Board) {
-	if len(boards) == 0 {
-		return
-	}
-	if prefetcher, ok := r.Store.(world.HostPrefetchStore); ok {
-		prefetcher.BeginHostPrefetch(r.Host, boards)
-		return
-	}
-	if observer, ok := r.Store.(world.HostObservationStore); ok {
-		observer.BeginHostObservation(r.Host, boards)
-	}
-}
-
-func (r *Runtime) prefetchLoginBoard() {
-	// Keep speculative work intentionally tiny. Free-talk is a plausible first
-	// destination, but choosing any other board simply waits on that board later.
-	if node, ok := findNode("4"); ok {
-		r.beginBoardPrefetch([]world.Board{worldBoard(node)})
-	}
-}
-
-func (r *Runtime) prefetchFirstForumChild(path string) {
-	for _, child := range visibleChildren(path) {
-		if r.isForum(child.Path) {
-			continue
-		}
-		r.beginBoardPrefetch([]world.Board{worldBoard(child)})
-		return
-	}
 }
 
 func (r *Runtime) cachedBoardPosts(path string) []world.Post {
@@ -293,7 +262,7 @@ func (r *Runtime) planBoardActivity() {
 func (r *Runtime) finishLogin() string {
 	r.state = "main"
 	r.planBoardActivity()
-	r.prefetchLoginBoard()
+	// Header generation is on-demand only; login never prefetches a board.
 	last := "--/--/-- --:--"
 	if r.handle != "GUEST" {
 		last = "96/08/25 23:41"
@@ -559,7 +528,7 @@ func (r *Runtime) renderBoardMenu() string {
 	}
 
 	node, _ := findNode(r.boardPath)
-	r.prefetchFirstForumChild(r.boardPath)
+	// Forum navigation reads prose-free board metadata only.
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n      〖%s〗        ★☆＝未読   〖Forum.OP〗SYSOP\r\n", node.Name)
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")

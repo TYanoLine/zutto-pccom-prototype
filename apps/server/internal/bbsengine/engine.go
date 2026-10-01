@@ -185,27 +185,29 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback, -1)
 }
 
-// CatchUpInitialBoardActivity realizes the already-decided retained activity
-// window for a board. The world plan fixes root/reply counts before wording; the
-// planner only materializes titles and later bodies for those slots.
+// InteractiveInitialRootLimit bounds the title work required by a first
+// board-index observation. The existing canonical BoardActivityState still
+// describes the complete retained history; unseen articles are not fabricated.
+const InteractiveInitialRootLimit = 10
+
+// CatchUpInitialBoardActivity materializes only enough independent root
+// headers for the current 10-line board index. This lightweight path does not
+// pre-generate append/reply headers or the rest of the retained archive.
+// The coarse World-selected activity state remains unchanged.
 func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Host, board world.Board, state world.BoardActivityState) error {
 	if state.RetainedRoots <= 0 {
 		return nil
 	}
-	replyCount := state.RetainedReplies
-	if replyCount < 0 {
-		replyCount = 0
-	}
-	count := state.RetainedRoots + replyCount
-	if count <= 0 {
-		return nil
+	roots := state.RetainedRoots
+	if roots > InteractiveInitialRootLimit {
+		roots = InteractiveInitialRootLimit
 	}
 	lookback := time.Duration(0)
 	now := e.currentTime()
 	if !state.RetainedSince.IsZero() && state.RetainedSince.Before(now) {
 		lookback = now.Sub(state.RetainedSince)
 	}
-	return e.catchUpInitial(ctx, host, board, count, lookback, replyCount)
+	return e.catchUpInitial(ctx, host, board, roots, lookback, 0)
 }
 
 func slotCountForRootTarget(rootCount int) int {
