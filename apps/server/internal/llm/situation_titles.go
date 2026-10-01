@@ -69,7 +69,9 @@ canonical articles:
 	if maxTokens > 3000 {
 		maxTokens = 3000
 	}
+	traceFinish := beginDebugTrace(ctx, "件名", prompt)
 	result, err := p.responseTextWithJSONSchema(ctx, prompt, "low", maxTokens, "bbs_situation_titles", schema)
+	traceFinish(result.Text, err)
 	if err != nil {
 		return BBSSituationTitleDraft{}, err
 	}

@@ -62,7 +62,7 @@ func worldAdoptedSummary(facts []string, fallback string) string {
 
 // materializeArticleDetails fixes article-local facts before prose generation.
 // It is shared by normal host reads, development inspection and isolated Lab runs.
-func (r *Repository) materializeArticleDetails(host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
+func (r *Repository) materializeArticleDetails(traceCtx context.Context, host world.Host, board world.Board, selected world.Post) (world.Post, string, error) {
 	if strings.TrimSpace(selected.Body) != "" || selected.Intent.ArticleDetailsMaterialized {
 		return selected, "", nil
 	}
@@ -139,7 +139,7 @@ func (r *Repository) materializeArticleDetails(host world.Host, board world.Boar
 	}
 	authorHistory := r.materializationAuthorHistoryContext(host, board, selected, 6)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
 	defer cancel()
 	request := llm.BBSTitleArticleDetailRequest{
 		BoardName:      board.Name,

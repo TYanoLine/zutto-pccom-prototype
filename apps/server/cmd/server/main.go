@@ -87,6 +87,7 @@ func main() {
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetDebugLogHAKATAGenerated(cfg.DebugLogHAKATAGenerated)
+	runtimeStore.SetGenerationTraceEnabled(cfg.DebugResetToken != "" && cfg.DebugHakataLLMTrace)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 
@@ -469,6 +470,7 @@ func main() {
 	mux.HandleFunc("/api/centers", bootstrapWorld)
 	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
 	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
+	mux.HandleFunc("/api/debug/bbs/generation-trace", newHakataTraceHandler(cfg.DebugResetToken, cfg.DebugHakataLLMTrace, runtimeStore))
 	mux.HandleFunc("/api/admin/research", listResearch)
 	mux.HandleFunc("/api/admin/research/case", getResearch)
 	mux.HandleFunc("/api/admin/research/new", createResearch)

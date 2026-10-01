@@ -68,8 +68,24 @@ func (r *Repository) MaterializationArticleWithDebug(host world.Host, board worl
 	return r.materializeArticleBodyOnce(host, board, selected)
 }
 
-func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (world.Post, bool, bool, string) {
-	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(host, board, selected)
+func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Board, selected world.Post) (result world.Post, found bool, generated bool, diagnostic string) {
+	traceCtx, traceDone := r.beginGenerationTrace(context.Background(), host, board, "body", selected.ID)
+	defer func() {
+		if strings.Contains(diagnostic, "error stage=") {
+			traceDone(fmt.Errorf("%s", diagnostic))
+			return
+		}
+		// The renderer can return text even if an underlying store write fails.
+		// Only call the trace successful after confirming canonical persistence.
+		if result.Body != "" {
+			if saved, ok := r.findMaterializationPost(host.ID, board.ID, selected.ID); ok && saved.Body != "" {
+				traceDone(nil)
+				return
+			}
+		}
+		traceDone(fmt.Errorf("article body was not committed"))
+	}()
+	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(traceCtx, host, board, selected)
 	if detailErr != nil {
 		return selected, true, false, detailDiagnostic
 	}
@@ -98,7 +114,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		topicLabel = board.Name
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	ctx, cancel := context.WithTimeout(traceCtx, 35*time.Second)
 	defer cancel()
 	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
 		Kind:        historicalkb.KnowledgeCulturalSignal,
@@ -173,7 +189,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	if usage.TotalTokens > 0 || usage.Model != "" {
 		developmentGenerationUsage.Store(generationUsageKey{repo: r, postID: selected.ID}, usage)
 	}
-	diagnostic := joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
+	diagnostic = joinDevelopmentDiagnostics(detailDiagnostic, formatGenerationUsage(usage), contextStats.String())
 	if updater, ok := r.Base.(world.PostUpdater); ok {
 		if updated, ok := updater.UpdatePost(host.ID, selected); ok {
 			r.logBBSGeneratedContent("body_committed", host, board, updated)

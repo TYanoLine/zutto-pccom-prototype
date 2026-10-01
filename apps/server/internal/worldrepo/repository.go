@@ -51,6 +51,7 @@ type Repository struct {
 	bbsArticles          *bbsengine.Engine
 	debugLogBBSArticleDetails                  bool
 	debugLogHAKATAGenerated                    bool
+	generationTrace                           *generationTraceStore
 
 	mu                     sync.Mutex
 	materialized           map[string]bool

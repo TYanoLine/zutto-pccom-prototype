@@ -162,19 +162,21 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 		// activity state that already existed before the user opened the board.
 		// This replaces the old HAKATA-only fixed 40-root evaluation batch.
 		var err error
+		ctx, traceDone := r.beginGenerationTrace(context.Background(), host, board, "headers", 0)
 		existing := filterBoard(r.Base.ListPosts(host.ID), board.ID)
 		if len(existing) == 0 {
 			if state, ok := r.BoardActivity(host, board); ok && state.RetainedRoots > 0 {
-				err = r.bbsArticles.CatchUpInitialBoardActivity(context.Background(), host, board, state)
+				err = r.bbsArticles.CatchUpInitialBoardActivity(ctx, host, board, state)
 			} else {
-				err = r.bbsArticles.CatchUp(context.Background(), host, board)
+				err = r.bbsArticles.CatchUp(ctx, host, board)
 			}
 		} else {
-			err = r.bbsArticles.CatchUp(context.Background(), host, board)
+			err = r.bbsArticles.CatchUp(ctx, host, board)
 		}
 		// Inspect the store after the attempt, including any posts actually saved
 		// before a later slot failed. Never log uncommitted planner drafts.
 		r.logNewBBSHeaders(host, board, existing)
+		traceDone(err)
 		if err != nil {
 			return fmt.Errorf("shared BBS catch-up host %s board %s: %w", host.ID, board.ID, err)
 		}
