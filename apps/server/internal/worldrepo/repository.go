@@ -49,7 +49,6 @@ type Repository struct {
 	WorldDate            string
 	worldNow             func() time.Time
 	bbsArticles          *bbsengine.Engine
-	debugDisableBBSTitleHistoricalVerification bool
 	debugLogBBSArticleDetails                  bool
 
 	mu                     sync.Mutex
@@ -116,19 +115,6 @@ func (r *Repository) SetArticleDetailPlanner(planner llm.BBSTitleArticleDetailPl
 	if r != nil {
 		r.ArticleDetailPlanner = planner
 	}
-}
-
-// SetDebugDisableBBSTitleHistoricalVerification is an explicit development
-// escape hatch for isolating title-era research from body/reply experiments.
-// Production correctness must not depend on this switch.
-func (r *Repository) SetDebugDisableBBSTitleHistoricalVerification(disabled bool) {
-	if r != nil {
-		r.debugDisableBBSTitleHistoricalVerification = disabled
-	}
-}
-
-func (r *Repository) debugBBSTitleHistoricalVerificationDisabled() bool {
-	return r != nil && r.debugDisableBBSTitleHistoricalVerification
 }
 
 // SetDebugLogBBSArticleDetails enables diagnostic logging of the final validated

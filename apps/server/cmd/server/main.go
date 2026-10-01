@@ -85,7 +85,6 @@ func main() {
 	postMaterializer := newProductionMaterializer(postRenderer)
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
-	runtimeStore.SetDebugDisableBBSTitleHistoricalVerification(cfg.DebugDisableBBSTitleHistoricalVerification)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
@@ -482,7 +481,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
