@@ -195,3 +195,62 @@ func TestPC98FacetsAreBoardSpecificAcrossPostingModes(t *testing.T) {
 		}
 	}
 }
+
+func TestProductionGameWorkActivitiesAreConcreteWithoutCatalogs(t *testing.T) {
+	facets := productionGameTopicFacets()
+	if len(facets) < 7 {
+		t.Fatalf("too few ways to talk about particular games: %d", len(facets))
+	}
+	seenKinds := map[string]bool{}
+	modeCoverage := map[string]bool{}
+	for _, facet := range facets {
+		if !strings.HasPrefix(facet.kind, "games_particular_work_") || seenKinds[facet.kind] {
+			t.Fatalf("not a distinct work-specific GAME activity: %+v", facet)
+		}
+		seenKinds[facet.kind] = true
+		if !strings.Contains(facet.focus, "game") ||
+			!(strings.Contains(facet.focus, "particular") || strings.Contains(facet.focus, "specific") || strings.Contains(facet.focus, "identifiable")) {
+			t.Fatalf("GAME activity lost its identifiable work: %+v", facet)
+		}
+		for mode := range facet.modes {
+			modeCoverage[mode] = true
+		}
+		input := productionSituationMaterials(nil, productionSituationFocus(facet.developmentSituationFacet))
+		if len(input) != 2 || input[0] != "situation_kind="+facet.kind ||
+			input[1] != "activity_focus="+facet.focus {
+			t.Fatalf("a GAME focus added a hard-coded title or extra prompt rule: %#v", input)
+		}
+	}
+	for _, mode := range developmentRootDiscourseModes {
+		if !modeCoverage[mode] {
+			t.Fatalf("no work-specific GAME activity for discourse mode %s", mode)
+		}
+	}
+}
+
+func TestProductionGameSelectionMixesParticularGamesAndOrdinaryPlay(t *testing.T) {
+	host := world.Host{ID: "hakata-canal-net"}
+	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ", SemanticScope: "家庭用・PC等のゲームについての感想や相談"}
+	persona := world.Persona{ID: "test-player"}
+	at := time.Date(1996, 2, 1, 19, 30, 0, 0, time.Local)
+	counts := map[string]int{}
+	workSpecific, everyday := 0, 0
+	for i := 0; i < 120; i++ {
+		mode := developmentRootDiscourseModes[i%len(developmentRootDiscourseModes)]
+		facet, ok := chooseProductionSituationFacet(host, board, persona, at.Add(time.Duration(i)*time.Hour), i+1, "games", mode, counts)
+		if !ok {
+			t.Fatalf("GAME selection failed at slot %d", i+1)
+		}
+		counts[facet.kind]++
+		if strings.HasPrefix(facet.kind, "games_particular_work_") {
+			workSpecific++
+		} else {
+			everyday++
+		}
+	}
+	// This tests the distribution across a reproducible sample, not a runtime
+	// per-board quota. Both game-specific talk and everyday play belong here.
+	if workSpecific < 30 || everyday < 30 {
+		t.Fatalf("GAME over-concentrated on one activity category: specific=%d everyday=%d", workSpecific, everyday)
+	}
+}
