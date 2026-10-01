@@ -247,3 +247,14 @@ characters in BBS source strings. Prefer period-appropriate JIS glyphs such as
 `□ ■ ＊ ※ ○ ◎ ◇ ◆ ★ ☆ → ―`. Host output is validated at the WebSocket
 terminal boundary so generated article/body text cannot introduce unsupported
 modern Unicode into the emulated terminal.
+
+## Out-of-world deployment diagnostics
+
+The modern client menus may show the client build SHA/ref/time and asynchronously
+fetch the running backend's SHA/branch/start time from `GET /api/version`.
+This is operational metadata, separate from the 1996 in-world terminal and BBS.
+The request derives its origin from the *configured WebSocket URL*, so a Vercel
+preview cannot accidentally label the wrong backend. A failed or unavailable
+lookup remains explicitly unknown and must never block terminal input, dialing,
+center-directory loading or a live call. Commit differences alone do not establish
+which side is newer (e.g. when a preview is connected to production).

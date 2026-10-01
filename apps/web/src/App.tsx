@@ -15,6 +15,10 @@ import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
 import type { DialMode } from './audio/dialLineAudio';
+import { BuildInfoPanel } from './build/BuildInfoPanel';
+import type { BuildInfoState } from './build/BuildInfoPanel';
+import { fetchServerBuildInfo, serverVersionEndpoint } from './build/ServerBuildInfo';
+import type { ServerBuildInfo } from './build/ServerBuildInfo';
 import { createIdleModemTelemetry } from './modem/ModemTelemetry';
 import type { ModemTelemetry } from './modem/ModemTelemetry';
 import {
@@ -26,6 +30,9 @@ import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import './styles.css';
 
 const APP_VERSION = '0.28';
+const CLIENT_BUILD_COMMIT = (import.meta.env.VITE_BUILD_COMMIT as string | undefined) || 'unknown';
+const CLIENT_BUILD_REF = (import.meta.env.VITE_BUILD_REF as string | undefined) || 'unknown';
+const CLIENT_BUILD_TIME = (import.meta.env.VITE_BUILD_TIME as string | undefined) || '';
 const SCREEN_MODE_KEY = 'zutto.terminalScreenMode.v1';
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 function loadTerminalScreenMode(): TerminalScreenMode {
@@ -100,12 +107,33 @@ export default function App() {
   const [modemStatusMode, setModemStatusMode] = useState<ModemStatusDisplayMode>(loadModemStatusDisplayMode);
   const [terminalScreenMode, setTerminalScreenMode] = useState<TerminalScreenMode>(loadTerminalScreenMode);
   const [desktopMenuOpen, setDesktopMenuOpen] = useState(false);
+  const [serverBuildInfo, setServerBuildInfo] = useState<ServerBuildInfo | null>(null);
+  const [serverBuildState, setServerBuildState] = useState<BuildInfoState>('loading');
+  const [versionRefresh, setVersionRefresh] = useState(0);
   const [directoryCount, setDirectoryCount] = useState(0);
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [directoryStatus, setDirectoryStatus] = useState('センター情報読込中...');
   const [commandFocused, setCommandFocused] = useState(false);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
+  useEffect(() => {
+    if (!serverVersionEndpoint(wsURL)) {
+      setServerBuildState('not-configured');
+      return;
+    }
+    const controller = new AbortController();
+    setServerBuildState('loading');
+    // This request never blocks modem startup, directory loading, or the terminal.
+    void fetchServerBuildInfo(wsURL, undefined, controller.signal).then(info => {
+      if (!controller.signal.aborted) {
+        setServerBuildInfo(info);
+        setServerBuildState('ready');
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setServerBuildState('unavailable');
+    });
+    return () => controller.abort();
+  }, [versionRefresh]);
   useEffect(() => { saveCallerLocation(callerLocation); }, [callerLocation]);
   useEffect(() => { saveModemStatusDisplayMode(modemStatusMode); }, [modemStatusMode]);
   useEffect(() => {
@@ -257,6 +285,11 @@ export default function App() {
   const desktopBaud = activeCall || localTestConnected ? modemTelemetry.baud : commSettings.dteBaud;
   const desktopElapsed = mobileConnectedAt ? mobileElapsed.slice(0, 5) : '00:00';
   const desktopLocation = `${callerLocation.maName}MA`;
+  const buildInfoProps = {
+    clientCommit: CLIENT_BUILD_COMMIT, clientRef: CLIENT_BUILD_REF, clientBuildTime: CLIENT_BUILD_TIME,
+    server: serverBuildInfo, serverState: serverBuildState,
+    onRetry: () => setVersionRefresh(value => value + 1),
+  };
   return <main className="shell">
     <header className="desktop-topbar">
       {desktopHostName && <span className="desktop-host-name">{desktopHostName}</span>}
@@ -286,6 +319,7 @@ export default function App() {
           <button type="button" aria-pressed={terminalScreenMode === 'variable'} onClick={() => { setTerminalScreenMode('variable'); setDesktopMenuOpen(false); }}>80桁 × 可変行</button>
           <button type="button" aria-pressed={terminalScreenMode === 'fixed25'} onClick={() => { setTerminalScreenMode('fixed25'); setDesktopMenuOpen(false); }}>80桁 × 25行固定</button>
         </div>
+        <BuildInfoPanel {...buildInfoProps} />
       </nav>}
     </header>
     <header className="titlebar"><span>ZUTTO COMMUNICATION TERMINAL Ver {APP_VERSION}</span><span>PC-9821 / 1996</span></header>
@@ -302,6 +336,7 @@ export default function App() {
       screenMode={terminalScreenMode}
       modemStatusMode={modemStatusMode}
       onModemStatusModeChange={setModemStatusMode}
+      buildInfo={buildInfoProps}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,

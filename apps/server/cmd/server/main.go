@@ -25,6 +25,7 @@ import (
 const generatedCenterCount = 100
 
 func main() {
+	startedAt := time.Now()
 	cfg := config.Load()
 	store := newRuntimeStore(cfg.DatabaseURL)
 	jst, err := time.LoadLocation("Asia/Tokyo")
@@ -562,6 +563,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/version", newServerVersionHandler(serverBuildInfoFromEnvironment(startedAt)))
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)

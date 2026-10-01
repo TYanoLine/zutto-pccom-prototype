@@ -9,6 +9,8 @@ import type {
 } from 'react';
 import { isFullWidth, type TerminalCore } from './TerminalCore';
 import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
+import { BuildInfoPanel } from '../build/BuildInfoPanel';
+import type { BuildInfoPanelProps } from '../build/BuildInfoPanel';
 import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
@@ -52,6 +54,7 @@ type TerminalCanvasProps = {
   bottomControlsActive?: boolean;
   modemStatusMode: ModemStatusDisplayMode;
   onModemStatusModeChange: (mode: ModemStatusDisplayMode) => void;
+  buildInfo: BuildInfoPanelProps;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
@@ -63,6 +66,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     bottomControlsActive = false,
     modemStatusMode,
     onModemStatusModeChange,
+    buildInfo,
   },
   forwardedRef,
 ) {
@@ -515,6 +519,10 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current - 12); setFunctionMenuOpen(false); }}>履歴↓</button>
           <button type="button" onClick={() => { setScrollOffset(0); setFunctionMenuOpen(false); }} disabled={historyOffset === 0}>最新</button>
+          <details className="terminal-build-info">
+            <summary>バージョン情報</summary>
+            <BuildInfoPanel {...buildInfo} />
+          </details>
           <button type="button" onClick={() => setFunctionMenuOpen(false)}>閉じる</button>
         </nav>
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}
