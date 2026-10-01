@@ -17,10 +17,8 @@ type Config struct {
 	HistoricalReferencesEnabled                  bool
 	DebugDisableBBSTitleHistoricalVerification   bool
 	DebugLogBBSArticleDetails                    bool
-	DebugAutoRunMaterializationAudit             bool
 	DatabaseURL                                  string
 	DebugResetToken             string
-	MaterializationLabToken     string
 }
 
 func Load() Config {
@@ -40,10 +38,8 @@ func Load() Config {
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugDisableBBSTitleHistoricalVerification: envBool("DEBUG_DISABLE_BBS_TITLE_HISTORICAL_VERIFICATION", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
-		DebugAutoRunMaterializationAudit:           envBool("DEBUG_AUTORUN_MATERIALIZATION_AUDIT", false),
 		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
-		MaterializationLabToken:     os.Getenv("MATERIALIZATION_LAB_TOKEN"),
 	}
 }
 

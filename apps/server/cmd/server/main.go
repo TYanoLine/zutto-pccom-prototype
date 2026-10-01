@@ -41,7 +41,6 @@ func main() {
 
 	var catalogStore *worldcatalog.Store
 	var historyStore *historicalkb.Store
-	var freshArchive *postgresMaterializationFreshArchive
 	if cfg.DatabaseURL == "" {
 		log.Printf("DATABASE_URL is not set; persistent generated worlds and historical research are disabled")
 	} else {
@@ -56,16 +55,12 @@ func main() {
 		if err == nil {
 			err = historyStore.EnsureSchema(ctx)
 		}
-		if err == nil {
-			freshArchive, err = openPostgresMaterializationFreshArchive(ctx, cfg.DatabaseURL)
-		}
 		cancel()
 		if err != nil {
 			log.Fatalf("initialize persistent stores: %v", err)
 		}
 		defer catalogStore.Close()
 		defer historyStore.Close()
-		defer freshArchive.Close()
 	}
 
 	researcher := historicalkb.Researcher{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
@@ -96,8 +91,6 @@ func main() {
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetWorldNow(clock.Now)
 	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
-	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
-	materializationLab.freshArchive = freshArchive
 	personaLab := newPersonaLab(azureOpenAIRenderer, personaAdvisor, cfg.WorldDate, cfg.AzureOpenAIKey != "")
 	personaHistoryLab := newPersonaHistoryLab(azureOpenAIRenderer, cfg.WorldDate, cfg.AzureOpenAIKey != "")
 	network := telephone.New(runtimeStore, clock)
@@ -242,9 +235,9 @@ func main() {
 	resetBBSArticles := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		if !labEnabled() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "development BBS reset is disabled"})
+		if cfg.DebugResetToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "debug BBS reset requires DEBUG_RESET_TOKEN"})
 			return
 		}
 		if r.Method != http.MethodPost {
@@ -292,9 +285,9 @@ func main() {
 	bbsSample := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
-		if !labEnabled() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "development BBS sample is disabled"})
+		if cfg.DebugResetToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "debug BBS sample requires DEBUG_RESET_TOKEN"})
 			return
 		}
 		if r.Method != http.MethodGet && r.Method != http.MethodPost {
@@ -568,11 +561,6 @@ func main() {
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
 	mux.HandleFunc("/api/debug/export", newDebugExportHandler(store))
-	mux.HandleFunc("/api/debug/materialization-lab", materializationLab.handler())
-	mux.HandleFunc("/api/debug/materialization-lab-random", materializationLab.randomHandler())
-	mux.HandleFunc("/api/debug/materialization-lab-allbody", materializationLab.allBodyHandler())
-	mux.HandleFunc("/api/debug/materialization-lab-fresh", materializationLab.freshHandler())
-	mux.HandleFunc("/api/debug/materialization-lab-fresh-view", materializationLab.freshViewerHandler())
 	mux.HandleFunc("/api/debug/minimal-bbs-poc", newMinimalBBSPoCHandler(cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
 	mux.HandleFunc("/api/debug/minimal-situation-title-batch-poc", newMinimalSituationTitleBatchPoCHandler(runtimeStore, cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
 	mux.HandleFunc("/api/debug/minimal-typed-situation-title-batch-poc", newMinimalTypedSituationTitleBatchPoCHandler(runtimeStore, cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIKey, cfg.AzureOpenAIModel))
@@ -602,14 +590,11 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "debug_autorun_materialization_audit": cfg.DebugAutoRunMaterializationAudit, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_disable_bbs_title_historical_verification": cfg.DebugDisableBBSTitleHistoricalVerification, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
 
-	if cfg.DebugAutoRunMaterializationAudit {
-		startDebugMaterializationAudit(cfg.Addr)
-	}
 	log.Printf("zutto server listening on %s", cfg.Addr)
 	log.Fatal(srv.ListenAndServe())
 }
@@ -617,7 +602,7 @@ func main() {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Zutto-Debug-Token, X-Zutto-Lab-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Zutto-Debug-Token")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
