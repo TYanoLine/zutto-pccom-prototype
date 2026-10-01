@@ -18,7 +18,7 @@ Never silently rewrite an already observed host, persona, relationship, post, or
 
 For the current host-world implementation, **successful CONNECT is the host observation boundary**. Directory/catalog display, phone-number lookup, host metadata creation, and unsuccessful dial attempts do not observe the host and must not create its article history. This deliberately keeps "the host exists" separate from "somebody has entered and observed that host."
 
-Successful CONNECT establishes the observation boundary, but expensive detail is not fanned out over every board. After login and during navigation, the host runtime may start a **small predictive set** of board-header catch-up jobs in the background. This is only an execution optimization: it does not make the user's connection the cause of NPC activity. Generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
+Successful CONNECT establishes the observation boundary but does not generate detailed articles. The current Erika-K runtime has **speculative background prefetch disabled entirely**: login and forum navigation only use prose-free board state. An explicit leaf-board read triggers up to 10 root headers on first observation; articles retain their simulated historical timestamps.
 
 Do not eagerly update other hosts merely because one host was observed. A directory may contain hundreds or thousands of hosts while only connected hosts pay the expensive catch-up cost.
 
@@ -45,17 +45,16 @@ The service should therefore *appear* as though the world continued while nobody
 
 ### Blocking read barrier
 
-Catch-up may run in the background after CONNECT, but the host program must not expose "generation in progress" as an in-world fact. If a user reaches a screen whose canonical data is not ready, that command waits on the existing shared job and renders only after the required data is committed.
+The current Erika-K flow does not pre-generate articles after CONNECT. A demanded board read may use an internal shared worker while the command waits, but the host program must not expose "generation in progress" as an in-world fact. It renders only after required headers have been committed.
 
 The current split is:
 
 ```text
 successful CONNECT
- -> establish observation boundary
- -> connected runtime may prefetch a small number of likely-needed board-header scopes asynchronously
+ -> establish observation boundary without article generation
 
 navigation into a forum
- -> may prefetch one/few immediate child scopes, bounded narrowly
+ -> display prose-free board metadata without article generation
 
 board/article index request
  -> this board's headers ready? yes: render immediately
@@ -66,7 +65,7 @@ article/thread read
  -> no: start/join the shared thread body job, wait, then render
 ```
 
-Concurrent users join the same board/thread job rather than launching private generation. A ready board must never wait on unrelated work. For boards that still require shared-engine header materialization, one host runs at most one expensive header-generation pipeline at a time: narrow predictive prefetch may queue ahead of a demanded board briefly, but it must not create parallel LLM bursts. Speculative prefetch should remain narrow rather than materializing every visible board. Article prose remains lazy even after the host headers are observed.
+Concurrent users join the same board/thread job rather than launching private generation. A ready board must never wait on unrelated work. No speculative header generation is initiated by the current Erika-K runtime; a read of an empty board starts only its demanded shared job, capped at 10 root headers initially. Internal workers coordinate callers but do not constitute speculative prefetch. Article prose remains lazy after headers are observed.
 
 `ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
