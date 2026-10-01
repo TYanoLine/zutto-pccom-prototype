@@ -15,6 +15,7 @@ type Config struct {
 	WorldDate                   string
 	HistoricalReferencesEnabled                  bool
 	DebugLogBBSArticleDetails                    bool
+	DebugLogHAKATAGenerated                     bool
 	DatabaseURL                                  string
 	DebugResetToken             string
 }
