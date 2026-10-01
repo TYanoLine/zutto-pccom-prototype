@@ -85,16 +85,23 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		}
 		traceDone(fmt.Errorf("article body was not committed"))
 	}()
-	selected, detailDiagnostic, detailErr := r.materializeArticleDetails(traceCtx, host, board, selected)
-	if detailErr != nil {
-		return selected, true, false, detailDiagnostic
+	freeform := r.useHAKATAFreeformBody(host)
+	detailDiagnostic := ""
+	if !freeform {
+		// Detail generation is not needed for the HAKATA title-led experiment.
+		// Existing persisted Situation/Detail facts are not altered.
+		var detailErr error
+		selected, detailDiagnostic, detailErr = r.materializeArticleDetails(traceCtx, host, board, selected)
+		if detailErr != nil {
+			return selected, true, false, detailDiagnostic
+		}
 	}
 	_, contextStats := r.materializationBBSRenderContext(host, board, selected)
 	if selected.Body != "" {
 		usage, _ := r.MaterializationGenerationUsage(selected.ID)
 		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationUsage(usage), contextStats.String())
 	}
-	if r.Engine == nil || r.Materializer == nil {
+	if r.Materializer == nil || (!freeform && r.Engine == nil) {
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=setup detail=world engine or materializer unavailable", contextStats.String())
 	}
 
@@ -116,19 +123,30 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 
 	ctx, cancel := context.WithTimeout(traceCtx, 35*time.Second)
 	defer cancel()
-	decision, err := r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
-		Kind:        historicalkb.KnowledgeCulturalSignal,
-		Subject:     board.Name,
-		WorldDate:   selected.CreatedAt.Format("2006-01-02"),
-		Region:      host.Region,
-		Audience:    []string{host.SoftwareID},
-		Need:        fmt.Sprintf("%s の %s ボード、%sによる話題『%s』の記事本文を、確定済みの投稿意図を変えず1996年の自然なパソコン通信文体で補完する", host.Name, board.Name, selected.Author, topicLabel),
-		Persistence: true,
-		Importance:  .30,
-		Specificity: .30,
-	})
-	if err != nil {
-		return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("evidence", err), contextStats.String())
+	// Normal materialization still uses World evidence. In HAKATA's temporary
+	// model-memory body trial, historical facts were not supplied to the prose
+	// worker in the first place. Avoid spending an extra research/LLM call.
+	decision := worldengine.EvidenceDecision{
+		Level: historicalkb.EvidenceAtmospheric,
+		ModelFirst: true,
+		Knowledge: historicalkb.KnowledgeResult{CanUse: true},
+	}
+	var err error
+	if !freeform {
+		decision, err = r.Engine.ResolveEvidence(ctx, worldengine.EvidenceRequest{
+			Kind:        historicalkb.KnowledgeCulturalSignal,
+			Subject:     board.Name,
+			WorldDate:   selected.CreatedAt.Format("2006-01-02"),
+			Region:      host.Region,
+			Audience:    []string{host.SoftwareID},
+			Need:        fmt.Sprintf("%s の %s ボード、%sによる話題『%s』の記事本文を、確定済みの投稿意図を変えず1996年の自然なパソコン通信文体で補完する", host.Name, board.Name, selected.Author, topicLabel),
+			Persistence: true,
+			Importance:  .30,
+			Specificity: .30,
+		})
+		if err != nil {
+			return selected, true, false, joinDevelopmentDiagnostics(formatGenerationError("evidence", err), contextStats.String())
+		}
 	}
 
 	// Subject is host-native surface data and may legitimately be empty on a
@@ -136,7 +154,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	// topic for prose generation without manufacturing a host-visible subject.
 	// The header was accepted by World before the body was requested.
 	// Never let prose generation change an already visible root subject.
-	boardTopic := topicLabel
+	boardTopic := board.Name // The board label must not be the selected article title.
 	canonicalSubject := selected.Subject
 
 	renderIntent := selected.Intent
@@ -145,6 +163,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		Host:             host,
 		BoardID:          board.ID,
 		BoardTopic:       boardTopic,
+		FreeformFromSubject: freeform,
 		WorldDate:        selected.CreatedAt.Format("2006-01-02"),
 		Persona:          persona,
 		Intent:           renderIntent,
