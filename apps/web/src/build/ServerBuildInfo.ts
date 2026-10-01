@@ -8,7 +8,12 @@ export type ServerBuildInfo = {
 // a Vercel preview must not silently display the version of a different backend.
 export function serverVersionEndpoint(wsURL: string): string | null {
   if (!wsURL) return null;
-  const url = new URL(wsURL);
+  let url: URL;
+  try {
+    url = new URL(wsURL, typeof window === 'undefined' ? 'http://localhost' : window.location.href);
+  } catch {
+    return null;
+  }
   if (url.protocol !== 'ws:' && url.protocol !== 'wss:') return null;
   url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
   url.pathname = '/api/version';
