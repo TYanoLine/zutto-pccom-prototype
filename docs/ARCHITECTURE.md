@@ -126,7 +126,7 @@ The production path is Situation-first:
 ```text
 World/observation clock
  -> shared BBS engine fixes actor, date, board and root/reply topology
- -> World selects the activity focus and discourse mode
+ -> World selects discourse mode (and an activity focus except on open-topic GAME boards)
  -> LLM proposes concrete Situations under those World facts
  -> validate Situations and distinct occurrences
  -> LLM writes titles for accepted Situations

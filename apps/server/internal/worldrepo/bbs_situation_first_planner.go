@@ -120,18 +120,24 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		persona := p.personaForSituation(slot)
 		domain := productionBoardDomain(req.Board, persona)
 		mode := demoSelectRootDiscourseMode(req.Host, req.Board, ordinal)
-		facet, ok := chooseProductionSituationFacet(req.Host, req.Board, persona, slot.CreatedAt, slot.Index, domain, mode, counts)
-		if !ok {
-			return nil, fmt.Errorf("no Situation facet for board=%s domain=%s mode=%s", req.Board.ID, domain, mode)
+		// GAME is deliberately open-topic: World still selects actor, time,
+		// board and posting purpose, but no preset topic/activity/facet is
+		// selected or sent to the Situation model. It discovers the concrete
+		// subject from the actual board and member context before acceptance.
+		// Other boards retain their existing selection during this experiment.
+		sparse := developmentSparseSituation{kind: "games_open_topic"}
+		existing := productionOpenSituationMaterials(personaFacts)
+		if domain != "games" {
+			facet, ok := chooseProductionSituationFacet(req.Host, req.Board, persona, slot.CreatedAt, slot.Index, domain, mode, counts)
+			if !ok {
+				return nil, fmt.Errorf("no Situation facet for board=%s domain=%s mode=%s", req.Board.ID, domain, mode)
+			}
+			sparse = productionSituationFocus(facet)
+			existing = productionSituationMaterials(personaFacts, sparse)
+			counts[facet.kind]++
 		}
-		// Production uses the World-selected activity focus, not the detailed
-		// diagnostic PoC's anonymous-game example and exclusionary boundary.
-		// The proposer chooses the concrete occurrence before it is canonical.
-		sparse := productionSituationFocus(facet)
-		counts[facet.kind]++
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
-		existing := productionSituationMaterials(personaFacts, sparse)
 
 		seeds = append(seeds, productionSituationSeed{
 			eventID: eventID, slot: slot, mode: mode, domain: domain,
@@ -168,7 +174,14 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	}
 	byEvent := make(map[string]llm.BBSWorldSituationDraft, len(seeds))
 	noveltyOwners := map[string]string{}
+	recentContext := productionRecentSituationContext(req.RecentPosts)
 	avoidSituations := append([]string(nil), productionRecentSituationAvoid(req.RecentPosts)...)
+	if seeds[0].domain == "games" {
+		// Old GAME facet names are internal generation metadata, not material
+		// for an open-topic conversation. Retain only observed subjects.
+		recentContext = productionRecentSubjectContext(req.RecentPosts)
+		avoidSituations = productionRecentSubjectAvoid(req.RecentPosts)
+	}
 
 	for chunkStart := 0; chunkStart < len(events); chunkStart += productionSituationChunkSize {
 		chunkEnd := chunkStart + productionSituationChunkSize
@@ -188,7 +201,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 				WindowEnd:                      windowEnd.Format(time.RFC3339),
 				AllowModelHistoricalMemory:     materializer.ModelHistoricalMemory,
 				PreferConcreteHistoricalNames:  materializer.PreferConcreteHistoricalNames,
-				RecentBBSState:                 productionRecentSituationContext(req.RecentPosts),
+				RecentBBSState:                 recentContext,
 				Events:                         chunkEvents,
 				AvoidSituations:                append([]string(nil), avoidSituations...),
 			})
@@ -419,14 +432,12 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 }
 
 func chooseProductionSituationFacet(host world.Host, board world.Board, persona world.Persona, at time.Time, slotIndex int, domain, mode string, counts map[string]int) (developmentSituationFacet, bool) {
+	if domain == "games" {
+		// No GAME preset may accidentally be reintroduced through fallback.
+		return developmentSituationFacet{}, false
+	}
 	candidates := make([]developmentSituationFacet, 0)
 	switch domain {
-	case "games":
-		for _, rich := range append(developmentRichGameSituationFacets(), productionGameTopicFacets()...) {
-			if developmentModeFacetAllowed(rich, mode) {
-				candidates = append(candidates, rich.developmentSituationFacet)
-			}
-		}
 	case "pc98", "pc98_modem":
 		for _, topic := range productionPC98SituationFacets() {
 			if developmentModeFacetAllowed(topic, mode) {
@@ -461,13 +472,6 @@ func chooseProductionSituationFacet(host world.Host, board world.Board, persona 
 	for i, facet := range candidates {
 		// Strongly downweight kinds already used in the same retained window.
 		weight := 1.0 / float64(1+counts[facet.kind]*4)
-		if domain == "games" && strings.HasPrefix(facet.kind, "games_particular_work_") {
-			// GAME previously had 23 everyday-play activities but just four
-			// work-specific ones. Give particular games a realistic chance to
-			// become the *World-selected* activity, without a title quota or
-			// demanding a proper noun in unrelated everyday-play posts.
-			weight *= 4
-		}
 		weights[i] = weight
 		total += weight
 	}
@@ -566,77 +570,42 @@ func productionAnimeMangaSituationFacets() []developmentModeSituationFacet {
 	}
 }
 
-// Work-specific activities are world-selected interests in *particular*
-// games. Unlike ordinary play-habit activities, their identity matters to the
-// selected event. The proposer resolves a date-valid title before canonical
-// acceptance; the later title/body workers only express that accepted event.
-// This is not a product catalog or a quota for proper nouns in every post.
-func productionGameTopicFacets() []developmentModeSituationFacet {
-	return []developmentModeSituationFacet{
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_impression",
-				focus: "the member's impression of a specific game they played, identified by its title and a distinctive experience in that game",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_interest",
-				focus: "a particular game the member encountered in a magazine, shop, or conversation, identified by title, and what caught their attention",
-			},
-			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_choice",
-				focus: "a real choice between particular named games the member knows about, based on what they actually know or tried",
-			},
-			modes: developmentModeSet("state_opinion", "ask_peers"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_tip",
-				focus: "a small tested finding in one identifiable game, tied to its own gameplay rather than general advice",
-			},
-			modes: developmentModeSet("share_experience", "share_tip"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_scene",
-				focus: "one memorable stage, battle, or moment from a particular named game the member recently played",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_mechanic",
-				focus: "a distinctive rule, control, or gameplay mechanic in one particular game the member has actually played",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "share_tip", "ask_peers"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_character",
-				focus: "a particular game character, dialogue, or story development in a named game the member has encountered",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "games_particular_work_comparison",
-				focus: "the member comparing a distinctive experience with two particular games they know, keeping the games' identities separate",
-			},
-			modes: developmentModeSet("share_experience", "state_opinion", "ask_peers"),
-		},
-	}
-}
-
 // Production passes the World-selected activity focus as material. Diagnostic
 // example incidents and their wording constraints belong to the Lab only.
 // Concrete occurrences are first proposed here, then become canonical state.
 // These are the complete per-root materials for normal production. Historical
 // catalogs and automatic evidence lists are not part of this input.
+// Open-topic GAME roots receive no selected activity kind, theme or suggested
+// work name. Only already-persisted actor facts constrain the proposal.
+func productionOpenSituationMaterials(personaFacts []string) []string {
+	facts := make([]string, 0, len(personaFacts))
+	for _, fact := range personaFacts {
+		facts = append(facts, "persona_context="+fact)
+	}
+	return facts
+}
+
+func productionRecentSubjectContext(posts []world.Post) string {
+	lines := make([]string, 0, 20)
+	for i := len(posts)-1; i>=0 && len(lines)<20; i-- {
+		if post := posts[i]; world.IsSemanticRoot(post) && strings.TrimSpace(post.Subject)!="" {
+			lines = append(lines, "subject="+strings.TrimSpace(post.Subject))
+		}
+	}
+	if len(lines)==0 { return "(none supplied)" }
+	return strings.Join(lines, "\n")
+}
+
+func productionRecentSubjectAvoid(posts []world.Post) []string {
+	lines := make([]string, 0, 20)
+	for i := len(posts)-1; i>=0 && len(lines)<20; i-- {
+		if post := posts[i]; world.IsSemanticRoot(post) && strings.TrimSpace(post.Subject)!="" {
+			lines = append(lines, "subject="+strings.TrimSpace(post.Subject))
+		}
+	}
+	return lines
+}
+
 func productionSituationMaterials(personaFacts []string, focus developmentSparseSituation) []string {
 	facts := make([]string, 0, len(personaFacts)+len(focus.facts)+1)
 	for _, fact := range personaFacts {
