@@ -43,9 +43,8 @@ func TestArticleWorkerContextHasNoMSGIdsOrTimestamps(t *testing.T) {
 func TestMaterializationThreadPredecessorsIncludeEarlierNestedAndSiblingReplies(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
-	h, _ := repo.HostByPhone("0450000196")
-	boards, _ := repo.MaterializationBoards(h)
-	board := boards[1]
+	h, _ := repo.HostByPhone("0920000196")
+	board := world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ"}
 	at := worldTime("1996-08-29")
 
 	root := base.AddPost(h.ID, world.Post{BoardID: board.ID, Author: "TAKA", Subject: "親", CreatedAt: at})

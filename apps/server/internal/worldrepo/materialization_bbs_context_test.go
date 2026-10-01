@@ -11,9 +11,8 @@ import (
 func TestBBSRenderContextUsesBodiesAndLazyEnvelopes(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
-	h, _ := repo.HostByPhone("0450000196")
-	boards, _ := repo.MaterializationBoards(h)
-	board := boards[1]
+	h, _ := repo.HostByPhone("0920000196")
+	board := world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ"}
 	at := worldTime("1996-08-29").Add(-72 * time.Hour)
 
 	base.AddPost(h.ID, world.Post{
@@ -63,9 +62,8 @@ func TestIntentSummaryCarriesFreeFormGoalAndContentOnlyBBSContext(t *testing.T) 
 func TestBBSRenderContextIncludesEarlierNestedAndSiblingReplies(t *testing.T) {
 	base := world.NewMemoryStore()
 	repo := New(base, nil, nil, "1996-08-29")
-	h, _ := repo.HostByPhone("0450000196")
-	boards, _ := repo.MaterializationBoards(h)
-	board := boards[1]
+	h, _ := repo.HostByPhone("0920000196")
+	board := world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ"}
 	at := worldTime("1996-08-29").Add(-24 * time.Hour)
 
 	root := base.AddPost(h.ID, world.Post{BoardID: board.ID, Author: "TAKA", Subject: "98の通信環境", Body: "親記事", CreatedAt: at})

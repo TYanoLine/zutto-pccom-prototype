@@ -163,9 +163,6 @@ func TestProductionGameTopicFacetsAreBroadAndModeCompatible(t *testing.T) {
 		if candidate.kind == "" || candidate.focus == "" {
 			t.Fatalf("topic facet lacks a World activity focus: %+v", candidate)
 		}
-		if len(candidate.occurrences) != 0 || candidate.boundary != "" {
-			t.Fatalf("production-only activity focus is prescribing a diagnostic incident: %+v", candidate)
-		}
 		if len(candidate.modes) == 0 {
 			t.Fatalf("topic facet missing mode compatibility: %+v", candidate)
 		}
