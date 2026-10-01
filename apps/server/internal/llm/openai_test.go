@@ -113,15 +113,15 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"世界日付は 1996-08-29",
+		"世界日付: 1996-08-29",
+		"確定済み件名: 途中で切れた",
 		"everyday_baseline=[自宅のパソコンと通信環境は普段使いの道具]",
-		"ヘッダを読み上げない",
-		"本文は用件から自然に始める",
-		"canonical Situation はすでに世界で起きた事実",
-		"当時の本人として普通に書く",
+		"canonical Situation / thread facts",
+		"この記事を書いている本人の自然な文章",
+		"時代背景: 世界時刻より未来の知識を使わない。",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("board-post prompt missing worker rule %q:\n%s", want, capturedPrompt)
+			t.Fatalf("board-post prompt missing material/context %q:\n%s", want, capturedPrompt)
 		}
 	}
 }
