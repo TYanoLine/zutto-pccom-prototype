@@ -17,24 +17,26 @@ func TestBuildBoardPostPromptOmitsInfrastructureMetadata(t *testing.T) {
 	}
 }
 
-func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
-	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます"})
+func TestBuildBoardPostPromptUsesPurposeAndMaterialsInsteadOfRuleStack(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI",
+		PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます",
+	})
 	for _, want := range []string{
-		"canonical Situation はすでに世界で起きた事実",
-		"事実を全部説明する必要はない",
-		"本文は用件から自然に始める",
-		"ask_peersだけが質問を主目的",
-		"文章をFAQ・解説・結論付きの整った記事へ無理に仕上げない",
-		"writing=勢いのある短文が多い。",
-		"世界日付は 1996-06-07",
+		"ずっとパソコン通信", "会員が読む記事本文として文章化し、保存・表示",
+		"canonical Situation / thread facts", "この記事を書いている本人の自然な文章",
+		"writing=勢いのある短文が多い。", "時代: 1996-06-07", "確定済み件名: 最近こればかりやってます",
 	} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("missing concise Situation-rendering guidance %q", want)
+			t.Fatalf("missing production material or purpose %q: %s", want, prompt)
 		}
 	}
-	for _, legacy := range []string{"utterance_attention", "10〜20文字程度ごと", "端末側の80桁級表示", "同じ三文構成"} {
-		if strings.Contains(prompt, legacy) {
-			t.Fatalf("legacy prose micromanagement survived refresh: %q", legacy)
+	for _, old := range []string{
+		"ルール:", "水増ししない", "文章をFAQ", "みなさんは？",
+		"supplied historical facts", "同じ三文構成",
+	} {
+		if strings.Contains(prompt, old) {
+			t.Fatalf("wording rule stack reintroduced %q: %s", old, prompt)
 		}
 	}
 }
@@ -74,31 +76,29 @@ func TestValidateBoardPostWorkerDraftRejectsHeaderNarration(t *testing.T) {
 }
 
 
-func TestBuildBoardPostPromptRequiresRootReferentToSurface(t *testing.T) {
+func TestBuildBoardPostPromptCarriesCanonicalReferentAsMaterial(t *testing.T) {
 	prompt := BuildBoardPostPrompt(BoardPostRequest{
-		BoardTopic:       "ANIME/MANGA",
-		WorldDate:        "1996-08-12",
-		AuthorHandle:     "KOJI.B",
-		CanonicalSubject: "伏線に気づいた？",
+		BoardTopic: "ANIME/MANGA", WorldDate: "1996-08-12",
+		AuthorHandle: "KOJI.B", CanonicalSubject: "伏線に気づいた？",
 		PostIntent: strings.Join([]string{
 			"world_adopted_summary=前の回で聞き流した台詞が後の回を見て気になった",
 			"article_detail=referent:新世紀エヴァンゲリオン",
-			"article_detail=observation:前の回では聞き流した台詞が、後の回を見てから気になった",
 			"article_referent_required=新世紀エヴァンゲリオン",
 		}, "\n"),
 	})
-	for _, want := range []string{
-		"canonical referent「新世紀エヴァンゲリオン」",
-		"表示件名がこの対象名を明示していない場合",
-		"本文の自然な位置で対象名を少なくとも一度",
-		"対象を別の作品・製品・店等へ置き換えない",
-	} {
-		if !strings.Contains(prompt, want) {
-			t.Fatalf("required referent guidance missing %q:\n%s", want, prompt)
-		}
+	if !strings.Contains(prompt, "本文で示すcanonical referent: 新世紀エヴァンゲリオン") {
+		t.Fatalf("accepted referent missing from worker materials: %s", prompt)
 	}
 	if strings.Contains(prompt, "article_referent_required=") {
-		t.Fatalf("render-control metadata leaked into canonical fact block:\n%s", prompt)
+		t.Fatalf("internal render control leaked into worker materials: %s", prompt)
+	}
+	alreadyNamed := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic: "ANIME/MANGA", WorldDate: "1996-08-12",
+		CanonicalSubject: "新世紀エヴァンゲリオンの台詞",
+		PostIntent: "article_referent_required=新世紀エヴァンゲリオン",
+	})
+	if strings.Contains(alreadyNamed, "本文で示すcanonical referent:") {
+		t.Fatalf("unnecessary repeated referent requirement: %s", alreadyNamed)
 	}
 }
 
