@@ -139,7 +139,7 @@ func (r *Repository) materializeArticleDetails(traceCtx context.Context, host wo
 	}
 	authorHistory := r.materializationAuthorHistoryContext(host, board, selected, 6)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(traceCtx, 60*time.Second)
 	defer cancel()
 	request := llm.BBSTitleArticleDetailRequest{
 		BoardName:      board.Name,
