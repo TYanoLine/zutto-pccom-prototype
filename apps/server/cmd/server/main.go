@@ -470,21 +470,7 @@ func main() {
 	mux.HandleFunc("/api/centers", bootstrapWorld)
 	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
 	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
-	mux.HandleFunc("/api/debug/bbs/generation-trace", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		if r.Method != http.MethodGet {
-			w.Header().Set("Allow", "GET")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		if cfg.DebugResetToken == "" || !cfg.DebugHakataLLMTrace || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error":"HAKATA trace requires the configured debug token"})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(runtimeStore.GenerationTraceSnapshot())
-	})
+	mux.HandleFunc("/api/debug/bbs/generation-trace", newHakataTraceHandler(cfg.DebugResetToken, cfg.DebugHakataLLMTrace, runtimeStore))
 	mux.HandleFunc("/api/admin/research", listResearch)
 	mux.HandleFunc("/api/admin/research/case", getResearch)
 	mux.HandleFunc("/api/admin/research/new", createResearch)
