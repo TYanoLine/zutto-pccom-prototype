@@ -52,6 +52,7 @@ type Repository struct {
 	bbsArticles          *bbsengine.Engine
 	debugLogBBSArticleDetails                  bool
 	debugLogHAKATAGenerated                    bool
+	hakataFreeformBody                        bool
 	generationTrace                           *generationTraceStore
 
 	mu                     sync.Mutex
