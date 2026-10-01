@@ -127,18 +127,18 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		// Production uses the World-selected activity focus, not the detailed
 		// diagnostic PoC's anonymous-game example and exclusionary boundary.
 		// The proposer chooses the concrete occurrence before it is canonical.
-		sparse := productionSituationFocus(facet, mode)
+		sparse := productionSituationFocus(facet)
 		counts[facet.kind]++
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
 		existing := make([]string, 0, len(personaFacts)+len(sparse.facts)+2)
 		for _, fact := range personaFacts {
-			existing = append(existing, "BACKGROUND ONLY: "+fact)
+			existing = append(existing, "persona_context="+fact)
 		}
-		existing = append(existing, "SITUATION KIND SELECTED BY WORLD: "+facet.kind)
+		existing = append(existing, "situation_kind="+facet.kind)
 		existing = append(existing, sparse.facts...)
 		for _, fact := range productionEventPeriodFacts(req.Host, req.Board, persona, domain, slot.CreatedAt) {
-			existing = append(existing, "ALLOWED HISTORICAL REFERENT FOR THIS EVENT DATE: "+fact)
+			existing = append(existing, "period_reference="+fact)
 		}
 
 		seeds = append(seeds, productionSituationSeed{
@@ -523,52 +523,42 @@ func productionGameTopicFacets() []developmentModeSituationFacet {
 		{
 			developmentSituationFacet: developmentSituationFacet{
 				kind:  "games_particular_work_impression",
-				focus: "a personal impression or reaction involving one particular game the member can meaningfully identify",
+				focus: "the member's impression of a game",
 			},
 			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
 		},
 		{
 			developmentSituationFacet: developmentSituationFacet{
 				kind:  "games_particular_work_interest",
-				focus: "a concrete game the member is considering, recently encountered, or discussing with peers, with a particular reason it matters",
+				focus: "interest in a game the member has encountered or heard about",
 			},
 			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
 		},
 		{
 			developmentSituationFacet: developmentSituationFacet{
 				kind:  "games_particular_work_choice",
-				focus: "a practical choice between two games the member knows about or one specific game and a familiar alternative",
+				focus: "choosing or comparing games",
 			},
 			modes: developmentModeSet("state_opinion", "ask_peers"),
 		},
 		{
 			developmentSituationFacet: developmentSituationFacet{
 				kind:  "games_particular_work_tip",
-				focus: "a small first-hand finding from the member's own play of a recognizable game, without assuming undocumented mechanics",
+				focus: "a practical finding from playing a game",
 			},
 			modes: developmentModeSet("share_experience", "share_tip"),
 		},
 	}
 }
 
-// A production focus is a World-selected area for the forthcoming root, not a
-// pre-written generic incident. The diagnostic facet's anonymous-game sample
-// occurrences and "never name a title" boundaries are not World facts.
-// Preserve hard world/era constraints while leaving room for the Situation
-// proposer to choose a concrete subject from its date-valid input materials.
-func productionSituationFocus(facet developmentSituationFacet, mode string) developmentSparseSituation {
-	facts := []string{
-		"world_selected_activity_focus=" + facet.focus,
-		"scope_boundary=Keep the World-selected activity focus and posting purpose. A supplied date-valid work or product may be identified naturally when it fits; it is not a naming quota. Availability alone does not prove ownership, experience, product-specific mechanics, or episode details.",
-		"root_independence=Independent root; do not borrow another root's events or another person's experience.",
-	}
-	if mode == "ask_peers" {
-		facts = append(facts, "answerability=Choose a concrete, answerable uncertainty and make its subject recognizable to other members.")
-	}
+// Production passes the World-selected activity focus as material. Diagnostic
+// example incidents and their wording constraints belong to the Lab only.
+// Concrete occurrences are first proposed here, then become canonical state.
+func productionSituationFocus(facet developmentSituationFacet) developmentSparseSituation {
 	return developmentSparseSituation{
 		kind:    facet.kind,
 		summary: facet.focus,
-		facts:   facts,
+		facts:   []string{"activity_focus=" + facet.focus},
 	}
 }
 
