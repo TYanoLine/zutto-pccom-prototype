@@ -20,11 +20,15 @@ export function serverVersionEndpoint(wsURL: string): string | null {
 export async function fetchServerBuildInfo(
   wsURL: string,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<ServerBuildInfo> {
   const endpoint = serverVersionEndpoint(wsURL);
   if (!endpoint) throw new Error('backend not configured');
 
   const controller = new AbortController();
+  const onAbort = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  signal?.addEventListener('abort', onAbort, { once: true });
   // Metadata retrieval must never delay the terminal, directory or modem.
   // Allow a cold Render instance to wake while keeping the request bounded.
   const timer = setTimeout(() => controller.abort(), 30_000);
@@ -49,6 +53,7 @@ export async function fetchServerBuildInfo(
     return { commit: data.commit, branch: data.branch, started_at: data.started_at };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
   }
 }
 
