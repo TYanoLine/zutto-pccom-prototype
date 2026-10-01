@@ -152,7 +152,9 @@ Return exactly one event object for every supplied event index.`, req.WorldDate,
 func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
 	prompt := BuildBoardPostPrompt(req)
 	_, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+	traceFinish := beginDebugTrace(ctx, "記事本文", prompt)
 	result, err := p.responseTextWithLimit(ctx, prompt, "low", outputTokenBudget(maxChars))
+	traceFinish(result.Text, err)
 	if err != nil {
 		return BoardPostDraft{}, err
 	}
