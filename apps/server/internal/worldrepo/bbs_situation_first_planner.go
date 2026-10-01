@@ -130,12 +130,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		counts[facet.kind]++
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
-		existing := make([]string, 0, len(personaFacts)+len(sparse.facts)+2)
-		for _, fact := range personaFacts {
-			existing = append(existing, "persona_context="+fact)
-		}
-		existing = append(existing, "situation_kind="+facet.kind)
-		existing = append(existing, sparse.facts...)
+		existing := productionSituationMaterials(personaFacts, sparse)
 
 		seeds = append(seeds, productionSituationSeed{
 			eventID: eventID, slot: slot, mode: mode, domain: domain,
@@ -565,6 +560,17 @@ func productionGameTopicFacets() []developmentModeSituationFacet {
 // Production passes the World-selected activity focus as material. Diagnostic
 // example incidents and their wording constraints belong to the Lab only.
 // Concrete occurrences are first proposed here, then become canonical state.
+// These are the complete per-root materials for normal production. Historical
+// catalogs and automatic evidence lists are not part of this input.
+func productionSituationMaterials(personaFacts []string, focus developmentSparseSituation) []string {
+	facts := make([]string, 0, len(personaFacts)+len(focus.facts)+1)
+	for _, fact := range personaFacts {
+		facts = append(facts, "persona_context="+fact)
+	}
+	facts = append(facts, "situation_kind="+focus.kind)
+	return append(facts, focus.facts...)
+}
+
 func productionSituationFocus(facet developmentSituationFacet) developmentSparseSituation {
 	return developmentSparseSituation{
 		kind:    facet.kind,
