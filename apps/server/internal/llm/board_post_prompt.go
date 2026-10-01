@@ -15,6 +15,9 @@ var (
 // World/planning metadata is already resolved before this point. The worker sees
 // only the facts needed to write the post, not internal routing/debug machinery.
 func BuildBoardPostPrompt(req BoardPostRequest) string {
+	if req.FreeformFromSubject {
+		return buildFreeformBoardPostPrompt(req)
+	}
 	intent, requiredReferent := extractArticleReferentControl(req.PostIntent)
 	intent = strings.TrimSpace(intent)
 	if intent == "" {
