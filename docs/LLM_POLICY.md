@@ -212,11 +212,16 @@ LLM cost is an explicit operational constraint, but it must not become hidden wo
 
 For structured multi-root Situation generation, an output truncated at the model's
 completion-token limit is a capacity failure, not a reason to relax the schema
-or commit partial world state. Leave already accepted in-memory chunk results
-intact and retry **only the pending event shells** with smaller batches. Keep
-the reduced batch size for the remainder of that planning window. If even a
-single event cannot be validated within its budget, fail the observation
-cleanly so the board remains retryable; do not invent fallback article headers.
+or commit partial world state. The current completion ceiling is 4,000 tokens
+for one event, 8,000 for four, and 12,000 for the normal six-event chunk;
+this includes model reasoning tokens as well as visible structured JSON. It is
+a **ceiling, not a target output length**. Keep the existing provider/model's
+actual supported maximum in mind when changing deployments. Leave already
+accepted in-memory chunk results intact and retry **only the pending event
+shells** with smaller batches. Keep the reduced batch size for the remainder
+of that planning window. If even a single event cannot be validated within its
+budget, fail the observation cleanly so the board remains retryable; do not
+invent fallback article headers.
 
 Generation code may consider:
 
