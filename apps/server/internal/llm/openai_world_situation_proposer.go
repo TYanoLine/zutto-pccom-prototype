@@ -35,6 +35,9 @@ type bbsWorldSituationProposalWire struct {
 	Situations map[string]bbsWorldSituationWire `json:"situations"`
 }
 
+// compactSituationEvent is the per-root material shown to the model. It
+// deliberately has no topic/domain routing key: what may be posted is decided
+// from the board name and scope alone.
 type compactSituationEvent struct {
 	EventID        string   `json:"event_id"`
 	BoardID        string   `json:"board_id"`
@@ -42,7 +45,6 @@ type compactSituationEvent struct {
 	BoardScope     string   `json:"board_scope,omitempty"`
 	AuthorHandle   string   `json:"author_handle"`
 	CreatedAt      string   `json:"created_at"`
-	AnchorKey      string   `json:"anchor_key"`
 	DiscourseMode  string   `json:"discourse_mode"`
 	PostPurpose    string   `json:"post_purpose"`
 	PersonaProfile string   `json:"persona_profile,omitempty"`
@@ -59,7 +61,6 @@ func compactSituationEvents(events []BBSWorldWindowEvent) []compactSituationEven
 			BoardScope:     event.BoardScope,
 			AuthorHandle:   event.AuthorHandle,
 			CreatedAt:      event.CreatedAt,
-			AnchorKey:      event.AnchorKey,
 			DiscourseMode:  event.DiscourseMode,
 			PostPurpose:    bbsSituationPostPurpose(event.DiscourseMode),
 			PersonaProfile: event.PersonaProfile,
@@ -103,7 +104,10 @@ func (p StructuredOpenAIProvider) GenerateBBSWorldSituationProposals(ctx context
 	prompt := fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界を、利用者が見ていない間も続いている永続世界としてシミュレーションしています。
 あなたの出力は、World Engineがすでに選んだroot投稿枠について「投稿直前に世界で起きていたSituation」として正本化され、後段のBBS件名と記事本文を生成する材料になります。記事本文そのものではありません。
 
-world-selected roots には、投稿者、日時、掲示板の用途（board_scope）、投稿目的、人物情報、既存世界事実が材料として入っています。板用途は話題のプリセットではなく、Worldが選んだ投稿先の意味です。その用途に沿って、各rootに小さく具体的なSituationを1件ずつ作ってください。
+world-selected roots には、投稿者、日時、掲示板名（board_name）、掲示板の用途（board_scope）、投稿目的、人物情報、既存世界事実が材料として入っています。
+board_name と board_scope は、その掲示板に投稿してよい話題の範囲を表します。board_scope は利用者には見えない内部の方向性です。各rootのSituationは、必ずこの板の範囲の内側で、小さく具体的に1件ずつ作ってください。
+persona_profile は投稿者の暮らしぶりや語り口の材料であり、話題を決める根拠にはなりません。投稿者の関心が板の範囲の外にあっても、範囲外の話題は選ばないでください。
+recent/avoid material は重複を避けるための材料です。避けるときも板の範囲の外へは出ず、範囲内の別の切り口を選んでください。
 入力された世界事実は前提として扱い、別rootの出来事とは混ぜないでください。
 historical material policy: %s
 
