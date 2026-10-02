@@ -114,6 +114,7 @@ type BBSWorldWindowEvent struct {
 	EventID        string   `json:"event_id"`
 	BoardID        string   `json:"board_id"`
 	BoardName      string   `json:"board_name"`
+	BoardScope     string   `json:"board_scope,omitempty"`
 	AuthorHandle   string   `json:"author_handle"`
 	CreatedAt      string   `json:"created_at"`
 	Action         string   `json:"action"`
