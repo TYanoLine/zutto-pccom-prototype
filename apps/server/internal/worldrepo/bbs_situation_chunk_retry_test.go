@@ -18,7 +18,7 @@ import (
 type chunkBudgetProposer struct {
     sizes []int
     alwaysFail bool
-    delegate unpresetGameProposer
+    delegate openTopicSituationProposer
 }
 
 func (p *chunkBudgetProposer) GenerateBBSWorldSituationProposals(ctx context.Context, req llm.BBSWorldSituationProposalRequest) (llm.BBSWorldSituationProposalDraft, error) {
@@ -50,7 +50,7 @@ func TestSituationPlannerSplitsTruncatedAnimeChunkAndAcceptsAllHeaders(t *testin
     base:=world.NewMemoryStore()
     planner:=repositoryBBSBatchPlanner{repo:New(base,nil,nil,"1996-02-17")}
     proposer:=&chunkBudgetProposer{}
-    titles:=&unpresetGameTitles{}
+    titles:=&openTopicTitlePlanner{}
     req:=animeBudgetBatch(10)
     planned,err:=planner.planSituationFirstRoots(context.Background(),LLMMaterializer{ModelHistoricalMemory:true},worldengine.EvidenceDecision{},proposer,titles,req,req.Slots,"1996-02-17")
     if err!=nil {t.Fatal(err)}
@@ -76,7 +76,7 @@ func TestSituationPlannerSplitsTruncatedAnimeChunkAndAcceptsAllHeaders(t *testin
 func TestSituationPlannerOnlySplitsOnProvenOutputBudgetTruncation(t *testing.T) {
     planner:=repositoryBBSBatchPlanner{repo:New(world.NewMemoryStore(),nil,nil,"1996-02-17")}
     proposer:=&chunkBudgetProposer{alwaysFail:true}
-    titles:=&unpresetGameTitles{}
+    titles:=&openTopicTitlePlanner{}
     req:=animeBudgetBatch(4)
     _,err:=planner.planSituationFirstRoots(context.Background(),LLMMaterializer{},worldengine.EvidenceDecision{},proposer,titles,req,req.Slots,"1996-02-17")
     if err==nil || !strings.Contains(err.Error(),"ordinary provider error") {
