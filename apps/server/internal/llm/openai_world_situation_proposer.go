@@ -196,17 +196,17 @@ func bbsWorldSituationMaxTokens(eventCount int) int {
 	if eventCount < 1 {
 		return 1200
 	}
-	// Typed Situation JSON and provider reasoning share one output-token budget.
-	// A four-event response exhausted its earlier 2480-token ceiling and
-	// repeatedly produced truncated JSON in production. Reserve room before
-	// relying on the planner's adaptive chunk-size fallback. This remains
-	// a ceiling; billing depends on actual generated tokens.
-	maxTokens := 1200 + eventCount*650
-	if maxTokens < 2800 {
-		maxTokens = 2800
+	// Structured JSON and model reasoning share one completion-token budget.
+	// Reserve room for both without asking the model to produce more prose:
+	// 1 event: 4k; 4 events: 8k; the normal 6-event chunk: 12k.
+	// The planner still splits pending chunks on budget truncation. This is a
+	// request ceiling, not a target output length or a fixed token charge.
+	maxTokens := eventCount * 2000
+	if maxTokens < 4000 {
+		maxTokens = 4000
 	}
-	if maxTokens > 10000 {
-		maxTokens = 10000
+	if maxTokens > 12000 {
+		maxTokens = 12000
 	}
 	return maxTokens
 }
