@@ -119,10 +119,18 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	events := make([]llm.BBSWorldWindowEvent, 0, len(rootSlots))
 
 	for ordinal, slot := range rootSlots {
+		// World action/actor authorization must be fixed before the model
+		// proposes any Situation. Do not mask an invalid actor in prose.
+		if req.Board.RootAuthorPolicy == "sysop_only" && !strings.EqualFold(strings.TrimSpace(slot.Author), "SYSOP") {
+			return nil, fmt.Errorf("board %s only permits SYSOP roots; got author %q", req.Board.ID, slot.Author)
+		}
 		profile, personaFacts := p.personaTitleContext(slot.AuthorPersonaID)
 		persona := p.personaForSituation(slot)
 		domain := productionBoardDomain(req.Board, persona)
 		mode := demoSelectRootDiscourseMode(req.Host, req.Board, ordinal)
+		if req.Board.RootDiscourseMode != "" {
+			mode = req.Board.RootDiscourseMode
+		}
 		// World fixes the posting event and discourse mode; the Situation
 		// proposer freely resolves its topic from this board, the author's
 		// persisted context, and previously observed subjects. No production
@@ -139,6 +147,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			EventID:        eventID,
 			BoardID:        req.Board.ID,
 			BoardName:      req.Board.Name,
+			BoardScope:     req.Board.SemanticScope,
 			AuthorHandle:   slot.Author,
 			CreatedAt:      slot.CreatedAt.Format(time.RFC3339),
 			Action:         "thread_start",

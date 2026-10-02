@@ -494,3 +494,48 @@ func TestExistingPC98HeadersDoNotLaunchMoreGenerationOnIndexReturn(t *testing.T)
 		t.Fatalf("existing board index started redundant LLM catch-up: begun=%#v waited=%#v", store.begun, store.waited)
 	}
 }
+
+
+func TestHakataNoticeBoardIsReadOnlyUntilAuthenticatedAdminPostingExists(t *testing.T) {
+    runtime, store := sampleRuntime(t)
+    if board, ok := BoardByPath("1"); !ok || board.RootAuthorPolicy != "sysop_only" {
+        t.Fatalf("station staff notice policy not exported: board=%+v ok=%v", board, ok)
+    }
+    if board, ok := BoardByPath("3"); !ok || board.RootDiscourseMode != "ask_peers" {
+        t.Fatalf("Q&A should use World-selected question action: board=%+v ok=%v", board, ok)
+    }
+    loginGuest(t, runtime)
+    runtime.HandleLine("1") // board menu
+    runtime.HandleLine("1") // notice board
+    for _, cmd := range []string{"BW", "BWX", "NEW"} {
+        out, disconnect := runtime.HandleLine(cmd)
+        if disconnect || !strings.Contains(out, "事務局のみ") || runtime.state != "board" {
+            t.Fatalf("guest root write %q not blocked: output=%q state=%s", cmd, out, runtime.state)
+        }
+    }
+    if got := store.ListPosts(runtime.Host.ID); len(got) != 0 {
+        t.Fatalf("notice writes occurred despite read-only gate: %+v", got)
+    }
+    root := store.AddPost(runtime.Host.ID, world.Post{
+        BoardID: "1", Author: "SYSOP", Subject: "保守のお知らせ", Body: "本文"})
+    runtime.HandleLine(fmt.Sprintf("%d", root.ID))
+    out, _ := runtime.HandleLine("BW")
+    if !strings.Contains(out, "事務局のみ") || runtime.state != "thread" {
+        t.Fatalf("thread entry bypasses station posting policy: output=%q state=%s", out, runtime.state)
+    }
+}
+
+func TestHakataBoardPurposesDoNotLeakHistoricalUncertainty(t *testing.T) {
+    dream, ok := BoardByPath("8")
+    if !ok || strings.Contains(dream.SemanticScope, "史料") ||
+        strings.Contains(dream.SemanticScope, "未確認") ||
+        dream.SemanticScope == "" {
+        t.Fatalf("fictional Dream board scope leaks research guidance: %+v ok=%v", dream, ok)
+    }
+    office, _ := BoardByPath("5")
+    contact, _ := BoardByPath("10/2")
+    if office.SemanticScope == "" || contact.SemanticScope == "" ||
+        office.SemanticScope == contact.SemanticScope {
+        t.Fatalf("different offline station boards lost their purposes: %q / %q", office.SemanticScope, contact.SemanticScope)
+    }
+}

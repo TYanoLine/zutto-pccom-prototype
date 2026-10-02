@@ -126,8 +126,8 @@ The production path is Situation-first:
 ```text
 World/observation clock
  -> shared BBS engine fixes actor, date, board and root/reply topology
- -> World selects discourse mode without an activity-topic preset on any board
- -> LLM proposes concrete Situations under those World facts
+ -> World applies station board author/discourse policy, then selects discourse mode without an activity-topic preset
+ -> LLM proposes concrete Situations using the actual board purpose and those World facts
  -> validate Situations and distinct occurrences
  -> LLM writes titles for accepted Situations
  -> atomically commit canonical headers and identities

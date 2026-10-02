@@ -194,10 +194,14 @@ The shared production pipeline uses only Situation-first planning: World fixes
 actor, board, time, cause, discourse mode and reply topology. Every production
 board now uses open-topic Situation proposals: no activity-facet selector
 chooses topics. The Situation model receives the selected board/member/date/
-post-purpose context, persisted member facts and previous observed root
-subjects, then proposes the still-unknown concrete occurrence for that board.
+post-purpose context, the station-owned board purpose, persisted member facts
+and previous observed root subjects, then proposes the still-unknown concrete
+occurrence for that board.
 The validated occurrence becomes canonical before the model words its title.
-Those accepted details are committed. The planner validates all required slots and fails the
+Those accepted details are committed. Board-level staff-author and fixed
+conversational-act constraints belong to World-selected event shells, not
+LLM prose; this may narrow *who* can originate a post or *whether* it is a
+question without choosing a preset subject. The planner validates all required slots and fails the
 batch if generation cannot supply valid subjects; a generic board-name fallback
 must not be committed. Once a subject is shown in a board index, body rendering
 cannot replace it with the body's generated subject. Host-specific append

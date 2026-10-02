@@ -455,3 +455,28 @@ func TestHakataActorRosterDrawsFromLargeMembershipButStaysBounded(t *testing.T) 
 		t.Fatalf("active roster should be smaller than membership: active=%d membership=%d", len(roster), len(all))
 	}
 }
+
+
+func TestWorldSelectedStaffBoardRootAuthors(t *testing.T) {
+    store := world.NewMemoryStore()
+    host, err := store.HostByPhone("0920000196")
+    if err != nil { t.Fatal(err) }
+    engine := New(store, &fakeBatchPlanner{}, nil)
+    now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+    board := world.Board{ID: "1", Name: "事務局からのお知らせ", RootAuthorPolicy: "sysop_only"}
+    slots := engine.planSlots(host, board, nil, time.Time{}, now, 10, now.Add(-30*24*time.Hour), 0)
+    if len(slots) != 10 { t.Fatalf("staff slots=%d want 10", len(slots)) }
+    for _, slot := range slots {
+        if slot.Author != "SYSOP" || slot.ReplyToPostID != 0 || slot.ReplyToSlotIndex != 0 {
+            t.Fatalf("World scheduled a non-staff notice root: %+v", slot)
+        }
+    }
+    // A board with the same ID but without the station-specific policy is
+    // not globally restricted. Host-program semantics are not a global ID map.
+    regular := world.Board{ID: "1", Name: "general board"}
+    others := engine.planSlots(host, regular, nil, time.Time{}, now, 10, now.Add(-30*24*time.Hour), 0)
+    for _, slot := range others {
+        if slot.Author != "SYSOP" { return }
+    }
+    t.Fatal("unrestricted board unexpectedly scheduled only SYSOP")
+}

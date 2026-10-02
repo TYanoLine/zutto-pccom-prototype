@@ -39,6 +39,7 @@ type compactSituationEvent struct {
 	EventID        string   `json:"event_id"`
 	BoardID        string   `json:"board_id"`
 	BoardName      string   `json:"board_name"`
+	BoardScope     string   `json:"board_scope,omitempty"`
 	AuthorHandle   string   `json:"author_handle"`
 	CreatedAt      string   `json:"created_at"`
 	AnchorKey      string   `json:"anchor_key"`
@@ -55,6 +56,7 @@ func compactSituationEvents(events []BBSWorldWindowEvent) []compactSituationEven
 			EventID:        event.EventID,
 			BoardID:        event.BoardID,
 			BoardName:      event.BoardName,
+			BoardScope:     event.BoardScope,
 			AuthorHandle:   event.AuthorHandle,
 			CreatedAt:      event.CreatedAt,
 			AnchorKey:      event.AnchorKey,
@@ -101,7 +103,7 @@ func (p StructuredOpenAIProvider) GenerateBBSWorldSituationProposals(ctx context
 	prompt := fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界を、利用者が見ていない間も続いている永続世界としてシミュレーションしています。
 あなたの出力は、World Engineがすでに選んだroot投稿枠について「投稿直前に世界で起きていたSituation」として正本化され、後段のBBS件名と記事本文を生成する材料になります。記事本文そのものではありません。
 
-world-selected roots には、投稿者、日時、掲示板、投稿目的、人物情報、既存世界事実が材料として入っています。それらを自然につないで、各rootに小さく具体的なSituationを1件ずつ作ってください。
+world-selected roots には、投稿者、日時、掲示板の用途（board_scope）、投稿目的、人物情報、既存世界事実が材料として入っています。板用途は話題のプリセットではなく、Worldが選んだ投稿先の意味です。その用途に沿って、各rootに小さく具体的なSituationを1件ずつ作ってください。
 入力された世界事実は前提として扱い、別rootの出来事とは混ぜないでください。
 historical material policy: %s
 

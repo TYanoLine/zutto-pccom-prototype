@@ -86,6 +86,24 @@ fictional HAKATA Q&A board is a general question/consultation board; its large
 history must not collapse into PC/game questions merely because those subjects
 exist elsewhere on the station.
 
+The station catalog's `SemanticScope` is passed to the Situation proposer as
+positive board-purpose data. It is not an Erika-K software-wide convention
+or a prescriptive list of Situation topics. The HAKATA Q&A board additionally
+fixes the World-selected root conversational act to `ask_peers`. The HAKATA
+station notice board is `sysop_only` for World-originated root posts; its
+interactive prototype is read-only for root posts because member passwords
+are not yet verified. Appends to notices remain separately represented by
+the Erika-K runtime. Do not mistake these fictional station policies for
+historically verified default Erika-K access control.
+
+`夢工房はかた` has no verified historical subject matter. Its broad member
+exchange scope is explicitly a **temporary fictional HAKATA station choice**,
+not an inference that the real board was about creative work or gaming. The
+two offline boards also have different fictional purposes: casual discussion/
+proposals versus actual meeting logistics. No group event becomes established
+in the world from a title or prose alone; future multi-person event
+coordination requires canonical event/relationship state.
+
 These are intentionally allowed to vary per station while preserving the host software's interaction grammar.
 
 ## Current implementation direction

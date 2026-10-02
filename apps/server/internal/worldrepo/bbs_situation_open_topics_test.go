@@ -118,6 +118,7 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
             if forwarded.WorldDate != "1996-02-17" ||
                 forwarded.Events[0].BoardName != tc.board.Name ||
                 forwarded.Events[0].BoardID != tc.board.ID ||
+                forwarded.Events[0].BoardScope != tc.board.SemanticScope ||
                 forwarded.Events[0].AuthorHandle != "A" ||
                 forwarded.Events[1].AuthorHandle != "B" ||
                 forwarded.Events[0].AnchorKey != tc.domain ||
@@ -176,4 +177,59 @@ func TestOpenTopicRecentSubjectsIgnoreHistoricFacetLabelsAndReplies(t *testing.T
         !reflect.DeepEqual(avoid, []string{"subject=実際にあった話"}) {
         t.Fatalf("unexpected previous subject materials: context=%q avoid=%#v", context, avoid)
     }
+}
+
+func TestStationPostingRulesApplyBeforeSituationProposal(t *testing.T) {
+    at := time.Date(1996, 2, 17, 20, 30, 0, 0, time.FixedZone("JST", 9*3600))
+    host := world.Host{ID: "hakata-canal-net", Name: "HAKATA CANAL NET"}
+
+    t.Run("staff author cannot be invented by model", func(t *testing.T) {
+        planner := repositoryBBSBatchPlanner{repo: New(world.NewMemoryStore(), nil, nil, "1996-02-17")}
+        proposer := &openTopicSituationProposer{}
+        titles := &openTopicTitlePlanner{}
+        req := bbsengine.BatchRequest{
+            Host: host,
+            Board: world.Board{ID: "1", Name: "事務局からのお知らせ",
+                SemanticScope: "HAKATA局のSYSOPによる運営案内。", RootAuthorPolicy: "sysop_only"},
+            Slots: []bbsengine.Slot{{Index: 1, Author: "ANOTHER", CreatedAt: at}},
+        }
+        _, err := planner.planSituationFirstRoots(context.Background(), LLMMaterializer{},
+            worldengine.EvidenceDecision{}, proposer, titles, req, req.Slots, "1996-02-17")
+        if err == nil || !strings.Contains(err.Error(), "only permits SYSOP roots") ||
+            len(proposer.requests) != 0 {
+            t.Fatalf("unapproved author passed World boundary: err=%v proposer=%+v", err, proposer.requests)
+        }
+        req.Slots[0].Author = "SYSOP"
+        out, err := planner.planSituationFirstRoots(context.Background(), LLMMaterializer{},
+            worldengine.EvidenceDecision{}, proposer, titles, req, req.Slots, "1996-02-17")
+        if err != nil || len(out) != 1 ||
+            len(proposer.requests) != 1 ||
+            proposer.requests[0].Events[0].AuthorHandle != "SYSOP" ||
+            proposer.requests[0].Events[0].BoardScope != req.Board.SemanticScope {
+            t.Fatalf("SYSOP board invalid: out=%+v err=%v requests=%+v", out, err, proposer.requests)
+        }
+    })
+    t.Run("general Q&A action is World-selected as a question", func(t *testing.T) {
+        planner := repositoryBBSBatchPlanner{repo: New(world.NewMemoryStore(), nil, nil, "1996-02-17")}
+        proposer := &openTopicSituationProposer{}
+        titles := &openTopicTitlePlanner{}
+        req := bbsengine.BatchRequest{
+            Host: host,
+            Board: world.Board{ID: "3", Name: "Ｑ＆Ａ（質問ボード）",
+                SemanticScope: "日常の具体的な疑問や困りごとを尋ねる一般質問板。",
+                RootDiscourseMode: "ask_peers"},
+            Slots: []bbsengine.Slot{{Index: 1, Author: "A", CreatedAt: at}},
+        }
+        out, err := planner.planSituationFirstRoots(context.Background(), LLMMaterializer{},
+            worldengine.EvidenceDecision{}, proposer, titles, req, req.Slots, "1996-02-17")
+        if err != nil || len(out) != 1 || out[0].DiscourseMode != "ask_peers" ||
+            proposer.requests[0].Events[0].DiscourseMode != "ask_peers" {
+            t.Fatalf("Q&A lost World-selected question act: posts=%+v err=%v", out, err)
+        }
+        for _, fact := range proposer.requests[0].Events[0].ExistingFacts {
+            if strings.HasPrefix(fact, "activity_focus=") {
+                t.Fatalf("Q&A gained preset topic: %q", fact)
+            }
+        }
+    })
 }
