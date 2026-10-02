@@ -20,13 +20,13 @@ Do not turn quality preferences into growing lists of prohibitions when the same
 
 Small wording drift is acceptable when it does not alter canonical facts. A generator may choose a natural expression that differs from an expected phrasing; validation should reject contradictions or unauthorized world changes, not harmless stylistic variation.
 
-Board topic classification remains **internal routing context**, not a selected Situation activity or an LLM wording rule. Resolve the domain from the board's affirmative name/topic statement, not keywords appearing later in exclusionary scope notes. ANIME/MANGA, GAME, software and chat all follow the same open-topic production Situation path; their real board names and domain anchors still differ. Do not repair misplaced topics by adding topic quotas or prohibitions to the generator.
+Board topic classification remains **internal routing context**, not a selected Situation activity or an LLM wording rule. The full, station-owned board purpose is an independent positive Situation input: it defines the board's subject boundary but never selects a particular activity or event. Resolve the domain from the board's affirmative name/topic statement, not keywords appearing later in exclusionary scope notes. ANIME/MANGA, GAME, software and chat all follow the same open-topic production Situation path; their real board names and domain anchors still differ. Do not repair misplaced topics by adding topic quotas or prohibitions to the generator.
 
 **All production boards are now open-topic**, following the successful GAME
 experiment. World fixes the actor, board, time, post action, reply topology and
 discourse mode, but never selects or sends a preset activity focus, historical
 situation_kind label, topic list or quota. Situation generation receives the
-actual board name, member/persona and persisted facts, world date, posting
+actual board name **and affirmative station-defined board purpose**, member/persona and persisted facts, world date, posting
 purpose and already observed root subjects (without their historical facet
 classification). The model proposes a still-unknown concrete occurrence
 within that selected board's domain. Validate and accept the Situation before
@@ -37,7 +37,7 @@ facts; no retroactive regeneration is part of this change. Evaluate historical
 accuracy and board fit using the generation inspector rather than adding
 proper-noun quotas or content templates.
 
-For production root Situations, pass the World-selected actor, time, board, posting purpose, persona context, and previously established canonical facts as materials; no board receives a preset activity focus. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
+For production root Situations, pass the World-selected actor, time, **board purpose**, posting purpose, persona context, and previously established canonical facts as materials; no board receives a preset activity focus. If a board's meaning is historically unknown, any generation purpose is explicitly an identified *fictional station configuration*, not a guessed historical fact. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
 
 ## Persona persistence
 
