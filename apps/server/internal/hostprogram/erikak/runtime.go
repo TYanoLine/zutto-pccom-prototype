@@ -29,7 +29,7 @@ var boardTree = []boardNode{
 	// Activity values below are HAKATA station fiction used by the world
 	// simulation. They are not claimed Erika-K defaults.
 	{Path: "1", Key: "1", Name: "事務局からのお知らせ", SemanticScope: "HAKATA局のSYSOPによる運営案内、局内のお知らせ、メンテナンスや利用案内。", RootAuthorPolicy: "sysop_only", ActivityWeight: .10, ReplyRate: .20, RetainedRootCap: 24},
-	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎", SemanticScope: "新規会員の自己紹介、常連からの歓迎、局内での呼び名や簡単な近況。特定趣味の専門相談板にはしない。", ActivityWeight: .34, ReplyRate: 1.30, RetainedRootCap: 36},
+	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎", SemanticScope: "新規会員の自己紹介と入局の挨拶、常連からの歓迎、久しぶりに来た人の再訪の挨拶。各投稿の本文は名乗りや挨拶が中心で、呼び名や短い近況は添える程度にとどめる。局の外での出来事や趣味の話題は、ほかの板で扱う。", ActivityWeight: .34, ReplyRate: 1.30, RetainedRootCap: 36},
 	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）", SemanticScope: "会員が日常の具体的な疑問や困りごとを尋ねる一般質問板。地域生活、仕事・学校、買い物、交通、食事、趣味、局の使い方など分野は幅広い。", ActivityWeight: .58, ReplyRate: 2.10, RetainedRootCap: 48},
 	{Path: "4", Key: "4", Name: "ふり～と～く", SemanticScope: "会員の日常雑談。仕事・学校・家族・食事・天気・街・趣味・最近あった小さな出来事など何でもあり。専門板の話題だけに偏らない。", ActivityWeight: 1.25, ReplyRate: 2.00, RetainedRootCap: 60},
 	{Path: "5", Key: "5", Name: "オフライントピックス", SemanticScope: "局外で会員が交流することについての雑談や、新しい集まりの提案、過去に実際に参加した集まりの感想。具体的な開催連絡や参加確認はオフ会連絡板で扱う。", ActivityWeight: .48, ReplyRate: 1.70, RetainedRootCap: 42},
