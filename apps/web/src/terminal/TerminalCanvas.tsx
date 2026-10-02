@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import type {
   ChangeEventHandler,
   CompositionEventHandler,
+  CSSProperties,
   FocusEventHandler,
   KeyboardEventHandler,
   PointerEvent as ReactPointerEvent,
@@ -12,6 +13,7 @@ import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
 import { BuildInfoPanel } from '../build/BuildInfoPanel';
 import type { BuildInfoPanelProps } from '../build/BuildInfoPanel';
 import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import './terminalFit.css';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
@@ -227,17 +229,25 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       return;
     }
 
+    // On desktop the canvas is aspect-locked and centred, so it can be
+    // letterboxed or pillarboxed inside the viewport. Measure its actual offset
+    // so the IME composition window follows the cursor cell.
+    const canvasRect = canvas.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    const offsetLeft = canvasRect.left - viewportRect.left;
+    const offsetTop = canvasRect.top - viewportRect.top;
+
     const cellWidth = Math.max(1, canvas.clientWidth / terminal.width);
     const rowHeight = Math.max(1, canvas.clientHeight / layoutRowsRef.current);
     const proxyWidth = Math.max(8, cellWidth);
     const proxyHeight = Math.max(16, rowHeight);
     const left = Math.max(
       0,
-      Math.min(viewport.clientWidth - proxyWidth, terminal.cursorX * cellWidth - viewport.scrollLeft),
+      Math.min(viewport.clientWidth - proxyWidth, offsetLeft + terminal.cursorX * cellWidth),
     );
     const top = Math.max(
       0,
-      Math.min(viewport.clientHeight - proxyHeight, terminal.cursorY * rowHeight - viewport.scrollTop),
+      Math.min(viewport.clientHeight - proxyHeight, offsetTop + terminal.cursorY * rowHeight),
     );
 
     proxy.style.left = `${left}px`;
@@ -465,6 +475,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             width={640 * backingScale}
             height={layoutRows * 16 * backingScale}
             className="terminal-canvas"
+            style={{ '--terminal-rows': layoutRows } as CSSProperties}
             aria-label={`80桁${layoutRows}行の通信端末`}
             onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) focusKeyboardProxy(); }}
             onWheel={wheel}
