@@ -191,13 +191,13 @@ Advisory responses are transient operational inputs, not canonical world state. 
 ### World-selected roots and canonical subject stability
 
 The shared production pipeline uses only Situation-first planning: World fixes
-actor, board, time, cause and reply topology. World additionally selects an
-activity focus for boards using the existing facet model. Production GAME
-temporarily skips the fixed activity focus: the Situation model receives the
-board/member/date/post-purpose context and previous observed subjects, then
-proposes the still-unknown concrete occurrence. The model supplies that
-occurrence and subsequent titles before those
-details are committed. The planner validates all required slots and fails the
+actor, board, time, cause, discourse mode and reply topology. Every production
+board now uses open-topic Situation proposals: no activity-facet selector
+chooses topics. The Situation model receives the selected board/member/date/
+post-purpose context, persisted member facts and previous observed root
+subjects, then proposes the still-unknown concrete occurrence for that board.
+The validated occurrence becomes canonical before the model words its title.
+Those accepted details are committed. The planner validates all required slots and fails the
 batch if generation cannot supply valid subjects; a generic board-name fallback
 must not be committed. Once a subject is shown in a board index, body rendering
 cannot replace it with the body's generated subject. Host-specific append
