@@ -144,7 +144,7 @@ func (r *Repository) materializeArticleDetails(traceCtx context.Context, host wo
 	request := llm.BBSTitleArticleDetailRequest{
 		BoardName:      board.Name,
 		WorldDate:      selected.CreatedAt.Format("2006-01-02"),
-		RecentBBSState: productionRecentSituationContext(filterBoard(r.Base.ListPosts(host.ID), board.ID)),
+		RecentBBSState: productionRecentSubjectContext(filterBoard(r.Base.ListPosts(host.ID), board.ID)),
 		Articles: []llm.BBSTitleArticleDetailSeed{{
 			EventID:        eventID,
 			IsReply:        world.ResponseTargetID(selected) != 0,
