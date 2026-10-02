@@ -7,7 +7,10 @@ func TestBBSWorldSituationMaxTokensLeavesRoomForTypedBatch(t *testing.T) {
 		events int
 		min    int
 	}{
-		{1, 2400},
+		{1, 2800},
+		{2, 2800},
+		{4, 3800},
+		{6, 5100},
 		{8, 4000},
 		{12, 5600},
 	}
