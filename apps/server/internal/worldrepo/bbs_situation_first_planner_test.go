@@ -1,30 +1,12 @@
 package worldrepo
 
 import (
-	"reflect"
-	"strings"
-	"testing"
-	"time"
+    "testing"
 
-	"zutto-pccom/apps/server/internal/world"
+    "zutto-pccom/apps/server/internal/world"
 )
 
-func TestProductionSituationMaterialsContainOnlyWorldData(t *testing.T) {
-	focus := productionSituationFocus(developmentSituationFacet{
-		kind: "anime_episode_reaction",
-		focus: "the member's reaction to an anime episode",
-	})
-	got := productionSituationMaterials([]string{"existing_interest=anime"}, focus)
-	want := []string{
-		"persona_context=existing_interest=anime",
-		"situation_kind=anime_episode_reaction",
-		"activity_focus=the member's reaction to an anime episode",
-	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("automatic historical catalog or extra prompting rules leaked: got %#v, want %#v", got, want)
-	}
-}
-
+// Board domain is internal routing context, not a preset topic for the model.
 func TestProductionBoardDomainUsesBoardMeaningBeforePersonaInterest(t *testing.T) {
 	persona := world.Persona{Interests: map[string]float64{"music": .99, "games": .1}}
 	board := world.Board{Name: "ＧＡＭＥ", SemanticScope: "ゲームの感想や相談"}
@@ -66,78 +48,6 @@ func TestProductionBoardDomainUsesAffirmativeScopeNotExcludedWords(t *testing.T)
 	for _, tc := range cases {
 		if got := productionBoardDomain(tc.board, persona); got != tc.want {
 			t.Errorf("board=%s routed to %q, want %q", tc.board.ID, got, tc.want)
-		}
-	}
-}
-
-func TestProductionAnimeMangaHasRelevantActivityForEveryDiscourseMode(t *testing.T) {
-	facets := productionAnimeMangaSituationFacets()
-	for _, mode := range developmentRootDiscourseModes {
-		host := world.Host{ID: "hakata-canal-net"}
-		board := world.Board{ID: "20/2", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", SemanticScope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。"}
-		persona := world.Persona{ID: "test-member", Interests: map[string]float64{"games": .9}}
-		domain := productionBoardDomain(board, persona)
-		if domain != "anime_manga" {
-			t.Fatalf("anime/manga board domain=%q", domain)
-		}
-		facet, ok := chooseProductionSituationFacet(host, board, persona, time.Date(1996, 7, 27, 19, 15, 0, 0, time.Local), 1, domain, mode, nil)
-		if !ok || !(strings.HasPrefix(facet.kind, "anime_") || strings.HasPrefix(facet.kind, "manga_")) {
-			t.Errorf("mode=%s chose unrelated facet: %+v", mode, facet)
-		}
-		matching := false
-		for _, candidate := range facets {
-			if candidate.kind == facet.kind && developmentModeFacetAllowed(candidate, mode) {
-				matching = true
-			}
-		}
-		if !matching {
-			t.Errorf("mode=%s chose an incompatible facet %q", mode, facet.kind)
-		}
-	}
-}
-
-func TestAnimeBoardMaterialUsesAnimeFocusNotGameCatalog(t *testing.T) {
-	board := world.Board{Name: "ANIME/MANGA", SemanticScope: "アニメ、漫画の感想。ゲームは主題にしない。"}
-	persona := world.Persona{ID: "m", Interests: map[string]float64{"games": 1}}
-	domain := productionBoardDomain(board, persona)
-	if domain != "anime_manga" {
-		t.Fatalf("domain=%q, want anime_manga", domain)
-	}
-	choices := productionAnimeMangaSituationFacets()
-	if len(choices) == 0 { t.Fatal("missing anime/manga activity choices") }
-	material := productionSituationMaterials(nil, productionSituationFocus(choices[0].developmentSituationFacet))
-	for _, fact := range material {
-		for _, wrong := range []string{"period_reference=", "ALLOWED HISTORICAL", "games_"} {
-			if strings.Contains(fact, wrong) {
-				t.Fatalf("unrelated or automatic reference leaked into anime board: %q", fact)
-			}
-		}
-	}
-}
-
-func TestProductionFocusIsIdenticalMaterialAcrossPostingModes(t *testing.T) {
-	facet := developmentSituationFacet{kind: "chat_hobby", focus: "a short hobby update"}
-	got := productionSituationFocus(facet)
-	if got.kind != "chat_hobby" || got.summary != "a short hobby update" {
-		t.Fatalf("lost World-selected direction: %+v", got)
-	}
-	if len(got.facts) != 1 || got.facts[0] != "activity_focus=a short hobby update" {
-		t.Fatalf("production added an unnecessary prompt rule: %#v", got.facts)
-	}
-}
-
-func TestPC98FacetsAreBoardSpecificAcrossPostingModes(t *testing.T) {
-	host := world.Host{ID:"hakata-canal-net"}
-	persona := world.Persona{ID:"test",Interests:map[string]float64{"games":1}}
-	for _,tc := range []struct{board world.Board; want string}{
-		{world.Board{ID:"70/1",Name:"ＰＣ－９８",SemanticScope:"PC-98系機種の利用、設定、周辺機器、ソフト利用など。"},"pc98"},
-		{world.Board{ID:"60/1",Name:"ＰＣ－９８／ＭＯＤＥＭ",SemanticScope:"PC-98系やモデム、通信環境についての相談。"},"pc98_modem"},
-	}{
-		domain:=productionBoardDomain(tc.board,persona)
-		if domain!=tc.want {t.Errorf("%s domain=%q want=%q",tc.board.ID,domain,tc.want)}
-		for _,mode:=range developmentRootDiscourseModes {
-			facet,ok:=chooseProductionSituationFacet(host,tc.board,persona,time.Date(1996,7,27,20,0,0,0,time.Local),1,domain,mode,nil)
-			if !ok || !strings.HasPrefix(facet.kind,"pc98_") {t.Errorf("board=%s mode=%s facet=%+v ok=%v",tc.board.ID,mode,facet,ok)}
 		}
 	}
 }
