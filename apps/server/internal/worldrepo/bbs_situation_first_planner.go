@@ -301,8 +301,9 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if !accepted {
 			return nil, fmt.Errorf("plan BBS world Situations: %w", lastErr)
 		}
+		// Keep the smaller size for the rest of this board's batch once a
+		// provider response shows that the original chunk was too large.
 		chunkStart = chunkEnd
-		chunkSize = productionSituationChunkSize
 	}
 
 	titleSeeds := make([]llm.BBSSituationTitleSeed, 0, len(seeds))
