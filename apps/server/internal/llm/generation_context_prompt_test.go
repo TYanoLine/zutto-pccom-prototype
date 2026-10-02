@@ -15,7 +15,7 @@ func (f generationContextRoundTripFunc) RoundTrip(req *http.Request) (*http.Resp
 	return f(req)
 }
 
-func TestSituationPromptExplainsServiceAndUsesPostPurposeAsMaterial(t *testing.T) {
+func TestSituationPromptExplainsServiceAndLetsTheBoardDecideThePostForm(t *testing.T) {
 	var capturedPrompt string
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
 		Endpoint: "https://test.openai.azure.com",
@@ -29,7 +29,7 @@ func TestSituationPromptExplainsServiceAndUsesPostPurposeAsMaterial(t *testing.T
 			capturedPrompt, _ = payload["input"].(string)
 			response := `{
 				"model":"gpt-test",
-				"output":[{"content":[{"type":"output_text","text":"{\"situations\":{\"slot-1\":{\"object_class\":\"game\",\"change_class\":\"stuck\",\"occurrence\":\"サクラ大戦を進めていて先へ進む手掛かりに迷った\",\"attempted_actions\":\"何度か選択肢を変えて試した\",\"question\":\"他の会員がどう進めたか聞きたい\",\"novelty_key\":\"sakura-progress-question\",\"must_not\":[]}}}"}]}],
+				"output":[{"content":[{"type":"output_text","text":"{\"situations\":{\"slot-1\":{\"object_class\":\"game\",\"occurrence\":\"サクラ大戦を進めていて先へ進む手掛かりに迷った\",\"post_content\":\"詰まった場面を示し、他の会員がどう進めたか尋ねる\",\"novelty_key\":\"sakura-progress-question\",\"must_not\":[]}}}"}]}],
 				"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":0},"output_tokens":20,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":50}
 			}`
 			return &http.Response{
@@ -41,7 +41,7 @@ func TestSituationPromptExplainsServiceAndUsesPostPurposeAsMaterial(t *testing.T
 		})},
 	}}
 
-	_, err := provider.GenerateBBSWorldSituationProposals(context.Background(), BBSWorldSituationProposalRequest{
+	draft, err := provider.GenerateBBSWorldSituationProposals(context.Background(), BBSWorldSituationProposalRequest{
 		HostName:   "TEST BBS",
 		HostRegion: "福岡県",
 		WorldDate:  "1996-08-29",
@@ -52,9 +52,8 @@ func TestSituationPromptExplainsServiceAndUsesPostPurposeAsMaterial(t *testing.T
 			AuthorHandle:   "YUKI",
 			CreatedAt:      "1996-08-28T23:15:00+09:00",
 			Action:         "thread_start",
-			AnchorKey:      "games",
+			AnchorKey:      "4",
 			CauseKind:      "board_activity_window",
-			DiscourseMode:  "ask_peers",
 			PersonaProfile: "games=0.8",
 			ExistingFacts:  []string{"ALLOWED HISTORICAL REFERENT FOR THIS EVENT DATE: サクラ大戦"},
 		}},
@@ -62,20 +61,23 @@ func TestSituationPromptExplainsServiceAndUsesPostPurposeAsMaterial(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	if len(draft.Situations) != 1 || draft.Situations[0].PostContent == "" || draft.Situations[0].Occurrence == "" {
+		t.Fatalf("situation was not decoded into the generic fields: %+v", draft.Situations)
+	}
 
 	for _, want := range []string{
 		"「ずっとパソコン通信」の内部生成",
 		"利用者が見ていない間も続いている永続世界",
 		"後段のBBS件名と記事本文を生成する材料",
-		`"post_purpose":"自分で試したところまでを示し、未解決の点を他の会員へ聞く"`,
+		"post_content",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
 			t.Fatalf("Situation prompt missing %q:\n%s", want, capturedPrompt)
 		}
 	}
-	for _, old := range []string{"固定事項:", "discourse_modeの意味:"} {
+	for _, old := range []string{"固定事項:", "discourse_modeの意味:", `"post_purpose"`, `"discourse_mode"`} {
 		if strings.Contains(capturedPrompt, old) {
-			t.Fatalf("Situation prompt retained verbose rule section %q:\n%s", old, capturedPrompt)
+			t.Fatalf("Situation prompt retained %q:\n%s", old, capturedPrompt)
 		}
 	}
 }
@@ -116,10 +118,9 @@ func TestSituationTitlePromptExplainsDownstreamDisplayPurpose(t *testing.T) {
 			EventID:          "slot-1",
 			AuthorHandle:     "YUKI",
 			CreatedAt:        "1996-08-28T23:15:00+09:00",
-			DiscourseMode:    "ask_peers",
 			SituationKind:    "recent_salience",
 			SituationSummary: "サクラ大戦を進めていて先へ進む手掛かりに迷った",
-			SituationFacts:   []string{"question=他の会員がどう進めたか聞きたい"},
+			SituationFacts:   []string{"post_content=他の会員がどう進めたか聞きたい"},
 		}},
 	})
 	if err != nil {
@@ -134,6 +135,9 @@ func TestSituationTitlePromptExplainsDownstreamDisplayPurpose(t *testing.T) {
 		if !strings.Contains(capturedPrompt, want) {
 			t.Fatalf("title prompt missing %q:\n%s", want, capturedPrompt)
 		}
+	}
+	if strings.Contains(capturedPrompt, `"discourse_mode"`) {
+		t.Fatalf("title prompt still carries a discourse mode:\n%s", capturedPrompt)
 	}
 }
 

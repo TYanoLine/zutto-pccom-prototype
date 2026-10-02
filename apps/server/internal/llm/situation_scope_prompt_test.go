@@ -10,7 +10,8 @@ import (
 )
 
 // The Situation prompt must bind topics to the board name and scope. Neither a
-// routing/domain key nor the author's interests may decide what is posted.
+// routing/domain key, a post type nor the author's interests may decide what
+// is posted.
 func TestSituationPromptBindsTopicToBoardScope(t *testing.T) {
 	var capturedPrompt string
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
@@ -25,7 +26,7 @@ func TestSituationPromptBindsTopicToBoardScope(t *testing.T) {
 			capturedPrompt, _ = payload["input"].(string)
 			response := `{
 				"model":"gpt-test",
-				"output":[{"content":[{"type":"output_text","text":"{\"situations\":{\"slot-1\":{\"object_class\":\"intro\",\"change_class\":\"new\",\"occurrence\":\"初めて書き込む前に呼び名を考えた\",\"attempted_actions\":\"ハンドルを決めて読み返した\",\"question\":\"署名は付けるものか聞きたい\",\"novelty_key\":\"intro-handle\",\"must_not\":[]}}}"}]}],
+				"output":[{"content":[{"type":"output_text","text":"{\"situations\":{\"slot-1\":{\"object_class\":\"intro\",\"occurrence\":\"初めて書き込む\",\"post_content\":\"ハンドルを名乗って挨拶する\",\"novelty_key\":\"intro-handle\",\"must_not\":[]}}}"}]}],
 				"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":0},"output_tokens":20,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":50}
 			}`
 			return &http.Response{
@@ -51,7 +52,6 @@ func TestSituationPromptBindsTopicToBoardScope(t *testing.T) {
 			Action:         "thread_start",
 			AnchorKey:      "2",
 			CauseKind:      "board_activity_window",
-			DiscourseMode:  "ask_peers",
 			PersonaProfile: "games=0.8",
 		}},
 	})
@@ -64,13 +64,14 @@ func TestSituationPromptBindsTopicToBoardScope(t *testing.T) {
 		"必ずこの板の範囲の内側で",
 		"話題を決める根拠にはなりません",
 		"範囲内の別の切り口を選んでください",
+		"出来事や体験談を無理に作る必要はありません",
 		`"board_scope":"新規会員の自己紹介、常連からの歓迎。"`,
 	} {
 		if !strings.Contains(capturedPrompt, want) {
 			t.Fatalf("Situation prompt missing %q:\n%s", want, capturedPrompt)
 		}
 	}
-	for _, old := range []string{"話題のプリセットではなく", `"anchor_key"`} {
+	for _, old := range []string{"話題のプリセットではなく", `"anchor_key"`, `"discourse_mode"`, `"post_purpose"`} {
 		if strings.Contains(capturedPrompt, old) {
 			t.Fatalf("Situation prompt retained %q:\n%s", old, capturedPrompt)
 		}
