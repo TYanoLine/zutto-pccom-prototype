@@ -20,21 +20,24 @@ Do not turn quality preferences into growing lists of prohibitions when the same
 
 Small wording drift is acceptable when it does not alter canonical facts. A generator may choose a natural expression that differs from an expected phrasing; validation should reject contradictions or unauthorized world changes, not harmless stylistic variation.
 
-Board topic classification is part of the **World-side material selection**, not an LLM wording rule. Route from the board's affirmative name/topic statement, not from keywords appearing later in exclusionary scope notes. ANIME/MANGA, GAME, software and open-ended chat can therefore receive distinct activity directions; period references are selected using that resolved domain. Do not try to repair an incorrectly selected domain by adding prohibitions to the generation prompt.
+Board topic classification remains **internal routing context**, not a selected Situation activity or an LLM wording rule. Resolve the domain from the board's affirmative name/topic statement, not keywords appearing later in exclusionary scope notes. ANIME/MANGA, GAME, software and chat all follow the same open-topic production Situation path; their real board names and domain anchors still differ. Do not repair misplaced topics by adding topic quotas or prohibitions to the generator.
 
-GAME is temporarily **open-topic** in production: World fixes the member,
-board, time, post action and discourse mode, but does not select or send a
-preset activity focus, situation_kind or topic quota. Situation generation
-receives the board's actual name, member context, world date, posting purpose
-and observed prior subjects (without their old facet classification). It
-chooses the still-unknown concrete occurrence; the validated Situation is
-accepted before title generation and body prose. Both named-game discussion
-and everyday play topics may emerge naturally. Avoid introducing a named
-game merely to fulfill a quota, and check resulting date accuracy in the
-generation inspector. Other boards retain their existing activity selection
-pending separate evaluation.
+**All production boards are now open-topic**, following the successful GAME
+experiment. World fixes the actor, board, time, post action, reply topology and
+discourse mode, but never selects or sends a preset activity focus, historical
+situation_kind label, topic list or quota. Situation generation receives the
+actual board name, member/persona and persisted facts, world date, posting
+purpose and already observed root subjects (without their historical facet
+classification). The model proposes a still-unknown concrete occurrence
+within that selected board's domain. Validate and accept the Situation before
+title and body wording. The new generic `open_topic` marker is internal
+provenance for new roots, not an input topic or an instruction to the model.
+Existing persisted roots keep their previous classification and canonical
+facts; no retroactive regeneration is part of this change. Evaluate historical
+accuracy and board fit using the generation inspector rather than adding
+proper-noun quotas or content templates.
 
-For production root Situations, pass the World-selected actor, time, board, posting purpose, persona context, and previously established canonical facts as materials. Other boards currently also receive an activity focus; GAME deliberately does not. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
+For production root Situations, pass the World-selected actor, time, board, posting purpose, persona context, and previously established canonical facts as materials; no board receives a preset activity focus. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
 
 ## Persona persistence
 

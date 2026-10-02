@@ -27,7 +27,8 @@ type productionSituationSeed struct {
 	slot    bbsengine.Slot
 	mode    string
 	domain  string
-	sparse  developmentSparseSituation
+	// kind is internal provenance, not a selected topic or LLM input.
+	kind    string
 	profile string
 	facts   []string
 }
@@ -113,7 +114,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	rootSlots []bbsengine.Slot,
 	worldDate string,
 ) ([]bbsengine.PlannedPost, error) {
-	counts := recentSituationKindCounts(req.RecentPosts)
+
 	seeds := make([]productionSituationSeed, 0, len(rootSlots))
 	events := make([]llm.BBSWorldWindowEvent, 0, len(rootSlots))
 
@@ -122,28 +123,17 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		persona := p.personaForSituation(slot)
 		domain := productionBoardDomain(req.Board, persona)
 		mode := demoSelectRootDiscourseMode(req.Host, req.Board, ordinal)
-		// GAME is deliberately open-topic: World still selects actor, time,
-		// board and posting purpose, but no preset topic/activity/facet is
-		// selected or sent to the Situation model. It discovers the concrete
-		// subject from the actual board and member context before acceptance.
-		// Other boards retain their existing selection during this experiment.
-		sparse := developmentSparseSituation{kind: "games_open_topic"}
+		// World fixes the posting event and discourse mode; the Situation
+		// proposer freely resolves its topic from this board, the author's
+		// persisted context, and previously observed subjects. No production
+		// board receives an activity facet, subject catalog or topic quota.
 		existing := productionOpenSituationMaterials(personaFacts)
-		if domain != "games" {
-			facet, ok := chooseProductionSituationFacet(req.Host, req.Board, persona, slot.CreatedAt, slot.Index, domain, mode, counts)
-			if !ok {
-				return nil, fmt.Errorf("no Situation facet for board=%s domain=%s mode=%s", req.Board.ID, domain, mode)
-			}
-			sparse = productionSituationFocus(facet)
-			existing = productionSituationMaterials(personaFacts, sparse)
-			counts[facet.kind]++
-		}
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
 
 		seeds = append(seeds, productionSituationSeed{
 			eventID: eventID, slot: slot, mode: mode, domain: domain,
-			sparse: sparse, profile: profile, facts: existing,
+			kind: "open_topic", profile: profile, facts: existing,
 		})
 		events = append(events, llm.BBSWorldWindowEvent{
 			EventID:        eventID,
@@ -176,14 +166,10 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	}
 	byEvent := make(map[string]llm.BBSWorldSituationDraft, len(seeds))
 	noveltyOwners := map[string]string{}
-	recentContext := productionRecentSituationContext(req.RecentPosts)
-	avoidSituations := append([]string(nil), productionRecentSituationAvoid(req.RecentPosts)...)
-	if seeds[0].domain == "games" {
-		// Old GAME facet names are internal generation metadata, not material
-		// for an open-topic conversation. Retain only observed subjects.
-		recentContext = productionRecentSubjectContext(req.RecentPosts)
-		avoidSituations = productionRecentSubjectAvoid(req.RecentPosts)
-	}
+	// Historical facet labels are internal legacy metadata, not material
+	// for any board's open-topic Situation. Pass observed subjects only.
+	recentContext := productionRecentSubjectContext(req.RecentPosts)
+	avoidSituations := productionRecentSubjectAvoid(req.RecentPosts)
 
 	// Successful chunks are accepted exactly once. If the provider exhausts its
 	// output budget, retry fewer pending event shells rather than repeating the
@@ -327,7 +313,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			CreatedAt:        seed.slot.CreatedAt.Format(time.RFC3339),
 			DiscourseMode:    seed.mode,
 			PersonaProfile:   seed.profile,
-			SituationKind:    seed.sparse.kind,
+			SituationKind:    seed.kind,
 			SituationSummary: summary,
 			SituationFacts:   facts,
 		})
@@ -391,7 +377,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			Goal:             productionDiscourseGoal(seed.mode),
 			AnchorKey:        seed.domain,
 			DiscourseMode:    seed.mode,
-			SituationKind:    seed.sparse.kind,
+			SituationKind:    seed.kind,
 			SituationSummary: state.summary,
 			SituationFacts:   state.facts,
 			ArticleDetailsMaterialized: true,
@@ -450,152 +436,9 @@ func productionBoardDomain(board world.Board, persona world.Persona) string {
 	return best
 }
 
-func chooseProductionSituationFacet(host world.Host, board world.Board, persona world.Persona, at time.Time, slotIndex int, domain, mode string, counts map[string]int) (developmentSituationFacet, bool) {
-	if domain == "games" {
-		// No GAME preset may accidentally be reintroduced through fallback.
-		return developmentSituationFacet{}, false
-	}
-	candidates := make([]developmentSituationFacet, 0)
-	switch domain {
-	case "pc98", "pc98_modem":
-		for _, topic := range productionPC98SituationFacets() {
-			if developmentModeFacetAllowed(topic, mode) {
-				candidates = append(candidates, topic.developmentSituationFacet)
-			}
-		}
-		if domain == "pc98_modem" {
-			for _, topic := range productionPC98ModemSituationFacets() {
-				if developmentModeFacetAllowed(topic, mode) {
-					candidates = append(candidates, topic.developmentSituationFacet)
-				}
-			}
-		}
-	case "anime_manga":
-		for _, topic := range productionAnimeMangaSituationFacets() {
-			if developmentModeFacetAllowed(topic, mode) {
-				candidates = append(candidates, topic.developmentSituationFacet)
-			}
-		}
-	default:
-		candidates = append(candidates, developmentSituationFacets(domain)...)
-	}
-	if len(candidates) == 0 {
-		candidates = append(candidates, developmentSituationFacets("generic")...)
-	}
-	if len(candidates) == 0 {
-		return developmentSituationFacet{}, false
-	}
-
-	weights := make([]float64, len(candidates))
-	total := 0.0
-	for i, facet := range candidates {
-		// Strongly downweight kinds already used in the same retained window.
-		weight := 1.0 / float64(1+counts[facet.kind]*4)
-		weights[i] = weight
-		total += weight
-	}
-	roll := demoStableUnit(host.ID, board.ID, persona.ID, at.Format(time.RFC3339), fmt.Sprintf("production-situation-v2-%d", slotIndex)) * total
-	for i, facet := range candidates {
-		if roll < weights[i] {
-			return facet, true
-		}
-		roll -= weights[i]
-	}
-	return candidates[len(candidates)-1], true
-}
-
-// PC-98 boards are about the machine and its actual software/peripherals,
-// not a generic daily observation. Choose broad activity directions as World
-// material and let the Situation model resolve concrete details for the date.
-func productionPC98SituationFacets() []developmentModeSituationFacet {
-	return []developmentModeSituationFacet{
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_software_use", focus:"using a specific application or game on the member's PC-98 and what they noticed"}, modes:developmentModeSet("share_observation","share_experience","state_opinion")},
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_setup_experience", focus:"the member's PC-98 configuration or setup experience"}, modes:developmentModeSet("share_observation","share_experience","share_tip")},
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_peripheral_question", focus:"a particular PC-98 peripheral or connection the member has a question about"}, modes:developmentModeSet("ask_peers","share_experience","state_opinion")},
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_dos_practicality", focus:"an ordinary PC-98 DOS workflow or practical tip"}, modes:developmentModeSet("share_tip","share_experience","ask_peers")},
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_display_sound", focus:"a PC-98 display or sound experience related to what the member uses"}, modes:developmentModeSet("share_observation","state_opinion","ask_peers")},
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_software_choice", focus:"a choice the member is considering about PC-98 software or hardware"}, modes:developmentModeSet("state_opinion","ask_peers","share_experience")},
-	}
-}
-
-func productionPC98ModemSituationFacets() []developmentModeSituationFacet {
-	return []developmentModeSituationFacet{
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_modem_settings",focus:"a PC-98 modem or communications-software setting the member is dealing with"},modes:developmentModeSet("share_observation","share_experience","share_tip","ask_peers")},
-		{developmentSituationFacet: developmentSituationFacet{kind:"pc98_connection_observation",focus:"the member's experience using their PC-98 to connect to a BBS"},modes:developmentModeSet("share_observation","share_experience","state_opinion")},
-	}
-}
-
-// Anime/manga is a distinct board interest, not a games subcategory. These
-// are World activity focuses, leaving concrete series, occurrences and wording
-// to Situation generation with the event's date and persona materials.
-func productionAnimeMangaSituationFacets() []developmentModeSituationFacet {
-	return []developmentModeSituationFacet{
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_episode_reaction",
-				focus: "the member's reaction to an anime episode they watched",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "manga_recent_reading",
-				focus: "something the member noticed while reading a manga",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_manga_character_interest",
-				focus: "the member's interest in a character or a story development from anime or manga",
-			},
-			modes: developmentModeSet("share_observation", "state_opinion", "ask_peers"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_manga_work_interest",
-				focus: "an anime or manga series that has caught the member's interest",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion", "ask_peers"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_manga_comparison",
-				focus: "the member's comparison of two anime or manga works, or of an anime and its source manga",
-			},
-			modes: developmentModeSet("share_experience", "state_opinion", "ask_peers"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_manga_favorite_detail",
-				focus: "a particular scene, drawing or piece of storytelling the member wants to discuss",
-			},
-			modes: developmentModeSet("share_observation", "share_experience", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_manga_peer_recommendation",
-				focus: "a specific kind of anime or manga the member is interested in discussing with fellow readers or viewers",
-			},
-			modes: developmentModeSet("ask_peers", "share_tip", "state_opinion"),
-		},
-		{
-			developmentSituationFacet: developmentSituationFacet{
-				kind: "anime_manga_personal_finding",
-				focus: "a useful small discovery related to following or reading an anime or manga series",
-			},
-			modes: developmentModeSet("share_tip", "share_experience"),
-		},
-	}
-}
-
-// Production passes the World-selected activity focus as material. Diagnostic
-// example incidents and their wording constraints belong to the Lab only.
-// Concrete occurrences are first proposed here, then become canonical state.
-// These are the complete per-root materials for normal production. Historical
-// catalogs and automatic evidence lists are not part of this input.
-// Open-topic GAME roots receive no selected activity kind, theme or suggested
-// work name. Only already-persisted actor facts constrain the proposal.
+// All live boards use the same open-topic inputs. Only persisted persona
+// facts are supplied as constraints; board identity and posting purpose
+// travel separately in each canonical World event shell.
 func productionOpenSituationMaterials(personaFacts []string) []string {
 	facts := make([]string, 0, len(personaFacts))
 	for _, fact := range personaFacts {
@@ -623,63 +466,6 @@ func productionRecentSubjectAvoid(posts []world.Post) []string {
 		}
 	}
 	return lines
-}
-
-func productionSituationMaterials(personaFacts []string, focus developmentSparseSituation) []string {
-	facts := make([]string, 0, len(personaFacts)+len(focus.facts)+1)
-	for _, fact := range personaFacts {
-		facts = append(facts, "persona_context="+fact)
-	}
-	facts = append(facts, "situation_kind="+focus.kind)
-	return append(facts, focus.facts...)
-}
-
-func productionSituationFocus(facet developmentSituationFacet) developmentSparseSituation {
-	return developmentSparseSituation{
-		kind:    facet.kind,
-		summary: facet.focus,
-		facts:   []string{"activity_focus=" + facet.focus},
-	}
-}
-
-func recentSituationKindCounts(posts []world.Post) map[string]int {
-	out := map[string]int{}
-	for _, post := range posts {
-		if !world.IsSemanticRoot(post) {
-			continue
-		}
-		if kind := strings.TrimSpace(post.Intent.SituationKind); kind != "" && kind != "title_first" {
-			out[kind]++
-		}
-	}
-	return out
-}
-
-func productionRecentSituationContext(posts []world.Post) string {
-	lines := make([]string, 0, 20)
-	for i := len(posts) - 1; i >= 0 && len(lines) < 20; i-- {
-		post := posts[i]
-		if !world.IsSemanticRoot(post) {
-			continue
-		}
-		lines = append(lines, fmt.Sprintf("subject=%s | situation_kind=%s", strings.TrimSpace(post.Subject), strings.TrimSpace(post.Intent.SituationKind)))
-	}
-	if len(lines) == 0 {
-		return "(none supplied)"
-	}
-	return strings.Join(lines, "\n")
-}
-
-func productionRecentSituationAvoid(posts []world.Post) []string {
-	out := make([]string, 0, 20)
-	for i := len(posts) - 1; i >= 0 && len(out) < 20; i-- {
-		post := posts[i]
-		if !world.IsSemanticRoot(post) {
-			continue
-		}
-		out = append(out, fmt.Sprintf("kind=%s subject=%s", post.Intent.SituationKind, post.Subject))
-	}
-	return out
 }
 
 func validateProductionTypedSituation(mode string, d llm.BBSWorldSituationDraft) error {
@@ -748,11 +534,6 @@ func productionSituationCanonicalState(seed productionSituationSeed, d llm.BBSWo
 		parts = append(parts, strings.TrimSpace(d.AttemptedActions), strings.TrimSpace(d.Question))
 	}
 	add("novelty_key", d.NoveltyKey)
-	for _, fact := range seed.sparse.facts {
-		if strings.HasPrefix(fact, "scope_boundary=") {
-			facts = append(facts, fact)
-		}
-	}
 	for _, value := range d.MustNot {
 		if value = strings.TrimSpace(value); value != "" {
 			facts = append(facts, "must_not="+value)
