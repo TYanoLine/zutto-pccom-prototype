@@ -210,6 +210,14 @@ Use cheaper/faster models for routine prose and reserve stronger models for cons
 
 LLM cost is an explicit operational constraint, but it must not become hidden world corruption.
 
+For structured multi-root Situation generation, an output truncated at the model's
+completion-token limit is a capacity failure, not a reason to relax the schema
+or commit partial world state. Leave already accepted in-memory chunk results
+intact and retry **only the pending event shells** with smaller batches. Keep
+the reduced batch size for the remainder of that planning window. If even a
+single event cannot be validated within its budget, fail the observation
+cleanly so the board remains retryable; do not invent fallback article headers.
+
 Generation code may consider:
 
 - estimated input/output tokens;

@@ -3,11 +3,17 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
 
 var _ BBSWorldSituationProposer = StructuredOpenAIProvider{}
+
+// ErrBBSWorldSituationOutputTruncated identifies invalid structured JSON whose
+// response consumed its entire output-token budget. The planner can retry
+// fewer shells without relaxing any world or persistence invariants.
+var ErrBBSWorldSituationOutputTruncated = errors.New("BBS Situation output token budget exhausted")
 
 type bbsWorldSituationWire struct {
 	ObjectClass      string   `json:"object_class"`
@@ -126,10 +132,14 @@ recent/avoid material:
 	}
 	var wire bbsWorldSituationProposalWire
 	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &wire); err != nil {
-		return BBSWorldSituationProposalDraft{}, fmt.Errorf(
+		decodeErr := fmt.Errorf(
 			"decode BBS world-situation JSON: %w (output_chars=%d output_tokens=%d max_tokens=%d)",
 			err, len([]rune(result.Text)), result.Usage.OutputTokens, maxTokens,
 		)
+		if result.Usage.OutputTokens >= maxTokens {
+			return BBSWorldSituationProposalDraft{}, fmt.Errorf("%w: %w", ErrBBSWorldSituationOutputTruncated, decodeErr)
+		}
+		return BBSWorldSituationProposalDraft{}, decodeErr
 	}
 	if len(wire.Situations) != len(req.Events) {
 		return BBSWorldSituationProposalDraft{}, fmt.Errorf("situation proposer returned %d situations, want %d", len(wire.Situations), len(req.Events))
@@ -186,13 +196,14 @@ func bbsWorldSituationMaxTokens(eventCount int) int {
 	if eventCount < 1 {
 		return 1200
 	}
-	// Typed Situation JSON contains several short world-fact fields per event.
-	// The previous 190-token/event allowance was observed truncating otherwise
-	// valid structured JSON for 8-12 event production chunks. This is only an
-	// output ceiling; actual billed/generated tokens remain whatever the model uses.
-	maxTokens := 800 + eventCount*420
-	if maxTokens < 2400 {
-		maxTokens = 2400
+	// Typed Situation JSON and provider reasoning share one output-token budget.
+	// A four-event response exhausted its earlier 2480-token ceiling and
+	// repeatedly produced truncated JSON in production. Reserve room before
+	// relying on the planner's adaptive chunk-size fallback. This remains
+	// a ceiling; billing depends on actual generated tokens.
+	maxTokens := 1200 + eventCount*650
+	if maxTokens < 2800 {
+		maxTokens = 2800
 	}
 	if maxTokens > 10000 {
 		maxTokens = 10000

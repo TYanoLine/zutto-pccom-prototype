@@ -2,7 +2,9 @@ package worldrepo
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -183,13 +185,18 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		avoidSituations = productionRecentSubjectAvoid(req.RecentPosts)
 	}
 
-	for chunkStart := 0; chunkStart < len(events); chunkStart += productionSituationChunkSize {
-		chunkEnd := chunkStart + productionSituationChunkSize
+	// Successful chunks are accepted exactly once. If the provider exhausts its
+	// output budget, retry fewer pending event shells rather than repeating the
+	// same oversized request. Accepted chunks remain available for novelty checks.
+	chunkSize := productionSituationChunkSize
+	for chunkStart := 0; chunkStart < len(events); {
+		chunkEnd := chunkStart + chunkSize
 		if chunkEnd > len(events) {
 			chunkEnd = len(events)
 		}
 		chunkEvents := events[chunkStart:chunkEnd]
 		accepted := false
+		budgetTruncated := false
 		var lastErr error
 		for attempt := 1; attempt <= productionSituationChunkAttempts && !accepted; attempt++ {
 			situationDraft, err := proposer.GenerateBBSWorldSituationProposals(ctx, llm.BBSWorldSituationProposalRequest{
@@ -207,6 +214,10 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			})
 			if err != nil {
 				lastErr = fmt.Errorf("chunk %d..%d attempt %d: %w", chunkStart, chunkEnd, attempt, err)
+				if len(chunkEvents) > 1 && errors.Is(err, llm.ErrBBSWorldSituationOutputTruncated) {
+					budgetTruncated = true
+					break
+				}
 				continue
 			}
 			storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation", GenerationUsage{
@@ -282,9 +293,17 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 				accepted = true
 			}
 		}
+		if budgetTruncated {
+			chunkSize = (len(chunkEvents) + 1) / 2
+			log.Printf("BBS Situation output exhausted budget; splitting remaining chunk: host=%s board=%s start=%d previous=%d next=%d", req.Host.ID, req.Board.ID, chunkStart, len(chunkEvents), chunkSize)
+			continue
+		}
 		if !accepted {
 			return nil, fmt.Errorf("plan BBS world Situations: %w", lastErr)
 		}
+		// Keep the smaller size for the rest of this board's batch once a
+		// provider response shows that the original chunk was too large.
+		chunkStart = chunkEnd
 	}
 
 	titleSeeds := make([]llm.BBSSituationTitleSeed, 0, len(seeds))
