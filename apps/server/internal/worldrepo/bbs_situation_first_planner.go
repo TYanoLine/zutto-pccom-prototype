@@ -20,12 +20,15 @@ const (
 	productionSituationChunkSize     = 6
 	productionSituationChunkAttempts = 3
 	productionTitleChunkSize         = 20
+	// productionPostGoal is deliberately generic. The world layer selects no
+	// post type (question, experience, tip...); the form of a post follows from
+	// the board name and scope.
+	productionPostGoal = "write the post exactly as the canonical situation describes it"
 )
 
 type productionSituationSeed struct {
 	eventID string
 	slot    bbsengine.Slot
-	mode    string
 	// anchorKey is the board's identity only. It carries no topic meaning and
 	// is never derived from board wording, host-specific vocabulary or the
 	// author's interests; what may be posted is decided from the board name
@@ -122,7 +125,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	seeds := make([]productionSituationSeed, 0, len(rootSlots))
 	events := make([]llm.BBSWorldWindowEvent, 0, len(rootSlots))
 
-	for ordinal, slot := range rootSlots {
+	for _, slot := range rootSlots {
 		// World action/actor authorization must be fixed before the model
 		// proposes any Situation. Do not mask an invalid actor in prose.
 		if req.Board.RootAuthorPolicy == "sysop_only" && !strings.EqualFold(strings.TrimSpace(slot.Author), "SYSOP") {
@@ -134,21 +137,18 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		// dynamically, so what belongs on a board is decided from the board name
 		// and its (non-public) scope, which travel in the event shell below.
 		anchorKey := req.Board.ID
-		mode := demoSelectRootDiscourseMode(req.Host, req.Board, ordinal)
-		if req.Board.RootDiscourseMode != "" {
-			mode = req.Board.RootDiscourseMode
-		}
-		// World fixes the posting event and discourse mode; the Situation
-		// proposer resolves its topic inside the board name and scope. The
-		// author's persisted context only shapes voice and background; it does
-		// not select the topic. No production board receives an activity facet,
-		// subject catalog or topic quota.
+		// World fixes the posting event (who, when, which board). It does not
+		// select a post type: the Situation proposer decides the natural form of
+		// the post, and its topic, inside the board name and scope. The author's
+		// persisted context only shapes voice and background. No production
+		// board receives an activity facet, subject catalog, topic quota or
+		// post-type rotation.
 		existing := productionOpenSituationMaterials(personaFacts)
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
 
 		seeds = append(seeds, productionSituationSeed{
-			eventID: eventID, slot: slot, mode: mode, anchorKey: anchorKey,
+			eventID: eventID, slot: slot, anchorKey: anchorKey,
 			kind: "open_topic", profile: profile, facts: existing,
 		})
 		events = append(events, llm.BBSWorldWindowEvent{
@@ -161,7 +161,6 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			Action:         "thread_start",
 			AnchorKey:      anchorKey,
 			CauseKind:      "board_activity_window",
-			DiscourseMode:  mode,
 			PersonaProfile: profile,
 			ExistingFacts:  existing,
 		})
@@ -238,7 +237,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			valid := true
 			for _, value := range situationDraft.Situations {
 				eventID := strings.TrimSpace(value.EventID)
-				seed, known := seedByEvent[eventID]
+				_, known := seedByEvent[eventID]
 				if eventID == "" || !known {
 					lastErr = fmt.Errorf("chunk %d..%d returned invalid event %q", chunkStart, chunkEnd, eventID)
 					valid = false
@@ -249,7 +248,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 					valid = false
 					break
 				}
-				if err := validateProductionTypedSituation(seed.mode, value); err != nil {
+				if err := validateProductionSituation(value); err != nil {
 					lastErr = fmt.Errorf("%s: %w", eventID, err)
 					valid = false
 					break
@@ -322,13 +321,12 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if !ok {
 			return nil, fmt.Errorf("situation planner omitted %s", seed.eventID)
 		}
-		summary, facts := productionSituationCanonicalState(seed, draft)
+		summary, facts := productionSituationCanonicalState(draft)
 		states[seed.eventID] = rootState{seed: seed, draft: draft, summary: summary, facts: facts}
 		titleSeeds = append(titleSeeds, llm.BBSSituationTitleSeed{
 			EventID:          seed.eventID,
 			AuthorHandle:     seed.slot.Author,
 			CreatedAt:        seed.slot.CreatedAt.Format(time.RFC3339),
-			DiscourseMode:    seed.mode,
 			PersonaProfile:   seed.profile,
 			SituationKind:    seed.kind,
 			SituationSummary: summary,
@@ -390,10 +388,8 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			Subject:          subject,
 			Topic:            state.draft.ObjectClass,
 			Motivation:       "world_selected_situation",
-			Stance:           state.draft.Stance,
-			Goal:             productionDiscourseGoal(seed.mode),
+			Goal:             productionPostGoal,
 			AnchorKey:        seed.anchorKey,
-			DiscourseMode:    seed.mode,
 			SituationKind:    seed.kind,
 			SituationSummary: state.summary,
 			SituationFacts:   state.facts,
@@ -436,101 +432,32 @@ func productionRecentSubjectAvoid(posts []world.Post) []string {
 	return lines
 }
 
-func validateProductionTypedSituation(mode string, d llm.BBSWorldSituationDraft) error {
-	if strings.TrimSpace(d.ObjectClass) == "" || strings.TrimSpace(d.Occurrence) == "" || strings.TrimSpace(d.NoveltyKey) == "" {
+// validateProductionSituation checks only that the proposal is complete. It
+// does not depend on any post type: every root has the same fields.
+func validateProductionSituation(d llm.BBSWorldSituationDraft) error {
+	if strings.TrimSpace(d.ObjectClass) == "" || strings.TrimSpace(d.Occurrence) == "" ||
+		strings.TrimSpace(d.PostContent) == "" || strings.TrimSpace(d.NoveltyKey) == "" {
 		return fmt.Errorf("required Situation identity is empty")
 	}
-	require := func(name, value string) error {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%s is required for discourse_mode=%s", name, mode)
-		}
-		return nil
-	}
-	switch mode {
-	case "share_observation":
-		return require("observation", d.Observation)
-	case "share_experience":
-		if err := require("experience", d.Experience); err != nil { return err }
-		return require("result", d.Result)
-	case "state_opinion":
-		if err := require("stance", d.Stance); err != nil { return err }
-		return require("basis", d.Basis)
-	case "share_tip":
-		if err := require("attempted_actions", d.AttemptedActions); err != nil { return err }
-		if err := require("result", d.Result); err != nil { return err }
-		return require("practical_point", d.PracticalPoint)
-	case "ask_peers":
-		if err := require("attempted_actions", d.AttemptedActions); err != nil { return err }
-		return require("question", d.Question)
-	default:
-		return fmt.Errorf("unknown discourse mode %q", mode)
-	}
+	return nil
 }
 
-func productionSituationCanonicalState(seed productionSituationSeed, d llm.BBSWorldSituationDraft) (string, []string) {
+func productionSituationCanonicalState(d llm.BBSWorldSituationDraft) (string, []string) {
+	occurrence := strings.TrimSpace(d.Occurrence)
+	content := strings.TrimSpace(d.PostContent)
 	facts := []string{
 		"world_fact_status=accepted_situation_before_subject",
 		"object_class=" + strings.TrimSpace(d.ObjectClass),
-		"occurrence=" + strings.TrimSpace(d.Occurrence),
+		"occurrence=" + occurrence,
+		"post_content=" + content,
+		"novelty_key=" + strings.TrimSpace(d.NoveltyKey),
 	}
-	parts := []string{strings.TrimSpace(d.Occurrence)}
-	add := func(key, value string) {
-		value = strings.TrimSpace(value)
-		if value == "" { return }
-		facts = append(facts, key+"="+value)
-	}
-	switch seed.mode {
-	case "share_observation":
-		add("observation", d.Observation)
-		parts = append(parts, strings.TrimSpace(d.Observation))
-	case "share_experience":
-		add("experience", d.Experience)
-		add("result", d.Result)
-		parts = append(parts, strings.TrimSpace(d.Experience), strings.TrimSpace(d.Result))
-	case "state_opinion":
-		add("stance", d.Stance)
-		add("basis", d.Basis)
-		parts = append(parts, strings.TrimSpace(d.Stance), strings.TrimSpace(d.Basis))
-	case "share_tip":
-		add("attempted_actions", d.AttemptedActions)
-		add("result", d.Result)
-		add("practical_point", d.PracticalPoint)
-		parts = append(parts, strings.TrimSpace(d.AttemptedActions), strings.TrimSpace(d.Result), strings.TrimSpace(d.PracticalPoint))
-	case "ask_peers":
-		add("attempted_actions", d.AttemptedActions)
-		add("question", d.Question)
-		parts = append(parts, strings.TrimSpace(d.AttemptedActions), strings.TrimSpace(d.Question))
-	}
-	add("novelty_key", d.NoveltyKey)
 	for _, value := range d.MustNot {
 		if value = strings.TrimSpace(value); value != "" {
 			facts = append(facts, "must_not="+value)
 		}
 	}
-	clean := parts[:0]
-	for _, part := range parts {
-		if part = strings.TrimSpace(part); part != "" {
-			clean = append(clean, part)
-		}
-	}
-	return strings.Join(clean, " "), facts
-}
-
-func productionDiscourseGoal(mode string) string {
-	switch mode {
-	case "share_observation":
-		return "state the observation"
-	case "share_experience":
-		return "tell what happened"
-	case "state_opinion":
-		return "state the opinion"
-	case "share_tip":
-		return "share the small practical finding"
-	case "ask_peers":
-		return "ask the canonical question"
-	default:
-		return ""
-	}
+	return strings.TrimSpace(occurrence + " " + content), facts
 }
 
 func normalizeSituationNoveltyKey(value string) string {

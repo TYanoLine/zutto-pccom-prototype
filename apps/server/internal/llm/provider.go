@@ -171,7 +171,8 @@ type BBSWorldWindowProductionDraft struct {
 // BBSWorldSituationProposalRequest asks for small canonical world-situation
 // proposals for a bounded set of already-selected standalone root slots. Unlike
 // BBSWorldWindowProduction, this pass does not plan article prose/editorial
-// briefs; it only proposes what concretely happened before prose is rendered.
+// briefs; it only proposes the situation and content behind each post before
+// prose is rendered. What may be posted is bounded by the board name and scope.
 type BBSWorldSituationProposalRequest struct {
 	HostName                      string
 	HostRegion                    string
@@ -188,30 +189,19 @@ type BBSWorldSituationProposalRequest struct {
 	AvoidSituations               []string
 }
 
+// BBSWorldSituationDraft is the canonical micro-situation behind one root post.
+// The world layer does not select a post type (question, experience, tip...):
+// the proposer decides the natural form for the board from its name and scope.
 type BBSWorldSituationDraft struct {
-	EventID          string   `json:"event_id"`
-	ObjectClass      string   `json:"object_class"`
-	ChangeClass      string   `json:"change_class,omitempty"`
-	Occurrence       string   `json:"occurrence"`
-
-	// The following fields are discourse-mode typed world facts. Only the fields
-	// appropriate to the already-selected discourse mode should be populated.
-	Observation      string   `json:"observation,omitempty"`
-	Experience       string   `json:"experience,omitempty"`
-	Result           string   `json:"result,omitempty"`
-	Stance           string   `json:"stance,omitempty"`
-	Basis            string   `json:"basis,omitempty"`
-	AttemptedActions string   `json:"attempted_actions,omitempty"`
-	PracticalPoint   string   `json:"practical_point,omitempty"`
-	Question         string   `json:"question,omitempty"`
-
-	// Compatibility projections used by older development paths. New
-	// situation-first production persists the typed fields above.
-	ActorObservation string   `json:"actor_observation,omitempty"`
-	Impact           string   `json:"impact,omitempty"`
-	Uncertainty      string   `json:"uncertainty,omitempty"`
-	NoveltyKey       string   `json:"novelty_key"`
-	MustNot          []string `json:"must_not"`
+	EventID     string `json:"event_id"`
+	ObjectClass string `json:"object_class"`
+	// Occurrence is the situation in which the post is written. It need not be
+	// an event: a first greeting or a return after a long absence qualifies.
+	Occurrence string `json:"occurrence"`
+	// PostContent is what the poster actually says in the post.
+	PostContent string   `json:"post_content"`
+	NoveltyKey  string   `json:"novelty_key"`
+	MustNot     []string `json:"must_not"`
 }
 
 type BBSWorldSituationProposalDraft struct {
@@ -223,7 +213,6 @@ type BBSSituationTitleSeed struct {
 	EventID          string   `json:"event_id"`
 	AuthorHandle     string   `json:"author_handle"`
 	CreatedAt        string   `json:"created_at"`
-	DiscourseMode    string   `json:"discourse_mode"`
 	PersonaProfile   string   `json:"persona_profile,omitempty"`
 	SituationKind    string   `json:"situation_kind"`
 	SituationSummary string   `json:"situation_summary"`

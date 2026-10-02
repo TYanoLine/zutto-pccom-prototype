@@ -23,18 +23,11 @@ func (s *openTopicSituationProposer) GenerateBBSWorldSituationProposals(_ contex
     out := llm.BBSWorldSituationProposalDraft{}
     for _, event := range req.Events {
         out.Situations = append(out.Situations, llm.BBSWorldSituationDraft{
-            EventID:          event.EventID,
-            ObjectClass:      event.BoardName,
-            Occurrence:       event.BoardName + "で自分が気づいた話題について投稿する",
-            Observation:      "自分が気づいたところを話す",
-            Experience:       "自分で試してみた",
-            Result:           "予想とは少し違った",
-            Stance:           "そこが気に入った",
-            Basis:            "自分で感じたこと",
-            AttemptedActions: "自分でできるところまで試した",
-            PracticalPoint:   "試した範囲で分かったこと",
-            Question:         "同じ経験のある人はいるだろうか",
-            NoveltyKey:       fmt.Sprintf("%s-open-%s", event.BoardID, event.EventID),
+            EventID:     event.EventID,
+            ObjectClass: event.BoardName,
+            Occurrence:  event.BoardName + "に書き込む状況",
+            PostContent: event.BoardName + "の範囲で投稿する中身",
+            NoveltyKey:  fmt.Sprintf("%s-open-%s", event.BoardID, event.EventID),
         })
     }
     return out, nil
@@ -71,8 +64,9 @@ func TestProductionAllBoardMaterialsHaveNoSelectedTopic(t *testing.T) {
 }
 
 // Every board, whatever its wording, goes through the same generic path. The
-// anchor key is only the board identity: no topic domain is derived from the
-// board name, its scope or the author's interests.
+// anchor key is only the board identity, and no post type is selected: no
+// topic domain or discourse mode is derived from the board name, its scope or
+// the author's interests.
 func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
     boards := []struct {
         name  string
@@ -86,6 +80,7 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
         {"CHAT", world.Board{ID: "68/1", Name: "深夜雑談", SemanticScope: "深夜に接続している会員の雑談。"}},
         {"LOCAL", world.Board{ID: "90/1", Name: "博多ご近所情報", SemanticScope: "地域での出来事や情報交換。"}},
         {"INTRO", world.Board{ID: "2", Name: "自己紹介・新人歓迎", SemanticScope: "新規会員の自己紹介、常連からの歓迎。"}},
+        {"QA", world.Board{ID: "3", Name: "Ｑ＆Ａ（質問ボード）", SemanticScope: "日常の具体的な疑問や困りごとを尋ねる一般質問板。"}},
         {"DYNAMIC", world.Board{ID: "dyn-7", Name: "動的に作られた板", SemanticScope: "その板の方向性。"}},
     }
     at := time.Date(1996, 2, 17, 20, 30, 0, 0, time.FixedZone("JST", 9*3600))
@@ -127,11 +122,13 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
                 forwarded.Events[1].AuthorHandle != "B" ||
                 forwarded.Events[0].AnchorKey != tc.board.ID ||
                 forwarded.Events[1].AnchorKey != tc.board.ID ||
-                forwarded.Events[0].DiscourseMode == "" ||
                 forwarded.Events[0].CreatedAt != at.Format(time.RFC3339) {
                 t.Fatalf("World-selected event shell changed: %+v", forwarded)
             }
             for _, event := range forwarded.Events {
+                if event.DiscourseMode != "" {
+                    t.Fatalf("board %s was given a World-selected post type %q", tc.name, event.DiscourseMode)
+                }
                 if len(event.ExistingFacts) != 0 {
                     t.Fatalf("board %s still receives preset activities: %#v", tc.name, event.ExistingFacts)
                 }
@@ -154,17 +151,30 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
             for _, post := range planned {
                 if post.SituationKind != "open_topic" ||
                     post.AnchorKey != tc.board.ID ||
+                    post.DiscourseMode != "" ||
                     post.Subject != "最近気づいたこと" ||
                     !strings.Contains(post.SituationSummary, tc.board.Name) ||
                     !post.ArticleDetailsMaterialized {
                     t.Fatalf("invalid committed world header: %+v", post)
                 }
+                hasContent := false
                 for _, fact := range post.SituationFacts {
+                    if strings.HasPrefix(fact, "post_content=") {
+                        hasContent = true
+                    }
+                    for _, typed := range []string{"observation=", "experience=", "result=", "stance=", "basis=", "attempted_actions=", "practical_point=", "question="} {
+                        if strings.HasPrefix(fact, typed) {
+                            t.Fatalf("post-type field leaked into canonical state: %q", fact)
+                        }
+                    }
                     if strings.Contains(fact, "activity_focus=") ||
                         strings.Contains(fact, "situation_kind=") ||
                         strings.Contains(fact, "legacy_fixed_activity") {
                         t.Fatalf("old preset leaked into canonical state: %q", fact)
                     }
+                }
+                if !hasContent {
+                    t.Fatalf("canonical state lost post_content: %+v", post.SituationFacts)
                 }
             }
         })
@@ -182,6 +192,23 @@ func TestOpenTopicRecentSubjectsIgnoreHistoricFacetLabelsAndReplies(t *testing.T
     if context != "subject=実際にあった話" ||
         !reflect.DeepEqual(avoid, []string{"subject=実際にあった話"}) {
         t.Fatalf("unexpected previous subject materials: context=%q avoid=%#v", context, avoid)
+    }
+}
+
+func TestIncompleteSituationIsRejected(t *testing.T) {
+    complete := llm.BBSWorldSituationDraft{ObjectClass: "x", Occurrence: "y", PostContent: "z", NoveltyKey: "k"}
+    if err := validateProductionSituation(complete); err != nil {
+        t.Fatalf("complete situation rejected: %v", err)
+    }
+    for name, broken := range map[string]llm.BBSWorldSituationDraft{
+        "no object":     {Occurrence: "y", PostContent: "z", NoveltyKey: "k"},
+        "no occurrence": {ObjectClass: "x", PostContent: "z", NoveltyKey: "k"},
+        "no content":    {ObjectClass: "x", Occurrence: "y", NoveltyKey: "k"},
+        "no novelty":    {ObjectClass: "x", Occurrence: "y", PostContent: "z"},
+    } {
+        if err := validateProductionSituation(broken); err == nil {
+            t.Fatalf("%s: incomplete situation was accepted", name)
+        }
     }
 }
 
@@ -213,29 +240,6 @@ func TestStationPostingRulesApplyBeforeSituationProposal(t *testing.T) {
             proposer.requests[0].Events[0].AuthorHandle != "SYSOP" ||
             proposer.requests[0].Events[0].BoardScope != req.Board.SemanticScope {
             t.Fatalf("SYSOP board invalid: out=%+v err=%v requests=%+v", out, err, proposer.requests)
-        }
-    })
-    t.Run("general Q&A action is World-selected as a question", func(t *testing.T) {
-        planner := repositoryBBSBatchPlanner{repo: New(world.NewMemoryStore(), nil, nil, "1996-02-17")}
-        proposer := &openTopicSituationProposer{}
-        titles := &openTopicTitlePlanner{}
-        req := bbsengine.BatchRequest{
-            Host: host,
-            Board: world.Board{ID: "3", Name: "Ｑ＆Ａ（質問ボード）",
-                SemanticScope: "日常の具体的な疑問や困りごとを尋ねる一般質問板。",
-                RootDiscourseMode: "ask_peers"},
-            Slots: []bbsengine.Slot{{Index: 1, Author: "A", CreatedAt: at}},
-        }
-        out, err := planner.planSituationFirstRoots(context.Background(), LLMMaterializer{},
-            worldengine.EvidenceDecision{}, proposer, titles, req, req.Slots, "1996-02-17")
-        if err != nil || len(out) != 1 || out[0].DiscourseMode != "ask_peers" ||
-            proposer.requests[0].Events[0].DiscourseMode != "ask_peers" {
-            t.Fatalf("Q&A lost World-selected question act: posts=%+v err=%v", out, err)
-        }
-        for _, fact := range proposer.requests[0].Events[0].ExistingFacts {
-            if strings.HasPrefix(fact, "activity_focus=") {
-                t.Fatalf("Q&A gained preset topic: %q", fact)
-            }
         }
     })
 }

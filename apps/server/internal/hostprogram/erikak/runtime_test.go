@@ -501,9 +501,6 @@ func TestHakataNoticeBoardIsReadOnlyUntilAuthenticatedAdminPostingExists(t *test
     if board, ok := BoardByPath("1"); !ok || board.RootAuthorPolicy != "sysop_only" {
         t.Fatalf("station staff notice policy not exported: board=%+v ok=%v", board, ok)
     }
-    if board, ok := BoardByPath("3"); !ok || board.RootDiscourseMode != "ask_peers" {
-        t.Fatalf("Q&A should use World-selected question action: board=%+v ok=%v", board, ok)
-    }
     loginGuest(t, runtime)
     runtime.HandleLine("1") // board menu
     runtime.HandleLine("1") // notice board

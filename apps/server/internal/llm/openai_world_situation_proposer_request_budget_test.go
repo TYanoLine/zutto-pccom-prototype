@@ -26,12 +26,11 @@ func TestBBSWorldSituationSendsExpandedCompletionBudget(t *testing.T) {
 			for i := 0; i < tc.events; i++ {
 				id := string(rune('a' + i))
 				events = append(events, BBSWorldWindowEvent{
-					EventID: id, Action: "thread_start",
-					DiscourseMode: "share_observation", BoardName: "GAME",
+					EventID: id, Action: "thread_start", BoardName: "GAME",
 				})
 				wire.Situations[id] = bbsWorldSituationWire{
-					ObjectClass: "game", Occurrence: "a concrete event",
-					Observation: "what happened", NoveltyKey: id,
+					ObjectClass: "game", Occurrence: "a concrete situation",
+					PostContent: "what the post says", NoveltyKey: id,
 				}
 			}
 			generated, err := json.Marshal(wire)
