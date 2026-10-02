@@ -39,7 +39,7 @@ func TestWorldSituationSchemaIsTypedByDiscourseMode(t *testing.T) {
 
 func TestCompactSituationEventsExcludeLegacyPolicyText(t *testing.T) {
 	events := []BBSWorldWindowEvent{{
-		EventID: "e1", BoardID: "4", BoardName: "ゲーム", AuthorHandle: "AKI",
+		EventID: "e1", BoardID: "4", BoardName: "ゲーム", BoardScope: "ゲームについての相談と感想", AuthorHandle: "AKI",
 		CreatedAt: "1996-01-01T20:00:00+09:00", Action: "thread_start",
 		AnchorKey: "games", CauseKind: "board_activity_window",
 		CauseSummary: "THIS SHOULD NOT ENTER THE PROMPT",
@@ -50,7 +50,7 @@ func TestCompactSituationEventsExcludeLegacyPolicyText(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("events=%d", len(got))
 	}
-	if got[0].EventID != "e1" || got[0].DiscourseMode != "share_observation" {
+	if got[0].EventID != "e1" || got[0].DiscourseMode != "share_observation" || got[0].BoardScope != "ゲームについての相談と感想" {
 		t.Fatalf("unexpected compact event: %#v", got[0])
 	}
 }
