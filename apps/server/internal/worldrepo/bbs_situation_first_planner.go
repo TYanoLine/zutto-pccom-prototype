@@ -26,7 +26,11 @@ type productionSituationSeed struct {
 	eventID string
 	slot    bbsengine.Slot
 	mode    string
-	domain  string
+	// anchorKey is the board's identity only. It carries no topic meaning and
+	// is never derived from board wording, host-specific vocabulary or the
+	// author's interests; what may be posted is decided from the board name
+	// and its scope.
+	anchorKey string
 	// kind is internal provenance, not a selected topic or LLM input.
 	kind    string
 	profile string
@@ -125,22 +129,26 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			return nil, fmt.Errorf("board %s only permits SYSOP roots; got author %q", req.Board.ID, slot.Author)
 		}
 		profile, personaFacts := p.personaTitleContext(slot.AuthorPersonaID)
-		persona := p.personaForSituation(slot)
-		domain := productionBoardDomain(req.Board, persona)
+		// The board is identified by its ID only. No topic domain is derived
+		// from board wording or persona interests: hosts and boards are created
+		// dynamically, so what belongs on a board is decided from the board name
+		// and its (non-public) scope, which travel in the event shell below.
+		anchorKey := req.Board.ID
 		mode := demoSelectRootDiscourseMode(req.Host, req.Board, ordinal)
 		if req.Board.RootDiscourseMode != "" {
 			mode = req.Board.RootDiscourseMode
 		}
 		// World fixes the posting event and discourse mode; the Situation
-		// proposer freely resolves its topic from this board, the author's
-		// persisted context, and previously observed subjects. No production
-		// board receives an activity facet, subject catalog or topic quota.
+		// proposer resolves its topic inside the board name and scope. The
+		// author's persisted context only shapes voice and background; it does
+		// not select the topic. No production board receives an activity facet,
+		// subject catalog or topic quota.
 		existing := productionOpenSituationMaterials(personaFacts)
 
 		eventID := fmt.Sprintf("slot-%d", slot.Index)
 
 		seeds = append(seeds, productionSituationSeed{
-			eventID: eventID, slot: slot, mode: mode, domain: domain,
+			eventID: eventID, slot: slot, mode: mode, anchorKey: anchorKey,
 			kind: "open_topic", profile: profile, facts: existing,
 		})
 		events = append(events, llm.BBSWorldWindowEvent{
@@ -151,7 +159,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			AuthorHandle:   slot.Author,
 			CreatedAt:      slot.CreatedAt.Format(time.RFC3339),
 			Action:         "thread_start",
-			AnchorKey:      domain,
+			AnchorKey:      anchorKey,
 			CauseKind:      "board_activity_window",
 			DiscourseMode:  mode,
 			PersonaProfile: profile,
@@ -384,7 +392,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			Motivation:       "world_selected_situation",
 			Stance:           state.draft.Stance,
 			Goal:             productionDiscourseGoal(seed.mode),
-			AnchorKey:        seed.domain,
+			AnchorKey:        seed.anchorKey,
 			DiscourseMode:    seed.mode,
 			SituationKind:    seed.kind,
 			SituationSummary: state.summary,
@@ -396,58 +404,9 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	return out, nil
 }
 
-func (p repositoryBBSBatchPlanner) personaForSituation(slot bbsengine.Slot) world.Persona {
-	if store, ok := p.repo.Base.(world.PersonaStore); ok && slot.AuthorPersonaID != "" {
-		if persona, found := store.PersonaByID(slot.AuthorPersonaID); found {
-			return persona
-		}
-	}
-	return world.Persona{ID: slot.AuthorPersonaID, Handle: slot.Author}
-}
-
-func productionBoardDomain(board world.Board, persona world.Persona) string {
-	// The board's name and leading topic statement describe what belongs here.
-	// Later scope sentences often describe other boards ("ゲームを主題にしない"),
-	// so substring matching the entire scope would invert their meaning.
-	topic := strings.TrimSpace(strings.SplitN(board.SemanticScope, "。", 2)[0])
-	text := strings.ToLower(strings.TrimSpace(board.Name + " " + topic))
-	checks := []struct {
-		words  []string
-		domain string
-	}{
-		{[]string{"アニメ", "漫画", "マンガ", "anime", "manga", "ａｎｉｍｅ", "ｍａｎｇａ"}, "anime_manga"},
-		{[]string{"ゲーム", "game"}, "games"},
-		{[]string{"pc-98", "pc98", "ｐｃ－９８"}, "pc98"},
-		{[]string{"モデム", "modem"}, "modem"},
-		{[]string{"ソフト", "software", "windows", "ワープロ"}, "software"},
-		{[]string{"パソコン通信", "通信", "bbs"}, "communications"},
-		{[]string{"地域", "博多", "天神", "オフ会", "local"}, "local"},
-		{[]string{"ハード", "hardware", "pc-98", "pc88", "msx"}, "hardware"},
-		{[]string{"雑談", "chat"}, "chat"},
-		{[]string{"音楽", "music"}, "music"},
-	}
-	for _, check := range checks {
-		for _, word := range check.words {
-			if strings.Contains(text, word) {
-				if check.domain == "pc98" && (strings.Contains(text, "modem") || strings.Contains(text, "モデム")) {
-					return "pc98_modem"
-				}
-				return check.domain
-			}
-		}
-	}
-	best, bestScore := "chat", 0.0
-	for key, score := range persona.Interests {
-		if score > bestScore {
-			best, bestScore = key, score
-		}
-	}
-	return best
-}
-
 // All live boards use the same open-topic inputs. Only persisted persona
-// facts are supplied as constraints; board identity and posting purpose
-// travel separately in each canonical World event shell.
+// facts are supplied, as background for the author's voice; board identity
+// and posting purpose travel separately in each canonical World event shell.
 func productionOpenSituationMaterials(personaFacts []string) []string {
 	facts := make([]string, 0, len(personaFacts))
 	for _, fact := range personaFacts {
