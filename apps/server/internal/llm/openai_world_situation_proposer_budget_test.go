@@ -5,28 +5,27 @@ import "testing"
 func TestBBSWorldSituationMaxTokensLeavesRoomForTypedBatch(t *testing.T) {
 	cases := []struct {
 		events int
-		min    int
+		want   int
 	}{
-		{1, 2800},
-		{2, 2800},
-		{4, 3800},
-		{6, 5100},
-		{8, 4000},
-		{12, 5600},
+		{0, 1200},
+		{1, 4000},
+		{2, 4000},
+		{3, 6000},
+		{4, 8000},
+		{5, 10000},
+		{6, 12000},
+		{8, 12000},
+		{12, 12000},
 	}
 	for _, tc := range cases {
-		got := bbsWorldSituationMaxTokens(tc.events)
-		if got < tc.min {
-			t.Fatalf("events=%d: got max tokens %d, want >= %d", tc.events, got, tc.min)
-		}
-		if got > 10000 {
-			t.Fatalf("events=%d: got max tokens %d, want <= 10000", tc.events, got)
+		if got := bbsWorldSituationMaxTokens(tc.events); got != tc.want {
+			t.Fatalf("events=%d: got max tokens %d, want %d", tc.events, got, tc.want)
 		}
 	}
 }
 
 func TestBBSWorldSituationMaxTokensCapsLargeBatch(t *testing.T) {
-	if got := bbsWorldSituationMaxTokens(100); got != 10000 {
-		t.Fatalf("got %d, want 10000", got)
+	if got := bbsWorldSituationMaxTokens(100); got != 12000 {
+		t.Fatalf("got %d, want 12000", got)
 	}
 }
