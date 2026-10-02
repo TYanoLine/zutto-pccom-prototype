@@ -26,8 +26,6 @@ type Board struct {
 	// RootAuthorPolicy controls World-selected root authors. The host/station
 	// catalog sets this explicitly; shared code never infers it from board IDs.
 	RootAuthorPolicy string `json:"root_author_policy,omitempty"` // "" or "sysop_only"
-	// RootDiscourseMode fixes a board's conversational act, not its subject.
-	RootDiscourseMode string `json:"root_discourse_mode,omitempty"`
 	ActivityWeight  float64 `json:"activity_weight,omitempty"`
 	ReplyRate       float64 `json:"reply_rate,omitempty"`
 	RetainedRootCap int     `json:"retained_root_cap,omitempty"`
