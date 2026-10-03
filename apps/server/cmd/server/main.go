@@ -157,12 +157,12 @@ func main() {
 		}
 		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
 		// Public test deployment safety: expose the generic reset machinery only
-		// for the persistent experiment station (role: experiment). An unknown
-		// number and a non-experiment host get the same answer on purpose.
+		// for hosts whose definition opts in with debug.http_endpoints. An unknown
+		// number and a host without the flag get the same answer on purpose.
 		host, err := runtimeStore.HostByPhone(phone)
-		if err != nil || !host.IsExperiment() {
+		if err != nil || !host.Debug.HTTPEndpoints {
 			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset is limited to the experiment host"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset is not enabled for this host"})
 			return
 		}
 		if runtimeStore.MaterializationObservationRunning(host.ID) {
@@ -202,12 +202,12 @@ func main() {
 		}
 		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
 		if phone == "" {
-			phone = defaultExperimentPhone(store)
+			phone = defaultDebugEndpointPhone(store)
 		}
 		host, err := runtimeStore.HostByPhone(phone)
-		if err != nil || !host.IsExperiment() {
+		if err != nil || !host.Debug.HTTPEndpoints {
 			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug sample is limited to the experiment host"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug sample is not enabled for this host"})
 			return
 		}
 		boardID := strings.TrimSpace(r.URL.Query().Get("board"))
