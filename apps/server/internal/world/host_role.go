@@ -7,20 +7,38 @@ import (
 	"zutto-pccom/apps/server/internal/hostcatalog"
 )
 
-// IsExperiment reports whether the host is the evaluation station (role:
-// experiment in its preset). Only that host gets the debug auto-reset on connect
-// and the debug reset/sample endpoints, the generation trace and generated-content
-// log, the title-led prose experiment, durable snapshots, and its resident
-// population.
+// IsExperiment reports whether the host has the experiment role in its preset.
+//
+// The role is a label. Debug and experimental behavior (the CONNECT-time article
+// reset, the generation trace, the generated-content log, the debug HTTP
+// endpoints, the title-led prose experiment, debug snapshots) is switched on
+// per host by Host.Debug and Host.Generation, never by the role, a phone number
+// or an ID. The only remaining role-based behavior is the resident population
+// of the evaluation station, which moves into the preset in a later change.
 func (h Host) IsExperiment() bool { return h.Role == hostcatalog.RoleExperiment }
 
 // ExperimentHosts returns every host with the experiment role, ordered by phone.
 func (s *MemoryStore) ExperimentHosts() []Host {
+	return s.hostsWhere(func(h Host) bool { return h.IsExperiment() })
+}
+
+// SnapshotHosts returns every host with debug.snapshot, ordered by phone.
+func (s *MemoryStore) SnapshotHosts() []Host {
+	return s.hostsWhere(func(h Host) bool { return h.Debug.Snapshot })
+}
+
+// DebugEndpointHosts returns every host with debug.http_endpoints, ordered by
+// phone.
+func (s *MemoryStore) DebugEndpointHosts() []Host {
+	return s.hostsWhere(func(h Host) bool { return h.Debug.HTTPEndpoints })
+}
+
+func (s *MemoryStore) hostsWhere(keep func(Host) bool) []Host {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []Host
 	for _, h := range s.hosts {
-		if h.IsExperiment() {
+		if keep(h) {
 			out = append(out, h)
 		}
 	}
