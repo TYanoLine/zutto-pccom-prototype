@@ -1,0 +1,26 @@
+/*
+ * Seven-segment speed field of the digital modem display.
+ * Glyph geometry lives in ModemStatusDisplay.tsx; this file only sizes and
+ * colours it. Layout of the surrounding LCD panel stays in ../styles.css.
+ */
+.modem-lcd__speed { --glyph-height: 27px; }
+.desktop-topbar .modem-lcd__speed { --glyph-height: 24px; }
+
+.modem-lcd__glyph {
+  display: block;
+  flex: 0 0 auto;
+  height: var(--glyph-height);
+  width: calc(var(--glyph-height) * 30 / 62);
+  overflow: visible;
+}
+
+.modem-lcd__seg { fill: rgba(39, 24, 0, 0.1); }
+.modem-lcd__seg[data-on="true"] { fill: #271800; }
+
+.modem-lcd__unit-glyph {
+  display: block;
+  height: calc(var(--glyph-height) * 0.55);
+  width: calc(var(--glyph-height) * 0.55 * 26 / 34);
+  overflow: visible;
+}
+.modem-lcd__speed-unit { margin-left: 1px; }

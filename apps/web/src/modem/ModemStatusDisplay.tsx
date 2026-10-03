@@ -1,5 +1,6 @@
 import type { ModemTelemetry } from './ModemTelemetry';
 import { formatModemBaud, protocolIndicators } from './ModemTelemetry';
+import './ModemStatusDisplay.css';
 
 export type ModemStatusDisplayMode = 'lamps' | 'digital' | 'off';
 
@@ -54,18 +55,114 @@ const lampEntries = [
   ['HS', 'hs'],
 ] as const;
 
+// ---------------------------------------------------------------------------
+// Seven-segment glyph geometry.
+//
+// Each digit is drawn as inline SVG in a 30 x 62 cell. Segments are hexagons
+// whose pointed ends stop short of the corners, so neighbouring segments are
+// separated by a hairline gap (the old CSS-box version let them overlap and the
+// digits clumped together). The whole glyph leans right like the photographed
+// LCD, and unlit segments stay visible as a faint ghost.
+// ---------------------------------------------------------------------------
+const SEGMENT_ORDER = ['a', 'b', 'c', 'd', 'e', 'f', 'g'] as const;
+type SegmentId = (typeof SEGMENT_ORDER)[number];
+
+const THICKNESS = 6;
+const GAP = 1.6;
+const HALF = THICKNESS / 2;
+const LEFT = 3;
+const RIGHT = 23;
+const TOP = 3;
+const MIDDLE = 31;
+const BOTTOM = 59;
+const DIGIT_HEIGHT = 62;
+const SKEW = Math.tan((7 * Math.PI) / 180);
+
+const round = (value: number) => String(Math.round(value * 100) / 100);
+const points = (coords: number[]) =>
+  coords.reduce<string[]>((pairs, value, index) => {
+    if (index % 2 === 0) pairs.push(`${round(value)},${round(coords[index + 1])}`);
+    return pairs;
+  }, []).join(' ');
+
+function horizontalSegment(y: number) {
+  const start = LEFT + GAP;
+  const end = RIGHT - GAP;
+  return points([
+    start, y,
+    start + HALF, y - HALF,
+    end - HALF, y - HALF,
+    end, y,
+    end - HALF, y + HALF,
+    start + HALF, y + HALF,
+  ]);
+}
+
+function verticalSegment(x: number, from: number, to: number) {
+  const start = from + GAP;
+  const end = to - GAP;
+  return points([
+    x, start,
+    x + HALF, start + HALF,
+    x + HALF, end - HALF,
+    x, end,
+    x - HALF, end - HALF,
+    x - HALF, start + HALF,
+  ]);
+}
+
+const SEGMENT_POINTS: Record<SegmentId, string> = {
+  a: horizontalSegment(TOP),
+  b: verticalSegment(RIGHT, TOP, MIDDLE),
+  c: verticalSegment(RIGHT, MIDDLE, BOTTOM),
+  d: horizontalSegment(BOTTOM),
+  e: verticalSegment(LEFT, MIDDLE, BOTTOM),
+  f: verticalSegment(LEFT, TOP, MIDDLE),
+  g: horizontalSegment(MIDDLE),
+};
+
+const skewTransform = (height: number) =>
+  `matrix(1 0 ${Math.round(-SKEW * 10000) / 10000} 1 ${round(SKEW * height)} 0)`;
+
 function SevenSegmentDigit({ digit }: { digit: string }) {
   const active = sevenSegmentMap[digit] ?? [];
   return (
-    <span className="modem-lcd__digit" aria-hidden="true">
-      {(['a', 'b', 'c', 'd', 'e', 'f', 'g'] as const).map(segment => (
-        <span
-          key={segment}
-          className={`modem-lcd__segment modem-lcd__segment--${segment}`}
-          data-on={active.includes(segment) ? 'true' : 'false'}
-        />
-      ))}
-    </span>
+    <svg
+      className="modem-lcd__glyph"
+      viewBox={`0 0 30 ${DIGIT_HEIGHT}`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <g transform={skewTransform(DIGIT_HEIGHT)}>
+        {SEGMENT_ORDER.map(segment => (
+          <polygon
+            key={segment}
+            className={`modem-lcd__seg modem-lcd__seg--${segment}`}
+            data-on={active.includes(segment) ? 'true' : 'false'}
+            points={SEGMENT_POINTS[segment]}
+          />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
+// "K" drawn with strokes of the same weight as the digit segments.
+function KiloGlyph() {
+  return (
+    <svg className="modem-lcd__unit-glyph" viewBox="0 0 26 34" aria-hidden="true" focusable="false">
+      <g
+        transform={skewTransform(34)}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="4.6"
+        strokeLinejoin="miter"
+      >
+        <path d="M3 0V34" />
+        <path d="M3 20L17 0" />
+        <path d="M5 17.5L19 34" />
+      </g>
+    </svg>
   );
 }
 
@@ -81,7 +178,7 @@ function SegmentedSpeed({ value }: { value: string }) {
         }
         return (
           <span className="modem-lcd__speed-unit" key={`${character}-${index}`} aria-hidden="true">
-            {character}
+            {character === 'K' ? <KiloGlyph /> : character}
           </span>
         );
       })}
