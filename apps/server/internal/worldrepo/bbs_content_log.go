@@ -28,6 +28,9 @@ type generatedContentLog struct {
 	Body             string   `json:"body,omitempty"`
 }
 
+// SetDebugLogHAKATAGenerated is the process-wide switch for the generated
+// content log. A host is logged only when this is on and the host opted in with
+// debug.content_log. (The HAKATA-specific name is historical.)
 func (r *Repository) SetDebugLogHAKATAGenerated(enabled bool) {
 	if r != nil {
 		r.debugLogHAKATAGenerated = enabled
@@ -35,7 +38,7 @@ func (r *Repository) SetDebugLogHAKATAGenerated(enabled bool) {
 }
 
 func (r *Repository) shouldLogHAKATAGenerated(host world.Host) bool {
-	return r != nil && r.debugLogHAKATAGenerated && host.IsExperiment()
+	return r != nil && r.debugLogHAKATAGenerated && host.Debug.ContentLog
 }
 
 // Called only after an observation has returned. Read the store again instead
@@ -58,7 +61,7 @@ func (r *Repository) logNewBBSHeaders(host world.Host, board world.Board, before
 
 func (r *Repository) logBBSGeneratedContent(stage string, host world.Host, board world.Board, post world.Post) {
 	if !r.shouldLogHAKATAGenerated(host) || post.Intent.Action != bbsengine.ActionWorldCatchup {
-		return // Never log human posts or content from other hosts.
+		return // Never log human posts or content from hosts that did not opt in.
 	}
 	entry := generatedContentLog{
 		Stage: stage, Host: host.ID, Board: board.ID, PostID: post.ID,
