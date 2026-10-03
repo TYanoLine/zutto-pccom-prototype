@@ -11,8 +11,8 @@ import (
 // this guards both the YAML content and the descriptor -> Host conversion.
 func TestPresetHostsMatchHistoricalFixtures(t *testing.T) {
 	want := []Host{
-		{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, FoundedOn: "1994-11-03", ANSI: false, GuestAllowed: true, TelehoFriendly: true},
-		{ID: "busy-test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, FoundedOn: "1993-09-15", ANSI: true, GuestAllowed: true},
+		{ID: "hakata-canal-net", Role: "experiment", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, FoundedOn: "1994-11-03", ANSI: false, GuestAllowed: true, TelehoFriendly: true},
+		{ID: "busy-test", Role: "test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, FoundedOn: "1993-09-15", ANSI: true, GuestAllowed: true},
 	}
 	store := NewMemoryStore()
 	for _, w := range want {
@@ -68,13 +68,4 @@ func TestHostFromDescriptor(t *testing.T) {
 	if h := HostFromDescriptor(d); h.Software != "絵理香K版" || h.SoftwareID != "erika-k" {
 		t.Fatalf("label/program mapping: %+v", h)
 	}
-}
-
-func TestMustPresetHostPanicsWhenMissing(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected a panic for a missing preset host")
-		}
-	}()
-	mustPresetHost(map[string]Host{}, "hakata-canal-net")
 }

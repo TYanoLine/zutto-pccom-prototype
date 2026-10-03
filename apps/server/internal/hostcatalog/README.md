@@ -3,11 +3,11 @@
 The canonical description of a BBS host, plus the preset hosts defined as YAML.
 
 **Status.** `world.NewMemoryStore` builds its hosts from these presets through
-`world.HostFromDescriptor`; the hosts are no longer hard-coded there. The HAKATA
-resident population is still keyed to the preset key in `world/store.go`. Not
-driven by these files yet: the directory the web client shows
-(`CenterDirectory.ts`), the dial behaviors in `telephone`, and the
-HAKATA-specific server code.
+`world.HostFromDescriptor`, which also carries the preset `role` into
+`world.Host.Role`; the hosts are no longer hard-coded there. Not driven by these
+files yet: the directory the web client shows (`CenterDirectory.ts`), the dial
+behaviors in `telephone`, and what the Erika-K runtime says (welcome text,
+boards, SYSOP), which is still HAKATA's.
 
 `hostcatalog` must not import `world` (the store imports it), so the
 descriptor -> `world.Host` conversion lives in `world`.
@@ -86,8 +86,14 @@ implemented.
 
 - A published `key` and `phone` must not change: players already know the number
   and posts are keyed by the host.
-- `hakata-canal-net` is required: `NewMemoryStore` keys the resident population
-  to it and panics if it is missing.
+- `role: experiment` marks the evaluation station. What used to be keyed on
+  HAKATA's phone number or ID now follows the role (`world.Host.IsExperiment`):
+  the debug auto-reset on CONNECT, the debug reset/sample endpoints, durable
+  snapshots and the startup baseline clear, the generation trace and
+  generated-content log, the title-led prose experiment, and the resident
+  population. At most one preset may have it, because the population generator
+  uses fixed persona IDs; loading panics otherwise. Without any experiment host
+  those features are simply off.
 - Raise `revision` whenever the content changes. Existing worlds keep the content
   they were created with (only `listed` is meant to follow the file).
 - Reserve numbers by passing `Options.ReservedPhones`; presets and (later)

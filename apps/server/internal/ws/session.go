@@ -41,14 +41,12 @@ type serverMessage struct {
 	Text      string      `json:"text,omitempty"`
 }
 
-const debugAutoResetPhone = "0920000196"
-
 type debugBBSConnectionPreparer interface {
 	PrepareDebugBBSConnection(host world.Host) (removed int, kept int, ok bool)
 }
 
 func prepareDebugBBSConnection(store world.Store, host world.Host) bool {
-	if host.Phone != debugAutoResetPhone {
+	if !host.IsExperiment() {
 		return true
 	}
 	preparer, ok := store.(debugBBSConnectionPreparer)

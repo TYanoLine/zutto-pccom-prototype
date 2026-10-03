@@ -87,7 +87,7 @@ func (r *Repository) GenerationTraceSnapshot() GenerationTraceSnapshot {
 }
 
 func (r *Repository) beginGenerationTrace(ctx context.Context, host world.Host, board world.Board, kind string, postID int64) (context.Context, func(error)) {
-	if r == nil || r.generationTrace == nil || host.ID != hakataGeneratedContentHostID {
+	if r == nil || r.generationTrace == nil || !host.IsExperiment() {
 		return ctx, func(error) {}
 	}
 	store := r.generationTrace
