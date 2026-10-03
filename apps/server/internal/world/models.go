@@ -17,6 +17,10 @@ type Host struct {
 	ANSI           bool    `json:"ansi"`
 	GuestAllowed   bool    `json:"guest_allowed"`
 	TelehoFriendly bool    `json:"teleho_friendly"`
+	// Role is an operational tag copied from the host definition ("experiment",
+	// "test", ...). Behavior that only the evaluation station gets is keyed on it,
+	// never on a phone number or ID.
+	Role string `json:"role,omitempty"`
 }
 
 type Board struct {
