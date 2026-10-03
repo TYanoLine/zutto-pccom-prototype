@@ -3,10 +3,10 @@
 The canonical description of a BBS host, plus the preset hosts defined as YAML.
 
 **Status.** `world.NewMemoryStore` builds its hosts from these presets through
-`world.HostFromDescriptor`; the five hosts are no longer hard-coded there. Seed
-posts and the HAKATA resident population are still keyed to the preset keys in
-`world/store.go`. Not driven by these files yet: the directory the web client
-shows (`CenterDirectory.ts`), the dial behaviors in `telephone`, and the
+`world.HostFromDescriptor`; the hosts are no longer hard-coded there. The HAKATA
+resident population is still keyed to the preset key in `world/store.go`. Not
+driven by these files yet: the directory the web client shows
+(`CenterDirectory.ts`), the dial behaviors in `telephone`, and the
 HAKATA-specific server code.
 
 `hostcatalog` must not import `world` (the store imports it), so the
@@ -84,8 +84,9 @@ implemented.
 
 - A published `key` and `phone` must not change: players already know the number
   and posts are keyed by the host.
-- `hakata-canal-net`, `moonlight-yokohama` and `silver-horizon-bbs` are required:
-  `NewMemoryStore` keys its seed data to them and panics if one is missing.
+- `hakata-canal-net` is required: `NewMemoryStore` keys the resident population
+  to it and panics if it is missing. `quiet-test` is the hidden generic-runtime
+  fixture that several tests dial; keep it unless those tests are changed.
 - Raise `revision` whenever the content changes. Existing worlds keep the content
   they were created with (only `listed` is meant to follow the file).
 - Reserve numbers by passing `Options.ReservedPhones`; presets and (later)
