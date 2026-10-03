@@ -7,13 +7,14 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
+// turboTestHost is a TurboBBS station defined only for these tests.
+func turboTestHost() world.Host {
+	return world.Host{ID: "turbobbs-test", Name: "TURBOBBS TEST", Software: "TurboBBS 1.08 compatible", SoftwareID: "turbobbs", Lines: 1, MaxBaud: 2400}
+}
+
 func TestNewSelectsTurboBBSRuntime(t *testing.T) {
 	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0470001080")
-	if err != nil {
-		t.Fatal(err)
-	}
-	runtime := New(host, store)
+	runtime := New(turboTestHost(), store)
 
 	if got := runtime.Welcome(); !strings.Contains(got, "TurboBBS version 1.08") {
 		t.Fatalf("TurboBBS host used wrong runtime: %q", got)
@@ -41,11 +42,7 @@ func TestReplyRepresentationIsHostProgramSpecific(t *testing.T) {
 		t.Fatalf("Erika-K reply projection=%+v, want append child with no subject", got)
 	}
 
-	turbo, err := store.HostByPhone("0470001080")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err = ProjectReply(turbo, source, "返信用件名")
+	got, err = ProjectReply(turboTestHost(), source, "返信用件名")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +50,7 @@ func TestReplyRepresentationIsHostProgramSpecific(t *testing.T) {
 		t.Fatalf("TurboBBS reply projection=%+v, want flat message with proposed subject", got)
 	}
 
-	generic, err := store.HostByPhone("0451234567")
+	generic, err := store.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}

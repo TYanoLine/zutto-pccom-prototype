@@ -46,10 +46,11 @@ npm run dev
 Open the Vite URL and type:
 
 ```text
-ATDT0451234567
+ATDT0450000001
 ```
 
-Once connected:
+That is the generic-runtime test host (see the fixture numbers below). Once
+connected:
 
 ```text
 H  help
@@ -61,11 +62,12 @@ G  goodbye
 
 `A/` repeats the previous dial. AUTO REDIAL is enabled by default.
 
-Prototype fixture numbers:
+Prototype hosts are defined in `apps/server/internal/hostcatalog/presets/`
+(see its README):
 
-- `0451234567` — normal sample host, dynamic BUSY probability
-- `0450000001` — nearly guaranteed connection for testing
-- `0459999999` — deliberately busy for the first few attempts to exercise redial
+- `0920000196` — HAKATA CANAL NET, the sample station, running the Erika-K style runtime (its commands differ from the list above)
+- `0450000001` — hidden test host on the generic runtime, nearly guaranteed connection for testing
+- `0459999999` — hidden test host, deliberately busy for the first few attempts to exercise redial
 
 ## PostgreSQL scaffold
 

@@ -3,17 +3,30 @@ package turbobbs
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
 
+// sampleHost is a TurboBBS station defined only for these tests. Its settings
+// (2400 bps, one line, no guests) are what the runtime tests were written against.
+func sampleHost() world.Host {
+	return world.Host{ID: "turbobbs-test", Phone: "0470000001", Name: "TURBOBBS TEST", Region: "千葉県", Software: "TurboBBS 1.08 compatible", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, FoundedOn: "1989-08-20", ANSI: false, GuestAllowed: false, TelehoFriendly: true}
+}
+
+// sampleRuntime returns a runtime over a store that already holds four messages
+// (#601-#604, one per section 1/4/2/8) posted before the saved high-water mark.
 func sampleRuntime(t *testing.T) (*Runtime, *world.MemoryStore) {
 	t.Helper()
 	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0470001080")
-	if err != nil {
-		t.Fatalf("sample TurboBBS host: %v", err)
-	}
+	host := sampleHost()
+	store.SaveHost(host)
+	store.ReplaceHostPosts(host.ID, []world.Post{
+		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "まだ動いてます", Body: "1980年代から手を入れながら使っているTurboBBSです。\r\n古い作りですが、のんびり使ってください(^^)", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, time.Local)},
+		{ID: 602, BoardID: "4", Author: "TARO YAMADA", Subject: "2400bpsモデム", Body: "高速局が増えましたが、このくらいの速度も落ち着きますね。\r\n巡回にはちょっと時間がかかります(^^;", CreatedAt: time.Date(1996, 8, 25, 0, 14, 0, 0, time.Local)},
+		{ID: 603, BoardID: "2", Author: "MIKA", Subject: "98のDOS環境", Body: "CONFIG.SYSを整理したら空きメモリが少し増えました。\r\nまだDOSも手放せません。", CreatedAt: time.Date(1996, 8, 25, 21, 47, 0, 0, time.Local)},
+		{ID: 604, BoardID: "8", Author: "KEN", Subject: "夏も終わりかな", Body: "夜は少し涼しくなってきましたね。\r\n電話代を気にしつつ、また深夜に来ます(笑)", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, time.Local)},
+	})
 	return New(host, store), store
 }
 
@@ -32,7 +45,7 @@ func TestWelcomeAndNewUserFlow(t *testing.T) {
 	runtime, _ := sampleRuntime(t)
 
 	welcome := runtime.Welcome()
-	for _, want := range []string{"SILVER HORIZON BBS", "TurboBBS version 1.08", "What is your full name?"} {
+	for _, want := range []string{"TURBOBBS TEST", "TurboBBS version 1.08", "What is your full name?"} {
 		if !strings.Contains(welcome, want) {
 			t.Fatalf("welcome missing %q: %q", want, welcome)
 		}
@@ -150,5 +163,26 @@ func TestObservationBoardsAreTurboBBSSections(t *testing.T) {
 	}
 	if boards[0].ID != "1" || boards[0].Name != "GENERAL" {
 		t.Fatalf("unexpected first section: %+v", boards[0])
+	}
+}
+
+func TestReadmeNamesTheHostItIsRunningOn(t *testing.T) {
+	runtime, _ := sampleRuntime(t)
+	loginRegular(t, runtime)
+
+	for _, in := range []string{"F", "T"} {
+		if _, disconnect := runtime.HandleLine(in); disconnect {
+			t.Fatalf("%q disconnected", in)
+		}
+	}
+	out, disconnect := runtime.HandleLine("README.TXT")
+	if disconnect {
+		t.Fatal("README.TXT disconnected")
+	}
+	if !strings.Contains(out, "TURBOBBS TEST user information.") {
+		t.Fatalf("README does not use the host name: %q", out)
+	}
+	if strings.Contains(out, "SILVER HORIZON") {
+		t.Fatalf("README still contains a hard-coded station name: %q", out)
 	}
 }

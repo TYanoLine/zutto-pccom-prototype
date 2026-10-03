@@ -9,7 +9,7 @@ import (
 
 func TestWritePersistsInMemory(t *testing.T) {
 	store := world.NewMemoryStore()
-	h, err := store.HostByPhone("0451234567")
+	h, err := store.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,14 +11,6 @@ export type RegisteredCenter = {
 
 export const DEFAULT_CENTERS: RegisteredCenter[] = [
   {
-    id: 'yokohama-moonlight',
-    name: 'YOKOHAMA MOONLIGHT NETWORK',
-    phone: '0451234567',
-    dialMode: 'tone',
-    maxBaud: 28800,
-    builtIn: true,
-  },
-  {
     id: 'hakata-canal-net',
     name: 'HAKATA CANAL NET [絵理香K版]',
     phone: '0920000196',

@@ -631,7 +631,7 @@ func (r *Runtime) handleFileType(line string) (string, bool) {
 	r.state = "file"
 	switch strings.ToUpper(strings.TrimSpace(line)) {
 	case "README.TXT":
-		return "\r\nSILVER HORIZON BBS user information.\r\nPlease leave comments for the Sysop if you find a problem.\r\n" + r.filePrompt(), false
+		return fmt.Sprintf("\r\n%s user information.\r\nPlease leave comments for the Sysop if you find a problem.\r\n", r.Host.Name) + r.filePrompt(), false
 	case "BBSINFO/BULLETIN.TXT":
 		return "\r\nThe station is running normally.\r\n" + r.filePrompt(), false
 	default:

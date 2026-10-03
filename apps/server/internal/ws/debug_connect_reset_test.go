@@ -25,7 +25,7 @@ func TestPrepareDebugBBSConnectionRunsOnlyForHakata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := base.HostByPhone("0470001080")
+	other, err := base.HostByPhone("0450000001")
 	if err != nil {
 		t.Fatal(err)
 	}
