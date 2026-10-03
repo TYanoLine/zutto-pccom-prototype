@@ -37,12 +37,45 @@ func (p *fakeBatchPlanner) PlanBBSBatch(_ context.Context, req BatchRequest) ([]
 	return out, nil
 }
 
+// The engine tests need a normally busy generic-runtime host and a TurboBBS-style
+// host, each with a little existing history. Both are defined here so no
+// production station is needed. Activity matters: the engine's batch size grows
+// with popularity (3 + round(popularity*3)) and every fourth event is a reply, so
+// a nearly idle host would never produce reply topology.
+func genericTestHost(store *world.MemoryStore) world.Host {
+	host := world.Host{ID: "generic-test", Phone: "0450000010", Name: "GENERIC TEST BBS", Region: "神奈川県", Software: "generic", SoftwareID: "generic", Lines: 4, Popularity: .70, MaxBaud: 14400, Members: 187, FoundedOn: "1994-06-12", ANSI: true, GuestAllowed: true, TelehoFriendly: true}
+	store.SaveHost(host)
+	seedFreeTalk(store, host.ID)
+	return host
+}
+
+// seedFreeTalk gives a host a small "main" board history before the test's world
+// time, like the stations these tests were originally written against.
+func seedFreeTalk(store *world.MemoryStore, hostID string) {
+	store.ReplaceHostPosts(hostID, []world.Post{
+		{ID: 1, BoardID: "main", Author: "SYSOP", Subject: "seed 1", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 21, 14, 0, 0, time.Local)},
+		{ID: 2, BoardID: "main", Author: "NEKO", Subject: "seed 2", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 0, 42, 0, 0, time.Local)},
+		{ID: 3, BoardID: "main", Author: "TAKA", Subject: "seed 3", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 1, 7, 0, 0, time.Local)},
+	})
+}
+
+// turboTestHost registers a TurboBBS-style host (sections "1".."10") with one
+// existing message per section 1/4/2/8 before the test's world time.
+func turboTestHost(store *world.MemoryStore) world.Host {
+	host := world.Host{ID: "turbobbs-test", Phone: "0470000001", Name: "TURBOBBS TEST", Software: "TurboBBS 1.08 compatible", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, FoundedOn: "1989-08-20", TelehoFriendly: true}
+	store.SaveHost(host)
+	store.ReplaceHostPosts(host.ID, []world.Post{
+		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "seed 1", Body: "seed history", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, time.Local)},
+		{ID: 602, BoardID: "4", Author: "TARO YAMADA", Subject: "seed 2", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 0, 14, 0, 0, time.Local)},
+		{ID: 603, BoardID: "2", Author: "MIKA", Subject: "seed 3", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 21, 47, 0, 0, time.Local)},
+		{ID: 604, BoardID: "8", Author: "KEN", Subject: "seed 4", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, time.Local)},
+	})
+	return host
+}
+
 func TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime(t *testing.T) {
 	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0451234567")
-	if err != nil {
-		t.Fatal(err)
-	}
+	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク"}
 	planner := &fakeBatchPlanner{}
 	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
@@ -108,10 +141,7 @@ func TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime(t *testing.T) {
 
 func TestSharedEngineResetRemovesOnlyGeneratedHistory(t *testing.T) {
 	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0451234567")
-	if err != nil {
-		t.Fatal(err)
-	}
+	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク"}
 	planner := &fakeBatchPlanner{}
 	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
@@ -164,24 +194,22 @@ func TestSharedEngineWorksForDifferentHostPrograms(t *testing.T) {
 	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
 	engine := New(store, planner, func() time.Time { return now })
 
+	generic := genericTestHost(store)
 	cases := []struct {
-		phone string
+		name  string
+		host  world.Host
 		board world.Board
 	}{
-		{"0451234567", world.Board{ID: "main", Name: "フリートーク"}},
-		{"0470001080", world.Board{ID: "8", Name: "LOCAL TALK"}},
+		{"generic", generic, world.Board{ID: "main", Name: "フリートーク"}},
+		{"turbobbs", turboTestHost(store), world.Board{ID: "8", Name: "LOCAL TALK"}},
 	}
 	for _, tc := range cases {
-		host, err := store.HostByPhone(tc.phone)
-		if err != nil {
-			t.Fatal(err)
+		before := len(store.ListPosts(tc.host.ID))
+		if err := engine.CatchUp(context.Background(), tc.host, tc.board); err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
 		}
-		before := len(store.ListPosts(host.ID))
-		if err := engine.CatchUp(context.Background(), host, tc.board); err != nil {
-			t.Fatalf("%s: %v", tc.phone, err)
-		}
-		if len(store.ListPosts(host.ID)) <= before {
-			t.Fatalf("%s: no generated posts", tc.phone)
+		if len(store.ListPosts(tc.host.ID)) <= before {
+			t.Fatalf("%s: no generated posts", tc.name)
 		}
 	}
 }
@@ -382,10 +410,7 @@ func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testin
 
 func TestReplyProjectorCanDecoupleSemanticResponseFromNativeTopology(t *testing.T) {
 	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0470001080")
-	if err != nil {
-		t.Fatal(err)
-	}
+	host := turboTestHost(store)
 	board := world.Board{ID: "8", Name: "LOCAL TALK"}
 	planner := &fakeBatchPlanner{}
 	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
