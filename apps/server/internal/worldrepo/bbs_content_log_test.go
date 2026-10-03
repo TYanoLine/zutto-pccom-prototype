@@ -82,6 +82,7 @@ func TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
 	repo.SetDebugLogHAKATAGenerated(true)
 	other := host
 	other.ID = "some-other-host"
+	other.Role = "" // a different, non-experiment host
 	if got := captureGeneratedContentRecords(t, func() { repo.logBBSGeneratedContent("header_committed", other, board, newPost) }); len(got) != 0 {
 		t.Fatalf("audit leaked to another host: %+v", got)
 	}
