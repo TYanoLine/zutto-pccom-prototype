@@ -53,7 +53,7 @@ const standaloneLine = wsURL.length === 0;
 const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefined)?.trim() ?? '';
 const worldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate) ? configuredWorldDate : '1996-08-26';
 const configuredTelehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS as string | undefined)?.trim();
-const telehodaiNumbers = (configuredTelehodaiNumbers || '0451234567,0450000001').split(',').map((phone: string) => phone.trim()).filter(Boolean);
+const telehodaiNumbers = (configuredTelehodaiNumbers || '0920000196').split(',').map((phone: string) => phone.trim()).filter(Boolean);
 const SETTINGS_KEY = 'zutto.commSettings.v1';
 
 type ActiveCall = { phone: string; connectedAt: Date };
@@ -208,7 +208,7 @@ export default function App() {
     terminal.write('                     \x1b[30;46m　ターミナル・モード　\x1b[0m\r\n\r\n');
     terminal.write(` 通信条件: ${commSettings.dteBaud}bps / ${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits} / ${commSettings.flowControl.toUpperCase()}\r\n`);
     terminal.write(' モデムコマンドを直接入力できます。\r\n');
-    terminal.write(' 例: ATDT0450000196\r\n');
+    terminal.write(' 例: ATDT0920000196\r\n');
     terminal.write('     ATDL          （直前の番号へ再発信）\r\n');
     terminal.write('     ATH           （切断）\r\n\r\n');
     terminal.write(' オフライン時は ESC キーでメイン・メニューへ戻ります。\r\n');
