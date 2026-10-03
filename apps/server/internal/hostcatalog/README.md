@@ -12,6 +12,8 @@ boards, SYSOP), which is still HAKATA's.
 `hostcatalog` must not import `world` (the store imports it), so the
 descriptor -> `world.Host` conversion lives in `world`.
 
+Design, rules and open work for host definitions: `docs/HOST_DEFINITION.md`.
+
 ## Three layers
 
 | Layer | Type | When it is fixed | Mutable? |
@@ -90,8 +92,9 @@ implemented.
   HAKATA's phone number or ID now follows the role (`world.Host.IsExperiment`):
   the debug auto-reset on CONNECT, the debug reset/sample endpoints, durable
   snapshots and the startup baseline clear, the generation trace and
-  generated-content log, the title-led prose experiment, and the resident
-  population. At most one preset may have it, because the population generator
+  generated-content log, the title-led prose experiment, the resident
+  population, and the web client's generation-trace link (the server reports
+  `role` in `dial_result.host`). At most one preset may have it, because the population generator
   uses fixed persona IDs; loading panics otherwise. Without any experiment host
   those features are simply off.
 - Raise `revision` whenever the content changes. Existing worlds keep the content

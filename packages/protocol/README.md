@@ -19,6 +19,8 @@ Server -> client:
 {"type":"carrier","result":"off"}
 ```
 
+`host` is the world host of the call. It includes `role` (for example `"experiment"`) only when the host has one; a client treats its absence as an ordinary host. The browser uses it to show the generation-trace link and must not infer behavior from a phone number.
+
 ## Intended V1 boundary
 
 The BBS runtime must eventually consume/produce bytes through a `Transport`, with CP932/Shift_JIS encoding at the line boundary. WebSocket control messages should remain for DIAL / carrier metadata, while terminal traffic can move to binary frames.

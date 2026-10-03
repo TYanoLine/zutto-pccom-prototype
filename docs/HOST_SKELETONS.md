@@ -21,8 +21,15 @@ The current distributions for host-program family, line count, founding date, po
 
 The host-program family labels name historically researched families, but their present selection weights are not historically validated. Replace the weights when primary or strong secondary evidence is available. Host-program-specific menus, commands, board models, mail, chat, file transfer, unread tracking, and other behavior remain responsibilities of separate host runtimes; the skeleton must not create a fictional shared host UI.
 
-## HAKATA generator-evaluation exception
+## Preset hosts
 
-Successful reconnects temporarily reset this fixed station's article sample,
-allowing repeated quality checks. Other persistent-world data and hosts are not
-reset through that station-specific mechanism.
+Not every host is generated. Fixed stations such as HAKATA CANAL NET are defined as
+YAML presets (`apps/server/internal/hostcatalog/presets/`). They are not rolled from
+the world seed and keep their phone numbers. How hosts are defined, listed and given
+roles is described in `HOST_DEFINITION.md`.
+
+## Experiment-host exception
+
+Successful reconnects temporarily reset the article sample of the host with
+`role: experiment` (currently HAKATA CANAL NET), allowing repeated quality checks.
+Other persistent-world data and hosts are not reset through that mechanism.
