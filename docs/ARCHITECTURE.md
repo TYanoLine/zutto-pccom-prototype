@@ -279,10 +279,20 @@ Recommended order for prompt-cache friendliness:
 
 Do not send all historical logs. Retrieve only relevant facts and summarize old history.
 
+## Host definitions and roles
+
+Hosts are data, not code. A host's skeleton (`HostDescriptor`) comes from an embedded
+YAML preset or from the per-world generated catalog; its `role` (`experiment`,
+`test`, ...) and its `listed` flag are part of that definition. Appearing in the
+directory and being dialable are separate things. Operational behavior that only the
+evaluation station gets follows `role: experiment`, never a phone number or ID.
+Rules, status and open work: `docs/HOST_DEFINITION.md`.
+
 ## Temporary HAKATA generator evaluation mode
 
-While the shared BBS article generator is being evaluated, the fixed experiment
-station `0920000196` has **no article seed at all**. The former hand-authored
+While the shared BBS article generator is being evaluated, the experiment host
+(`role: experiment`, currently the fixed HAKATA station `0920000196`) has **no article
+seed at all**. The former hand-authored
 sample posts and the generated 40-root-per-board baseline have been removed.
 The station keeps a sparse membership population matching the code-defined
 `Host.Members` count (currently 326). These records are cheap identity/activity
@@ -325,6 +335,7 @@ Current code intentionally still has shortcuts, including:
 - JSON WebSocket rather than a binary CP932 stream
 - memory store rather than PostgreSQL as the live repository
 - incomplete historical host-program coverage
+- generated hosts are listed by the catalog but are not yet dialable (the dial path has no world scope)
 - incomplete real line-occupancy/NPC scheduler
 - simplified terminal/ANSI behavior
 - atmospheric rather than fully historical telephone tariffs
