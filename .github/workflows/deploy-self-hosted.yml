@@ -9,6 +9,9 @@ on:
       - '.github/workflows/deploy-self-hosted.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   deploy:
     runs-on: self-hosted
