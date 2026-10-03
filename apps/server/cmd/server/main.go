@@ -157,16 +157,12 @@ func main() {
 		}
 		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
 		// Public test deployment safety: expose the generic reset machinery only
-		// for the current persistent HAKATA experiment station.
-		if phone != erikaKExperimentPhone {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset currently allows only 0920000196"})
-			return
-		}
+		// for the persistent experiment station (role: experiment). An unknown
+		// number and a non-experiment host get the same answer on purpose.
 		host, err := runtimeStore.HostByPhone(phone)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "host not found"})
+		if err != nil || !host.IsExperiment() {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset is limited to the experiment host"})
 			return
 		}
 		if runtimeStore.MaterializationObservationRunning(host.ID) {
@@ -206,17 +202,12 @@ func main() {
 		}
 		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
 		if phone == "" {
-			phone = erikaKExperimentPhone
-		}
-		if phone != erikaKExperimentPhone {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug sample currently allows only 0920000196"})
-			return
+			phone = defaultExperimentPhone(store)
 		}
 		host, err := runtimeStore.HostByPhone(phone)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "host not found"})
+		if err != nil || !host.IsExperiment() {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug sample is limited to the experiment host"})
 			return
 		}
 		boardID := strings.TrimSpace(r.URL.Query().Get("board"))
