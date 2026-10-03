@@ -8,6 +8,8 @@ Read, in order:
 2. `docs/ARCHITECTURE.md`
 3. `docs/LLM_POLICY.md`
 4. `packages/protocol/README.md`
+5. `docs/HOST_DEFINITION.md` (host definitions, roles, the experiment station)
+6. `AGENTS.md` (design rules and working agreements)
 
 ## Preserve these invariants
 
@@ -39,6 +41,8 @@ Read, in order:
 - Add transactions/unique constraints so concurrent first calls cannot generate two different hosts.
 
 ### M2 — host generation
+
+Status: preset hosts (`HostDescriptor`, YAML presets, `listed`, `role`) are in place; generated hosts becoming dialable, region/traits and per-program detail are not. See `docs/HOST_DEFINITION.md`.
 
 - Region profile + phone number stable seed.
 - Host facts first, LLM enrichment second.
