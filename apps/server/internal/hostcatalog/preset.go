@@ -17,14 +17,16 @@ const PresetSchemaVersion = 1
 // "not specified" can be told apart from a zero value. Decoding is strict:
 // unknown keys are errors, so a typo never silently becomes a default.
 type presetFile struct {
-	Schema   int          `yaml:"schema"`
-	Key      string       `yaml:"key"`
-	Revision int          `yaml:"revision"`
-	Listed   *bool        `yaml:"listed"`
-	Role     string       `yaml:"role"`
-	Host     presetHost   `yaml:"host"`
-	Dial     presetDial   `yaml:"dial"`
-	Detail   PresetDetail `yaml:"detail"`
+	Schema     int             `yaml:"schema"`
+	Key        string          `yaml:"key"`
+	Revision   int             `yaml:"revision"`
+	Listed     *bool           `yaml:"listed"`
+	Role       string          `yaml:"role"`
+	Host       presetHost      `yaml:"host"`
+	Dial       presetDial      `yaml:"dial"`
+	Debug      DebugFlags      `yaml:"debug"`
+	Generation GenerationFlags `yaml:"generation"`
+	Detail     PresetDetail    `yaml:"detail"`
 }
 
 type presetHost struct {
@@ -90,7 +92,12 @@ type Preset struct {
 
 	DialMode string
 	Dial     DialBehavior
-	Detail   PresetDetail
+
+	// Debug and GenerationFlags are opt-in per host; absent means off.
+	Debug           DebugFlags
+	GenerationFlags GenerationFlags
+
+	Detail PresetDetail
 }
 
 // ParsePreset decodes and validates one preset file. file is the base name
@@ -187,27 +194,29 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 		return Preset{}, errors.Join(errs...)
 	}
 	return Preset{
-		Source:         file,
-		Key:            f.Key,
-		Revision:       f.Revision,
-		Listed:         listed,
-		Role:           f.Role,
-		Name:           strings.TrimSpace(h.Name),
-		Phone:          h.Phone,
-		Region:         region,
-		Program:        h.Program,
-		SoftwareLabel:  strings.TrimSpace(h.SoftwareLabel),
-		Lines:          h.Lines,
-		MaxBaud:        h.MaxBaud,
-		FoundedOn:      h.FoundedOn,
-		Popularity:     h.Popularity,
-		Members:        h.Members,
-		ANSI:           h.Traits.ANSI,
-		GuestAllowed:   h.Traits.GuestAllowed,
-		TelehoFriendly: h.Traits.TelehoFriendly,
-		DialMode:       dialMode,
-		Dial:           dial,
-		Detail:         f.Detail,
+		Source:          file,
+		Key:             f.Key,
+		Revision:        f.Revision,
+		Listed:          listed,
+		Role:            f.Role,
+		Name:            strings.TrimSpace(h.Name),
+		Phone:           h.Phone,
+		Region:          region,
+		Program:         h.Program,
+		SoftwareLabel:   strings.TrimSpace(h.SoftwareLabel),
+		Lines:           h.Lines,
+		MaxBaud:         h.MaxBaud,
+		FoundedOn:       h.FoundedOn,
+		Popularity:      h.Popularity,
+		Members:         h.Members,
+		ANSI:            h.Traits.ANSI,
+		GuestAllowed:    h.Traits.GuestAllowed,
+		TelehoFriendly:  h.Traits.TelehoFriendly,
+		DialMode:        dialMode,
+		Dial:            dial,
+		Debug:           f.Debug,
+		GenerationFlags: f.Generation,
+		Detail:          f.Detail,
 	}, nil
 }
 
@@ -251,23 +260,25 @@ func (p Preset) Descriptor() (HostDescriptor, error) {
 		return HostDescriptor{}, &IncompleteError{Key: p.Key, Fields: missing}
 	}
 	return HostDescriptor{
-		Key:            p.Key,
-		Origin:         OriginPreset,
-		Listed:         p.Listed,
-		Role:           p.Role,
-		PresetRevision: p.Revision,
-		Phone:          p.Phone,
-		Name:           p.Name,
-		Program:        p.Program,
-		SoftwareLabel:  p.SoftwareLabel,
-		Region:         *p.Region,
-		Lines:          *p.Lines,
-		MaxBaud:        *p.MaxBaud,
-		FoundedOn:      p.FoundedOn,
-		Popularity:     *p.Popularity,
-		Members:        *p.Members,
-		Traits:         Traits{ANSI: *p.ANSI, GuestAllowed: *p.GuestAllowed, TelehoFriendly: *p.TelehoFriendly},
-		DialMode:       p.DialMode,
-		Dial:           p.Dial,
+		Key:             p.Key,
+		Origin:          OriginPreset,
+		Listed:          p.Listed,
+		Role:            p.Role,
+		PresetRevision:  p.Revision,
+		Phone:           p.Phone,
+		Name:            p.Name,
+		Program:         p.Program,
+		SoftwareLabel:   p.SoftwareLabel,
+		Region:          *p.Region,
+		Lines:           *p.Lines,
+		MaxBaud:         *p.MaxBaud,
+		FoundedOn:       p.FoundedOn,
+		Popularity:      *p.Popularity,
+		Members:         *p.Members,
+		Traits:          Traits{ANSI: *p.ANSI, GuestAllowed: *p.GuestAllowed, TelehoFriendly: *p.TelehoFriendly},
+		DialMode:        p.DialMode,
+		Dial:            p.Dial,
+		Debug:           p.Debug,
+		GenerationFlags: p.GenerationFlags,
 	}, nil
 }
