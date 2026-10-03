@@ -16,6 +16,7 @@ import (
 func HostFromDescriptor(d hostcatalog.HostDescriptor) Host {
 	return Host{
 		ID:             d.Key,
+		Role:           d.Role,
 		Phone:          d.Phone,
 		Name:           d.Name,
 		Region:         d.Region.String(),
@@ -57,19 +58,12 @@ func presetHosts() []Host {
 		for _, d := range descriptors {
 			presetHostList = append(presetHostList, HostFromDescriptor(d))
 		}
+		if err := checkSingleExperiment(presetHostList); err != nil {
+			presetHostErr = err
+		}
 	})
 	if presetHostErr != nil {
 		panic(fmt.Sprintf("world: invalid host presets: %v", presetHostErr))
 	}
 	return append([]Host(nil), presetHostList...)
-}
-
-// mustPresetHost returns a preset host that the seed data in NewMemoryStore is
-// keyed to.
-func mustPresetHost(hosts map[string]Host, key string) Host {
-	h, ok := hosts[key]
-	if !ok {
-		panic(fmt.Sprintf("world: required preset host %q is missing from hostcatalog/presets", key))
-	}
-	return h
 }

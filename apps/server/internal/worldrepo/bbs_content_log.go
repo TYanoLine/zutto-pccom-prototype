@@ -9,8 +9,6 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-const hakataGeneratedContentHostID = "hakata-canal-net"
-
 // generatedContentLog is operational telemetry, never a world fact.
 // Keep one JSON record per committed article so Render search results can
 // correlate a header and its lazily materialized body by host/board/post.
@@ -37,7 +35,7 @@ func (r *Repository) SetDebugLogHAKATAGenerated(enabled bool) {
 }
 
 func (r *Repository) shouldLogHAKATAGenerated(host world.Host) bool {
-	return r != nil && r.debugLogHAKATAGenerated && host.ID == hakataGeneratedContentHostID
+	return r != nil && r.debugLogHAKATAGenerated && host.IsExperiment()
 }
 
 // Called only after an observation has returned. Read the store again instead
