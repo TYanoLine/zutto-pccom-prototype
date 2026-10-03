@@ -68,8 +68,8 @@ func (s *failArticleDetailUpdateStore) UpdatePost(hostID string, post world.Post
 func TestSharedArticleDetailsPersistZeroAndSkipRepeat(t *testing.T) {
 	for _, details := range [][]llm.BBSArticleDetail{nil, {{Kind: "observation", Fact: "画面の端に表示が残った"}}, {{Kind: "sequence", Fact: "先に設定を見てから接続した"}, {Kind: "comparison", Fact: "昼より夜の方が少し遅かった"}}} {
 		t.Run(fmt.Sprintf("details-%d", len(details)), func(t *testing.T) {
-			base := world.NewMemoryStore()
-			host, err := base.HostByPhone("0450000001")
+			base := newTestStore()
+			host, err := base.HostByPhone(genericTestPhone)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -125,12 +125,12 @@ func TestSharedArticleDetailFailureDoesNotRenderBody(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			base := world.NewMemoryStore()
+			base := newTestStore()
 			var store world.Store = base
 			if tt.failSave {
 				store = &failArticleDetailUpdateStore{MemoryStore: base}
 			}
-			host, err := base.HostByPhone("0450000001")
+			host, err := base.HostByPhone(genericTestPhone)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -169,8 +169,8 @@ func TestSharedArticleDetailFailureDoesNotRenderBody(t *testing.T) {
 }
 
 func TestExistingBodySkipsDetailPlanningForLegacyArticles(t *testing.T) {
-	base := world.NewMemoryStore()
-	host, err := base.HostByPhone("0450000001")
+	base := newTestStore()
+	host, err := base.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,8 +185,8 @@ func TestExistingBodySkipsDetailPlanningForLegacyArticles(t *testing.T) {
 }
 
 func TestLegacyDetailsWithoutCompletionBitAreMigratedWithoutReplacement(t *testing.T) {
-	base := world.NewMemoryStore()
-	host, err := base.HostByPhone("0450000001")
+	base := newTestStore()
+	host, err := base.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func (articleTestEvidence) ResolveEvidence(context.Context,worldengine.EvidenceR
 }
 
 func TestLiveArticleReadPreservesPreviouslyPublishedSubject(t *testing.T) {
-	base:=world.NewMemoryStore()
+	base:=newTestStore()
 	host,err:=base.HostByPhone("0920000196")
 	if err!=nil {t.Fatal(err)}
 	renderer:=&articleDetailTestRenderer{bodySubjectOverride:"ＧＡＭＥ"}
