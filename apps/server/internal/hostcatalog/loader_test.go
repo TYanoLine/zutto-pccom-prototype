@@ -17,7 +17,7 @@ func TestEmbeddedPresetsLoadAndValidate(t *testing.T) {
 	for _, p := range presets {
 		keys = append(keys, p.Key)
 	}
-	wantKeys := []string{"busy-test", "hakata-canal-net", "quiet-test"}
+	wantKeys := []string{"busy-test", "hakata-canal-net"}
 	if !slices.Equal(keys, wantKeys) {
 		t.Fatalf("preset keys = %v, want %v", keys, wantKeys)
 	}
@@ -43,7 +43,6 @@ func TestEmbeddedPresetListingPolicy(t *testing.T) {
 		role   string
 	}{
 		"hakata-canal-net": {true, RoleExperiment},
-		"quiet-test":       {false, RoleTest},
 		"busy-test":        {false, RoleTest},
 	}
 	for _, p := range presets {
@@ -59,9 +58,6 @@ func TestEmbeddedPresetDialBehaviors(t *testing.T) {
 	got := map[string]DialBehavior{}
 	for _, p := range presets {
 		got[p.Key] = p.Dial
-	}
-	if got["quiet-test"].Kind != DialAlwaysConnect {
-		t.Errorf("quiet-test dial = %+v", got["quiet-test"])
 	}
 	if got["busy-test"] != (DialBehavior{Kind: DialBusyFirstN, BusyFirstN: 5}) {
 		t.Errorf("busy-test dial = %+v", got["busy-test"])

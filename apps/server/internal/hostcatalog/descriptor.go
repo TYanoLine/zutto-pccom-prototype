@@ -46,7 +46,7 @@ const (
 
 type DialBehavior struct {
 	Kind       DialKind
-	BusyFirstN int // only for DialBusyFirstN: number of initial attempts that are BUSY
+	BusyFirstN int // only for DialBusyFirstN: attempts numbered below this are BUSY (dials are numbered from 1, so 5 means four BUSY dials)
 }
 
 type Region struct {

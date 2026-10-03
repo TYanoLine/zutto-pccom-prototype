@@ -62,7 +62,9 @@ host:
 dial:                      # optional
   mode: tone               # tone (default) | pulse
   behavior: normal         # normal (default) | always_connect | busy_first_n
-  # busy_first_n: 5        # required with, and only valid for, busy_first_n
+  # busy_first_n: 5        # attempts numbered below N are BUSY (dials are numbered
+  #                        # from 1, so 5 gives four BUSY dials). Required with, and
+  #                        # only valid for, busy_first_n
 
 detail:                    # optional; only `welcome` is accepted for now
   welcome: |
@@ -85,8 +87,7 @@ implemented.
 - A published `key` and `phone` must not change: players already know the number
   and posts are keyed by the host.
 - `hakata-canal-net` is required: `NewMemoryStore` keys the resident population
-  to it and panics if it is missing. `quiet-test` is the hidden generic-runtime
-  fixture that several tests dial; keep it unless those tests are changed.
+  to it and panics if it is missing.
 - Raise `revision` whenever the content changes. Existing worlds keep the content
   they were created with (only `listed` is meant to follow the file).
 - Reserve numbers by passing `Options.ReservedPhones`; presets and (later)
