@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 	"testing"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -200,12 +200,65 @@ func TestCommandModeAliasesAndHiddenBoard(t *testing.T) {
 	}
 }
 
-func TestNmodemAppearsInFileMenu(t *testing.T) {
+func TestTransferProtocolMenuDefaultsToAllKnownProtocols(t *testing.T) {
 	runtime, _ := sampleRuntime(t)
 	loginGuest(t, runtime)
+	if out, disconnect := runtime.HandleLine("FM"); disconnect || !strings.Contains(out, "(FM) FILE") {
+		t.Fatalf("file menu missing: %q", out)
+	}
+	out, disconnect := runtime.HandleLine("FR")
+	if disconnect {
+		t.Fatal("opening transfer protocol menu disconnected")
+	}
+	for _, label := range []string{"無手順", "XMODEM", "XMODEM CRC", "XMODEM 1K", "YMODEM", "YMODEM-g", "ZMODEM", "NMODEM"} {
+		if !strings.Contains(out, label) {
+			t.Fatalf("default transfer menu missing %q: %q", label, out)
+		}
+	}
+}
+
+func TestHostMasterFeatureGatePrecedesRoleAccess(t *testing.T) {
+	_, store := sampleRuntime(t)
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	cfg.Features[FeatureFile] = false
+	runtime := NewWithConfig(host, store, cfg)
+	menu := loginGuest(t, runtime)
+	if strings.Contains(menu, "ファイル(FM)") || strings.Contains(menu, "[BAT]") {
+		t.Fatalf("disabled file feature leaked into main menu: %q", menu)
+	}
 	out, disconnect := runtime.HandleLine("FM")
-	if disconnect || !strings.Contains(out, "NMODEM") || !strings.Contains(out, "(FM) FILE") {
-		t.Fatalf("Erika K file menu should expose NMODEM: %q", out)
+	if disconnect || !strings.Contains(out, "利用できません") {
+		t.Fatalf("direct command bypassed station master switch: %q", out)
+	}
+}
+
+func TestDisabledTransferProtocolsAreHiddenAndRejected(t *testing.T) {
+	_, store := sampleRuntime(t)
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := DefaultConfig()
+	cfg.TransferProtocols["nmodem"] = false
+	cfg.TransferProtocols["ymodem_g"] = false
+	runtime := NewWithConfig(host, store, cfg)
+	loginGuest(t, runtime)
+	runtime.HandleLine("FM")
+	out, _ := runtime.HandleLine("FR")
+	if strings.Contains(out, "NMODEM") || strings.Contains(out, "YMODEM-g") {
+		t.Fatalf("disabled protocols leaked into selection menu: %q", out)
+	}
+	if !strings.Contains(out, "ZMODEM") || !strings.Contains(out, "XMODEM CRC") {
+		t.Fatalf("enabled protocols disappeared from selection menu: %q", out)
+	}
+	runtime.HandleLine("")
+	out, disconnect := runtime.HandleLine("NMODEM")
+	if disconnect || !strings.Contains(out, "利用できません") {
+		t.Fatalf("disabled protocol should be rejected even by direct name: %q", out)
 	}
 }
 
@@ -476,15 +529,19 @@ func TestThreadShowsAppendFailureWhenSharedDetailPipelineFails(t *testing.T) {
 func TestExistingPC98HeadersDoNotLaunchMoreGenerationOnIndexReturn(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	board, ok := BoardByPath("70/1")
-	if !ok { t.Fatal("PC-98 board missing") }
+	if !ok {
+		t.Fatal("PC-98 board missing")
+	}
 	saved := base.AddPost(host.ID, world.Post{BoardID: board.ID, Author: "MIKI", Subject: "PC-98の起動ディスク", Body: "本文", CreatedAt: time.Date(1996, 7, 17, 21, 0, 0, 0, time.Local)})
 	store := &noWaitObservationStore{MemoryStore: base}
 	runtime := New(host, store)
 	runtime.boardPath = board.ID
 	runtime.state = "board"
-	for i:=0; i<2; i++ {
+	for i := 0; i < 2; i++ {
 		out := runtime.renderBoardIndex()
 		if !strings.Contains(out, saved.Subject) || !strings.Contains(out, "最新10インデックス") {
 			t.Fatalf("PC-98 existing headers missing after return: %q", out)
@@ -495,44 +552,43 @@ func TestExistingPC98HeadersDoNotLaunchMoreGenerationOnIndexReturn(t *testing.T)
 	}
 }
 
-
 func TestHakataNoticeBoardIsReadOnlyUntilAuthenticatedAdminPostingExists(t *testing.T) {
-    runtime, store := sampleRuntime(t)
-    if board, ok := BoardByPath("1"); !ok || board.RootAuthorPolicy != "sysop_only" {
-        t.Fatalf("station staff notice policy not exported: board=%+v ok=%v", board, ok)
-    }
-    loginGuest(t, runtime)
-    runtime.HandleLine("1") // board menu
-    runtime.HandleLine("1") // notice board
-    for _, cmd := range []string{"BW", "BWX", "NEW"} {
-        out, disconnect := runtime.HandleLine(cmd)
-        if disconnect || !strings.Contains(out, "事務局のみ") || runtime.state != "board" {
-            t.Fatalf("guest root write %q not blocked: output=%q state=%s", cmd, out, runtime.state)
-        }
-    }
-    if got := store.ListPosts(runtime.Host.ID); len(got) != 0 {
-        t.Fatalf("notice writes occurred despite read-only gate: %+v", got)
-    }
-    root := store.AddPost(runtime.Host.ID, world.Post{
-        BoardID: "1", Author: "SYSOP", Subject: "保守のお知らせ", Body: "本文"})
-    runtime.HandleLine(fmt.Sprintf("%d", root.ID))
-    out, _ := runtime.HandleLine("BW")
-    if !strings.Contains(out, "事務局のみ") || runtime.state != "thread" {
-        t.Fatalf("thread entry bypasses station posting policy: output=%q state=%s", out, runtime.state)
-    }
+	runtime, store := sampleRuntime(t)
+	if board, ok := BoardByPath("1"); !ok || board.RootAuthorPolicy != "sysop_only" {
+		t.Fatalf("station staff notice policy not exported: board=%+v ok=%v", board, ok)
+	}
+	loginGuest(t, runtime)
+	runtime.HandleLine("1") // board menu
+	runtime.HandleLine("1") // notice board
+	for _, cmd := range []string{"BW", "BWX", "NEW"} {
+		out, disconnect := runtime.HandleLine(cmd)
+		if disconnect || !strings.Contains(out, "事務局のみ") || runtime.state != "board" {
+			t.Fatalf("guest root write %q not blocked: output=%q state=%s", cmd, out, runtime.state)
+		}
+	}
+	if got := store.ListPosts(runtime.Host.ID); len(got) != 0 {
+		t.Fatalf("notice writes occurred despite read-only gate: %+v", got)
+	}
+	root := store.AddPost(runtime.Host.ID, world.Post{
+		BoardID: "1", Author: "SYSOP", Subject: "保守のお知らせ", Body: "本文"})
+	runtime.HandleLine(fmt.Sprintf("%d", root.ID))
+	out, _ := runtime.HandleLine("BW")
+	if !strings.Contains(out, "事務局のみ") || runtime.state != "thread" {
+		t.Fatalf("thread entry bypasses station posting policy: output=%q state=%s", out, runtime.state)
+	}
 }
 
 func TestHakataBoardPurposesDoNotLeakHistoricalUncertainty(t *testing.T) {
-    dream, ok := BoardByPath("8")
-    if !ok || strings.Contains(dream.SemanticScope, "史料") ||
-        strings.Contains(dream.SemanticScope, "未確認") ||
-        dream.SemanticScope == "" {
-        t.Fatalf("fictional Dream board scope leaks research guidance: %+v ok=%v", dream, ok)
-    }
-    office, _ := BoardByPath("5")
-    contact, _ := BoardByPath("10/2")
-    if office.SemanticScope == "" || contact.SemanticScope == "" ||
-        office.SemanticScope == contact.SemanticScope {
-        t.Fatalf("different offline station boards lost their purposes: %q / %q", office.SemanticScope, contact.SemanticScope)
-    }
+	dream, ok := BoardByPath("8")
+	if !ok || strings.Contains(dream.SemanticScope, "史料") ||
+		strings.Contains(dream.SemanticScope, "未確認") ||
+		dream.SemanticScope == "" {
+		t.Fatalf("fictional Dream board scope leaks research guidance: %+v ok=%v", dream, ok)
+	}
+	office, _ := BoardByPath("5")
+	contact, _ := BoardByPath("10/2")
+	if office.SemanticScope == "" || contact.SemanticScope == "" ||
+		office.SemanticScope == contact.SemanticScope {
+		t.Fatalf("different offline station boards lost their purposes: %q / %q", office.SemanticScope, contact.SemanticScope)
+	}
 }

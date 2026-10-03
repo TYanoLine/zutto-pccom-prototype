@@ -64,6 +64,7 @@ type BoardActivityStateStore interface {
 	SaveBoardActivityState(hostID string, state BoardActivityState)
 	ListBoardActivityStates(hostID string) []BoardActivityState
 }
+
 // PostBatchStore is an optional persistence optimization for a canonical batch
 // whose posts have already been fully planned/validated. The in-memory world
 // mutations remain visible immediately; a snapshot-backed store may defer its
@@ -74,7 +75,9 @@ type PostBatchStore interface {
 	EndPostBatch(hostID string)
 }
 
-type PostUpdater interface{ UpdatePost(hostID string, p Post) (Post, bool) }
+type PostUpdater interface {
+	UpdatePost(hostID string, p Post) (Post, bool)
+}
 
 // PersonaStore keeps the global-persona / host-membership split explicit even in
 // the in-memory PoC. A persona can later be attached to more than one host without
@@ -103,27 +106,27 @@ type DevelopmentConversationResetStore interface {
 }
 
 type MemoryStore struct {
-	mu           sync.RWMutex
-	hosts        map[string]Host
-	boards       map[string][]Board
+	mu            sync.RWMutex
+	hosts         map[string]Host
+	boards        map[string][]Board
 	boardActivity map[string]map[string]BoardActivityState
-	posts        map[string][]Post
-	personas     map[string]Persona
-	personaFacts map[string][]PersonaFact
-	memberships  map[string][]string
-	next         int64
+	posts         map[string][]Post
+	personas      map[string]Persona
+	personaFacts  map[string][]PersonaFact
+	memberships   map[string][]string
+	next          int64
 }
 
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
-		hosts:        map[string]Host{},
-		boards:       map[string][]Board{},
+		hosts:         map[string]Host{},
+		boards:        map[string][]Board{},
 		boardActivity: map[string]map[string]BoardActivityState{},
-		posts:        map[string][]Post{},
-		personas:     map[string]Persona{},
-		personaFacts: map[string][]PersonaFact{},
-		memberships:  map[string][]string{},
-		next:         1000,
+		posts:         map[string][]Post{},
+		personas:      map[string]Persona{},
+		personaFacts:  map[string][]PersonaFact{},
+		memberships:   map[string][]string{},
+		next:          1000,
 	}
 
 	// Host definitions come from the embedded YAML presets
@@ -221,7 +224,6 @@ func (s *MemoryStore) SaveBoards(hostID string, boards []Board) {
 	copy(out, boards)
 	s.boards[hostID] = out
 }
-
 
 func (s *MemoryStore) BoardActivityState(hostID, boardID string) (BoardActivityState, bool) {
 	s.mu.RLock()

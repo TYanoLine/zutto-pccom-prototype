@@ -18,9 +18,9 @@ type boardNode struct {
 	Name                 string
 	Hidden               bool
 	SemanticScope        string
-	RootAuthorPolicy    string
+	RootAuthorPolicy     string
 	ActivityWeight       float64
-	ReplyRate             float64
+	ReplyRate            float64
 	RetainedRootCap      int
 	VerifiedReferentRate float64
 }
@@ -78,12 +78,12 @@ func BoardByPath(path string) (world.Board, bool) {
 
 func worldBoard(node boardNode) world.Board {
 	return world.Board{
-		ID:              node.Path,
-		Name:            node.Name,
-		SemanticScope:   node.SemanticScope,
-		RootAuthorPolicy: node.RootAuthorPolicy,
-		ActivityWeight:  node.ActivityWeight,
-		ReplyRate:       node.ReplyRate,
+		ID:                   node.Path,
+		Name:                 node.Name,
+		SemanticScope:        node.SemanticScope,
+		RootAuthorPolicy:     node.RootAuthorPolicy,
+		ActivityWeight:       node.ActivityWeight,
+		ReplyRate:            node.ReplyRate,
 		RetainedRootCap:      node.RetainedRootCap,
 		VerifiedReferentRate: node.VerifiedReferentRate,
 	}
@@ -92,6 +92,7 @@ func worldBoard(node boardNode) world.Board {
 type Runtime struct {
 	Host      world.Host
 	Store     world.Store
+	Config    Config
 	state     string
 	handle    string
 	boardPath string
@@ -100,7 +101,11 @@ type Runtime struct {
 }
 
 func New(host world.Host, store world.Store) *Runtime {
-	return &Runtime{Host: host, Store: store, state: "login_id", handle: "GUEST"}
+	return NewWithConfig(host, store, DefaultConfig())
+}
+
+func NewWithConfig(host world.Host, store world.Store, cfg Config) *Runtime {
+	return &Runtime{Host: host, Store: store, Config: cfg, state: "login_id", handle: "GUEST"}
 }
 
 func (r *Runtime) ObservationBoards() []world.Board {
@@ -212,9 +217,9 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			return "\r\nMSGが見つかりません。\r\n" + r.renderBoardIndex(), false
 		}
 		r.Store.AddPost(r.Host.ID, world.Post{
-			BoardID:   root.BoardID,
-			ParentID:  root.ID,
-			Author:    r.handle,
+			BoardID:  root.BoardID,
+			ParentID: root.ID,
+			Author:   r.handle,
 			// Erika-K's append is represented by the parent/root relationship;
 			// the append itself has no independently displayed subject.
 			Subject:   "",
@@ -233,7 +238,9 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 	case "thread":
 		return r.handleThread(line)
 	case "file":
-		return r.handleSimpleMenu(line, "file")
+		return r.handleFile(line)
+	case "file_protocol":
+		return r.handleFileProtocol(line)
 	case "mail":
 		return r.handleSimpleMenu(line, "mail")
 	case "chat":
@@ -286,48 +293,101 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 	case "", "GUIDE":
 		return r.renderMainMenu(), false
 	case "1", "BM":
+		if !r.canUseFeature(FeatureBoard) {
+			return r.featureUnavailable()
+		}
 		r.state = "board"
 		r.boardPath = ""
 		return r.renderBoardMenu(), false
 	case "2", "FM":
+		if !r.canUseFeature(FeatureFile) {
+			return r.featureUnavailable()
+		}
 		r.state = "file"
 		return r.renderFileMenu(), false
 	case "3", "MAIL", "MX":
+		if !r.canUseFeature(FeatureMail) {
+			return r.featureUnavailable()
+		}
 		r.state = "mail"
 		return r.renderMailMenu(), false
 	case "4", "C", "CHAT":
+		if !r.canUseFeature(FeatureTelegramChat) {
+			return r.featureUnavailable()
+		}
 		r.state = "chat"
 		return r.renderChatMenu(), false
 	case "5", "JUNK":
+		if !r.canUseFeature(FeatureJunk) {
+			return r.featureUnavailable()
+		}
 		r.state = "junk"
 		return r.renderJunkMenu(), false
 	case "6", "MODE":
+		if !r.canUseFeature(FeatureSettings) {
+			return r.featureUnavailable()
+		}
 		r.state = "mode"
 		return r.renderModeMenu(), false
 	case "7":
+		if !r.canUseFeature(FeatureSysopMail) {
+			return r.featureUnavailable()
+		}
 		return "\r\nSYSOP宛メール\r\n現在prototypeのため閲覧のみです。\r\n\r\nMAIN MENU --> ", false
 	case "9", "BYE", "QUIT", "GOODBYE":
 		return "\r\nご利用ありがとうございました。\r\nまた HAKATA CANAL NET でお会いしましょう。\r\n", true
 	case "0":
+		if !r.canUseFeature(FeatureEnrollment) {
+			return r.featureUnavailable()
+		}
 		return "\r\n〖入会登録〗\r\nGUEST登録受付は現在準備中です。\r\n\r\nMAIN MENU --> ", false
 	case "A":
+		if !r.canUseFeature(FeatureAutoRun) {
+			return r.featureUnavailable()
+		}
 		return r.renderAutoRun(), false
 	case "ASET":
+		if !r.canUseFeature(FeatureAutoRun) {
+			return r.featureUnavailable()
+		}
 		return "\r\n〖自動運転登録〗 ASET\r\nBM/T -> MAIL -> FM/NEW の順で登録されています。\r\n（編集機能はprototypeでは未実装）\r\n\r\nMAIN MENU --> ", false
+	case "BAT":
+		if !r.canUseFeature(FeatureBatchDownload) {
+			return r.featureUnavailable()
+		}
+		return "\r\n〖バッチダウン〗 BAT\r\n登録済みファイルをまとめて転送します。\r\n（バッチキュー実装はprototypeでは未実装）\r\n\r\nMAIN MENU --> ", false
 	case "MA":
+		if !r.canUseFeature(FeatureBoardMap) {
+			return r.featureUnavailable()
+		}
 		return r.renderBoardMap() + "\r\nMAIN MENU --> ", false
 	case "T":
+		if !r.canUseFeature(FeatureUnreadSearch) {
+			return r.featureUnavailable()
+		}
 		return r.renderUnreadSummary() + "\r\nMAIN MENU --> ", false
 	case "V":
+		if !r.canUseFeature(FeatureAccessLog) {
+			return r.featureUnavailable()
+		}
 		return fmt.Sprintf("\r\n〖アクセス記録〗\r\n96/08/26 00:20 NORI\r\n96/08/26 00:42 MARI\r\n96/08/26 01:07 SYSOP\r\nNOW             %s\r\n\r\nMAIN MENU --> ", r.handle), false
 	case "H", "HELP", "?", "8":
 		return r.renderCommandHelp() + "\r\nMAIN MENU --> ", false
 	case "WHO":
+		if !r.canUseFeature(FeatureTelegramChat) {
+			return r.featureUnavailable()
+		}
 		return fmt.Sprintf("\r\n〖使用状態表示〗\r\nLINE 1  SYSOP     14400\r\nLINE 2  MARI       9600\r\nLINE 3  %-10s ONLINE\r\n\r\nMAIN MENU --> ", r.handle), false
 	case "MEMB":
+		if !r.canUseFeature(FeatureMemberList) {
+			return r.featureUnavailable()
+		}
 		return "\r\n〖メンバーリスト〗\r\nSYSOP  MARI  KAZU  YUKI  TAKU  NORI  MIDNIGHT ...\r\n\r\nMAIN MENU --> ", false
 	default:
 		if strings.HasPrefix(upper, "BJ") {
+			if !r.canUseFeature(FeatureBoard) {
+				return r.featureUnavailable()
+			}
 			r.state = "board"
 			if path, ok := parseBJ(line); ok && r.setBoardPath(path) {
 				return r.renderBoardMenu(), false
@@ -466,6 +526,63 @@ func (r *Runtime) handleThread(line string) (string, bool) {
 	}
 }
 
+func (r *Runtime) handleFile(line string) (string, bool) {
+	upper := strings.ToUpper(line)
+	if line == "/" || upper == "GUIDE" || upper == "M" {
+		r.state = "main"
+		return r.renderMainMenu(), false
+	}
+	if upper == "BYE" {
+		return "\r\nご利用ありがとうございました。\r\n", true
+	}
+	if upper == "H" || upper == "HELP" || line == "?" {
+		return r.renderCommandHelp() + "\r\n/ = MAIN MENU\r\n> ", false
+	}
+	if upper == "FM" || line == "" {
+		return r.renderFileMenu(), false
+	}
+	if upper == "FX" || upper == "FXS" {
+		return "\r\n〖FILE INDEX〗\r\n  001 WTERM_MAC.LZH   48KB  WTERM巡回マクロ\r\n  002 MODEMFAQ.TXT    12KB  モデムFAQ\r\n  003 CANALMAP.LZH    31KB  局内ボードマップ\r\n\r\n(FM) FILE [M]=MENU [?]=HELP --> ", false
+	}
+	if upper == "FR" {
+		r.state = "file_protocol"
+		return r.renderTransferProtocolMenu(), false
+	}
+	if upper == "BAT" {
+		if !r.canUseFeature(FeatureBatchDownload) {
+			return r.protocolUnavailable() + r.filePrompt(), false
+		}
+		return "\r\n〖バッチダウン〗 BAT\r\n登録済みファイルをまとめて転送します。\r\n（バッチキュー実装はprototypeでは未実装）\r\n\r\n" + r.filePrompt(), false
+	}
+	if p, ok := findTransferProtocol(line); ok {
+		if !r.Config.ProtocolEnabled(p.ID) {
+			return r.protocolUnavailable() + r.filePrompt(), false
+		}
+		return r.beginTransfer(p), false
+	}
+	return "? COMMAND ERROR\r\n" + r.filePrompt(), false
+}
+
+func (r *Runtime) handleFileProtocol(line string) (string, bool) {
+	if line == "" || line == "/" || strings.EqualFold(line, "M") {
+		r.state = "file"
+		return r.renderFileMenu(), false
+	}
+	p, ok := findTransferProtocol(line)
+	if !ok {
+		return "? PROTOCOL ERROR\r\n" + r.renderTransferProtocolMenu(), false
+	}
+	if !r.Config.ProtocolEnabled(p.ID) {
+		return r.protocolUnavailable() + r.renderTransferProtocolMenu(), false
+	}
+	r.state = "file"
+	return r.beginTransfer(p), false
+}
+
+func (r *Runtime) beginTransfer(p TransferProtocol) string {
+	return fmt.Sprintf("\r\n%s READY\r\n※ 転送エンジンはprototypeでは未実装です。\r\n\r\n%s", p.Label, r.filePrompt())
+}
+
 func (r *Runtime) handleSimpleMenu(line, menu string) (string, bool) {
 	upper := strings.ToUpper(line)
 	if line == "/" || upper == "GUIDE" || upper == "M" {
@@ -516,13 +633,20 @@ func (r *Runtime) handleSimpleMenu(line, menu string) (string, bool) {
 
 func (r *Runtime) renderMainMenu() string {
 	const separator = "――――――――――――――――――――――――――――――――――――――――"
+	item := func(feature, label string) string {
+		if !r.canUseFeature(feature) {
+			return ""
+		}
+		return label
+	}
 	return "\r\n-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版\r\n" +
 		separator + "\r\n" +
-		menuColumns("[1] ボード(BM)", "[2] ファイル(FM)", "[3] メール(MAIL)") + "\r\n" +
-		menuColumns("[4] 電報･チャット(C)", "[5] ジャンク(JUNK)", "[6] 各種設定(MODE)") + "\r\n" +
-		menuColumns("[7] SYSOP宛メール", "[9] 接続終了(BYE)", "[0] 入会登録") + "\r\n" +
-		menuColumns("[A] 自動運転", "[ASET] 自動運転登録", "[MA] ボードマップ") + "\r\n" +
-		menuColumns("[T] 未読検索", "[V] アクセス記録", "[H] その他のコマンド") + "\r\n" +
+		menuColumns(item(FeatureBoard, "[1] ボード(BM)"), item(FeatureFile, "[2] ファイル(FM)"), item(FeatureMail, "[3] メール(MAIL)")) + "\r\n" +
+		menuColumns(item(FeatureTelegramChat, "[4] 電報･チャット(C)"), item(FeatureJunk, "[5] ジャンク(JUNK)"), item(FeatureSettings, "[6] 各種設定(MODE)")) + "\r\n" +
+		menuColumns(item(FeatureSysopMail, "[7] SYSOP宛メール"), "[9] 接続終了(BYE)", item(FeatureEnrollment, "[0] 入会登録")) + "\r\n" +
+		menuColumns(item(FeatureAutoRun, "[A] 自動運転"), item(FeatureAutoRun, "[ASET] 自動運転登録"), item(FeatureBoardMap, "[MA] ボードマップ")) + "\r\n" +
+		menuColumns(item(FeatureBatchDownload, "[BAT] バッチダウン"), "", "") + "\r\n" +
+		menuColumns(item(FeatureUnreadSearch, "[T] 未読検索"), item(FeatureAccessLog, "[V] アクセス記録"), "[H] その他のコマンド") + "\r\n" +
 		separator + "\r\n" +
 		"MAIN MENU [?]=HELP --> "
 }
@@ -717,21 +841,36 @@ func (r *Runtime) renderThread(id int64) string {
 }
 
 func (r *Runtime) renderCommandHelp() string {
-	return "\r\n《コマンド・モード》\r\n" +
-		"GUIDE と入力すると、メニュー方式に戻ります。\r\n" +
-		"HELP と入力すると コマンド の簡単な説明が出てきます。\r\n" +
-		"==== 次のコマンドが使用出来ます ====\r\n" +
-		"1. ボード\r\n" +
-		"   メニュー [BM] インデックス [BX | BXS] 読む [BR]\r\n" +
-		"   書く [BW | BWX] 階層移動 [BJ]\r\n" +
-		"2. ファイル\r\n" +
-		"   メニュー [FM] インデックス [FX | FXS] 読む [FR]\r\n" +
-		"   書く [FW | FWX] 階層移動 [FJ]\r\n" +
-		"3. メール  インデックス [MX] 読む [MR] 書く [MW]\r\n" +
-		"4. チャット 入る [CHAT] 呼ぶ [CALL]\r\n" +
-		"5. 使用状態表示 [WHO]   6. メンバーリスト [MEMB]\r\n" +
-		"7. パスワード変更 [PASS] 8. 設定変更 [MODE]\r\n" +
-		"9. メニューモード [GUIDE] 10. 終了 [BYE]\r\n"
+	var b strings.Builder
+	b.WriteString("\r\n《コマンド・モード》\r\n")
+	b.WriteString("GUIDE と入力すると、メニュー方式に戻ります。\r\n")
+	b.WriteString("HELP と入力すると コマンド の簡単な説明が出てきます。\r\n")
+	b.WriteString("==== 次のコマンドが使用出来ます ====\r\n")
+	if r.canUseFeature(FeatureBoard) {
+		b.WriteString("1. ボード\r\n")
+		b.WriteString("   メニュー [BM] インデックス [BX | BXS] 読む [BR]\r\n")
+		b.WriteString("   書く [BW | BWX] 階層移動 [BJ]\r\n")
+	}
+	if r.canUseFeature(FeatureFile) {
+		b.WriteString("2. ファイル\r\n")
+		b.WriteString("   メニュー [FM] インデックス [FX | FXS] 読む [FR]\r\n")
+		b.WriteString("   書く [FW | FWX] 階層移動 [FJ]\r\n")
+	}
+	if r.canUseFeature(FeatureMail) {
+		b.WriteString("3. メール  インデックス [MX] 読む [MR] 書く [MW]\r\n")
+	}
+	if r.canUseFeature(FeatureTelegramChat) {
+		b.WriteString("4. チャット 入る [CHAT] 呼ぶ [CALL]\r\n")
+		b.WriteString("5. 使用状態表示 [WHO]\r\n")
+	}
+	if r.canUseFeature(FeatureMemberList) {
+		b.WriteString("6. メンバーリスト [MEMB]\r\n")
+	}
+	if r.canUseFeature(FeatureSettings) {
+		b.WriteString("7. パスワード変更 [PASS] 8. 設定変更 [MODE]\r\n")
+	}
+	b.WriteString("9. メニューモード [GUIDE] 10. 終了 [BYE]\r\n")
+	return b.String()
 }
 
 func (r *Runtime) renderBoardHelp() string {
@@ -739,12 +878,27 @@ func (r *Runtime) renderBoardHelp() string {
 }
 
 func (r *Runtime) renderFileMenu() string {
-	return "\r\n〖Ｆile Ｍenu〗 FM\r\n" +
-		"――――――――――――――――――――――――――――――――――――――\r\n" +
-		"[FX] INDEX   [FR] READ/DOWNLOAD   [FW] UPLOAD\r\n" +
-		"転送プロトコル: XMODEM / NMODEM\r\n" +
-		"[RETURN] このメニュー   [/] MAIN MENU   [H] HELP\r\n" +
-		"(FM) FILE [M]=MENU [?]=HELP --> "
+	var b strings.Builder
+	b.WriteString("\r\n〖Ｆile Ｍenu〗 FM\r\n")
+	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
+	b.WriteString("[FX] INDEX   [FR] READ/DOWNLOAD   [FW] UPLOAD\r\n")
+	if r.canUseFeature(FeatureBatchDownload) {
+		b.WriteString("[BAT] BATCH DOWNLOAD\r\n")
+	}
+	b.WriteString("[RETURN] このメニュー   [/] MAIN MENU   [H] HELP\r\n")
+	b.WriteString(r.filePrompt())
+	return b.String()
+}
+
+func (r *Runtime) renderTransferProtocolMenu() string {
+	var b strings.Builder
+	b.WriteString("\r\n〖転送プロトコル選択〗\r\n")
+	for _, p := range r.Config.EnabledTransferProtocols() {
+		fmt.Fprintf(&b, "[%s] %s\r\n", p.Key, p.Label)
+	}
+	b.WriteString("[RETURN] CANCEL\r\n")
+	b.WriteString("PROTOCOL --> ")
+	return b.String()
 }
 
 func (r *Runtime) renderMailMenu() string {
@@ -829,6 +983,43 @@ func (r *Runtime) formatBoardEntry(node boardNode) string {
 		return fmt.Sprintf("%s<%s> %s", mark, node.Key, node.Name)
 	}
 	return fmt.Sprintf("%s[%s] %s %d", mark, node.Key, node.Name, r.rootCount(node.Path))
+}
+
+func (r *Runtime) accountRole() string {
+	if r.handle == "" || strings.EqualFold(r.handle, "GUEST") {
+		return "GUEST"
+	}
+	return "MEMBER"
+}
+
+// canUseFeature intentionally checks the station-wide master switch before
+// account/role authorization. A disabled host capability cannot be re-enabled
+// by any user role.
+func (r *Runtime) canUseFeature(feature string) bool {
+	if !r.Config.FeatureEnabled(feature) {
+		return false
+	}
+	if feature == FeatureBatchDownload && !r.Config.FeatureEnabled(FeatureFile) {
+		return false
+	}
+	switch feature {
+	case FeatureEnrollment:
+		return r.accountRole() == "GUEST"
+	default:
+		return true
+	}
+}
+
+func (r *Runtime) featureUnavailable() (string, bool) {
+	return "\r\nこのサービスは現在利用できません。\r\n\r\nMAIN MENU [?]=HELP --> ", false
+}
+
+func (r *Runtime) protocolUnavailable() string {
+	return "\r\nこの転送方式は現在利用できません。\r\n"
+}
+
+func (r *Runtime) filePrompt() string {
+	return "(FM) FILE [M]=MENU [?]=HELP --> "
 }
 
 func (r *Runtime) boardPrompt() string {

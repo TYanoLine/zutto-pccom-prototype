@@ -106,9 +106,21 @@ coordination requires canonical event/relationship state.
 
 These are intentionally allowed to vary per station while preserving the host software's interaction grammar.
 
+## Station configuration model
+
+The reconstruction separates station-wide capability switches from user permissions.
+
+`station master -> account/role permission -> resource/state ACL`
+
+A station can disable entire services regardless of user role. Transfer protocols are independently switchable and default to all enabled. The reconstruction currently supports modern JSON configuration rather than attempting to guess the historical Erika-K config syntax.
+
+See `apps/server/config/erika-k.example.json`.
+
 ## Current implementation direction
 
 `apps/server/internal/hostprogram/erikak/` owns the Erika K state machine. Do not fold it back into a generic profile-driven runtime.
+
+HAKATA CANAL NET starts with no articles. CONNECT, login, and forum navigation do not materialize headers; explicitly opening a leaf board requests only that board's headers for the index. Existing headers render without another observation job. Article bodies remain lazy and are materialized only when a caller opens the article.
 
 The sample runtime currently demonstrates:
 
@@ -134,6 +146,10 @@ Preserve URLs because some sources are community archives and may disappear. Det
 - 草の根BBS どんぐり倶楽部（茨城県、0294-73-2555、1994年〜）: 絵理香K版Plus! 12回線運用記録
 - 通信用語の基礎知識 2000「絵理香」項目: 東京がらくた工房（1万人規模）での採用、標準版/K版価格等
 - Surviving 1989/1998 Erika/Erika-K connection-log discussion: https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
+- Tokyo GARAKUTA-KoBo 1996 connection/chat log (preserved third-party archive): https://sixsamana.com/library/lib/D-00078.html
+- Tokyo GARAKUTA-KoBo hidden-board log showing append controls: https://sixsamana.com/library/lib/A-00005.html
+- Tokyo GARAKUTA-KoBo 1993 board log with `APPEND` interaction: https://sixsamana.com/library/lib/B-00032.html
+- Tokyo GARAKUTA-KoBo 1995 board log: https://sixsamana.com/library/lib/A-00025.html
 - Retrospective describing Erika's append/reply model: https://kose3.wordpress.com/2000/07/05/%E7%B5%B5%E7%90%86%E9%A6%99/
 - Binary transfer protocol reference mentioning Erika K / NMODEM context: https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
 

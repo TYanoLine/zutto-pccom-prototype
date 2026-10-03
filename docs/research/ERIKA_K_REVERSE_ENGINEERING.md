@@ -1,0 +1,341 @@
+# 絵理香K版 リバースエンジニアリング台帳
+
+## 目的
+
+現存する絵理香K版の公式仕様・マニュアル・配布物が不足しているため、当時の接続ログから操作系、プロンプト、状態遷移、掲示板/アペンド構造、チャット、メール/ファイル系の仕様を段階的に復元する。
+
+この文書は「K版の確定仕様」と「特定局のカスタマイズ」を分離するための台帳である。第三者ログの投稿本文やチャット本文は再配布せず、UI/プロトコル上の非表現的事実だけを記録する。
+
+## 証拠レベル
+
+- **Confirmed / repeated** — 複数ログまたは複数年代で同じ挙動を確認。
+- **Confirmed / single station** — 実ログで確認できるが、局固有設定の可能性がある。
+- **Inferred** — 周辺文脈から有力だが、直接の操作結果がまだ不足。
+- **Unknown** — 意味を確定できていない。
+
+## 現在確認できる仕様
+
+### ログインとセッション
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+- ID入力画面があり、ゲストIDを受け付ける。
+- ログイン後に前回アクセス時刻を表示する。
+- WELCOME/お知らせの後にメインメニューへ入る。
+- 長文表示中の制御として、`Z`系キーで中断、`S`系キーで一時停止/再開する表示がある。
+- 切断時には `NO CARRIER` / `Disconnected` 等がログに残る。
+
+**Inferred / needs member log**
+
+- 正規会員の `PASSWORD:` フロー。
+- 認証失敗時の再試行回数、ロック、ゲストとの差分。
+
+### 局設定可能な表示文字列（口述証言）
+
+**Firsthand recollection / log confirmation pending**
+
+実利用経験者から、絵理香K版では一部の表示文字列を局側で設定できた記憶がある、という口述証言を得ている。
+特にログイン後のWELCOME周辺、時間帯別メッセージ等は、K版側に表示スロット／デフォルト文言があり、
+SYSOP側の設定で文言を差し替える構成だった可能性がある。
+
+現存ログでも、複数局で同じ位置に時間帯別メッセージが現れる一方、実際の文言は異なる。
+ただし設定項目名・保存形式・変更可能範囲はまだ一次資料で確認できていないため、実装では
+「default strings + optional station override」という形を仮説として保持し、固定仕様とはしない。
+
+検証したい項目:
+
+- WELCOMEメッセージ
+- 時間帯別メッセージ
+- ログイン直後のお知らせ
+- メニュー項目の説明文
+- ワンラインクイックヘルプ
+- GUEST向け案内文
+
+### メニュー文言・ワンラインクイックヘルプの差異
+
+**Confirmed:** K版ログでは、状態ごとに短いコマンド凡例／ワンラインクイックヘルプが表示される。
+また東京がらくた工房の1993年・1995年ログでは、同種のBOARD操作案内でも文言や表示項目に差がある。
+
+**Unknown:** その差が、(1) 絵理香K版のバージョン差、(2) 権限や現在状態による動的差、(3) 局設定による差、のどれに由来するかは未確定。
+現時点では「局ごとに自由編集できた」とは断定しない。
+
+くにびきNETの発掘ログでは `絵理香K版 Ver1.93` と明示され、メインメニューは
+`[1] ボード(BM) [2] ファイル(FM) [3] メール(MAIL) [4] 電報･チャット(C) [5] ジャンク(JUNK) [6] 各種設定(MODE) ... [9] 接続終了(BYE)`
+のように構成されている。
+
+一方、東京がらくた工房のK版ログでは、同じ中核コマンド `BM`, `MAIL`, `C`, `JUNK`, `MODE`, `BYE`, `ASET` 等を使いながら、
+メニュー番号・文字キー・説明文・追加項目に差がある。これは局設定の証拠とは限らず、バージョン差・権限差を含めて比較する必要がある。
+
+リバースエンジニアリングでは、少なくとも次を別要素として記録する:
+
+- **core command semantics**: `BM/FM/MAIL/C/JUNK/MODE/BYE/ASET` 等の実コマンドと状態遷移
+- **menu mapping**: 数字・文字ショートカットからコマンドへの割当
+- **menu labels**: 「ボード」「各種ボードの読み書き」等の表示文言
+- **one-line quick help**: `[A]ｱﾍﾟﾝﾄﾞ`、`[.]戻る`、`[?]HELP` 等の状態別コマンド凡例
+- **feature exposure**: バージョン、権限、局設定等によって画面に露出する機能
+
+復元実装では、既知のログ文字列を「全K版で不変」とも「局ごとに変更可能」とも決め打ちせず、
+まずバージョン別のデフォルト候補として保存し、同一バージョン・同一状態の別局ログが得られた時点で局差を判定する。
+
+Sources:
+- https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
+- https://sixsamana.com/library/lib/D-00078.html
+- https://sixsamana.com/library/lib/B-00032.html
+- https://sixsamana.com/library/lib/A-00005.html
+
+### ログアウト／切断時メッセージ
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+切断直前に、単なる `NO CARRIER` だけではなく、利用者向けの終了メッセージが表示される実ログがある。
+観測された終了シーケンスには次が含まれる:
+
+- 現在時刻と接続時間
+- ユーザー名を含む「次回の書き込みを待つ」趣旨のメッセージ
+- 局名を含むASCIIアート／ブランド表示
+- アクセスへの謝辞
+- がらくた工房ネットワーク各局の電話番号・速度案内
+- `Disconnected`
+- `NO CARRIER`
+
+局名や電話番号を含むため、少なくとも終了時メッセージの一部は局固有コンテンツであることが直接確認できる。
+
+**Firsthand recollection / implementation detail:** 当時の利用経験に基づく証言では、これらの局固有表示文字列は設定ファイルで与える方式で、オンライン中に編集する機能はなかった。現時点では設定ファイル名・書式・再読込タイミングは未確認のため、実装詳細は口述証言として保持する。
+
+Source:
+- https://sixsamana.com/library/lib/D-00078.html
+
+### 局固有表示文字列の設定方式
+
+**Firsthand recollection / log-compatible hypothesis**
+
+- WELCOME、時間帯別メッセージ、ログアウト時メッセージ等の局固有文字列は設定ファイルから読み込む方式だった。
+- ホスト上にそれらを編集する対話的な管理機能はなかった。
+- 実ログでは局ごとの固有文字列が表示されること自体は確認できる。
+- 設定ファイル名、キー名、文字数制限、改行規則、起動時のみ読込か再読込可能かは未確認。
+
+復元実装では、これらを runtime command ではなく station configuration として保持する。
+
+### ホスト全体のマスター機能設定（暫定仕様）
+
+**Provisional implementation decision / firsthand-compatible**
+
+各局は、ユーザー権限判定より上位に「このホストで機能そのものを提供するか」のマスター設定を持つものとする。
+
+判定順序:
+
+1. **station master** — ホスト全体で機能がONか
+2. **account / role permission** — GUEST / MEMBER / OPERATOR / SYSOP等で利用可能か
+3. **resource ACL / state rule** — 個別ボード、ファイルコーナー、現在状態等で利用可能か
+
+station master がOFFなら、SYSOPを含むどのロールもその機能を利用できず、メニューにも原則表示しない。
+
+暫定的な設定対象:
+
+- board
+- file
+- mail
+- telegram/chat
+- junk
+- settings
+- SYSOP mail
+- enrollment
+- automatic operation
+- board map
+- unread search
+- access log
+- batch download
+- member list
+- profile
+
+設定形式は当時のファイル形式再現を目的とせず、現代的なJSON等を使用してよい。現在の実装ではJSONを採用し、未指定項目はONを既定値とする。
+
+ファイル転送プロトコルもホスト単位で個別ON/OFF可能とし、既定値は全てON:
+
+- 無手順
+- XMODEM
+- XMODEM CRC
+- XMODEM 1K
+- YMODEM
+- YMODEM-g
+- ZMODEM
+- NMODEM
+
+ユーザー向けプロトコル選択UIについては、史料で正確なキー割当が確定するまでは復元用の既定メニューを用いる。
+
+### アカウント種別・権限によるメニュー差
+
+**Confirmed:** GUESTと一般利用者で、利用可能範囲または表示項目に差がある。
+
+- くにびきNETの `絵理香K版 Ver1.93` ログでは、ボードメニューに `GUEST:１番～４番利用可` と明示され、GUESTのボード利用範囲が制限されている。
+- 東京がらくた工房のGUESTログでは、メインメニューに `入会申込み －GUESTのみ－` が表示される。
+
+**Firsthand recollection:** GUEST、一般ユーザー、SYSOP等で選択可能なメニューに差があった。
+
+**Partially confirmed / unresolved:** SYSOP / Forum.OP / SIGOP等の管理者権限が存在したことを示すログ断片はあるが、一般ユーザーとSYSOPの同一画面・同一バージョンを比較した完全なメニュー差分はまだ未取得。
+
+復元実装では、以下を分離して扱う:
+
+- account class: GUEST / MEMBER / operator roles
+- feature visibility: メニューに表示するか
+- command authorization: コマンド自体を実行可能か
+- board/file access ACL: ボードやファイルコーナー単位の利用可否
+- moderation capability: 削除等の管理操作
+
+「表示されない」と「表示されるが実行拒否される」は別仕様として扱い、実ログで確認する。
+
+Sources:
+- https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
+- https://sixsamana.com/library/lib/D-00078.html
+
+### メインメニュー
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+観測プロンプトは `MAIN>M:MENU ->`。同じ機能に対し、短いメニューキーとダイレクトコマンドを併用する設計が確認できる。
+観測済みのダイレクトコマンドには `BM`, `MODE`, `HELP`, `MAIL`, `PROF`, `C`, `JUNK`, `BYE`, `ASET`, `BAT` がある。
+
+東京がらくた工房の表示では、ボード、環境設定、ヘルプ、メール、プロフィール、電報/チャット、会議室、切断、自動運転、構成マップ、入会申込み、バッチダウン等が並ぶ。ただし項目の有無・キー割当の差が、バージョン・権限・局設定のどれによるかは未確定。
+
+### 画面遷移・入力待ち時のイベント通知
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+- `CALL> ->` の入力待ち中に、ベル文字を伴う `#<line> <user>><message>` 形式の電報が割り込んで表示される。
+- 割り込み後はWHO/クイックヘルプとプロンプトが再表示され、通常操作へ戻る。
+- SYSOP/ホスト側の全体メッセージらしき表示も、コマンド実行後・前メニューへ戻る際・次画面へ入る直前など、画面遷移の節目で挿入される例がある。
+
+このため実装では、単純な `render screen -> read command -> render next screen` ではなく、
+少なくとも「入力待ち中または状態遷移境界で pending event を配送し、その後 prompt/quick-help を再描画する」
+イベントディスパッチ層を用意する。
+
+**Oral-history lead / not yet confirmed in logs**
+
+利用経験に基づく記憶として、画面遷移のタイミングで何らかのイベント通知が行われ、
+対象にはメール着信、自分の記事へのアペンド、新着投稿等が含まれていた可能性がある。
+現時点で生ログから直接確認できるのはオンライン電報とホスト側メッセージの割り込みであり、
+メール着信・アペンド・新着投稿については通知条件・文言・配送タイミングを未確認とする。
+
+Source:
+- https://sixsamana.com/library/lib/D-00078.html
+
+### 電報 / WHO / CALL
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+CALLサーフェスでは、回線番号指定の電報、`*` 全員宛、ReturnでWHO、`.` で前メニュー、`P` プロフィール、`H` ヘルプ、`X` チャット、ベルON/OFF、電報受信状態変更を観測。電報本文には最大文字数の表示もある。観測プロンプトは `CALL> ->`。
+
+WHO行には少なくとも「回線番号、ID/ハンドル、現在状態、接続速度または端末表示、1行プロフィール」に相当するフィールドが存在する。アイコン/記号列の意味は未確定。
+
+### チャット
+
+**Confirmed / single station (東京がらくた工房, 1996)**
+
+- CALLから `X` でチャットルーム選択へ遷移。
+- 複数のCHAT ROOMを番号で選択するUI。
+- Returnでルーム選択を中止する表示。
+- チャット終了操作として `..` または `CTRL+B` が案内される。
+- WHO状態には `CHAT #n` のようにルーム番号が表示される。
+
+ルーム数、各ルーム定員、混雑時間帯の案内文は局固有設定の可能性が高い。
+
+### ボード階層
+
+**Confirmed / single station (東京がらくた工房, 1995)**
+
+観測プロンプトは `(BJ\40) BOARD>M:MENU ?:HELP ->`。`BJ`系のパス/階層表現が存在し、ボード番号を入力して下位ボードへ入る挙動が確認できる。
+
+記事一覧は概ね `<board>-- <article> <YY/MM/DD> <HH:MM> <author> [numeric-field] <subject>` の形。作者名直後の数値はアペンド数である可能性が高いが、現段階では `numeric_field_after_author` として保持し断定しない。
+
+### 記事操作とアペンド
+
+**Confirmed / repeated across 1993 and 1995 preserved logs**
+
+記事操作行では、Return/番号=読む、`U`=読まない、`A`=アペンド、`W`=書く、`.`=戻る、`?`=HELP/その他、`K`=書き込み削除、`KA`=アペンド削除、`0/00/T/+/-/N/B`=ナビゲーション系キー群を観測している。最後のキー群の意味は未確定。
+
+1993年ログでは親記事の後に複数の返信が連続表示され、さらに `APPEND <board> <article>` という操作痕跡が残る。これは「返信を独立記事にせず親記事へアペンドする」というK版の中核的な記事モデルを強く支持する。
+
+**Inferred**
+
+- 一覧の作者名後の数値はアペンド件数。
+- `U` は未読状態へ戻す/読まない扱いにする操作。
+- `N/B/+/-/T/0/00` の正確な移動規則。
+
+### ファイルダウンロード時の転送プロトコル選択
+
+**Firsthand recollection / partially corroborated**
+
+当時の利用経験に基づく証言では、ファイルコーナーからダウンロードする際に、
+利用するファイル転送プロトコルを選択できた。
+
+外部資料では絵理香K版が NMODEM をサポートしていたことは確認できる。
+一方、K版の実ログ上でプロトコル選択画面そのもの、あるいは XMODEM / YMODEM / ZMODEM 等を
+含む正確な選択肢一覧はまだ確認できていない。
+
+このため復元実装では、ファイル選択と転送開始を分離し、
+`transfer_protocol` を選択可能なパラメータとして設計する。
+正確な候補一覧・既定値・バッチダウン時の選択タイミングは evidence pending とする。
+
+Sources:
+- https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
+- https://ja.wikid.org/Nmodem
+
+### ファイル転送プロトコル選択
+
+**Confirmed externally:** 絵理香K版は NMODEM をサポートしていたとする資料がある。NMODEMは複数ファイル転送・ファイル情報転送・レジューム等を備える。
+
+**Firsthand recollection:** ファイルコーナーでダウンロードを開始する際、転送プロトコルを選択できた。記憶にある選択肢は次の通り。
+
+- 無手順
+- XMODEM
+- XMODEM CRC
+- XMODEM 1K
+- YMODEM
+- YMODEM-g
+- ZMODEM
+- NMODEM
+
+上記の一部は「そういう表記もあった気がする」という記憶レベルであり、完全な選択肢一覧としては未確定。
+選択方法（数字キー、文字キー、サブメニュー、MODE設定等）は記憶がなく、実ログ待ちとする。
+
+**Firsthand usage note:** 無手順は ISH 等の受信に使える場面があったが、実際には利用機会はほとんどなかった。
+
+当時一般に存在した XMODEM/YMODEM の派生名称とも整合するが、絵理香K版の画面上の正確な表記・順序・選択キーは未確認。
+
+**Firsthand recollection:** 後期にはファイルをその場で転送せず「バッチ登録」でき、任意のタイミングで複数登録ファイルのダウンロードを開始できた。バッチ実行と転送プロトコル選択の正確な順序、およびプロトコルごとのバッチ対応方法は未確認。
+
+Research targets:
+- FILE/FM画面のクイックヘルプ
+- ダウンロード選択直後のプロトコル一覧
+- XMODEMのSUM/CRC/1K等が別項目だったか
+- YMODEM-gの有無
+- BAT実行時のプロトコル選択画面
+- 無手順がテキスト専用か任意ファイル対応か
+
+External reference:
+- https://www.wdic.org/w/WDIC/%E3%83%90%E3%82%A4%E3%83%8A%E3%83%AA%E8%BB%A2%E9%80%81%E3%83%97%E3%83%AD%E3%83%88%E3%82%B3%E3%83%AB
+
+### 未取得・優先調査項目
+
+1. 正規会員ログインとPASSWORDエラー処理。
+2. `BM/BX/BXS/BR/BW/BWX/BKILL/BJ` 系の完全な引数仕様。
+3. `FM/FX/FXS/FR/FW/FWX/FKILL/FJ` とファイル転送/NMODEM。
+4. `MAIL/MX/MR/MW/MKILL` のメールボックスモデル。
+5. `MODE`, `ASET`, `BAT`, `GUIDE`, `MEMB`, `PASS` の詳細。
+6. 未読管理と最終アクセス日時仮設定の関係。
+7. ボード階層の親/子/兄弟移動キー。
+8. SYSOP/SIGOP権限と `K` / `KA` の表示条件。
+9. バージョン差 (1993系 vs 1995系 vs `ERIKA-K Ver1.93`)。
+10. 局設定ファイルがどこまでUI/キー/機能を変更できたか。
+
+## 機械解析
+
+研究用アーカイブ取得後、`scripts/research/analyze_erika_k_logs.py` に `--archive`, `--json`, `--markdown` を渡す。解析器は第三者の投稿本文/チャット本文を出力せず、仕様復元に必要な構文だけを抽出する。同一構文が複数ファイルに出た場合は `confirmed-repeated` に昇格させる。
+
+## 現在の主要一次資料
+
+- 東京がらくた工房 1996 接続/電報/WHO/チャットログ: https://sixsamana.com/library/lib/D-00078.html
+- 東京がらくた工房 1995 隠しボードログ: https://sixsamana.com/library/lib/A-00005.html
+- 東京がらくた工房 1993 ボード/APPENDログ: https://sixsamana.com/library/lib/B-00032.html
+- 東京がらくた工房 1995 掲示板ログ: https://sixsamana.com/library/lib/A-00025.html
+- くにびきNET 1989/1998発掘ログ議論: https://mixi.jp/view_bbs.pl?comm_id=386567&id=3644356
