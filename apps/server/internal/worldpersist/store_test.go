@@ -29,8 +29,8 @@ func (b *fakeBackend) Save(_ context.Context, hostID, _ string, _ int, data []by
 }
 func (b *fakeBackend) Close() {}
 
-// genericPersistPhone is a test-only, non-experiment host that is persisted like
-// a development fixture; no production station has to exist for these tests.
+// genericPersistPhone is a test-only host that is persisted like a development
+// fixture; no production station has to exist for these tests.
 const genericPersistPhone = "0450000010"
 
 func newPersistBase() *world.MemoryStore {
@@ -48,7 +48,9 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	host, _ := store.HostByPhone(genericPersistPhone)
-	host.Name = "PERSISTED"
+	// A runtime change to the host definition may end up in a later snapshot,
+	// but it must never come back: the host definition is immutable.
+	host.Name = "MUTATED"
 	store.SaveHost(host)
 	store.SaveBoards(host.ID, []world.Board{{ID: "3", Name: "地域の話題"}})
 	persona := world.Persona{ID: host.ID + "-p", Handle: "P", Interests: map[string]float64{"local": 1}}
@@ -73,8 +75,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatalf("status=%+v", status)
 	}
 	gotHost, _ := restored.HostByPhone(genericPersistPhone)
-	if gotHost.Name != "PERSISTED" {
-		t.Fatalf("host=%+v", gotHost)
+	if gotHost.Name != "GENERIC TEST BBS" {
+		t.Fatalf("the host definition was restored from the snapshot: host=%+v", gotHost)
 	}
 	posts := restored.ListPosts(host.ID)
 	if len(posts) != 1 || posts[0].Body != "本文まで保存" {
@@ -130,12 +132,12 @@ func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	}
 }
 
-func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
+func TestStorePersistsWorldButNeverRestoresTheHostDefinition(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	targets := []HostTarget{
 		{Phone: genericPersistPhone},
-		{Phone: "0920000196", KeepSeedHostConfig: true},
+		{Phone: "0920000196"},
 	}
 
 	base := newPersistBase()
@@ -150,8 +152,8 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 	seedName := host.Name
 	seedLines := host.Lines
 
-	// Even if a runtime mutation writes host metadata into the snapshot, this
-	// experiment host must come back with the code-defined fixture settings.
+	// Even if a runtime mutation writes host metadata into the snapshot, the
+	// host must come back with the preset-defined settings.
 	host.Name = "MUTATED SNAPSHOT NAME"
 	host.Lines = 99
 	store.SaveHost(host)
@@ -169,7 +171,7 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 	})
 
 	if len(backend.data[host.ID]) == 0 {
-		t.Fatal("expected Erika host snapshot")
+		t.Fatal("expected a host snapshot")
 	}
 
 	fresh := newPersistBase()
@@ -182,7 +184,11 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if gotHost.Name != seedName || gotHost.Lines != seedLines {
-		t.Fatalf("fixed host config was restored from snapshot: got=%+v want name=%q lines=%d", gotHost, seedName, seedLines)
+		t.Fatalf("host definition was restored from snapshot: got=%+v want name=%q lines=%d", gotHost, seedName, seedLines)
+	}
+	// The flags are part of the definition too, so they survive a restore.
+	if !gotHost.Debug.Snapshot || !gotHost.Debug.ResetArticlesOnConnect {
+		t.Fatalf("host flags were lost on restore: %+v", gotHost.Debug)
 	}
 
 	posts := restored.ListPosts(host.ID)
@@ -194,7 +200,7 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 		}
 	}
 	if !foundPost {
-		t.Fatalf("persisted Erika post not restored: %+v", posts)
+		t.Fatalf("persisted post not restored: %+v", posts)
 	}
 	personas := restored.ListHostPersonas(host.ID)
 	foundPersona := false
@@ -205,11 +211,11 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 		}
 	}
 	if !foundPersona {
-		t.Fatalf("persisted Erika persona not restored among resident cast: %+v", personas)
+		t.Fatalf("persisted persona not restored among resident cast: %+v", personas)
 	}
 	facts := restored.ListPersonaFacts(persona.ID)
 	if len(facts) != 1 || facts[0].Value != "天神" {
-		t.Fatalf("persisted Erika persona facts not restored: %+v", facts)
+		t.Fatalf("persisted persona facts not restored: %+v", facts)
 	}
 }
 
@@ -218,7 +224,7 @@ func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	base := newPersistBase()
-	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +251,7 @@ func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
 	}
 
 	fresh := newPersistBase()
-	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0920000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +265,7 @@ func TestNestedPostBatchesPersistOnlyWhenOutermostBatchEnds(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	base := newPersistBase()
-	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196"}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}

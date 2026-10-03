@@ -86,8 +86,12 @@ func (r *Repository) GenerationTraceSnapshot() GenerationTraceSnapshot {
 	return snapshot
 }
 
+// beginGenerationTrace records a run only when the process-wide trace switch is
+// on (SetGenerationTraceEnabled) and the host opted in with
+// debug.generation_trace. Both are required: the trace endpoint is
+// unauthenticated and prompts may contain thread context.
 func (r *Repository) beginGenerationTrace(ctx context.Context, host world.Host, board world.Board, kind string, postID int64) (context.Context, func(error)) {
-	if r == nil || r.generationTrace == nil || !host.IsExperiment() {
+	if r == nil || r.generationTrace == nil || !host.Debug.GenerationTrace {
 		return ctx, func(error) {}
 	}
 	store := r.generationTrace

@@ -45,8 +45,11 @@ type debugBBSConnectionPreparer interface {
 	PrepareDebugBBSConnection(host world.Host) (removed int, kept int, ok bool)
 }
 
+// prepareDebugBBSConnection runs the generator-evaluation reset for hosts whose
+// definition opts in with debug.reset_articles_on_connect. Every other host
+// connects normally and keeps its articles.
 func prepareDebugBBSConnection(store world.Store, host world.Host) bool {
-	if !host.IsExperiment() {
+	if !host.Debug.ResetArticlesOnConnect {
 		return true
 	}
 	preparer, ok := store.(debugBBSConnectionPreparer)
@@ -113,9 +116,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sm := serverMessage{Type: "dial_result", Result: string(res.Result), Baud: res.Baud, Line: res.Line}
 			if res.Result == telephone.Connect {
 				if !prepareDebugBBSConnection(h.Store, res.Host) {
-					// During this experiment, a CONNECT is valid only after the
-					// previous generated sample was safely cleared. Fail the dial
-					// rather than showing a mixed old/new sample.
+					// For a host that opted in to the article reset, a CONNECT is
+					// valid only after the previous generated sample was safely
+					// cleared. Fail the dial rather than showing a mixed old/new
+					// sample.
 					sm.Result = string(telephone.NoCarrier)
 					sm.Baud = 0
 					sm.Line = 0

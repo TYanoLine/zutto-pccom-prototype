@@ -64,3 +64,59 @@ func TestHostFromDescriptorCarriesTheRole(t *testing.T) {
 		t.Fatalf("role was not carried into the host: %+v", h)
 	}
 }
+
+func TestHostFromDescriptorCarriesTheFlags(t *testing.T) {
+	d := hostcatalog.HostDescriptor{
+		Key: "x",
+		Debug: hostcatalog.DebugFlags{
+			ResetArticlesOnConnect: true,
+			GenerationTrace:        true,
+			ContentLog:             true,
+			HTTPEndpoints:          true,
+			Snapshot:               true,
+		},
+		GenerationFlags: hostcatalog.GenerationFlags{FreeformBody: true},
+	}
+	h := HostFromDescriptor(d)
+	if h.Debug != d.Debug || h.Generation != d.GenerationFlags {
+		t.Fatalf("flags were not carried into the host: %+v", h)
+	}
+	// A host definition without flags has everything off.
+	if off := HostFromDescriptor(hostcatalog.HostDescriptor{Key: "y"}); off.Debug != (hostcatalog.DebugFlags{}) || off.Generation != (hostcatalog.GenerationFlags{}) {
+		t.Fatalf("flags must default to off: %+v", off)
+	}
+}
+
+func TestFlagBasedHostListsComeFromThePresets(t *testing.T) {
+	s := NewMemoryStore()
+	for name, hosts := range map[string][]Host{
+		"snapshot":      s.SnapshotHosts(),
+		"http endpoint": s.DebugEndpointHosts(),
+	} {
+		if len(hosts) != 1 || hosts[0].ID != "hakata-canal-net" {
+			t.Fatalf("%s hosts = %+v, want only hakata-canal-net", name, hosts)
+		}
+	}
+	// The generic test preset opts in to nothing.
+	busy, err := s.HostByPhone("0459999999")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if busy.Debug != (hostcatalog.DebugFlags{}) || busy.Generation != (hostcatalog.GenerationFlags{}) {
+		t.Fatalf("a preset without flag blocks must have every flag off: %+v", busy)
+	}
+}
+
+func TestFlagBasedHostListsFollowTheFlagsNotTheRole(t *testing.T) {
+	s := NewMemoryStore()
+	s.SaveHost(Host{ID: "role-only", Phone: "0910000001", Role: hostcatalog.RoleExperiment})
+	s.SaveHost(Host{ID: "flag-only", Phone: "0990000002", Debug: hostcatalog.DebugFlags{Snapshot: true, HTTPEndpoints: true}})
+	for name, got := range map[string][]Host{
+		"snapshot":      s.SnapshotHosts(),
+		"http endpoint": s.DebugEndpointHosts(),
+	} {
+		if len(got) != 2 || got[0].Phone != "0920000196" || got[1].Phone != "0990000002" {
+			t.Fatalf("%s hosts = %+v, want hakata-canal-net then flag-only, ordered by phone and without role-only", name, got)
+		}
+	}
+}

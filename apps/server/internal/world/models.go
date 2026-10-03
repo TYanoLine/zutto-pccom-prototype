@@ -1,6 +1,10 @@
 package world
 
-import "time"
+import (
+	"time"
+
+	"zutto-pccom/apps/server/internal/hostcatalog"
+)
 
 type Host struct {
 	ID             string  `json:"id"`
@@ -17,10 +21,16 @@ type Host struct {
 	ANSI           bool    `json:"ansi"`
 	GuestAllowed   bool    `json:"guest_allowed"`
 	TelehoFriendly bool    `json:"teleho_friendly"`
-	// Role is an operational tag copied from the host definition ("experiment",
-	// "test", ...). Behavior that only the evaluation station gets is keyed on it,
-	// never on a phone number or ID.
+	// Role is an operational label copied from the host definition
+	// ("experiment", "test", ...). It is only a label: debug and experimental
+	// behavior follows the explicit Debug and Generation flags below, never the
+	// role, a phone number or an ID.
 	Role string `json:"role,omitempty"`
+	// Debug and Generation are per-host opt-in flags copied from the host
+	// definition (the preset). They are part of the immutable definition, so they
+	// are not serialized into snapshots.
+	Debug      hostcatalog.DebugFlags      `json:"-"`
+	Generation hostcatalog.GenerationFlags `json:"-"`
 }
 
 type Board struct {

@@ -3,11 +3,11 @@
 The canonical description of a BBS host, plus the preset hosts defined as YAML.
 
 **Status.** `world.NewMemoryStore` builds its hosts from these presets through
-`world.HostFromDescriptor`, which also carries the preset `role` into
-`world.Host.Role`; the hosts are no longer hard-coded there. Not driven by these
-files yet: the directory the web client shows (`CenterDirectory.ts`), the dial
-behaviors in `telephone`, and what the Erika-K runtime says (welcome text,
-boards, SYSOP), which is still HAKATA's.
+`world.HostFromDescriptor`, which also carries the preset `role` and the
+`debug` / `generation` flags into `world.Host`; the hosts are no longer
+hard-coded there. Not driven by these files yet: the directory the web client
+shows (`CenterDirectory.ts`), the dial behaviors in `telephone`, and what the
+Erika-K runtime says (welcome text, boards, SYSOP), which is still HAKATA's.
 
 `hostcatalog` must not import `world` (the store imports it), so the
 descriptor -> `world.Host` conversion lives in `world`.
@@ -23,6 +23,12 @@ descriptor -> `world.Host` conversion lives in `world`.
 The descriptor holds no derived values. The busy rate is computed from
 popularity, lines and time of day (`telephone.busyProbability`); time-varying
 membership belongs to the board activity model.
+
+The host definition is **immutable and owned by the preset**. Nothing fills it
+in or rewrites it at runtime, and a debug snapshot never restores it: only the
+state layer is ever read back from storage. A later change to a host (a new
+name, a new operating policy, a new SYSOP) is meant to be recorded as a separate,
+dated difference on top of the definition, not as an edit to it.
 
 ## Listed vs. dialable
 
@@ -42,9 +48,9 @@ One file per host in `presets/`, embedded into the binary. The file name must be
 ```yaml
 schema: 1                  # required, must be 1
 key: hakata-canal-net      # required, stable, lower-case words joined by "-"
-revision: 1                # required, raise when the content changes
+revision: 2                # required, raise when the content changes
 listed: true               # required, no default
-role: experiment           # optional: debug | test | experiment | event
+role: experiment           # optional label: debug | test | experiment | event
 
 host:
   name: HAKATA CANAL NET   # required
@@ -66,36 +72,63 @@ dial:                      # optional
   #                        # from 1, so 5 gives four BUSY dials). Required with, and
   #                        # only valid for, busy_first_n
 
+debug:                     # optional; every flag is opt-in and off when omitted
+  reset_articles_on_connect: true  # clear generated articles on every successful CONNECT
+  generation_trace: true           # keep prompts/responses for the generation-trace endpoint
+  content_log: true                # log committed, world-generated content
+  http_endpoints: true             # allow the token-protected debug reset/sample endpoints
+  snapshot: true                   # debug snapshot of the world state (never the host definition)
+
+generation:                # optional; experimental generation behavior, off when omitted
+  freeform_body: true      # title-led article body, skipping Article Detail and evidence
+
 detail:                    # optional; only `welcome` is accepted for now
   welcome: |
     ...
 ```
 
-Decoding is strict: unknown keys, a second YAML document, a missing `listed`, or
-any out-of-range value fail the load, and loading is all-or-nothing, so a broken
-definition stops startup instead of making a host quietly disappear. All
-problems in a file are reported together.
+Decoding is strict: unknown keys (a typo in a flag name included), a second YAML
+document, a missing `listed`, or any out-of-range value fail the load, and
+loading is all-or-nothing, so a broken definition stops startup instead of
+making a host quietly disappear. All problems in a file are reported together.
 
 Fields under `host` other than `name` and `program` may be omitted. A preset
 with omitted fields parses (`Preset.Missing()` lists them) but cannot become a
-`HostDescriptor` yet: `Preset.Descriptor()` returns `*IncompleteError`. Filling
-them deterministically from the world seed is the generator's job and is not
-implemented.
+`HostDescriptor` yet: `Preset.Descriptor()` returns `*IncompleteError`, and the
+store refuses to start with such a preset. Filling them deterministically from
+the world seed is the generator's job and is not implemented.
+
+## Debug and generation flags
+
+Behavior that only an evaluation station needs is switched on per host by these
+flags, never by a phone number, an ID or the role. The role is only a label.
+
+| Flag | What it does | Also needs |
+|---|---|---|
+| `debug.reset_articles_on_connect` | Clears the host's generated articles on every new successful CONNECT (see `docs/DEBUG_RESET.md`). Refused while generation runs. | nothing |
+| `debug.generation_trace` | Records prompts and responses of generation calls. | `DEBUG_HAKATA_LLM_TRACE` (process-wide) |
+| `debug.content_log` | Logs committed generated headers and bodies. | `DEBUG_LOG_HAKATA_GENERATED` (process-wide) |
+| `debug.http_endpoints` | Lets `/api/debug/bbs/reset` and `/api/debug/bbs/sample` act on the host. An unknown number and a host without the flag get the same answer. | `DEBUG_RESET_TOKEN` |
+| `debug.snapshot` | Stores the host's world state (boards, posts, memberships, personas, persona facts) as one JSON snapshot in Postgres so it survives a restart. A development stopgap until the world is stored in normalized tables. It never stores or restores the host definition. | `DATABASE_URL` |
+| `generation.freeform_body` | Title-led prose experiment for article bodies. | `HAKATA_FREEFORM_BODY` (process-wide) |
+
+The process-wide environment switches keep their historical names for now.
+
+There is no flag for clearing articles at startup: the snapshot keeps the
+articles, and `debug.reset_articles_on_connect` (or the debug reset endpoint)
+clears them when wanted.
 
 ## Changing presets safely
 
 - A published `key` and `phone` must not change: players already know the number
   and posts are keyed by the host.
-- `role: experiment` marks the evaluation station. What used to be keyed on
-  HAKATA's phone number or ID now follows the role (`world.Host.IsExperiment`):
-  the debug auto-reset on CONNECT, the debug reset/sample endpoints, durable
-  snapshots and the startup baseline clear, the generation trace and
-  generated-content log, the title-led prose experiment, and the resident
-  population. At most one preset may have it, because the population generator
-  uses fixed persona IDs; loading panics otherwise. Without any experiment host
-  those features are simply off.
-- Raise `revision` whenever the content changes. Existing worlds keep the content
-  they were created with (only `listed` is meant to follow the file).
+- `role: experiment` still marks the evaluation station for one thing only: its
+  resident population (`world/hakata_cast.go`), which moves into the preset in a
+  later change. At most one preset may have the role, because the population
+  generator uses fixed persona IDs; loading panics otherwise.
+- Raise `revision` whenever the content changes, flags included. Existing worlds
+  keep the content they were created with (only `listed` is meant to follow the
+  file).
 - Reserve numbers by passing `Options.ReservedPhones`; presets and (later)
   generated hosts are checked against it. This is also where future special
   numbers (110, 117 ...) plug in.
@@ -105,5 +138,5 @@ implemented.
 `HostProgram` registry (`knownPrograms` / `RuntimeSoftwareID` are stopgaps),
 the web client's built-in center list, database migration (`origin`, `listed`,
 `host_key`, `host_details`), generated region/traits, per-program detail
-schemas, and moving the hard-coded dial fixtures in `telephone` to
-`dial.behavior`.
+schemas, moving the hard-coded dial fixtures in `telephone` to
+`dial.behavior`, and the dated host-change records mentioned above.
