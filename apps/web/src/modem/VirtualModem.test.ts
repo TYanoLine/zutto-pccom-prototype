@@ -265,6 +265,49 @@ describe('VirtualModem standalone lifecycle', () => {
     modem.dispose();
   });
 
+  it('passes the host role from the server to the call state, and omits it when absent', () => {
+    const sockets: FakeSocket[] = [];
+    const calls: unknown[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+      dialDelayMs: 0,
+    });
+    modem.onCallState = call => calls.push(call);
+
+    modem.submitLine('ATDT0920000196');
+    sockets[0].open();
+    vi.runOnlyPendingTimers();
+    sockets[0].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 14400,
+      session_id: 'session-role',
+      host: { name: 'STATION', phone: '0920000196', role: 'experiment' },
+    });
+    modem.hangup();
+
+    modem.submitLine('ATDT0459999999');
+    sockets[1].open();
+    vi.runOnlyPendingTimers();
+    sockets[1].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 9600,
+      session_id: 'session-plain',
+      host: { name: 'PLAIN', phone: '0459999999' },
+    });
+
+    expect(calls[0]).toStrictEqual({ phone: '0920000196', baud: 14400, role: 'experiment' });
+    expect(calls[1]).toBeNull();
+    expect(calls[2]).toStrictEqual({ phone: '0459999999', baud: 9600 });
+    modem.dispose();
+  });
+
   it('continues dialing when Web Audio is unavailable', () => {
     const socket = new FakeSocket();
     const calls: unknown[] = [];
