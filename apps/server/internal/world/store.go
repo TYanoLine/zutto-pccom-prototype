@@ -127,33 +127,17 @@ func NewMemoryStore() *MemoryStore {
 	}
 
 	// Host definitions come from the embedded YAML presets
-	// (internal/hostcatalog/presets). The seed posts and the HAKATA population
-	// below stay keyed to the preset keys defined there.
+	// (internal/hostcatalog/presets). The HAKATA resident population below stays
+	// keyed to the preset key defined there.
 	presets := map[string]Host{}
 	for _, h := range presetHosts() {
 		s.hosts[h.Phone] = h
 		presets[h.ID] = h
 	}
 
-	s.posts[mustPresetHost(presets, "moonlight-yokohama").ID] = []Post{
-		{ID: 1, BoardID: "main", Author: "SYSOP", Subject: "HDD増設しました", Body: "先週、HDDを340MBに増設しました。\r\nファイルボードも少し整理しています。", CreatedAt: time.Date(1996, 8, 25, 21, 14, 0, 0, time.Local)},
-		{ID: 2, BoardID: "main", Author: "NEKO", Subject: "土曜のオフ", Body: "集合は18時に関内駅でいいんでしたっけ？(^^;", CreatedAt: time.Date(1996, 8, 26, 0, 42, 0, 0, time.Local)},
-		{ID: 3, BoardID: "main", Author: "TAKA", Subject: "Win95どうです？", Body: "うちはまだ3.1です。98で使うには重い気もしますが…。", CreatedAt: time.Date(1996, 8, 26, 1, 7, 0, 0, time.Local)},
-	}
-
 	erika := mustPresetHost(presets, "hakata-canal-net")
 	s.posts[erika.ID] = nil
 	ensureHakataExperimentPopulationLocked(s, erika)
-
-
-	turbo := mustPresetHost(presets, "silver-horizon-bbs")
-	s.posts[turbo.ID] = []Post{
-		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "まだ動いてます", Body: "1980年代から手を入れながら使っているTurboBBSです。\r\n古い作りですが、のんびり使ってください(^^)", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, time.Local)},
-		{ID: 602, BoardID: "4", Author: "TARO YAMADA", Subject: "2400bpsモデム", Body: "高速局が増えましたが、このくらいの速度も落ち着きますね。\r\n巡回にはちょっと時間がかかります(^^;", CreatedAt: time.Date(1996, 8, 25, 0, 14, 0, 0, time.Local)},
-		{ID: 603, BoardID: "2", Author: "MIKA", Subject: "98のDOS環境", Body: "CONFIG.SYSを整理したら空きメモリが少し増えました。\r\nまだDOSも手放せません。", CreatedAt: time.Date(1996, 8, 25, 21, 47, 0, 0, time.Local)},
-		{ID: 604, BoardID: "8", Author: "KEN", Subject: "夏も終わりかな", Body: "夜は少し涼しくなってきましたね。\r\n電話代を気にしつつ、また深夜に来ます(笑)", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, time.Local)},
-	}
-
 
 	return s
 }

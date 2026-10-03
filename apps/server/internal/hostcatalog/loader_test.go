@@ -17,7 +17,7 @@ func TestEmbeddedPresetsLoadAndValidate(t *testing.T) {
 	for _, p := range presets {
 		keys = append(keys, p.Key)
 	}
-	wantKeys := []string{"busy-test", "hakata-canal-net", "moonlight-yokohama", "quiet-test", "silver-horizon-bbs"}
+	wantKeys := []string{"busy-test", "hakata-canal-net", "quiet-test"}
 	if !slices.Equal(keys, wantKeys) {
 		t.Fatalf("preset keys = %v, want %v", keys, wantKeys)
 	}
@@ -32,7 +32,7 @@ func TestEmbeddedPresetsLoadAndValidate(t *testing.T) {
 	}
 }
 
-// Policy guard: real stations are listed, fixtures are not.
+// Policy guard: the real station is listed, fixtures are not.
 func TestEmbeddedPresetListingPolicy(t *testing.T) {
 	presets, err := LoadPresets(Options{})
 	if err != nil {
@@ -42,11 +42,9 @@ func TestEmbeddedPresetListingPolicy(t *testing.T) {
 		listed bool
 		role   string
 	}{
-		"hakata-canal-net":   {true, RoleExperiment},
-		"moonlight-yokohama": {true, ""},
-		"silver-horizon-bbs": {true, ""},
-		"quiet-test":         {false, RoleTest},
-		"busy-test":          {false, RoleTest},
+		"hakata-canal-net": {true, RoleExperiment},
+		"quiet-test":       {false, RoleTest},
+		"busy-test":        {false, RoleTest},
 	}
 	for _, p := range presets {
 		w := want[p.Key]
@@ -74,7 +72,7 @@ func TestEmbeddedPresetDialBehaviors(t *testing.T) {
 }
 
 func TestEmbeddedPresetsRespectOptions(t *testing.T) {
-	if _, err := LoadPresets(Options{ReservedPhones: map[string]struct{}{"0451234567": {}}}); err == nil || !strings.Contains(err.Error(), "reserved") {
+	if _, err := LoadPresets(Options{ReservedPhones: map[string]struct{}{"0920000196": {}}}); err == nil || !strings.Contains(err.Error(), "reserved") {
 		t.Fatalf("reserved phone not enforced: %v", err)
 	}
 	if _, err := LoadPresets(Options{Programs: func(string) bool { return false }}); err == nil || !strings.Contains(err.Error(), "unknown host program") {
