@@ -79,6 +79,10 @@ type DebugFlags struct {
 	GenerationTrace bool `yaml:"generation_trace"`
 	// ContentLog logs committed, world-generated content for quality inspection.
 	ContentLog bool `yaml:"content_log"`
+	// HTTPEndpoints lets the token-protected debug reset/sample HTTP endpoints
+	// operate on this host. The endpoints also need DEBUG_RESET_TOKEN, and an
+	// unknown number and a host without this flag get the same answer.
+	HTTPEndpoints bool `yaml:"http_endpoints"`
 	// Snapshot stores the host's materialized world state (boards, posts,
 	// memberships, personas, persona facts) as one debug snapshot so that it
 	// survives a process restart. It is a development stopgap until the world is
