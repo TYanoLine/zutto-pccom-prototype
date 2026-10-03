@@ -29,15 +29,25 @@ func (b *fakeBackend) Save(_ context.Context, hostID, _ string, _ int, data []by
 }
 func (b *fakeBackend) Close() {}
 
+// genericPersistPhone is a test-only, non-experiment host that is persisted like
+// a development fixture; no production station has to exist for these tests.
+const genericPersistPhone = "0450000010"
+
+func newPersistBase() *world.MemoryStore {
+	s := world.NewMemoryStore()
+	s.SaveHost(world.Host{ID: "generic-test", Phone: genericPersistPhone, Name: "GENERIC TEST BBS", Region: "神奈川県", Software: "generic", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, FoundedOn: "1996-05-05", GuestAllowed: true})
+	return s
+}
+
 func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
-	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000001"}}, backend)
+	base := newPersistBase()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
-	host, _ := store.HostByPhone("0450000001")
+	host, _ := store.HostByPhone(genericPersistPhone)
 	host.Name = "PERSISTED"
 	store.SaveHost(host)
 	store.SaveBoards(host.ID, []world.Board{{ID: "3", Name: "地域の話題"}})
@@ -53,8 +63,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatal("expected persisted snapshots")
 	}
 
-	fresh := world.NewMemoryStore()
-	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0450000001"}}, backend)
+	fresh := newPersistBase()
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +72,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	if !status.Enabled || !status.Loaded {
 		t.Fatalf("status=%+v", status)
 	}
-	gotHost, _ := restored.HostByPhone("0450000001")
+	gotHost, _ := restored.HostByPhone(genericPersistPhone)
 	if gotHost.Name != "PERSISTED" {
 		t.Fatalf("host=%+v", gotHost)
 	}
@@ -82,8 +92,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatal("reset mutation was not persisted")
 	}
 
-	freshAgain := world.NewMemoryStore()
-	restoredAgain, err := newStore(ctx, freshAgain, []HostTarget{{Phone: "0450000001"}}, backend)
+	freshAgain := newPersistBase()
+	restoredAgain, err := newStore(ctx, freshAgain, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,8 +105,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
-	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, []HostTarget{{Phone: "0450000001"}}, backend)
+	base := newPersistBase()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,11 +134,11 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
 	targets := []HostTarget{
-		{Phone: "0450000001"},
+		{Phone: genericPersistPhone},
 		{Phone: "0920000196", KeepSeedHostConfig: true},
 	}
 
-	base := world.NewMemoryStore()
+	base := newPersistBase()
 	store, err := newStore(ctx, base, targets, backend)
 	if err != nil {
 		t.Fatal(err)
@@ -162,7 +172,7 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 		t.Fatal("expected Erika host snapshot")
 	}
 
-	fresh := world.NewMemoryStore()
+	fresh := newPersistBase()
 	restored, err := newStore(ctx, fresh, targets, backend)
 	if err != nil {
 		t.Fatal(err)
@@ -207,7 +217,7 @@ func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
 func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
-	base := world.NewMemoryStore()
+	base := newPersistBase()
 	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
 	if err != nil {
 		t.Fatal(err)
@@ -234,7 +244,7 @@ func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
 		t.Fatalf("batch snapshots=%d, want exactly %d", backend.saves, before+1)
 	}
 
-	fresh := world.NewMemoryStore()
+	fresh := newPersistBase()
 	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
 	if err != nil {
 		t.Fatal(err)
@@ -248,7 +258,7 @@ func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
 func TestNestedPostBatchesPersistOnlyWhenOutermostBatchEnds(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
-	base := world.NewMemoryStore()
+	base := newPersistBase()
 	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
 	if err != nil {
 		t.Fatal(err)
