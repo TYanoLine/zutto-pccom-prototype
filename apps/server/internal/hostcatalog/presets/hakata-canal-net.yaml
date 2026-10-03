@@ -1,0 +1,22 @@
+# Preset host. See ../README.md for the schema.
+# HAKATA is the fixed station used to evaluate the shared BBS article generator
+# (see docs/ARCHITECTURE.md). Its evaluation behavior is still keyed off the
+# phone number in code; `role: experiment` is the marker to move that to.
+schema: 1
+key: hakata-canal-net
+revision: 1
+listed: true
+role: experiment
+
+host:
+  name: HAKATA CANAL NET
+  phone: "0920000196"
+  region: { prefecture: 福岡県, city: 福岡市 }
+  program: erika-k
+  software_label: 絵理香K版
+  lines: 3
+  max_baud: 14400
+  founded_on: 1994-11-03
+  popularity: 0.58
+  members: 326
+  traits: { ansi: false, guest_allowed: true, teleho_friendly: true }

@@ -14,6 +14,9 @@ import (
 
 var ErrTitleCandidateAdvisorUnavailable = errors.New("title candidate advisor unavailable")
 
+const titleCandidateFitPolicy = "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Board name/id/scope are a hard placement constraint: a title that would normally belong to another board/category should receive low fit even if its era and author are plausible. event.created_at is also a hard temporal-placement constraint: seasonal/holiday wording, today/this-weekend wording, and other date-sensitive language must be natural for that exact slot date; a clear mismatch such as 夏物 in December should receive near-zero fit. For broad general-Q&A/general-chat scopes, repeated concentration in one specialist domain should not be treated as extra fit merely because the titles are plausible individually. A root title that semantically presupposes one specific work, product, issue, episode, character, volume, song, machine, or other unique referent but neither the title nor board scope/recent BBS state identifies that referent should receive near-zero fit; do not assume a later prose step will invent the missing target. Terse titles remain valid when a single-work board or clearly shared recent context makes the referent unambiguous. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect board scope, author role, cause, discourse mode, recent BBS state, and SYSOP role competence."
+const titleCandidateSpecificityPolicy = "Judge only whether this candidate has enough topic identity to work as a new root in this board without inventing an unnamed hidden target. This is NOT a completeness, sentence-length, informativeness, or modern-headline score. Terse fragments and noun phrases can score high. A proper noun is not required: concrete world-local situations such as 接続すると3分くらいで切れる or 明日の待ち合わせ場所 have enough topic identity. Score very low when the wording semantically depends on one unmentioned work/product/issue/episode/character/volume/song/machine or is nearly content-free, for example 台詞の間が好き, お気に入りの見開き, このキャラの表情がいい, 次号の展開を予想, or クリア時間を比べたい on a broad board with no shared target in scope/recent context. Do not reward complete sentences over historically natural short BBS subjects. A terse title is valid when the topic/referent is actually identifiable from the title itself or genuine shared canonical context."
+
 type TitleEvaluationEvent struct {
 	EventID        string   `json:"event_id"`
 	AuthorHandle   string   `json:"author_handle"`
@@ -31,9 +34,14 @@ type TitleCandidateAdviceRequest struct {
 	HostName       string                 `json:"host_name"`
 	BoardID        string                 `json:"board_id"`
 	BoardName      string                 `json:"board_name"`
+	BoardScope     string                 `json:"board_scope,omitempty"`
 	Titles         []string               `json:"titles"`
 	Events         []TitleEvaluationEvent `json:"events"`
 	RecentBBSState string                 `json:"recent_bbs_state,omitempty"`
+	HistoricalFacts []string              `json:"historical_facts,omitempty"`
+	// FitOnly suppresses title-era questions when the caller only needs
+	// candidate × world-event/persona compatibility.
+	FitOnly        bool                  `json:"fit_only,omitempty"`
 }
 
 type TitleEraProbabilities struct {
@@ -45,6 +53,7 @@ type TitleCandidateAdviceDecision struct {
 	Model         string
 	Era           map[int]TitleEraProbabilities
 	Fit           map[string]float64
+	Specificity   map[int]float64
 	InputTokens   int
 }
 
@@ -72,7 +81,7 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 		return TitleCandidateAdviceDecision{}, ErrTitleCandidateAdvisorUnavailable
 	}
 	if len(req.Titles) == 0 {
-		return TitleCandidateAdviceDecision{Era: map[int]TitleEraProbabilities{}, Fit: map[string]float64{}}, nil
+		return TitleCandidateAdviceDecision{Era: map[int]TitleEraProbabilities{}, Fit: map[string]float64{}, Specificity: map[int]float64{}}, nil
 	}
 
 	model := strings.TrimSpace(a.Model)
@@ -113,13 +122,15 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 	state := map[string]any{
 		"world_date": req.WorldDate,
 		"host": map[string]any{"id": req.HostID, "name": req.HostName},
-		"board": map[string]any{"id": req.BoardID, "name": req.BoardName},
+		"board": map[string]any{"id": req.BoardID, "name": req.BoardName, "scope": req.BoardScope},
 		"titles": titleState,
 		"events": eventState,
 		"recent_bbs_state": recent,
+		"historical_facts": append([]string(nil), req.HistoricalFacts...),
 		"policy": map[string]any{
-			"era": "Classify only whether an external historical lookup is needed. Named products, works, services, standards or time-dependent real-world claims are not safe without research merely because they seem familiar. Only explicit contradictions derivable from world_date alone are logically impossible.",
-			"fit": "Estimate semantic compatibility between an uncommitted title candidate and an already-selected world event slot. Do not invent a different topic or event. A title may establish the minimal experience or opinion directly expressed by the title when it does not contradict existing persona facts. Respect author role, cause, discourse mode, recent BBS state, and SYSOP role competence.",
+			"era": "Classify only whether an external historical lookup is needed. A named product, work, service or standard may be safe_without_research when the time-sensitive identity/existence needed by the title is explicitly supported by state.historical_facts and the title adds no other unsupported time-dependent real-world claim. Familiarity alone is never enough; unsupported named or time-dependent claims require research. Only explicit contradictions derivable from world_date or supplied facts are logically impossible.",
+			"fit": titleCandidateFitPolicy,
+			"specificity": titleCandidateSpecificityPolicy,
 			"authority": "Probabilities are advisory only. Deterministic World code performs matching and persistence. Historical verification remains separate.",
 		},
 	}
@@ -133,19 +144,30 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 	targets := map[string]target{}
 	for i := range req.Titles {
 		candidate := i + 1
-		safeKey := fmt.Sprintf("c%d_era_safe", candidate)
-		targets[safeKey] = target{kind: "safe", candidate: candidate}
-		questions[safeKey] = map[string]any{
-			"type": "noul",
-			"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it safe_without_research", candidate),
-			"criteria": map[string]any{"true": "safe_without_research", "false": "research_needed"},
+		if req.FitOnly {
+			specificityKey := fmt.Sprintf("c%d_root_specificity", candidate)
+			targets[specificityKey] = target{kind: "specificity", candidate: candidate}
+			questions[specificityKey] = map[string]any{
+				"type": "noul",
+				"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.specificity classifies it as a self-contained specific root topic", candidate),
+				"criteria": map[string]any{"true": "self_contained_specific_root", "false": "generic_or_missing_referent"},
+			}
 		}
-		impossibleKey := fmt.Sprintf("c%d_era_impossible", candidate)
-		targets[impossibleKey] = target{kind: "impossible", candidate: candidate}
-		questions[impossibleKey] = map[string]any{
-			"type": "noul",
-			"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it logically_impossible", candidate),
-			"criteria": map[string]any{"true": "logically_impossible", "false": "not_logically_impossible"},
+		if !req.FitOnly {
+			safeKey := fmt.Sprintf("c%d_era_safe", candidate)
+			targets[safeKey] = target{kind: "safe", candidate: candidate}
+			questions[safeKey] = map[string]any{
+				"type": "noul",
+				"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it safe_without_research", candidate),
+				"criteria": map[string]any{"true": "safe_without_research", "false": "research_needed"},
+			}
+			impossibleKey := fmt.Sprintf("c%d_era_impossible", candidate)
+			targets[impossibleKey] = target{kind: "impossible", candidate: candidate}
+			questions[impossibleKey] = map[string]any{
+				"type": "noul",
+				"instructions": fmt.Sprintf("candidate=%d; probability that state.policy.era classifies it logically_impossible", candidate),
+				"criteria": map[string]any{"true": "logically_impossible", "false": "not_logically_impossible"},
+			}
 		}
 		for _, event := range req.Events {
 			key := fmt.Sprintf("c%d_e_%s_fit", candidate, sanitizeJevQuestionKey(event.EventID))
@@ -197,6 +219,7 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 		Model: decoded.Model,
 		Era: make(map[int]TitleEraProbabilities, len(req.Titles)),
 		Fit: make(map[string]float64, len(req.Titles)*len(req.Events)),
+		Specificity: make(map[int]float64, len(req.Titles)),
 		InputTokens: decoded.Usage.InputTokens,
 	}
 	keys := make([]string, 0, len(targets))
@@ -227,6 +250,8 @@ func (a JevAdvisor) AdviseTitleCandidates(ctx context.Context, req TitleCandidat
 			out.Era[t.candidate] = p
 		case "fit":
 			out.Fit[TitleCandidatePairKey(t.candidate, t.eventID)] = answer.Noul
+		case "specificity":
+			out.Specificity[t.candidate] = answer.Noul
 		}
 	}
 	if out.Model == "" {

@@ -55,10 +55,10 @@ Read, in order:
 - Lurkers and inactive accounts.
 - Only call an LLM after an action has statistically been selected.
 
-### M4 — OpenAI production path
+### M4 — Azure OpenAI production path
 
-- Replace direct REST example with official `openai-go/v3` if project Go version supports the desired SDK release.
-- Use Responses API.
+- Use Azure OpenAI's OpenAI-compatible v1 Responses API through the provider boundary.
+- Keep the Azure resource endpoint, API key, and deployment names configurable through environment settings.
 - Use Structured Outputs for fact-producing calls.
 - Add validation/anachronism checks.
 - Keep model IDs configurable by generation class.
@@ -86,4 +86,4 @@ Keep a modular monolith until scaling evidence says otherwise. Domain interfaces
 
 ## Iterative generation verification
 
-Read [docs/MATERIALIZATION_LAB.md](docs/MATERIALIZATION_LAB.md) when validating generation changes. The development HTTP labs run the actual generation pipeline against an isolated MemoryStore clone. **The current fresh lab is intentionally a conversation-view PoC:** it performs RESET-equivalent shell selection, bypasses the host-wide semantic Producer for that isolated repository, rebuilds transient conversation context from canonical DB records, and then runs ALLBODY. Use it to inspect article naturalness, thread/source coherence, actor continuity, and world-shell compliance. The worker/allbody replay labs can still be used against existing Producer-materialized articles when the Producer/Article Worker boundary itself is the target. Record runtime outcomes separately from job completion; verify the deployed build before comparing changes. This does not replace terminal/browser E2E verification.
+Verify generation changes with focused Go tests and normal BBS observation on the deployed revision. Distinguish deterministic test results from observed model output; never reset or rewrite canonical world facts for a quality comparison.

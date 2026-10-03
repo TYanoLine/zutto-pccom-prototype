@@ -22,6 +22,8 @@ type LLMMaterializer struct {
 	HistoricalReferencesEnabled bool
 	HistoricalTexture           []string
 	CuratedHistoricalReferences bool
+	// ProductionMinimalHistoricalPrompt leaves historical naming to model knowledge and world-date context, without Lab rule stacks.
+	ProductionMinimalHistoricalPrompt bool
 	// ModelHistoricalMemory is a fresh-Lab experiment: allow model knowledge without a referent dictionary.
 	ModelHistoricalMemory bool
 	// PreferConcreteHistoricalNames keeps model-memory dictionary-free while preferring a known real name over a generic label when it naturally fits.
@@ -50,6 +52,13 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if req.Persona != nil {
 		author = req.Persona.Handle
 		personaProfile = personaSummary(*req.Persona)
+		if req.FreeformFromSubject {
+			personaProfile = freeformPersonaSummary(*req.Persona)
+		}
+	}
+	intent := intentSummary(req.Intent)
+	if req.FreeformFromSubject {
+		intent = freeformIntentSummary(req.Intent)
 	}
 	draft, err := m.Renderer.GenerateBoardPost(ctx, llm.BoardPostRequest{
 		HostName:         req.Host.Name,
@@ -57,13 +66,28 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		HostSoftware:     req.Host.Software,
 		BoardID:          req.BoardID,
 		BoardTopic:       req.BoardTopic,
+		FreeformFromSubject: req.FreeformFromSubject,
 		WorldDate:        req.WorldDate,
 		HistoricalFacts:  facts,
 		EraRules:         m.eraRules(),
 		AuthorHandle:     author,
 		PersonaProfile:   personaProfile,
-		PostIntent:       intentSummary(req.Intent),
+		PostIntent:       intent,
 		CanonicalSubject: req.CanonicalSubject,
+		Kind:             string(req.Kind),
+		ParentSubject: func() string {
+			if req.ParentPost != nil {
+				return req.ParentPost.Subject
+			}
+			return ""
+		}(),
+		ParentBody: func() string {
+			if req.ParentPost != nil {
+				return req.ParentPost.Body
+			}
+			return ""
+		}(),
+		QuoteText: req.QuoteText, BodyMinChars: req.BodyMinChars, BodyMaxChars: req.BodyMaxChars,
 	})
 	if err != nil {
 		return nil, GenerationUsage{}, fmt.Errorf("board post renderer failed: %w", err)
@@ -75,6 +99,12 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		// CanonicalSubject is already world-selected. The prose renderer may write
 		// the body naturally, but it must never silently rename an accepted thread.
 		draft.Subject = req.CanonicalSubject
+	}
+	if req.QuoteText != "" {
+		draft.Body, err = llm.EnsureExactQuote(draft.Body, req.QuoteText)
+		if err != nil {
+			return nil, GenerationUsage{}, fmt.Errorf("quote validation failed: %w", err)
+		}
 	}
 	usage := GenerationUsage{
 		InputTokens:       draft.Usage.InputTokens,
@@ -102,6 +132,9 @@ func (m LLMMaterializer) historicalFacts(decision worldengine.EvidenceDecision) 
 }
 
 func (m LLMMaterializer) eraRules() string {
+	if m.ProductionMinimalHistoricalPrompt {
+		return "世界日付の日本に暮らす当時の会員の視点。話題に自然に関係する当時の知識を使い、確定済みの世界事実を引き継ぐ。"
+	}
 	if m.SearchGroundedHistoricalReferences {
 		return "HISTORICAL_REFERENCES=SEARCH_GROUNDED_EXPERIMENT. Do not introduce new real product/work/service/company/person/place/event names from model memory. A real name already present in canonical Situation/PostIntent was selected only after bounded historical search and is an allowed canonical referent: preserve it in subject/body instead of generalizing it away. Do not add release dates, prices, specifications, plot, popularity, ownership history or other details unless they are explicitly canonical. Unnamed situations should remain unnamed. Never use anything after the supplied world date.\n" + llm.DiegeticWorldFrame
 	}

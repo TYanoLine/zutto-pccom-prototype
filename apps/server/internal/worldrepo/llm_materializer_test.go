@@ -27,6 +27,14 @@ func (f *fakeBoardRenderer) GenerateBoardPost(_ context.Context, r llm.BoardPost
 	return f.draft, f.err
 }
 
+func (f *fakeBoardRenderer) MaterializeBBSTitleArticleDetails(_ context.Context, req llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
+	out := llm.BBSTitleArticleDetailDraft{Articles: make([]llm.BBSTitleArticleDetailSet, 0, len(req.Articles))}
+	for _, article := range req.Articles {
+		out.Articles = append(out.Articles, llm.BBSTitleArticleDetailSet{EventID: article.EventID})
+	}
+	return out, nil
+}
+
 func (f *fakeBoardRenderer) GenerateBBSTimelineIntent(_ context.Context, r llm.BBSTimelineIntentRequest) (llm.BBSTimelineIntentDraft, error) {
 	f.intentReq = r
 	if f.plannerErr != nil {

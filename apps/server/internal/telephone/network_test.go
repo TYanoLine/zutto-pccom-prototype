@@ -15,14 +15,6 @@ func networkAt(at time.Time) *Network {
 	return New(world.NewMemoryStore(), fixedClock{now: at})
 }
 
-func TestFixtureAlwaysConnects(t *testing.T) {
-	n := networkAt(time.Date(1996, 8, 26, 23, 0, 0, 0, time.Local))
-	got := n.Dial("0450000001", 1)
-	if got.Result != Connect {
-		t.Fatalf("expected connect, got %s", got.Result)
-	}
-}
-
 func TestUnknownNumberDoesNotAnswer(t *testing.T) {
 	n := networkAt(time.Now())
 	got := n.Dial("0455555555", 1)

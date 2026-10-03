@@ -11,4 +11,3 @@ Host-program-specific research and behavior belongs in the host-program document
 
 ## Development verification
 
-- [MATERIALIZATION_LAB.md](MATERIALIZATION_LAB.md) — AIエージェント向け生成の反復検証IF。fresh / worker / random / ALLBODYの使い分け、認証、結果の読み方、制約。

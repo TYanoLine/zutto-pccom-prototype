@@ -57,7 +57,7 @@ The shared `KnowledgeKey` deliberately excludes free-form `Need` wording so sema
 
 ## Research budget
 
-The OpenAI Responses API research adapter is bounded by default:
+The Azure OpenAI Responses API research adapter is bounded by default:
 
 - one Responses job per research acquisition;
 - web search tool enabled only in the research adapter;
@@ -77,6 +77,6 @@ These are adapter defaults and can later move to configuration. Routine in-world
 
 ## WorldEngine boundary
 
-`internal/worldengine.Engine.ResolveEvidence` is the current domain boundary. Host-program runtimes should not call OpenAI web search or HistoricalKnowledge directly. Host programs request world/domain data; WorldEngine decides evidence requirements and HistoricalKnowledge supplies historical context.
+`internal/worldengine.Engine.ResolveEvidence` is the current domain boundary. Host-program runtimes should not call Azure OpenAI web search or HistoricalKnowledge directly. Host programs request world/domain data; WorldEngine decides evidence requirements and HistoricalKnowledge supplies historical context.
 
 The current repository still has prototype host/world storage shortcuts. This engine establishes the production boundary for future board/article/persona materialization without flattening host-program-specific UI or state machines.

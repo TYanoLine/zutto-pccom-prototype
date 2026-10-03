@@ -10,6 +10,35 @@ This document is product behavior, not merely prompt advice.
 - Agreement, praise and curiosity require persona/world justification.
 - Silence is a valid result and should usually be decided before the LLM is called.
 
+## Prompt construction
+
+Prefer **purpose + materials + schema/validation** over long prompt rule stacks.
+
+For fact-producing generation, tell the model briefly what service it is operating inside, what artifact it is producing, and how that artifact will be used downstream. Put the concrete world inputs that should shape the answer into structured request material: actor, world date, board, posting purpose, canonical facts, selected referents, recent context, and other already-decided state.
+
+Do not turn quality preferences into growing lists of prohibitions when the same behavior can be obtained by improving those inputs. Keep prompt-level rules for hard boundaries that cannot safely be inferred from materials alone, such as canonical-state ownership, historical ceiling, reply/source identity, and output-format requirements. Enforce machine-checkable invariants in schemas and validators rather than restating them repeatedly in prose.
+
+Small wording drift is acceptable when it does not alter canonical facts. A generator may choose a natural expression that differs from an expected phrasing; validation should reject contradictions or unauthorized world changes, not harmless stylistic variation.
+
+Board topic classification remains **internal routing context**, not a selected Situation activity or an LLM wording rule. The full, station-owned board purpose is an independent positive Situation input: it defines the board's subject boundary but never selects a particular activity or event. Resolve the domain from the board's affirmative name/topic statement, not keywords appearing later in exclusionary scope notes. ANIME/MANGA, GAME, software and chat all follow the same open-topic production Situation path; their real board names and domain anchors still differ. Do not repair misplaced topics by adding topic quotas or prohibitions to the generator.
+
+**All production boards are now open-topic**, following the successful GAME
+experiment. World fixes the actor, board, time, post action, reply topology and
+discourse mode, but never selects or sends a preset activity focus, historical
+situation_kind label, topic list or quota. Situation generation receives the
+actual board name **and affirmative station-defined board purpose**, member/persona and persisted facts, world date, posting
+purpose and already observed root subjects (without their historical facet
+classification). The model proposes a still-unknown concrete occurrence
+within that selected board's domain. Validate and accept the Situation before
+title and body wording. The new generic `open_topic` marker is internal
+provenance for new roots, not an input topic or an instruction to the model.
+Existing persisted roots keep their previous classification and canonical
+facts; no retroactive regeneration is part of this change. Evaluate historical
+accuracy and board fit using the generation inspector rather than adding
+proper-noun quotas or content templates.
+
+For production root Situations, pass the World-selected actor, time, **board purpose**, posting purpose, persona context, and previously established canonical facts as materials; no board receives a preset activity focus. If a board's meaning is historically unknown, any generation purpose is explicitly an identified *fictional station configuration*, not a guessed historical fact. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
+
 ## Persona persistence
 
 Persist opinions/interests/relationships independently of prose. Interests describe things this person actually tends to care or talk about, not every tool/environment they happen to use. Example:
@@ -36,7 +65,7 @@ Ordinary already-established conditions belong in baseline/world context, not au
 
 Examples include the person's normal computer/terminal environment, ordinary BBS membership, normal commute or neighborhood, usual communication method, routine work/school state, and other facts that contemporary residents normally leave implicit. A machine family may be useful as internal world metadata while being completely unremarkable to the person using it every day.
 
-The current prototype exposes this distinction as `Persona.EverydayContext`. The field is intentionally small and human-readable for the PoC; production persistence may normalize it differently. Its semantic contract matters more than its storage form:
+The current prototype exposes this distinction as `Persona.EverydayContext`. The field remains small and human-readable; production persistence may normalize it differently. Its semantic contract matters more than its storage form:
 
 - baseline is a contradiction/interpretation constraint;
 - baseline normally remains unspoken;
@@ -125,6 +154,40 @@ The normal production path is observation-driven. Do not run broad periodic LLM 
 
 When a stale scope has been unobserved for a long time, prefer a bounded catch-up request that summarizes/selects important transitions over replaying every hour or day with separate LLM calls. Persist durable selected facts first; generate individual prose only for details that become visible or otherwise necessary.
 
+### Temporary HAKATA title-led prose evaluation
+
+For the fictional HAKATA quality-evaluation station only, the reversible
+`HAKATA_FREEFORM_BODY=1` trial keeps the production World-selected posting
+slots, accepted Situation, title and canonical persistence unchanged, but
+passes a compact **view** of that accepted state to the final body worker.
+The displayed subject, real board name, world date, author and any essential
+accepted referent remain fixed. A single adopted Situation summary is normally
+the only additional root fact; replies also receive their response purpose
+and a bounded relevant thread/parent context. The model can phrase the post
+naturally without copying the entire typed Situation/producer fields or treating
+them as a checklist. This is a wording experiment, not authorization to change
+canonical world events or historically established facts.
+
+This temporary HAKATA path **skips optional Article Detail and historical
+knowledge research calls during body reads**; initial Situation and subject
+generation still happen exactly as before. Existing saved facts, titles and
+bodies are never cleared or rewritten by enabling this flag. The standard
+detail-first path remains the default for all other hosts and for HAKATA when
+`HAKATA_FREEFORM_BODY=0`. An experiment result that invents a contradictory
+event is a quality defect, not a new canonical fact.
+
+### Article detail before prose
+
+For an already-selected article whose body is not yet materialized, the shared
+article pipeline proposes zero to two article-local details before prose. It
+uses only the selected event, the author's profile and time-valid facts, bounded
+prior self-posts, and the current thread when replying. These details do not
+become durable persona facts or posting triggers. Persist the detail result and
+completion bit before rendering prose. A successful zero-detail result is
+complete; a missing planner, exhausted generation/validation retry, or failed
+save must leave the body empty and the detail state retryable. This rule is the
+same for host reads and direct development inspection.
+
 ## Causal event shell contract
 
 Any LLM call that realizes a BBS event should receive an event shell whose world-owned fields are already fixed. At minimum for the current prototype:
@@ -149,6 +212,19 @@ Use cheaper/faster models for routine prose and reserve stronger models for cons
 ## Cost and capacity policy
 
 LLM cost is an explicit operational constraint, but it must not become hidden world corruption.
+
+For structured multi-root Situation generation, an output truncated at the model's
+completion-token limit is a capacity failure, not a reason to relax the schema
+or commit partial world state. The current completion ceiling is 4,000 tokens
+for one event, 8,000 for four, and 12,000 for the normal six-event chunk;
+this includes model reasoning tokens as well as visible structured JSON. It is
+a **ceiling, not a target output length**. Keep the existing provider/model's
+actual supported maximum in mind when changing deployments. Leave already
+accepted in-memory chunk results intact and retry **only the pending event
+shells** with smaller batches. Keep the reduced batch size for the remainder
+of that planning window. If even a single event cannot be validated within its
+budget, fail the observation cleanly so the board remains retryable; do not
+invent fallback article headers.
 
 Generation code may consider:
 

@@ -7,17 +7,19 @@ import (
 
 type Config struct {
 	Addr                        string
-	OpenAIKey                   string
-	OpenAIModel                 string
-	GeminiKey                   string
-	GeminiModel                 string
+	AzureOpenAIEndpoint         string
+	AzureOpenAIKey              string
+	AzureOpenAIModel            string
 	JevKey                      string
 	JevModel                    string
 	WorldDate                   string
-	HistoricalReferencesEnabled bool
-	DatabaseURL                 string
+	HistoricalReferencesEnabled                  bool
+	DebugLogBBSArticleDetails                    bool
+	DebugLogHAKATAGenerated                     bool
+	DebugHakataLLMTrace                         bool
+	HakataFreeformBody                          bool
+	DatabaseURL                                  string
 	DebugResetToken             string
-	MaterializationLabToken     string
 }
 
 func Load() Config {
@@ -27,17 +29,19 @@ func Load() Config {
 	}
 	return Config{
 		Addr:                        env("ADDR", ":8080"),
-		OpenAIKey:                   os.Getenv("OPENAI_API_KEY"),
-		OpenAIModel:                 env("OPENAI_MODEL", "gpt-5.6-luna"),
-		GeminiKey:                   os.Getenv("GEMINI_API_KEY"),
-		GeminiModel:                 env("GEMINI_MODEL", "gemini-3.8-flash"),
+		AzureOpenAIEndpoint:         os.Getenv("AZURE_OPENAI_ENDPOINT"),
+		AzureOpenAIKey:              os.Getenv("AZURE_OPENAI_API_KEY"),
+		AzureOpenAIModel:            env("AZURE_OPENAI_MODEL", "zutto-pccom-gpt-6-luna"),
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),
-		HistoricalReferencesEnabled: envBool("HISTORICAL_REFERENCES_ENABLED", false),
-		DatabaseURL:                 os.Getenv("DATABASE_URL"),
+		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
+		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
+		DebugLogHAKATAGenerated:                   envBool("DEBUG_LOG_HAKATA_GENERATED", true),
+		DebugHakataLLMTrace:                       envBool("DEBUG_HAKATA_LLM_TRACE", true),
+		HakataFreeformBody:                        envBool("HAKATA_FREEFORM_BODY", true),
+		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
-		MaterializationLabToken:     os.Getenv("MATERIALIZATION_LAB_TOKEN"),
 	}
 }
 

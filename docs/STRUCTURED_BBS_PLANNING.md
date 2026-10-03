@@ -134,9 +134,77 @@ An already-selected action can express a modest impression, preference or curios
 
 Duplicate detection distinguishes a public work/product identity from a private occurrence. Situation validation permits the same object with different matters but still rejects duplicate novelty keys and near-identical occurrences. Producer referent isolation permits only world-supplied public identities to recur across independent roots; private incidents remain isolated. The sourced ordinary producer supplies date-filtered public names, never a model-declared exemption.
 
-The fresh `topic-first` experiment selects researched targets before Situation proposal and preserves them into the subject/body. It is an opt-in comparison, not a silent migration of saved posts. See `MATERIALIZATION_LAB.md` for the exact invocation and diagnostics.
+The former isolated `topic-first` experiment has been retired. Production continues to preserve World-selected Situation facts into subjects and article bodies.
 
 Root subjects are generated as the text that the selected actor would actually type into the historical BBS subject field, rather than as a modern headline or article-summary task.
+
+For the shared production batch path, standalone roots now use a
+**Situation-first** pipeline. The wording model is not asked to invent a topic
+while simultaneously satisfying subject-line, persona, historical and diversity
+constraints.
+
+The normal root path is:
+
+```text
+world-selected actor / time / board / root topology
+ -> routing domain + discourse_mode
+ -> mode-compatible Situation kind
+ -> structured Situation realization
+      -> one small concrete occurrence
+      -> typed facts matching the discourse mode
+ -> accept Situation as canonical world state
+ -> subject wording from that fixed Situation
+ -> commit PostIntent + subject
+ -> body wording remains lazy until article observation
+```
+
+The typed Situation shape is part of the semantic contract:
+
+- `share_observation` carries an observation;
+- `share_experience` carries experience + result;
+- `state_opinion` carries stance + basis;
+- `share_tip` carries attempted actions + result + a small practical point;
+- `ask_peers` carries attempted actions + an unresolved question.
+
+Only `ask_peers` has a question field. This deliberately moves conversational
+intent out of prose micromanagement and into world state: the body renderer does
+not need a growing list of instructions such as “do not end every post with a
+question”.
+
+Situation kinds are selected before prose and are diversity-weighted against the
+retained board window. GAME currently has a richer mode-aware vocabulary covering
+ordinary play, retry/progress, manuals and notes, passwords/saves, lending and
+storage, local multiplayer, household timing/volume and other mundane game-life
+situations. The vocabulary is world/event scaffolding, not a title or body
+template bank. Other routing domains use their own sparse Situation facets and can
+be expanded independently without changing the rendering contract.
+
+Historical proper nouns are also world input rather than free wording-model
+decoration. Curated period referents are filtered against **each event's own
+timestamp** before they can be supplied to that event. This prevents a long
+catch-up batch from leaking later products backward while still allowing later
+events in the same history to know things that had become available by then.
+Additional Historical KB evidence remains a separate evidence path. The Situation
+and subject renderers must not manufacture unsupported specifications, dates,
+prices, story facts or ownership/use history from an existence claim.
+
+Once the Situation is canonical, the subject pass has one responsibility:
+write the short root subject that this actor would naturally type for that
+Situation. It may be terse or fragmentary and need not resemble a modern search
+headline. It must not invent a different event or repair missing world state by
+adding a new target. Recent subjects are soft repetition context, not a ban on
+natural duplicate subjects.
+
+New Situation-first roots set `ArticleDetailsMaterialized=true` when committed,
+because the article-local facts already exist before the subject. They therefore
+skip the legacy “infer Article Detail back from the adopted title” pass. That
+detail pass remains only for older title-first state and reply/compatibility cases
+where a small article-local fact or externally grounded referent is genuinely
+missing.
+
+The previous large title-candidate/Jev pipeline and its experimental
+endpoints have been deleted. The shared BBS engine uses Situation proposal
+and Situation-title wording as its only live planning path.
 
 The production structured planner includes a compact calibration derived from preserved Japanese PC-communication subject-line corpora. The evidence shows that subject fields can be terse, fragmentary, person-directed, context-dependent, declarative, announcement-like, playful, or interrogative. Questions are therefore not the default form, and subjects do not need to summarize the body or make sense to an outsider without board context.
 
@@ -154,7 +222,12 @@ Once committed, `PostIntent` keeps the causal provenance alongside the human-rea
 action
 anchor_key          (internal routing domain)
 cause_kind
+discourse_mode
 source_post_id      (when applicable)
+situation_kind
+situation_summary
+situation_facts     (typed canonical article-local facts)
+article_details_materialized
 topic
 motivation
 stance
@@ -164,3 +237,23 @@ responds_to_post_id
 ```
 
 The article body remains lazily materialized. Body rendering receives these canonical causal fields and the persona's baseline context and is not allowed to change them or reinterpret them from a later historical viewpoint.
+
+Body formatting is also calibrated separately from subject generation. Explicit
+newlines should represent author-intentional structure such as paragraphs,
+quotes, dialogue, short reactions or signature-like layout; the prose worker
+must not default to modern smartphone-style 10-20-character line breaks or one
+sentence per line. Ordinary long logical lines may instead wrap on the emulated
+80-column-class terminal surface. Historical evidence, caveats and the
+intentional-newline/display-wrap distinction are recorded in
+`docs/research/BBS_BODY_CORPUS.md`.
+
+
+### Generated subject surface normalization
+
+A structured title pool is data, not display prose. If a generated pool
+pathologically encloses most titles in decorative Japanese corner quotes
+(`「...」`), the generator adapter removes that dominant outer wrapper before
+candidate matching. An occasional meaningful quoted phrase is preserved. The
+prompt also explicitly states that topic identity does not require a complete
+sentence and that whole-title decorative quotes are not a desired style. This is
+a transport/surface normalization only; it does not invent or rewrite the topic.

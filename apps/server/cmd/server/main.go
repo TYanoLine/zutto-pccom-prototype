@@ -6,12 +6,15 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"zutto-pccom/apps/server/internal/config"
 	"zutto-pccom/apps/server/internal/historicalkb"
+	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/telephone"
+	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldcatalog"
 	"zutto-pccom/apps/server/internal/worldclock"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -22,6 +25,7 @@ import (
 const generatedCenterCount = 100
 
 func main() {
+	startedAt := time.Now()
 	cfg := config.Load()
 	store := newRuntimeStore(cfg.DatabaseURL)
 	jst, err := time.LoadLocation("Asia/Tokyo")
@@ -33,11 +37,10 @@ func main() {
 		log.Fatalf("create world clock: %v", err)
 	}
 	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
-	catalogGenerator := llm.CenterCatalogGenerator{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
+	catalogGenerator := llm.CenterCatalogGenerator{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
 
 	var catalogStore *worldcatalog.Store
 	var historyStore *historicalkb.Store
-	var freshArchive *postgresMaterializationFreshArchive
 	if cfg.DatabaseURL == "" {
 		log.Printf("DATABASE_URL is not set; persistent generated worlds and historical research are disabled")
 	} else {
@@ -52,23 +55,18 @@ func main() {
 		if err == nil {
 			err = historyStore.EnsureSchema(ctx)
 		}
-		if err == nil {
-			freshArchive, err = openPostgresMaterializationFreshArchive(ctx, cfg.DatabaseURL)
-		}
 		cancel()
 		if err != nil {
 			log.Fatalf("initialize persistent stores: %v", err)
 		}
 		defer catalogStore.Close()
 		defer historyStore.Close()
-		defer freshArchive.Close()
 	}
 
-	researcher := historicalkb.Researcher{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel}
+	researcher := historicalkb.Researcher{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
 	historyService := historicalkb.Service{Store: historyStore, Researcher: researcher, WorldDate: cfg.WorldDate}
 	knowledgeService := historicalkb.KnowledgeService{Store: historyStore, Researcher: researcher}
 	worldEngine := worldengine.Engine{Knowledge: knowledgeService}
-	var personaAdvisor personaFutureAdvisor
 	if cfg.JevKey != "" {
 		jevAdvisor := worldengine.JevAdvisor{
 			APIKey: cfg.JevKey,
@@ -78,23 +76,20 @@ func main() {
 		worldEngine.WriteAdvisor = jevAdvisor
 		worldEngine.BehaviorAdvisor = jevAdvisor
 		worldEngine.TitleAdvisor = jevAdvisor
-		personaAdvisor = jevAdvisor
 	}
-	// Candidate wording, article details, and final prose use the OpenAI renderer.
-	// When Jev is configured, title-first Era routing and persona/slot compatibility
-	// use Jev System One as a bounded semantic advisor with deterministic World-side
-	// matching and OpenAI fallback. Gemini remains available for the dedicated A/B endpoint.
-	openAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{APIKey: cfg.OpenAIKey, Model: cfg.OpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
-	geminiRenderer := llm.StructuredGeminiProvider{GeminiProvider: llm.GeminiProvider{APIKey: cfg.GeminiKey, Model: cfg.GeminiModel, Client: &http.Client{Timeout: 90 * time.Second}}}
-	postRenderer := llm.GeminiArticleWorkerRouter{StructuredOpenAIProvider: openAIRenderer, ArticleWorker: geminiRenderer}
-	postMaterializer := worldrepo.LLMMaterializer{Renderer: postRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
-	openAIMaterializer := worldrepo.LLMMaterializer{Renderer: openAIRenderer, Fallback: worldrepo.FallbackMaterializer{}, HistoricalReferencesEnabled: cfg.HistoricalReferencesEnabled, CuratedHistoricalReferences: true}
+	// Candidate wording, article details, final prose, and bounded historical research
+	// use Azure OpenAI. Jev remains an independent bounded semantic advisor for the
+	// existing title/action/persona routes.
+	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
+	postRenderer := azureOpenAIRenderer
+	postMaterializer := newProductionMaterializer(postRenderer)
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
-	runtimeStore.EnableDevelopmentInteractiveTitleFirstPoC()
-	materializationLab := newMaterializationLab(store, worldEngine, postMaterializer, cfg.WorldDate, cfg.MaterializationLabToken)
-	materializationLab.freshArchive = freshArchive
-	personaLab := newPersonaLab(openAIRenderer, personaAdvisor, cfg.WorldDate, cfg.OpenAIKey != "")
-	personaHistoryLab := newPersonaHistoryLab(openAIRenderer, cfg.WorldDate, cfg.OpenAIKey != "")
+	runtimeStore.SetArticleDetailPlanner(postRenderer)
+	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
+	runtimeStore.SetDebugLogHAKATAGenerated(cfg.DebugLogHAKATAGenerated)
+	runtimeStore.SetGenerationTraceEnabled(cfg.DebugHakataLLMTrace)
+	runtimeStore.SetHAKATAFreeformBody(cfg.HakataFreeformBody)
+	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -131,35 +126,12 @@ func main() {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"worldId": catalog.WorldID, "centers": catalog.Centers, "created": catalog.Created, "source": func() string {
 			if catalog.Created {
-				return "openai"
+				return "azure_openai"
 			}
 			return "postgres"
-		}(), "model": cfg.OpenAIModel})
+		}(), "model": cfg.AzureOpenAIModel})
 	}
 
-	debugAuthorized := func(r *http.Request) bool {
-		if cfg.DebugResetToken == "" {
-			return false
-		}
-		got := r.Header.Get("X-Zutto-Debug-Token")
-		return len(got) == len(cfg.DebugResetToken) && subtle.ConstantTimeCompare([]byte(got), []byte(cfg.DebugResetToken)) == 1
-	}
-	debugGuard := func(w http.ResponseWriter, r *http.Request, method, unauthorized string) bool {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method != method {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return false
-		}
-		if catalogStore == nil {
-			http.Error(w, `{"error":"persistent world database is not configured"}`, http.StatusServiceUnavailable)
-			return false
-		}
-		if !debugAuthorized(r) {
-			http.Error(w, `{"error":"`+unauthorized+`"}`, http.StatusForbidden)
-			return false
-		}
-		return true
-	}
 	adminGuard := func(w http.ResponseWriter, _ *http.Request) bool {
 		w.Header().Set("Content-Type", "application/json")
 		if historyStore == nil {
@@ -169,69 +141,166 @@ func main() {
 		return true
 	}
 
-	inspectWorld := func(w http.ResponseWriter, r *http.Request) {
-		if !debugGuard(w, r, http.MethodGet, "debug access is disabled or unauthorized") {
+	resetBBSArticles := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if cfg.DebugResetToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "debug BBS reset requires DEBUG_RESET_TOKEN"})
 			return
 		}
-		worldKey := r.URL.Query().Get("key")
-		if !worldcatalog.ValidWorldKey(worldKey) {
-			http.Error(w, `{"error":"invalid world key"}`, http.StatusBadRequest)
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST only"})
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		defer cancel()
-		inspection, err := catalogStore.InspectWorld(ctx, worldKey)
-		if err != nil {
-			w.WriteHeader(http.StatusNotFound)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+		// Public test deployment safety: expose the generic reset machinery only
+		// for the persistent experiment station (role: experiment). An unknown
+		// number and a non-experiment host get the same answer on purpose.
+		host, err := runtimeStore.HostByPhone(phone)
+		if err != nil || !host.IsExperiment() {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset is limited to the experiment host"})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(inspection)
-	}
-
-	resetWorld := func(w http.ResponseWriter, r *http.Request) {
-		if !debugGuard(w, r, http.MethodPost, "debug reset is disabled or unauthorized") {
+		if runtimeStore.MaterializationObservationRunning(host.ID) {
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "BBS observation/generation is still running; retry after it completes"})
 			return
 		}
-		worldKey := r.URL.Query().Get("key")
-		if !worldcatalog.ValidWorldKey(worldKey) {
-			http.Error(w, `{"error":"invalid world key"}`, http.StatusBadRequest)
+		removed, kept, ok := runtimeStore.ResetBBSGeneratedArticles(host)
+		if !ok {
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "shared BBS article reset unavailable"})
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
-		defer cancel()
-		if err := catalogStore.ResetWorld(ctx, worldKey); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "reset": "world", "next": "call /api/world/bootstrap with the same key to generate a new canonical world"})
-	}
-
-	resetHost := func(w http.ResponseWriter, r *http.Request) {
-		if !debugGuard(w, r, http.MethodPost, "debug reset is disabled or unauthorized") {
-			return
-		}
-		worldKey, hostID := r.URL.Query().Get("key"), r.URL.Query().Get("host")
-		if !worldcatalog.ValidWorldKey(worldKey) || hostID == "" {
-			http.Error(w, `{"error":"invalid world key or host"}`, http.StatusBadRequest)
-			return
-		}
-		ctx, cancel := context.WithTimeout(r.Context(), 75*time.Second)
-		defer cancel()
-		center, err := catalogStore.ResetHost(ctx, worldKey, hostID, func(ctx context.Context) (string, error) {
-			names, err := generateNames(ctx, 1)
-			if err != nil {
-				return "", err
-			}
-			return names[0], nil
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":                      true,
+			"phone":                   phone,
+			"host_id":                 host.ID,
+			"removed_generated_posts": removed,
+			"kept_posts":              kept,
+			"kept":                    "seed/user history + boards + personas + host program configuration",
+			"next":                    "visit a board again to run a fresh shared-engine catch-up batch",
 		})
-		if err != nil {
-			w.WriteHeader(http.StatusBadGateway)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+	}
+
+	bbsSample := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
+		if cfg.DebugResetToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "debug BBS sample requires DEBUG_RESET_TOKEN"})
 			return
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "reset": "host", "center": center})
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
+			w.Header().Set("Allow", "GET, POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
+		if phone == "" {
+			phone = defaultExperimentPhone(store)
+		}
+		host, err := runtimeStore.HostByPhone(phone)
+		if err != nil || !host.IsExperiment() {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug sample is limited to the experiment host"})
+			return
+		}
+		boardID := strings.TrimSpace(r.URL.Query().Get("board"))
+		if boardID == "" {
+			boardID = "20/1"
+		}
+		var board world.Board
+		for _, candidate := range store.ListBoards(host.ID) {
+			if candidate.ID == boardID {
+				board = candidate
+				break
+			}
+		}
+		// Erika-K owns its own board tree rather than storing that catalog in
+		// the shared World BoardStore. Ask the host program for the canonical
+		// board path instead of duplicating one debug-only GAME special case.
+		if board.ID == "" && host.SoftwareID == "erika-k" {
+			if resolved, ok := erikak.BoardByPath(boardID); ok {
+				board = resolved
+			}
+		}
+		if board.ID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "unknown board"})
+			return
+		}
+
+		action := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("action")))
+		if action == "start" {
+			if runtimeStore.MaterializationObservationRunning(host.ID) {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "BBS observation/generation is already running"})
+				return
+			}
+			removed, kept, ok := runtimeStore.PrepareDebugBBSConnection(host)
+			if !ok {
+				w.WriteHeader(http.StatusConflict)
+				_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug BBS sample reset unavailable"})
+				return
+			}
+			runtimeStore.BeginHostObservation(host, []world.Board{board})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status":        "started",
+				"phone":         phone,
+				"host_id":       host.ID,
+				"board_id":      board.ID,
+				"board_name":    board.Name,
+				"removed_posts": removed,
+				"kept_posts":    kept,
+			})
+			return
+		}
+		if action != "" && action != "status" {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "action must be start or status"})
+			return
+		}
+
+		type samplePost struct {
+			ID        int64     `json:"id"`
+			Author    string    `json:"author"`
+			Subject   string    `json:"subject"`
+			ParentID  int64     `json:"parent_id,omitempty"`
+			CreatedAt time.Time `json:"created_at"`
+		}
+		posts := make([]samplePost, 0)
+		rootCount := 0
+		for _, post := range runtimeStore.ListPosts(host.ID) {
+			if post.BoardID != board.ID {
+				continue
+			}
+			if post.ParentID == 0 {
+				rootCount++
+			}
+			posts = append(posts, samplePost{ID: post.ID, Author: post.Author, Subject: post.Subject, ParentID: post.ParentID, CreatedAt: post.CreatedAt})
+		}
+		running := runtimeStore.MaterializationObservationRunning(host.ID)
+		status := "idle"
+		if running {
+			status = "running"
+		} else if len(posts) > 0 {
+			status = "completed"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status":     status,
+			"phone":      phone,
+			"host_id":    host.ID,
+			"board_id":   board.ID,
+			"board_name": board.Name,
+			"post_count": len(posts),
+			"root_count": rootCount,
+			"posts":      posts,
+		})
 	}
 
 	listResearch := func(w http.ResponseWriter, r *http.Request) {
@@ -387,25 +456,13 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/version", newServerVersionHandler(serverBuildInfoFromEnvironment(startedAt)))
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
-	mux.HandleFunc("/api/debug/export", newDebugExportHandler(store))
-	mux.HandleFunc("/api/debug/materialization-lab", materializationLab.handler())
-	mux.HandleFunc("/api/debug/materialization-lab-random", materializationLab.randomHandler())
-	mux.HandleFunc("/api/debug/materialization-lab-allbody", materializationLab.allBodyHandler())
-	mux.HandleFunc("/api/debug/materialization-lab-fresh", materializationLab.freshHandler())
-	mux.HandleFunc("/api/debug/materialization-lab-fresh-view", materializationLab.freshViewerHandler())
-	mux.HandleFunc("/api/debug/article-worker-ab", newArticleWorkerABHandler(runtimeStore, openAIMaterializer, geminiRenderer, cfg.GeminiKey != ""))
-	mux.HandleFunc("/api/debug/jev-probe", newJevProbeHandler(worldEngine, cfg.JevKey != "", cfg.WorldDate))
-	mux.HandleFunc("/api/debug/persona-lab", personaLab.handler())
-	mux.HandleFunc("/api/debug/persona-timeline", newPersonaTimelinePocHandler())
-	mux.HandleFunc("/api/debug/persona-history", personaHistoryLab.handler())
-	mux.HandleFunc("/poc/persona-history", newPersonaHistoryPocViewerHandler())
-	mux.HandleFunc("/poc/persona-timeline", newPersonaTimelinePocViewerHandler())
-	mux.HandleFunc("/api/debug/world", inspectWorld)
-	mux.HandleFunc("/api/debug/world/reset", resetWorld)
-	mux.HandleFunc("/api/debug/host/reset", resetHost)
+	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
+	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
+	mux.HandleFunc("/api/debug/bbs/generation-trace", newHakataTraceHandler(cfg.DebugHakataLLMTrace, runtimeStore))
 	mux.HandleFunc("/api/admin/research", listResearch)
 	mux.HandleFunc("/api/admin/research/case", getResearch)
 	mux.HandleFunc("/api/admin/research/new", createResearch)
@@ -413,17 +470,17 @@ func main() {
 	mux.HandleFunc("/api/admin/research/supplement", supplementResearch)
 	mux.HandleFunc("/api/admin/research/status", statusResearch)
 	mux.HandleFunc("/api/internal/knowledge/resolve", resolveKnowledge)
-	mux.HandleFunc("/api/poc/image-artifact", newImagePocHandler(cfg.OpenAIKey))
 	mux.HandleFunc("/admin/research", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(historicalkb.AdminPageHTML))
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": cfg.HistoricalReferencesEnabled, "world_repository": true, "world_post_renderer": "openai-article-worker-with-jev-title-advisor", "openai_model": cfg.OpenAIModel, "gemini_model": cfg.GeminiModel, "gemini_configured": cfg.GeminiKey != "", "gemini_article_worker_ab": cfg.GeminiKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "research_auth": "none-poc", "debug_reset": cfg.DebugResetToken != "", "materialization_lab": labEnabled(), "materialization_lab_auth": "none-test-only", "materialization_lab_archive": freshArchive != nil, "materialization_lab_daily_runs": publicLabDailyRuns})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
+
 	log.Printf("zutto server listening on %s", cfg.Addr)
 	log.Fatal(srv.ListenAndServe())
 }
@@ -431,7 +488,7 @@ func main() {
 func cors(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Zutto-Debug-Token, X-Zutto-Lab-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Zutto-Debug-Token")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)

@@ -6,6 +6,7 @@
     "dev": "node scripts/dev.mjs",
     "dev:server": "go -C apps/server run ./cmd/server",
     "dev:web": "npm --prefix apps/web run dev",
+    "start:web": "npm --prefix apps/web run start",
     "test": "npm run test:server && npm run test:web",
     "test:server": "go -C apps/server test ./...",
     "test:web": "npm --prefix apps/web test",

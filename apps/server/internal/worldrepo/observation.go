@@ -3,7 +3,9 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -12,6 +14,7 @@ import (
 // results are the posts/bodies committed to the underlying world store. Keeping
 // the waiter primitive out of world state prevents transport timing from becoming
 // part of the simulated world.
+
 type observationJob struct {
 	done chan struct{}
 	err  error
@@ -21,10 +24,10 @@ func observationBoardKey(hostID, boardID string) string {
 	return hostID + "|" + boardID
 }
 
-// BeginHostObservation is called after a successful CONNECT, never by HostByPhone
-// or directory/catalog reads. CONNECT starts independent board-header jobs in the
-// background. A later board read waits only for its own board job, never for
-// unrelated boards on the same host.
+// BeginHostObservation starts demanded work. If the same board is still waiting
+// in the low-priority prefetch queue, demand promotion removes it from that queue
+// and starts/joins it immediately. A different background board already running
+// is allowed to continue in parallel.
 func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board) {
 	if strings.TrimSpace(host.ID) == "" {
 		return
@@ -35,8 +38,81 @@ func (r *Repository) BeginHostObservation(host world.Host, boards []world.Board)
 			continue
 		}
 		seen[board.ID] = true
+		r.promoteBoardFromPrefetch(host.ID, board.ID)
 		r.beginBoardObservation(host, board)
 	}
+}
+
+// BeginHostPrefetch appends speculative work to one ordered background queue per
+// host. The background lane is serial (A -> B -> C -> D), while an explicit
+// demand may promote C out of the waiting queue and run it in parallel with the
+// currently executing background item A.
+func (r *Repository) BeginHostPrefetch(host world.Host, boards []world.Board) {
+	if strings.TrimSpace(host.ID) == "" || len(boards) == 0 {
+		return
+	}
+
+	r.prefetchMu.Lock()
+	queue := r.prefetchQueues[host.ID]
+	queued := make(map[string]bool, len(queue))
+	for _, board := range queue {
+		queued[board.ID] = true
+	}
+	for _, board := range boards {
+		if strings.TrimSpace(board.ID) == "" || queued[board.ID] {
+			continue
+		}
+		queue = append(queue, board)
+		queued[board.ID] = true
+	}
+	r.prefetchQueues[host.ID] = queue
+	if r.prefetchRunning[host.ID] || len(queue) == 0 {
+		r.prefetchMu.Unlock()
+		return
+	}
+	r.prefetchRunning[host.ID] = true
+	r.prefetchMu.Unlock()
+
+	go r.runHostPrefetchQueue(host)
+}
+
+func (r *Repository) runHostPrefetchQueue(host world.Host) {
+	for {
+		r.prefetchMu.Lock()
+		queue := r.prefetchQueues[host.ID]
+		if len(queue) == 0 {
+			r.prefetchRunning[host.ID] = false
+			r.prefetchMu.Unlock()
+			return
+		}
+		board := queue[0]
+		r.prefetchQueues[host.ID] = append([]world.Board(nil), queue[1:]...)
+		r.prefetchMu.Unlock()
+
+		started := time.Now()
+		job := r.beginBoardObservation(host, board)
+		if job != nil {
+			<-job.done
+		}
+		log.Printf("BBS timing: host=%s board=%s mode=prefetch phase=queue_item_total duration=%s", host.ID, board.ID, time.Since(started))
+	}
+}
+
+func (r *Repository) promoteBoardFromPrefetch(hostID, boardID string) {
+	r.prefetchMu.Lock()
+	defer r.prefetchMu.Unlock()
+	queue := r.prefetchQueues[hostID]
+	if len(queue) == 0 {
+		return
+	}
+	out := queue[:0]
+	for _, board := range queue {
+		if board.ID == boardID {
+			continue
+		}
+		out = append(out, board)
+	}
+	r.prefetchQueues[hostID] = append([]world.Board(nil), out...)
 }
 
 func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *observationJob {
@@ -47,8 +123,10 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 		select {
 		case <-existing.done:
 			if existing.err == nil {
-				r.observationMu.Unlock()
-				return existing
+				if !r.sharedBBSArticleEngineEnabled(host) || r.bbsArticles == nil || !r.bbsArticles.NeedsCatchUp(host, board) {
+					r.observationMu.Unlock()
+					return existing
+				}
 			}
 			delete(r.observationBoardJobs, key)
 		default:
@@ -62,6 +140,9 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 
 	go func() {
 		job.err = r.materializeObservedBoardHeaders(host, board)
+		if job.err != nil {
+			log.Printf("BBS header observation failed: host=%s board=%s err=%v", host.ID, board.ID, job.err)
+		}
 		// Keep a failed job addressable until current waiters see its error. A
 		// later CONNECT/read may then replace the failed lease and retry.
 		close(job.done)
@@ -70,21 +151,41 @@ func (r *Repository) beginBoardObservation(host world.Host, board world.Board) *
 }
 
 func (r *Repository) materializeObservedBoardHeaders(host world.Host, board world.Board) error {
-	if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
-		return nil
-	}
+	started := time.Now()
+	defer func() {
+		log.Printf("BBS timing: host=%s board=%s phase=header_materialize_total duration=%s", host.ID, board.ID, time.Since(started))
+	}()
+	// Real hosts share the World-owned on-demand BBS engine.
 
-	// The interactive development host uses the board-local title-first planner.
-	// This is deliberately different from the Fresh Lab's host-wide planner:
-	// opening board 2 must not wait for title planning on boards 1, 3, ... 16.
-	if host.SoftwareID == "materialization-demo" && developmentInteractiveTitleFirstEnabled(r) {
-		r.materializeInteractiveConversationBoardWindow(host, board)
-		if errText := strings.TrimSpace(r.MaterializationPlanningDiagnostic(host.ID, board.ID)); strings.Contains(errText, "planning_error=") {
-			return fmt.Errorf("observe host %s board %s: %s", host.ID, board.ID, errText)
+	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
+		// If this board has never been materialized, realize the prose-free
+		// activity state that already existed before the user opened the board.
+		// This replaces the old HAKATA-only fixed 40-root evaluation batch.
+		var err error
+		ctx, traceDone := r.beginGenerationTrace(context.Background(), host, board, "headers", 0)
+		existing := filterBoard(r.Base.ListPosts(host.ID), board.ID)
+		if len(existing) == 0 {
+			if state, ok := r.BoardActivity(host, board); ok && state.RetainedRoots > 0 {
+				err = r.bbsArticles.CatchUpInitialBoardActivity(ctx, host, board, state)
+			} else {
+				err = r.bbsArticles.CatchUp(ctx, host, board)
+			}
+		} else {
+			err = r.bbsArticles.CatchUp(ctx, host, board)
+		}
+		// Inspect the store after the attempt, including any posts actually saved
+		// before a later slot failed. Never log uncommitted planner drafts.
+		r.logNewBBSHeaders(host, board, existing)
+		traceDone(err)
+		if err != nil {
+			return fmt.Errorf("shared BBS catch-up host %s board %s: %w", host.ID, board.ID, err)
 		}
 		return nil
 	}
 
+	if len(filterBoard(r.Base.ListPosts(host.ID), board.ID)) > 0 {
+		return nil
+	}
 	if err := r.ensureBoard(host, board.ID, board.Name); err != nil {
 		return fmt.Errorf("observe host %s board %s: %w", host.ID, board.ID, err)
 	}
@@ -95,12 +196,20 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 // job. Callers that bypass CONNECT (tests/tools) safely start that one board on
 // demand.
 func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, board world.Board) ([]world.Post, error) {
+	// Existing canonical history is immediately readable for every real host.
+	// Background catch-up may add a new batch later, but host-program navigation
+	// never waits merely because the shared article engine is extending history.
+	if r.sharedBBSArticleEngineEnabled(host) {
+		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
+			return existing, nil
+		}
+	}
 	job := r.boardObservationJob(host.ID, board.ID)
 	if job == nil {
 		// Persisted canonical data from a previous process is already complete.
 		// Only start a new observation when this board has never materialized.
 		if existing := filterBoard(r.Base.ListPosts(host.ID), board.ID); len(existing) > 0 {
-			return r.repairDevelopmentPendingReplySubjects(host.ID, existing), nil
+			return existing, nil
 		}
 		job = r.beginBoardObservation(host, board)
 	}
@@ -115,7 +224,7 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 			return nil, ctx.Err()
 		}
 	}
-	return r.repairDevelopmentPendingReplySubjects(host.ID, filterBoard(r.Base.ListPosts(host.ID), board.ID)), nil
+	return filterBoard(r.Base.ListPosts(host.ID), board.ID), nil
 }
 
 func (r *Repository) boardObservationJob(hostID, boardID string) *observationJob {
@@ -152,10 +261,11 @@ func (r *Repository) WaitForArticleBody(ctx context.Context, host world.Host, bo
 			return selected, true, nil
 		}
 
-		rootID := selected.ID
-		if selected.ParentID != 0 {
-			rootID = selected.ParentID
+		postsByID := map[int64]world.Post{}
+		for _, post := range r.Base.ListPosts(host.ID) {
+			postsByID[post.ID] = post
 		}
+		rootID := threadRootID(postsByID, selected)
 		key := fmt.Sprintf("%s|%s|%d", host.ID, board.ID, rootID)
 		job, _ := r.getOrStartBodyObservationJob(key, host, board, postID)
 
@@ -191,6 +301,9 @@ func (r *Repository) getOrStartBodyObservationJob(key string, host world.Host, b
 			job.err = fmt.Errorf("article %d materialization failed: %s", postID, diagnostic)
 		case strings.TrimSpace(post.Body) == "":
 			job.err = fmt.Errorf("article %d materialization returned an empty body", postID)
+		}
+		if job.err != nil {
+			log.Printf("BBS article body observation failed: host=%s board=%s post=%d err=%v", host.ID, board.ID, postID, job.err)
 		}
 
 		r.observationMu.Lock()

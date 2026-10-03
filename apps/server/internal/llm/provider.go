@@ -3,12 +3,17 @@ package llm
 import "context"
 
 type ReplyRequest struct {
-	HostName  string
-	Persona   string
-	WorldDate string
-	Subject   string
-	Body      string
-	EraRules  string
+	HostName      string
+	Persona       string
+	WorldDate     string
+	Subject       string
+	Body          string
+	EraRules      string
+	ParentSubject string
+	ParentBody    string
+	QuoteText     string
+	BodyMinChars  int
+	BodyMaxChars  int
 }
 
 type TokenUsage struct {
@@ -26,6 +31,7 @@ type BoardPostRequest struct {
 	HostSoftware     string
 	BoardID          string
 	BoardTopic       string
+	FreeformFromSubject bool
 	WorldDate        string
 	HistoricalFacts  []string
 	EraRules         string
@@ -33,6 +39,12 @@ type BoardPostRequest struct {
 	PersonaProfile   string
 	PostIntent       string
 	CanonicalSubject string
+	Kind             string
+	ParentSubject    string
+	ParentBody       string
+	QuoteText        string
+	BodyMinChars     int
+	BodyMaxChars     int
 }
 
 type BoardPostDraft struct {
@@ -102,6 +114,7 @@ type BBSWorldWindowEvent struct {
 	EventID        string   `json:"event_id"`
 	BoardID        string   `json:"board_id"`
 	BoardName      string   `json:"board_name"`
+	BoardScope     string   `json:"board_scope,omitempty"`
 	AuthorHandle   string   `json:"author_handle"`
 	CreatedAt      string   `json:"created_at"`
 	Action         string   `json:"action"`
@@ -158,7 +171,8 @@ type BBSWorldWindowProductionDraft struct {
 // BBSWorldSituationProposalRequest asks for small canonical world-situation
 // proposals for a bounded set of already-selected standalone root slots. Unlike
 // BBSWorldWindowProduction, this pass does not plan article prose/editorial
-// briefs; it only proposes what concretely happened before prose is rendered.
+// briefs; it only proposes the situation and content behind each post before
+// prose is rendered. What may be posted is bounded by the board name and scope.
 type BBSWorldSituationProposalRequest struct {
 	HostName                      string
 	HostRegion                    string
@@ -175,21 +189,59 @@ type BBSWorldSituationProposalRequest struct {
 	AvoidSituations               []string
 }
 
+// BBSWorldSituationDraft is the canonical micro-situation behind one root post.
+// The world layer does not select a post type (question, experience, tip...):
+// the proposer decides the natural form for the board from its name and scope.
 type BBSWorldSituationDraft struct {
-	EventID          string   `json:"event_id"`
-	ObjectClass      string   `json:"object_class"`
-	ChangeClass      string   `json:"change_class"`
-	Occurrence       string   `json:"occurrence"`
-	ActorObservation string   `json:"actor_observation"`
-	Impact           string   `json:"impact"`
-	Uncertainty      string   `json:"uncertainty"`
-	NoveltyKey       string   `json:"novelty_key"`
-	MustNot          []string `json:"must_not"`
+	EventID     string `json:"event_id"`
+	ObjectClass string `json:"object_class"`
+	// Occurrence is the situation in which the post is written. It need not be
+	// an event: a first greeting or a return after a long absence qualifies.
+	Occurrence string `json:"occurrence"`
+	// PostContent is what the poster actually says in the post.
+	PostContent string   `json:"post_content"`
+	NoveltyKey  string   `json:"novelty_key"`
+	MustNot     []string `json:"must_not"`
 }
 
 type BBSWorldSituationProposalDraft struct {
 	Situations []BBSWorldSituationDraft `json:"situations"`
 	Usage      TokenUsage               `json:"-"`
+}
+
+type BBSSituationTitleSeed struct {
+	EventID          string   `json:"event_id"`
+	AuthorHandle     string   `json:"author_handle"`
+	CreatedAt        string   `json:"created_at"`
+	PersonaProfile   string   `json:"persona_profile,omitempty"`
+	SituationKind    string   `json:"situation_kind"`
+	SituationSummary string   `json:"situation_summary"`
+	SituationFacts   []string `json:"situation_facts"`
+}
+
+type BBSSituationTitleRequest struct {
+	HostName       string
+	HostRegion     string
+	BoardID        string
+	BoardName      string
+	BoardScope     string
+	WorldDate      string
+	RecentSubjects []string
+	Articles       []BBSSituationTitleSeed
+}
+
+type BBSSituationTitle struct {
+	EventID  string `json:"event_id"`
+	Subject  string `json:"subject"`
+}
+
+type BBSSituationTitleDraft struct {
+	Titles []BBSSituationTitle `json:"titles"`
+	Usage  TokenUsage          `json:"-"`
+}
+
+type BBSSituationTitlePlanner interface {
+	GenerateBBSSituationTitles(context.Context, BBSSituationTitleRequest) (BBSSituationTitleDraft, error)
 }
 
 // BBSWorldSituationProposer sees multiple independent roots at once so it can

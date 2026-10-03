@@ -1,16 +1,14 @@
 package world
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
 
 func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 	store := NewMemoryStore()
-	host, err := store.HostByPhone("0450000196")
-	if err != nil {
-		t.Fatal(err)
-	}
+	host := genericTestHost(store)
 	host.Name = "PERSIST TEST"
 	store.SaveHost(host)
 	store.SaveBoards(host.ID, []Board{{ID: "1", Name: "雑談"}})
@@ -18,7 +16,7 @@ func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 	store.SavePersona(persona)
 	store.AddMembership(host.ID, persona.ID)
 	store.SavePersonaFact(PersonaFact{PersonaID: persona.ID, Key: "commute.route", Value: "駅まで徒歩", MaterializedAt: time.Date(1996, 8, 20, 1, 2, 3, 0, time.UTC)})
-	post := store.AddPost(host.ID, Post{BoardID: "1", Author: "P1", AuthorPersonaID: persona.ID, Subject: "test", Intent: PostIntent{Action: "root", AnchorKey: "local", Claims: []string{"x"}}, CreatedAt: time.Date(1996, 8, 21, 1, 2, 3, 0, time.UTC)})
+	post := store.AddPost(host.ID, Post{BoardID: "1", Author: "P1", AuthorPersonaID: persona.ID, Subject: "test", Intent: PostIntent{Action: "root", AnchorKey: "local", Claims: []string{"x"}, ArticleDetailsMaterialized: true}, CreatedAt: time.Date(1996, 8, 21, 1, 2, 3, 0, time.UTC)})
 	post.Body = "saved body"
 	if _, ok := store.UpdatePost(host.ID, post); !ok {
 		t.Fatal("update post failed")
@@ -49,7 +47,7 @@ func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 	if got := restored.ListPersonaFacts(persona.ID); len(got) != 1 || got[0].Value != "駅まで徒歩" {
 		t.Fatalf("facts=%+v", got)
 	}
-	if got := restored.ListPosts(host.ID); len(got) != 1 || got[0].Body != "saved body" || got[0].Intent.AnchorKey != "local" {
+	if got := restored.ListPosts(host.ID); len(got) != 1 || got[0].Body != "saved body" || got[0].Intent.AnchorKey != "local" || !got[0].Intent.ArticleDetailsMaterialized {
 		t.Fatalf("posts=%+v", got)
 	}
 
@@ -59,12 +57,30 @@ func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 	}
 }
 
-func TestDevelopmentSnapshotDetachesPostIntentSlices(t *testing.T) {
-	store := NewMemoryStore()
-	host, err := store.HostByPhone("0450000196")
+func TestLegacyPostIntentWithoutDetailCompletionDefaultsToIncomplete(t *testing.T) {
+	var intent PostIntent
+	if err := json.Unmarshal([]byte(`{"situation_facts":["article_detail=observation:existing"]}`), &intent); err != nil {
+		t.Fatal(err)
+	}
+	if intent.ArticleDetailsMaterialized {
+		t.Fatal("legacy intent without explicit completion must remain incomplete")
+	}
+	encoded, err := json.Marshal(PostIntent{ArticleDetailsMaterialized: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	var restored PostIntent
+	if err := json.Unmarshal(encoded, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if !restored.ArticleDetailsMaterialized {
+		t.Fatalf("completion state did not survive JSON round-trip: %s", encoded)
+	}
+}
+
+func TestDevelopmentSnapshotDetachesPostIntentSlices(t *testing.T) {
+	store := NewMemoryStore()
+	host := genericTestHost(store)
 	post := store.AddPost(host.ID, Post{
 		BoardID: "1",
 		Author:  "P1",

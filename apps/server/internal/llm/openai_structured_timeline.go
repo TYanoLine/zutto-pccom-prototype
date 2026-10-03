@@ -6,9 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
 // StructuredOpenAIProvider keeps the normal OpenAIProvider behavior for prose
@@ -17,6 +21,107 @@ import (
 // must not turn persona background into new world actions.
 type StructuredOpenAIProvider struct {
 	OpenAIProvider
+}
+
+type structuredOpenAIAPIError struct {
+	StatusCode        int
+	Status            string
+	Type              string
+	Code              string
+	Message           string
+	RequestID         string
+	RetryAfter        string
+	LimitRequests     string
+	RemainingRequests string
+	ResetRequests     string
+	LimitTokens       string
+	RemainingTokens   string
+	ResetTokens       string
+}
+
+func (e *structuredOpenAIAPIError) Error() string {
+	if e == nil {
+		return "Azure OpenAI structured API error"
+	}
+	parts := []string{fmt.Sprintf("Azure OpenAI structured responses API returned %s", e.Status)}
+	if e.Type != "" {
+		parts = append(parts, "type="+e.Type)
+	}
+	if e.Code != "" {
+		parts = append(parts, "code="+e.Code)
+	}
+	if e.Message != "" {
+		parts = append(parts, "message="+e.Message)
+	}
+	if e.RequestID != "" {
+		parts = append(parts, "request_id="+e.RequestID)
+	}
+	if e.RetryAfter != "" {
+		parts = append(parts, "retry_after="+e.RetryAfter)
+	}
+	if e.RemainingRequests != "" || e.ResetRequests != "" {
+		parts = append(parts, "requests_remaining="+e.RemainingRequests, "requests_reset="+e.ResetRequests)
+	}
+	if e.RemainingTokens != "" || e.ResetTokens != "" {
+		parts = append(parts, "tokens_remaining="+e.RemainingTokens, "tokens_reset="+e.ResetTokens)
+	}
+	return strings.Join(parts, " ")
+}
+
+func (e *structuredOpenAIAPIError) retryable() bool {
+	if e == nil {
+		return false
+	}
+	if e.StatusCode >= 500 && e.StatusCode <= 599 {
+		return true
+	}
+	if e.StatusCode != http.StatusTooManyRequests {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(e.Code)) {
+	case "credit_balance_exhausted", "organization_usage_limit_exceeded", "organization_spend_limit_exceeded", "project_spend_limit_exceeded":
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(e.Type), "insufficient_quota") {
+		return false
+	}
+	return true
+}
+
+type structuredOpenAIGate struct {
+	mu      sync.Mutex
+	notBefore time.Time
+}
+
+var sharedStructuredOpenAIGate structuredOpenAIGate
+
+func (g *structuredOpenAIGate) wait(ctx context.Context) error {
+	g.mu.Lock()
+	until := g.notBefore
+	g.mu.Unlock()
+	delay := time.Until(until)
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (g *structuredOpenAIGate) deferUntil(until time.Time) {
+	if until.IsZero() {
+		return
+	}
+	g.mu.Lock()
+	if until.After(g.notBefore) {
+		g.notBefore = until
+	}
+	g.mu.Unlock()
 }
 
 var _ BoardPostRenderer = StructuredOpenAIProvider{}
@@ -70,7 +175,7 @@ Rules for each event:
 - For cause_kind=continuation_progress, there must be materially new progress/change/observation compared with the referenced earlier event. Do not merely restate the old preference, baseline condition, habit, or question in new words.
 - For cause_kind=observed_thread, respond to the supplied parent/source thread. Do not start an unrelated root topic inside a reply, and do not add a new world event merely to make the reply interesting.
 - For a root post, follow the subject-line calibration above. The subject must be the exact text this actor would type now, not a polished summary or generic headline.
-- For a reply, the application may canonicalize the subject to Re: <root subject>; the semantic content must still be a genuine response to the selected thread.
+- For a reply, the host program owns whether an independent reply subject exists and how it is represented. The semantic content must still be a genuine response to the selected parent/source thread.
 - topic is a short free-form human-readable description of the already-selected causal content. It is not a new topic selection step and should describe the concrete matter, not merely repeat anchor_key.
 - motivation, stance, and goal describe this exact event. Motivation must follow cause_summary; do not fabricate a different reason for posting.
 - facts contains zero or one durable FICTIONAL PERSONAL fact only when the realized post genuinely requires a new long-lived fact for consistency. Most ordinary reactions/observations should have zero facts.
@@ -150,8 +255,24 @@ func bbsTimelineIntentSchema() map[string]any {
 }
 
 func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context, prompt, verbosity string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaReasoning(ctx, prompt, verbosity, "", maxOutputTokens, schemaName, schema)
+}
+
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaWebSearch(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaOptions(ctx, prompt, verbosity, reasoningEffort, maxOutputTokens, schemaName, schema, "auto")
+}
+
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaRequiredWebSearch(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaOptions(ctx, prompt, verbosity, reasoningEffort, maxOutputTokens, schemaName, schema, "required")
+}
+
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaReasoning(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any) (responseTextResult, error) {
+	return p.responseTextWithJSONSchemaOptions(ctx, prompt, verbosity, reasoningEffort, maxOutputTokens, schemaName, schema, "")
+}
+
+func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.Context, prompt, verbosity, reasoningEffort string, maxOutputTokens int, schemaName string, schema map[string]any, webSearchToolChoice string) (responseTextResult, error) {
 	if p.APIKey == "" {
-		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
+		return responseTextResult{}, errors.New("AZURE_OPENAI_API_KEY is not set")
 	}
 	client := p.Client
 	if client == nil {
@@ -174,27 +295,41 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 		},
 		"max_output_tokens": maxOutputTokens,
 	}
+	if reasoningEffort = strings.TrimSpace(reasoningEffort); reasoningEffort != "" {
+		payload["reasoning"] = map[string]any{"effort": reasoningEffort}
+	}
+	if webSearchToolChoice = strings.TrimSpace(webSearchToolChoice); webSearchToolChoice != "" {
+		payload["tools"] = []map[string]any{{"type": "web_search", "search_context_size": "medium"}}
+		payload["tool_choice"] = webSearchToolChoice
+		payload["include"] = []string{"web_search_call.action.sources"}
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return responseTextResult{}, err
 	}
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
-	if err != nil {
-		return responseTextResult{}, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
-	httpReq.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(httpReq)
+	endpoint, err := azureopenai.URL(p.Endpoint, "responses")
+	if err != nil { return responseTextResult{}, err }
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil { return responseTextResult{}, err }
+	if err := azureopenai.ApplyAPIKey(httpReq, p.APIKey); err != nil { return responseTextResult{}, err }
+	resp, err := doStructuredOpenAIRequest(ctx, client, httpReq)
 	if err != nil {
 		return responseTextResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return responseTextResult{}, fmt.Errorf("openai structured responses API returned %s", resp.Status)
+		apiErr := readStructuredOpenAIAPIError(resp)
+		return responseTextResult{}, apiErr
 	}
 	var decoded struct {
 		Model  string `json:"model"`
 		Output []struct {
+			Type string `json:"type"`
+			Action struct {
+				Sources []struct {
+					URL string `json:"url"`
+				} `json:"sources"`
+			} `json:"action"`
 			Content []struct {
 				Type string `json:"type"`
 				Text string `json:"text"`
@@ -226,12 +361,146 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchema(ctx context.Context
 	if usage.Model == "" {
 		usage.Model = p.Model
 	}
+	webSearchCalls := 0
+	webSearchSources := make([]string, 0, 8)
+	seenSources := map[string]bool{}
+	for _, out := range decoded.Output {
+		if out.Type == "web_search_call" {
+			webSearchCalls++
+			for _, source := range out.Action.Sources {
+				url := strings.TrimSpace(source.URL)
+				if url != "" && !seenSources[url] {
+					seenSources[url] = true
+					webSearchSources = append(webSearchSources, url)
+				}
+			}
+		}
+	}
 	for _, out := range decoded.Output {
 		for _, c := range out.Content {
 			if c.Type == "output_text" && strings.TrimSpace(c.Text) != "" {
-				return responseTextResult{Text: c.Text, Usage: usage}, nil
+				return responseTextResult{Text: c.Text, Usage: usage, WebSearchCalls: webSearchCalls, WebSearchSources: webSearchSources}, nil
 			}
 		}
 	}
 	return responseTextResult{}, errors.New("no structured output_text in OpenAI response")
+}
+
+
+func doStructuredOpenAIRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+	const maxAttempts = 3
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		if err := sharedStructuredOpenAIGate.wait(ctx); err != nil {
+			return nil, err
+		}
+
+		current := req
+		if attempt > 0 {
+			current = req.Clone(ctx)
+			if req.GetBody != nil {
+				body, err := req.GetBody()
+				if err != nil {
+					return nil, err
+				}
+				current.Body = body
+			}
+		}
+		resp, err := client.Do(current)
+		if err != nil {
+			return nil, err
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+			return resp, nil
+		}
+		apiErr := readStructuredOpenAIAPIError(resp)
+		if !apiErr.retryable() || attempt+1 >= maxAttempts {
+			return nil, apiErr
+		}
+
+		delay := structuredOpenAIRetryDelay(resp.Header, attempt)
+		sharedStructuredOpenAIGate.deferUntil(time.Now().Add(delay))
+		if err := sharedStructuredOpenAIGate.wait(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return nil, errors.New("openai structured responses retry loop exhausted")
+}
+
+func readStructuredOpenAIAPIError(resp *http.Response) *structuredOpenAIAPIError {
+	if resp == nil {
+		return &structuredOpenAIAPIError{Status: "unknown"}
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<10))
+	var decoded struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	_ = json.Unmarshal(body, &decoded)
+	return &structuredOpenAIAPIError{
+		StatusCode:        resp.StatusCode,
+		Status:            resp.Status,
+		Type:              strings.TrimSpace(decoded.Error.Type),
+		Code:              strings.TrimSpace(decoded.Error.Code),
+		Message:           compactOpenAIErrorMessage(decoded.Error.Message),
+		RequestID:         strings.TrimSpace(resp.Header.Get("x-request-id")),
+		RetryAfter:        strings.TrimSpace(resp.Header.Get("Retry-After")),
+		LimitRequests:     strings.TrimSpace(resp.Header.Get("x-ratelimit-limit-requests")),
+		RemainingRequests: strings.TrimSpace(resp.Header.Get("x-ratelimit-remaining-requests")),
+		ResetRequests:     strings.TrimSpace(resp.Header.Get("x-ratelimit-reset-requests")),
+		LimitTokens:       strings.TrimSpace(resp.Header.Get("x-ratelimit-limit-tokens")),
+		RemainingTokens:   strings.TrimSpace(resp.Header.Get("x-ratelimit-remaining-tokens")),
+		ResetTokens:       strings.TrimSpace(resp.Header.Get("x-ratelimit-reset-tokens")),
+	}
+}
+
+func compactOpenAIErrorMessage(message string) string {
+	message = strings.Join(strings.Fields(strings.TrimSpace(message)), " ")
+	const max = 300
+	if len(message) > max {
+		return message[:max] + "…"
+	}
+	return message
+}
+
+func structuredOpenAIRetryDelay(header http.Header, attempt int) time.Duration {
+	delay := time.Duration(1<<attempt) * time.Second
+	if raw := strings.TrimSpace(header.Get("Retry-After")); raw != "" {
+		if d, err := time.ParseDuration(raw + "s"); err == nil && d >= 0 {
+			delay = d
+		} else if when, err := http.ParseTime(raw); err == nil {
+			if d := time.Until(when); d > 0 {
+				delay = d
+			}
+		}
+	}
+	for _, key := range []string{"x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"} {
+		if d, ok := parseOpenAIRateReset(header.Get(key)); ok && d > delay {
+			delay = d
+		}
+	}
+	if delay < 500*time.Millisecond {
+		delay = 500 * time.Millisecond
+	}
+	if delay > 60*time.Second {
+		delay = 60 * time.Second
+	}
+	return delay
+}
+
+func parseOpenAIRateReset(raw string) (time.Duration, bool) {
+	raw = strings.TrimSpace(strings.ToLower(raw))
+	if raw == "" {
+		return 0, false
+	}
+	// OpenAI rate-limit reset headers commonly use compact values such as 1s,
+	// 200ms, 1m30s. time.ParseDuration supports these forms directly.
+	d, err := time.ParseDuration(raw)
+	if err != nil || d < 0 {
+		return 0, false
+	}
+	return d, true
 }

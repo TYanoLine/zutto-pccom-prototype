@@ -18,7 +18,7 @@ Never silently rewrite an already observed host, persona, relationship, post, or
 
 For the current host-world implementation, **successful CONNECT is the host observation boundary**. Directory/catalog display, phone-number lookup, host metadata creation, and unsuccessful dial attempts do not observe the host and must not create its article history. This deliberately keeps "the host exists" separate from "somebody has entered and observed that host."
 
-After CONNECT, independent board-header catch-up jobs start immediately in the background for the observed host. This is an execution optimization only: it does not make the user's connection the cause of NPC activity. The generated posts retain world timestamps from the simulated past and represent history that was already true but had not yet been concretely materialized.
+Successful CONNECT establishes the observation boundary but does not generate detailed articles. The current Erika-K runtime has **speculative background prefetch disabled entirely**: login and forum navigation only use prose-free board state. An explicit leaf-board read triggers up to 10 root headers on first observation; articles retain their simulated historical timestamps.
 
 Do not eagerly update other hosts merely because one host was observed. A directory may contain hundreds or thousands of hosts while only connected hosts pay the expensive catch-up cost.
 
@@ -45,13 +45,16 @@ The service should therefore *appear* as though the world continued while nobody
 
 ### Blocking read barrier
 
-Catch-up may run in the background after CONNECT, but the host program must not expose "generation in progress" as an in-world fact. If a user reaches a screen whose canonical data is not ready, that command waits on the existing shared job and renders only after the required data is committed.
+The current Erika-K flow does not pre-generate articles after CONNECT. A demanded board read may use an internal shared worker while the command waits, but the host program must not expose "generation in progress" as an in-world fact. It renders only after required headers have been committed.
 
 The current split is:
 
 ```text
 successful CONNECT
- -> begin board-scoped header catch-up jobs asynchronously
+ -> establish observation boundary without article generation
+
+navigation into a forum
+ -> display prose-free board metadata without article generation
 
 board/article index request
  -> this board's headers ready? yes: render immediately
@@ -62,9 +65,9 @@ article/thread read
  -> no: start/join the shared thread body job, wait, then render
 ```
 
-Concurrent users join the same board/thread job rather than launching private generation. A slow unrelated board must never delay a ready board. Article prose remains lazy even after the host headers are observed.
+Concurrent users join the same board/thread job rather than launching private generation. A ready board must never wait on unrelated work. No speculative header generation is initiated by the current Erika-K runtime; a read of an empty board starts only its demanded shared job, capped at 10 root headers initially. Internal workers coordinate callers but do not constitute speculative prefetch. Article prose remains lazy after headers are observed.
 
-`ALLBODY`, progress polling, and explicit generation status remain development/Lab diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
+`ALLBODY`, progress polling, and explicit generation status remain development diagnostics only; ordinary host runtimes should not require the caller to refresh a menu to discover that generation finished.
 
 ### Shared history, not per-user worlds
 
@@ -108,6 +111,25 @@ Personas should have persistent traits and state such as:
 - public profile vs private facts
 
 A large proportion of accounts should read rarely, lurk, or be inactive. Online population must not equal active posters.
+
+Treat membership scale and activity scale as different layers:
+
+```text
+registered members
+ -> plausible recent visitors
+ -> current time-window activity candidates
+ -> readers / ROM
+ -> writers
+ -> actual root/reply actions
+```
+
+Do not model a 300-member local BBS as a fixed cast of a dozen recurring people.
+Conversely, do not feed all 300 members into every planning call. Keep sparse
+identity/activity skeletons for the membership population, then deterministically
+select a bounded activity window from persisted traits, time and board context.
+The current HAKATA evaluation uses an approximately 18% time-window candidate
+pool with a floor/cap for small/large hosts; this number is an explicit
+simulation heuristic, **not a claimed historical active-user statistic**.
 
 ### Baseline, interest, and current salience are different
 
@@ -166,17 +188,24 @@ The local simulation remains the majority prior. Jev contributes a bounded minor
 
 Advisory responses are transient operational inputs, not canonical world state. Jev probabilities are quantized to 0.05 steps before entering deterministic sampling so small provider jitter does not routinely alter retry outcomes. Once a resulting action is materialized, the database remains canonical. A future general production world engine should persist or otherwise version advisor snapshots across retry-sensitive simulation leases if advisory decisions extend beyond this bounded development materialization path.
 
-### World-selected roots are not optional prose candidates
+### World-selected roots and canonical subject stability
 
-Once the World Engine selects a root-post slot (actor, board, timestamp, action/cause), title-first realization may choose or regenerate wording but must not erase that event merely because a candidate pool or semantic fit pass was poor. Interactive materialization ranks candidate titles, replenishes bounded 20-title pools when necessary, and uses an explicitly generic/date-safe local fallback only after those pools are exhausted. Reply survival therefore depends on canonical topology, not on whether an unrelated title candidate happened to score above a semantic threshold.
-
-### Title-first semantic advisor
-
-When Jev is configured, the development title-first path also uses System One as a fast semantic classifier after OpenAI has generated the 20 candidate titles for a board. One bounded Jev request per board estimates two era-routing probabilities for each candidate (`safe_without_research`, `logically_impossible`) and a compatibility probability for each candidate × already-selected world root slot.
-
-These probabilities still do not create world facts. Code applies conservative thresholds, performs deterministic one-title/one-slot matching, and persists only the resulting World-side adoption. Ambiguous named products/works/services remain `research`; selected `research` candidates still require the separate Historical Knowledge/Web evidence path in strict mode. A high Jev fit score cannot bypass that verification. In Lab `observe-only` mode, the original Jev era classification is recorded but the diagnostic gate remains permissive exactly as before.
-
-If Jev is unavailable, malformed, or times out, title-first falls back to the existing OpenAI Era Validator and title-slot reviewer for that board. Candidate wording generation, Article Detail materialization, and final article prose remain outside the Jev title advisor.
+The shared production pipeline uses only Situation-first planning: World fixes
+actor, board, time, cause, discourse mode and reply topology. Every production
+board now uses open-topic Situation proposals: no activity-facet selector
+chooses topics. The Situation model receives the selected board/member/date/
+post-purpose context, the station-owned board purpose, persisted member facts
+and previous observed root subjects, then proposes the still-unknown concrete
+occurrence for that board.
+The validated occurrence becomes canonical before the model words its title.
+Those accepted details are committed. Board-level staff-author and fixed
+conversational-act constraints belong to World-selected event shells, not
+LLM prose; this may narrow *who* can originate a post or *whether* it is a
+question without choosing a preset subject. The planner validates all required slots and fails the
+batch if generation cannot supply valid subjects; a generic board-name fallback
+must not be committed. Once a subject is shown in a board index, body rendering
+cannot replace it with the body's generated subject. Host-specific append
+semantics remain intact.
 
 ## Diegetic present
 

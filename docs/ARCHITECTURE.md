@@ -30,6 +30,7 @@ Go gateway
       |
       v
 HostProgram registry
+  +-- TurboBBS runtime
   +-- KTBBS runtime
   +-- BIG-Model runtime
   +-- Erika K runtime
@@ -39,7 +40,7 @@ HostProgram registry
       |
       +---- shared BBS/world services ---- WorldEngine ---- PostgreSQL
       |                                      |
-      |                                      +--------- OpenAIProvider
+      |                                      +--------- Azure OpenAI provider
       |
       +---- output byte/text stream
 ```
@@ -81,17 +82,100 @@ terminal/host action
       -> read last_simulated_at + simulation_version
       -> acquire narrow per-scope lease if stale
       -> WorldEngine catch-up
-      -> optional OpenAIProvider prose/enrichment
+      -> optional Azure OpenAI provider prose/enrichment
       -> validate + COMMIT
       -> release lease
  -> HostProgram renders committed state
 ```
 
-A successful CONNECT is the host observation boundary. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. CONNECT starts independent board-header catch-up jobs in the background for that host.
+A successful CONNECT is the host observation boundary. Directory listing, host metadata lookup/creation, BUSY, NO CARRIER, and NO ANSWER do not trigger article generation. In the current lightweight Erika-K mode, CONNECT and login do not start speculative board-header generation; only an explicit leaf-board read does.
 
 Host-program reads are synchronization barriers over the narrowest required scope. A board/index request waits only for that board's header job; a thread/article read waits for the selected thread body job. If the needed data finished while the caller was navigating login/menu screens, the read returns immediately. A slow board must not hold unrelated boards behind a host-wide barrier, and the terminal never needs a modern "AI generation progress" workflow.
 
 For long elapsed intervals, catch-up should be time-compressed: select durable important transitions first, then materialize only the detailed posts/events required by the current observation.
+
+### Preplanned board activity
+
+A board may have world history before any article wording has been observed.
+For hosts with a known founding date, membership count, world time, and
+station-specific board activity metadata, World computes a prose-free
+`BoardActivityState` first. It includes cumulative/retained root and reply
+counts plus the retained-history window.
+
+A HostProgram may render those counts in its own native board menu before any
+subjects/bodies exist. In the current lightweight interactive policy, opening a
+previously unobserved board materializes up to 10 root headers only. The full
+retained counts remain prose-free World state; older root and reply details are
+not generated merely to display a ten-line index. Reading an article still
+materializes only the requested body's thread.
+
+This prevents an observer from causing a previously empty board to acquire
+history merely by entering it. The current numeric model is experimental
+fictional reconstruction rather than measured 1996 traffic statistics. See
+`docs/BOARD_ACTIVITY_PLANNING.md`.
+
+## Shared BBS article engine
+
+BBS article generation is a world service, not a host-program feature. Historical
+host runtimes own menus, commands, board topology, threading/append presentation,
+limits, and access rules; they do not each implement a separate "AI posting"
+algorithm.
+
+The production path is Situation-first:
+
+```text
+World/observation clock
+ -> shared BBS engine fixes actor, date, board and root/reply topology
+ -> World applies station board author/discourse policy, then selects discourse mode without an activity-topic preset
+ -> LLM proposes concrete Situations using the actual board purpose and those World facts
+ -> validate Situations and distinct occurrences
+ -> LLM writes titles for accepted Situations
+ -> atomically commit canonical headers and identities
+ -> Erika-K (or another host) renders those headers in its own format
+ -> on article read, complete and persist article-local detail before body prose
+```
+
+The live planner does not use retired 20/100-title candidate pools,
+title-era Jev candidate scoring, the Materialization demo host, or Lab
+generation endpoints. Normal generation does not automatically inject
+historical catalogs. World date and canonical state remain binding, and
+unavailable generation leaves the board retryable without invented fallback
+subjects.
+
+An explicit leaf-board read realizes at most ten initial root headers with
+lazy article bodies. Returning to an already populated board index reuses
+committed headers rather than requesting additional titles. The current HAKATA
+quality-evaluation configuration deliberately clears articles on every new
+successful CONNECT, but never changes titles merely because an article is read.
+All historical host runtime commands, prompts and append representation remain
+owned by the individual host program.
+
+### Semantic response vs host-native reply representation
+
+The shared world layer must not equate "responds to another post" with any one
+host's visible reply syntax.
+
+Canonical response causality lives in `PostIntent.RespondsToPostID`
+(and legacy `SourcePostID` where applicable). Host-native article representation
+is a separate projection:
+
+- `ParentID` is non-zero only when that host software exposes/stores native
+  parent/child or append topology;
+- `Subject` is the host-native subject for that article and may be empty for a
+  response that has no independent subject;
+- a flat-message host may therefore have `ParentID == 0` while
+  `RespondsToPostID != 0`;
+- an append-style host may have `ParentID != 0` and an empty response subject.
+
+The shared engine must never synthesize `Re:` as a universal convention.
+Each concrete HostProgram projects the already-selected semantic response into
+its own article model. Unknown historical host programs should fail closed until
+their reply representation is researched or explicitly marked provisional,
+rather than inheriting another program's syntax by default.
+
+Debug resets must likewise operate at the shared engine boundary. They may remove
+engine-generated history for an experiment host while retaining seed history,
+human/user posts, boards, personas, and host-program configuration.
 
 ## Generation coordination and concurrency
 
@@ -195,6 +279,45 @@ Recommended order for prompt-cache friendliness:
 
 Do not send all historical logs. Retrieve only relevant facts and summarize old history.
 
+## Temporary HAKATA generator evaluation mode
+
+While the shared BBS article generator is being evaluated, the fixed experiment
+station `0920000196` has **no article seed at all**. The former hand-authored
+sample posts and the generated 40-root-per-board baseline have been removed.
+The station keeps a sparse membership population matching the code-defined
+`Host.Members` count (currently 326). These records are cheap identity/activity
+skeletons rather than article/content templates; expensive biography and life
+facts remain lazy.
+
+On process startup, any older persisted HAKATA article snapshot is cleared. On
+every successful CONNECT the server clears the station's entire article state
+again, clears completed observation leases, and enables immediate
+first-observation generation. During this temporary mode, user-written test posts
+also do not survive the next call.
+
+CONNECT, login and forum navigation do not prefetch any board articles in the
+current lightweight Erika-K runtime. Only an explicit leaf-board index read
+starts/joins the demanded board's shared observation job. The command waits for
+its headers rather than displaying an empty placeholder requiring refresh.
+
+The initial board batch now materializes **at most 10 root headers** per
+previously unobserved board, with **no speculative append/reply generation**.
+World's prose-free retained activity counts are preserved independently; this
+is an intentionally limited interactive view, not a rewriting of the station's
+earlier simulated history. Article bodies remain lazy. The normal world-engine incremental catch-up is
+separate from this lightweight initial index and is not triggered merely by
+returning from an article.
+Title vocabulary and historical verification for a multi-date catch-up window
+are conservatively gated by its earliest event date so a later release cannot
+leak backward into an older article. Article bodies remain empty until BR/read
+observation, where the existing
+thread-body barrier materializes only the requested thread. This is the intended
+minimum-scope execution pattern even while HAKATA's reset-on-call behavior itself
+remains a temporary generator-quality evaluation override.
+
+The former hidden bare `99` reset command has been removed; `BJ 99` continues
+to mean the station-specific hidden board.
+
 ## Current prototype shortcuts
 
 Current code intentionally still has shortcuts, including:
@@ -205,6 +328,6 @@ Current code intentionally still has shortcuts, including:
 - incomplete real line-occupancy/NPC scheduler
 - simplified terminal/ANSI behavior
 - atmospheric rather than fully historical telephone tariffs
-- OpenAI provider boundary present but AI not yet part of normal host posting behavior
+- Azure OpenAI provider boundary present but AI not yet part of normal host posting behavior
 
 These shortcuts are adapter/prototype boundaries and must not become domain rules.

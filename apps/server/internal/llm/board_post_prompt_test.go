@@ -1,10 +1,6 @@
 package llm
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -21,51 +17,51 @@ func TestBuildBoardPostPromptOmitsInfrastructureMetadata(t *testing.T) {
 	}
 }
 
-func TestBuildBoardPostPromptAllowsSparseUnfinishedHumanPosts(t *testing.T) {
-	prompt := BuildBoardPostPrompt(BoardPostRequest{BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI", PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます"})
+func TestBuildBoardPostPromptUsesPurposeAndMaterialsInsteadOfRuleStack(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic: "ゲーム", WorldDate: "1996-06-07", AuthorHandle: "YUKI",
+		PersonaProfile: "writing=勢いのある短文が多い。", CanonicalSubject: "最近こればかりやってます",
+	})
 	for _, want := range []string{
-		"本文に全部書くチェックリストではありません",
-		"多少雑でも構いません",
-		"この1件だけを切り出して完全に理解できる文章にする必要はありません",
-		"毎回「みなさんはどうですか？」型で締めない",
-		"本文で全detailを列挙する義務はありません",
-		"writing= を最優先",
-		"同じ三文構成に揃えない",
-		"一文だけでも、多段落でも",
-		"具体的な操作手順",
-		"将来の予定を「自然な補足」として作らない",
-		"utterance_attention",
-		"元記事を要約してから返事を始めない",
-		"完全な解説記事やチュートリアルへ仕上げない",
+		"ずっとパソコン通信", "会員が読む記事本文として文章化し、保存・表示",
+		"canonical Situation / thread facts", "この記事を書いている本人の自然な文章",
+		"writing=勢いのある短文が多い。", "時代: 1996-06-07", "確定済み件名: 最近こればかりやってます",
 	} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("missing conversational guidance %q", want)
+			t.Fatalf("missing production material or purpose %q: %s", want, prompt)
 		}
 	}
-	if strings.Contains(prompt, "1〜3文でもよく") {
-		t.Fatalf("fixed sentence-count hint should not survive: %s", prompt)
+	for _, old := range []string{
+		"ルール:", "水増ししない", "文章をFAQ", "みなさんは？",
+		"supplied historical facts", "同じ三文構成",
+	} {
+		if strings.Contains(prompt, old) {
+			t.Fatalf("wording rule stack reintroduced %q: %s", old, prompt)
+		}
 	}
 }
 
-func TestBuildBoardPostPromptSeparatesSemanticAndSurfaceSubjectForTitleFirstRoot(t *testing.T) {
+func TestBuildBoardPostPromptKeepsCanonicalSubjectInsteadOfRewritingIt(t *testing.T) {
 	prompt := BuildBoardPostPrompt(BoardPostRequest{
 		BoardTopic:       "パソコン通信・モデム",
 		WorldDate:        "1996-08-29",
 		AuthorHandle:     "NORI",
 		PersonaProfile:   "writing=短く要点を書くこともある",
 		CanonicalSubject: "Windows 95でモデムが認識されません",
-		PostIntent:       "surface_subject_mode=title_first_root\ndiscourse_mode=ask_peers\ncanonical_event=Windows 95でモデムが認識されず相談する",
+		PostIntent:       "discourse_mode=ask_peers\noccurrence=Windows 95でモデムが認識されず相談する",
 	})
 	for _, want := range []string{
-		"意味判定用タイトル",
-		"表示件名",
-		"短縮、口語化、省略",
-		"モデムが見えない…",
-		"固定パターン化しない",
-		"36文字以内・1行",
+		"件名: Windows 95でモデムが認識されません",
+		"canonical Situation / thread facts",
+		`{"author":"...","subject":"Windows 95でモデムが認識されません","body":"..."}`,
 	} {
 		if !strings.Contains(prompt, want) {
-			t.Fatalf("surface-subject guidance missing %q: %s", want, prompt)
+			t.Fatalf("canonical subject contract missing %q: %s", want, prompt)
+		}
+	}
+	for _, legacy := range []string{"意味判定用タイトル", "短縮、口語化、省略", "固定パターン化しない"} {
+		if strings.Contains(prompt, legacy) {
+			t.Fatalf("legacy title-rewrite guidance survived refresh: %q", legacy)
 		}
 	}
 }
@@ -79,52 +75,43 @@ func TestValidateBoardPostWorkerDraftRejectsHeaderNarration(t *testing.T) {
 	}
 }
 
-func TestGeminiProviderUsesInteractionsStructuredOutput(t *testing.T) {
-	var got map[string]any
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("x-goog-api-key") != "secret" {
-			t.Errorf("missing gemini key header")
-		}
-		_ = json.NewDecoder(r.Body).Decode(&got)
-		w.Header().Set("Content-Type", "application/json")
-		inner, _ := json.Marshal(map[string]any{
-			"author": "MARI", "subject": "YMOを聴き直しています",
-			"body": "最近またYMOを聴いています。音の重なり方が前より気になります。",
-		})
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"status": "completed",
-			"steps": []any{map[string]any{
-				"type":    "model_output",
-				"content": []any{map[string]any{"type": "text", "text": string(inner)}},
-			}},
-			"usage": map[string]any{
-				"total_input_tokens": 10, "total_output_tokens": 20,
-				"total_thought_tokens": 3, "total_tokens": 33,
-			},
-		})
-	}))
-	defer srv.Close()
 
-	p := GeminiProvider{APIKey: "secret", Model: "gemini-3.8-flash", Endpoint: srv.URL, Client: srv.Client()}
-	draft, err := p.GenerateBoardPost(context.Background(), BoardPostRequest{
-		BoardTopic: "音楽", WorldDate: "1996-06-07", AuthorHandle: "MARI",
-		CanonicalSubject: "YMOを聴き直しています",
+func TestBuildBoardPostPromptCarriesCanonicalReferentAsMaterial(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic: "ANIME/MANGA", WorldDate: "1996-08-12",
+		AuthorHandle: "KOJI.B", CanonicalSubject: "伏線に気づいた？",
+		PostIntent: strings.Join([]string{
+			"world_adopted_summary=前の回で聞き流した台詞が後の回を見て気になった",
+			"article_detail=referent:新世紀エヴァンゲリオン",
+			"article_referent_required=新世紀エヴァンゲリオン",
+		}, "\n"),
 	})
-	if err != nil {
-		t.Fatal(err)
+	if !strings.Contains(prompt, "本文で示すcanonical referent: 新世紀エヴァンゲリオン") {
+		t.Fatalf("accepted referent missing from worker materials: %s", prompt)
 	}
-	if draft.Usage.Model != "gemini-3.8-flash" || draft.Usage.TotalTokens != 33 {
-		t.Fatalf("usage=%+v", draft.Usage)
+	if strings.Contains(prompt, "article_referent_required=") {
+		t.Fatalf("internal render control leaked into worker materials: %s", prompt)
 	}
-	if got["model"] != "gemini-3.8-flash" {
-		t.Fatalf("model=%v", got["model"])
+	alreadyNamed := BuildBoardPostPrompt(BoardPostRequest{
+		BoardTopic: "ANIME/MANGA", WorldDate: "1996-08-12",
+		CanonicalSubject: "新世紀エヴァンゲリオンの台詞",
+		PostIntent: "article_referent_required=新世紀エヴァンゲリオン",
+	})
+	if strings.Contains(alreadyNamed, "本文で示すcanonical referent:") {
+		t.Fatalf("unnecessary repeated referent requirement: %s", alreadyNamed)
 	}
-	cfg := got["generation_config"].(map[string]any)
-	if cfg["thinking_level"] != "low" {
-		t.Fatalf("thinking=%v", cfg)
+}
+
+func TestExtractArticleReferentControlPreservesOtherFacts(t *testing.T) {
+	intent, referent := extractArticleReferentControl(strings.Join([]string{
+		"discourse_mode=share_observation",
+		"article_referent_required=新世紀エヴァンゲリオン",
+		"article_detail=observation:前の回の台詞が気になった",
+	}, "\n"))
+	if referent != "新世紀エヴァンゲリオン" {
+		t.Fatalf("referent=%q", referent)
 	}
-	rf := got["response_format"].(map[string]any)
-	if rf["mime_type"] != "application/json" {
-		t.Fatalf("response_format=%v", rf)
+	if strings.Contains(intent, "article_referent_required=") || !strings.Contains(intent, "article_detail=observation:") {
+		t.Fatalf("unexpected cleaned intent: %q", intent)
 	}
 }

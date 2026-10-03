@@ -1,20 +1,90 @@
-# Debug world inspection
+# HAKATA article inspection
 
-The prototype exposes a protected inspection endpoint so a developer can bridge persisted Render state into debugging without direct database access.
+The restricted diagnostic endpoint
+`GET /api/debug/bbs/sample?phone=0920000196&board=70/1`
+shows the current PC-98 board's generated headers. It requires the server's
+`DEBUG_RESET_TOKEN` as the `X-Zutto-Debug-Token` request header.
+Use Render operational logs and normal terminal reads to distinguish active
+generation, failed generation, and successfully committed titles.
 
-`GET /api/debug/world?key=<worldKey>`
+This is inspection of ordinary World-owned posts, not a separate generation
+engine. The old general-purpose `/api/debug/world` export was removed.
 
-Send the same `X-Zutto-Debug-Token` configured as `DEBUG_RESET_TOKEN` on the server. The endpoint is disabled when the token is unset.
+## Automatic HAKATA generated-content logs
 
-The response includes the persisted world id, seed, generation version, creation timestamp and every host's directory id/order, generation, name, phone, baud, software family, line count, founding date, popularity, member count and skeleton basis.
+The production observation path logs **saved** HAKATA world-engine posts to
+Render as one-line JSON prefixed with `BBS generated content:`. This restores
+quality inspection without bringing back Lab, public export APIs, or another
+generation path. `header_committed` contains board, post ID, author, visible
+subject, Situation kind/summary, and canonical Situation facts. `body_committed`
+contains the same board/post ID, visible subject, and **complete article body**
+after the lazy body has successfully been saved. Search that prefix and join
+records by `host`, `board`, and `post_id`; reply/append records may correctly
+have an empty host-native subject.
 
-This is intentionally a development interface. The browser world key is not authorization and the endpoint must not be exposed without the debug token.
+`DEBUG_LOG_HAKATA_GENERATED=1` is enabled by default for the current fictional
+HAKATA quality-evaluation station. Set it to `0` to disable content logging.
+This logger ignores all human posts and all other stations, including their
+normal operational timing/error telemetry. It does not log draft Situations,
+unsaved bodies, model prompts, API credentials or private persona profiles.
+The generated text is still world content: limit access to Render logs and
+turn off this setting before reusing HAKATA for real user content.
 
-Example bridge command:
+A header record means the post exists in the canonical store. It is not a
+claim that all ten slots succeeded. Body records appear only as articles are
+opened (and not on repeated reads of already materialized bodies). Historical
+Article Detail logging remains a separate opt-in diagnostic; Situation-first
+root headers normally have their detail completion bit set upstream.
 
-```sh
-curl -sS -H "X-Zutto-Debug-Token: $DEBUG_RESET_TOKEN" \
-  "https://<render-service>/api/debug/world?key=<32-hex-world-key>" > world-debug.json
-```
 
-The resulting JSON can be shared in the development conversation for inspection. Do not share the debug token.
+## HAKATA title-led body trial
+
+When HAKATA_FREEFORM_BODY=1 (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.
+
+For HAKATA only, this mode skips extra Article Detail and historical-evidence research before prose. The trace therefore shows initial Situation and title calls and each body call/retry, but no invented placeholder for the skipped stages. All other stations retain their existing process. Set HAKATA_FREEFORM_BODY=0 and redeploy to restore the earlier process for subsequent article reads.
+
+## HAKATA live generation inspector (temporary evaluation mode)
+
+While connected to **HAKATA CANAL NET**, the modern browser application shows
+a small **生成ログ** button (desktop top bar / mobile status bar). Open it to
+inspect the current trace immediately; no key-entry dialog is necessary.
+Capture and polling start automatically during HAKATA evaluation.
+
+`GET /api/debug/bbs/generation-trace` is a **public, unauthenticated**, read-only,
+no-store endpoint while `DEBUG_HAKATA_LLM_TRACE` is enabled (default `1`, set
+`0` to disable and return HTTP 403). No other host's generation is captured.
+It never starts generation or exposes a new Lab API. The existing
+`DEBUG_RESET_TOKEN` still protects destructive BBS resets and article sample
+inspection; it does not control this trace endpoint.
+
+The panel polls every 2.5 seconds while HAKATA is connected and displays each
+in-progress or recent board-header/body operation, then each *actual* Azure
+OpenAI model call within it:
+
+- **Situation**: complete prompt with World-selected slots and activity focus,
+  and the provider's raw output text or API error. Retries appear separately.
+- **件名**: complete prompt using accepted Situation and its raw title output.
+- **Article Detail / Article Detail 再検索**: only when older/reply state
+  needs additional facts; search retries appear as separate steps.
+- **記事本文**: complete article-worker prompt and its raw body JSON output,
+  including each retry.
+
+The run-level status marks upstream validation failures as **failed**, even
+when an earlier model call successfully returned text. A successful model
+response is only `応答受信`, **not** a claim that World accepted its content.
+An unavailable output text appears with its provider error instead of a
+fabricated result. The already-existing `BBS generated content:` operational
+log records what actually reached the canonical store and remains the reference
+for committed subject/body comparison.
+
+Only the latest 12 runs and 30 model calls per run are held in a process-local
+bounded buffer. Individual prompt/output fields are capped at 24,000/36,000
+Unicode code points and marked when truncated. Reloading the server clears
+all traces. This display is a *modern development inspector*, not a historical
+host-program screen. **WARNING:** anyone who knows or discovers the public
+server URL can retrieve the trace while enabled. Existing posts (including
+human replies/quotes), persona facts, and thread context may appear in model
+prompts. This mode is only appropriate for the current one-person HAKATA
+quality evaluation. Set `DEBUG_HAKATA_LLM_TRACE=0` before enabling real user
+access. Do not mistake the absence of the browser link outside HAKATA for
+server-side access control.

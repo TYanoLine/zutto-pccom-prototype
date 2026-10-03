@@ -86,7 +86,7 @@ all board visits
 
 The host-wide producer can therefore keep the same person's activities/referents coherent across free talk, technical and local boards. It should not force unrelated posts into one artificial narrative; sparse independent episodes are normal.
 
-The older six-event board-local timeline planner remains in code as a compatibility path for tests and non-producer development materializers. Production wiring uses `StructuredOpenAIProvider`, which implements the world-window producer.
+The older six-event board-local timeline planner remains in code as a compatibility path for tests and non-producer development materializers. Production wiring uses the Azure-backed `StructuredOpenAIProvider`, which implements the world-window producer.
 
 ## Specificity and historical evidence
 

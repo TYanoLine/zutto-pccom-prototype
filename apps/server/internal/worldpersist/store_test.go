@@ -8,32 +8,46 @@ import (
 )
 
 type fakeBackend struct {
-	data  []byte
+	data  map[string][]byte
 	saves int
 }
 
-func (b *fakeBackend) Load(context.Context, string) ([]byte, bool, error) {
-	if len(b.data) == 0 {
+func (b *fakeBackend) Load(_ context.Context, hostID string) ([]byte, bool, error) {
+	data := b.data[hostID]
+	if len(data) == 0 {
 		return nil, false, nil
 	}
-	return append([]byte(nil), b.data...), true, nil
+	return append([]byte(nil), data...), true, nil
 }
-func (b *fakeBackend) Save(_ context.Context, _, _ string, _ int, data []byte) error {
-	b.data = append([]byte(nil), data...)
+func (b *fakeBackend) Save(_ context.Context, hostID, _ string, _ int, data []byte) error {
+	if b.data == nil {
+		b.data = map[string][]byte{}
+	}
+	b.data[hostID] = append([]byte(nil), data...)
 	b.saves++
 	return nil
 }
 func (b *fakeBackend) Close() {}
 
+// genericPersistPhone is a test-only, non-experiment host that is persisted like
+// a development fixture; no production station has to exist for these tests.
+const genericPersistPhone = "0450000010"
+
+func newPersistBase() *world.MemoryStore {
+	s := world.NewMemoryStore()
+	s.SaveHost(world.Host{ID: "generic-test", Phone: genericPersistPhone, Name: "GENERIC TEST BBS", Region: "神奈川県", Software: "generic", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, FoundedOn: "1996-05-05", GuestAllowed: true})
+	return s
+}
+
 func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
-	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, "0450000196", backend)
+	base := newPersistBase()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
-	host, _ := store.HostByPhone("0450000196")
+	host, _ := store.HostByPhone(genericPersistPhone)
 	host.Name = "PERSISTED"
 	store.SaveHost(host)
 	store.SaveBoards(host.ID, []world.Board{{ID: "3", Name: "地域の話題"}})
@@ -49,8 +63,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatal("expected persisted snapshots")
 	}
 
-	fresh := world.NewMemoryStore()
-	restored, err := newStore(ctx, fresh, "0450000196", backend)
+	fresh := newPersistBase()
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +72,7 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 	if !status.Enabled || !status.Loaded {
 		t.Fatalf("status=%+v", status)
 	}
-	gotHost, _ := restored.HostByPhone("0450000196")
+	gotHost, _ := restored.HostByPhone(genericPersistPhone)
 	if gotHost.Name != "PERSISTED" {
 		t.Fatalf("host=%+v", gotHost)
 	}
@@ -78,8 +92,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 		t.Fatal("reset mutation was not persisted")
 	}
 
-	freshAgain := world.NewMemoryStore()
-	restoredAgain, err := newStore(ctx, freshAgain, "0450000196", backend)
+	freshAgain := newPersistBase()
+	restoredAgain, err := newStore(ctx, freshAgain, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,8 +105,8 @@ func TestStoreRestoresAcrossFreshMemoryStore(t *testing.T) {
 func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	ctx := context.Background()
 	backend := &fakeBackend{}
-	base := world.NewMemoryStore()
-	store, err := newStore(ctx, base, "0450000196", backend)
+	base := newPersistBase()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: genericPersistPhone}}, backend)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,5 +127,154 @@ func TestStoreSkipsPersistenceForOtherHostPersonaFacts(t *testing.T) {
 	}
 	if backend.saves != 0 {
 		t.Fatalf("unexpected persist for other-host fact clear: %d", backend.saves)
+	}
+}
+
+func TestStorePersistsErikaWorldButKeepsCodeDefinedHostConfig(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	targets := []HostTarget{
+		{Phone: genericPersistPhone},
+		{Phone: "0920000196", KeepSeedHostConfig: true},
+	}
+
+	base := newPersistBase()
+	store, err := newStore(ctx, base, targets, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedName := host.Name
+	seedLines := host.Lines
+
+	// Even if a runtime mutation writes host metadata into the snapshot, this
+	// experiment host must come back with the code-defined fixture settings.
+	host.Name = "MUTATED SNAPSHOT NAME"
+	host.Lines = 99
+	store.SaveHost(host)
+
+	persona := world.Persona{ID: host.ID + "-mari-persist", Handle: "MARI", Interests: map[string]float64{"local": 0.9}}
+	store.SavePersona(persona)
+	store.AddMembership(host.ID, persona.ID)
+	store.SavePersonaFact(world.PersonaFact{PersonaID: persona.ID, Key: "local.favorite_place", Value: "天神"})
+	post := store.AddPost(host.ID, world.Post{
+		BoardID:         "4",
+		Author:          "MARI",
+		AuthorPersonaID: persona.ID,
+		Subject:         "永続化テスト",
+		Body:            "再起動しても残る本文",
+	})
+
+	if len(backend.data[host.ID]) == 0 {
+		t.Fatal("expected Erika host snapshot")
+	}
+
+	fresh := newPersistBase()
+	restored, err := newStore(ctx, fresh, targets, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotHost, err := restored.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotHost.Name != seedName || gotHost.Lines != seedLines {
+		t.Fatalf("fixed host config was restored from snapshot: got=%+v want name=%q lines=%d", gotHost, seedName, seedLines)
+	}
+
+	posts := restored.ListPosts(host.ID)
+	foundPost := false
+	for _, got := range posts {
+		if got.ID == post.ID && got.Subject == "永続化テスト" && got.Body == "再起動しても残る本文" {
+			foundPost = true
+			break
+		}
+	}
+	if !foundPost {
+		t.Fatalf("persisted Erika post not restored: %+v", posts)
+	}
+	personas := restored.ListHostPersonas(host.ID)
+	foundPersona := false
+	for _, got := range personas {
+		if got.ID == persona.ID {
+			foundPersona = true
+			break
+		}
+	}
+	if !foundPersona {
+		t.Fatalf("persisted Erika persona not restored among resident cast: %+v", personas)
+	}
+	facts := restored.ListPersonaFacts(persona.ID)
+	if len(facts) != 1 || facts[0].Value != "天神" {
+		t.Fatalf("persisted Erika persona facts not restored: %+v", facts)
+	}
+}
+
+
+func TestPostBatchPersistsOneSnapshotAfterManyPosts(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := newPersistBase()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before := backend.saves
+	store.BeginPostBatch(host.ID)
+	for i := 0; i < 25; i++ {
+		store.AddPost(host.ID, world.Post{
+			BoardID: "20/1",
+			Author:  "NPC",
+			Subject: "batch",
+		})
+	}
+	if backend.saves != before {
+		t.Fatalf("batch persisted early: saves=%d before=%d", backend.saves, before)
+	}
+	store.EndPostBatch(host.ID)
+	if backend.saves != before+1 {
+		t.Fatalf("batch snapshots=%d, want exactly %d", backend.saves, before+1)
+	}
+
+	fresh := newPersistBase()
+	restored, err := newStore(ctx, fresh, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	posts := restored.ListPosts(host.ID)
+	if len(posts) != 25 {
+		t.Fatalf("restored batch posts=%d, want 25", len(posts))
+	}
+}
+
+func TestNestedPostBatchesPersistOnlyWhenOutermostBatchEnds(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := newPersistBase()
+	store, err := newStore(ctx, base, []HostTarget{{Phone: "0920000196", KeepSeedHostConfig: true}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone("0920000196")
+
+	store.BeginPostBatch(host.ID)
+	store.AddPost(host.ID, world.Post{BoardID: "4", Author: "A", Subject: "one"})
+	store.BeginPostBatch(host.ID)
+	store.AddPost(host.ID, world.Post{BoardID: "20/1", Author: "B", Subject: "two"})
+	store.EndPostBatch(host.ID)
+	if backend.saves != 0 {
+		t.Fatalf("nested batch persisted before outer end: %d", backend.saves)
+	}
+	store.EndPostBatch(host.ID)
+	if backend.saves != 1 {
+		t.Fatalf("nested batch snapshots=%d, want 1", backend.saves)
 	}
 }

@@ -5,7 +5,7 @@ V0 uses JSON WebSocket messages for fast iteration. This is deliberately an adap
 Client -> server:
 
 ```json
-{"type":"dial","phone":"0451234567","attempt":1}
+{"type":"dial","phone":"0920000196","attempt":1}
 {"type":"line","line":"B"}
 {"type":"hangup"}
 ```

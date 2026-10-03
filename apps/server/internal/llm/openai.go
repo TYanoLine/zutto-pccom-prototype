@@ -9,17 +9,22 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"zutto-pccom/apps/server/internal/azureopenai"
 )
 
-// OpenAIProvider intentionally uses net/http so the starter remains decoupled
-// from SDK release cadence. Codex can replace this with openai-go/v3 later.
+// OpenAIProvider targets Azure OpenAI's OpenAI-compatible v1 REST surface.
+// It intentionally uses net/http so provider authentication and endpoint
+// selection remain explicit at the infrastructure boundary.
 type OpenAIProvider struct {
+	Endpoint string
 	APIKey string
 	Model  string
 	Client *http.Client
 }
 
 func (p OpenAIProvider) GenerateReply(ctx context.Context, req ReplyRequest) (string, error) {
+	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
 	eraRules := withDiegeticWorldFrame(req.EraRules)
 	prompt := fmt.Sprintf(`You are writing one Japanese grass-roots BBS post as the specified persona.
 World date: %s. Never use knowledge, products, slang, or events after this date.
@@ -34,12 +39,27 @@ Incoming subject: %s
 Incoming body:
 %s
 
-Return only the post body.`, req.WorldDate, req.HostName, req.Persona, eraRules, req.Subject, req.Body)
-	result, err := p.responseText(ctx, prompt, "low")
+返信制約:
+- 新しく書く非引用部分は%d〜%d文字を目標にする。ただし水増ししない。
+- 親記事件名: %s
+- 親記事本文:
+%s
+- 選択済みの引用（改変禁止）:
+%s
+
+Return only the post body.`, req.WorldDate, req.HostName, req.Persona, eraRules, req.Subject, req.Body, minChars, maxChars, req.ParentSubject, req.ParentBody, req.QuoteText)
+	result, err := p.responseTextWithLimit(ctx, prompt, "low", outputTokenBudget(maxChars))
 	if err != nil {
 		return "", err
 	}
-	return normalizeCRLF(result.Text), nil
+	text := result.Text
+	if req.QuoteText != "" {
+		text, err = ensureExactQuote(text, req.QuoteText)
+		if err != nil {
+			return "", err
+		}
+	}
+	return normalizeCRLF(text), nil
 }
 
 // GenerateBBSTimelineIntent proposes semantic content for event shells already
@@ -131,13 +151,22 @@ Return exactly one event object for every supplied event index.`, req.WorldDate,
 
 func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequest) (BoardPostDraft, error) {
 	prompt := BuildBoardPostPrompt(req)
-	result, err := p.responseText(ctx, prompt, "low")
+	_, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+	traceFinish := beginDebugTrace(ctx, "記事本文", prompt)
+	result, err := p.responseTextWithLimit(ctx, prompt, "low", outputTokenBudget(maxChars))
+	traceFinish(result.Text, err)
 	if err != nil {
 		return BoardPostDraft{}, err
 	}
 	var draft BoardPostDraft
 	if err := json.Unmarshal([]byte(strings.TrimSpace(result.Text)), &draft); err != nil {
 		return BoardPostDraft{}, fmt.Errorf("decode board post JSON: %w", err)
+	}
+	if req.QuoteText != "" {
+		draft.Body, err = ensureExactQuote(draft.Body, req.QuoteText)
+		if err != nil {
+			return BoardPostDraft{}, err
+		}
 	}
 	if err := validateBoardPostWorkerDraft(req, draft); err != nil {
 		return BoardPostDraft{}, err
@@ -150,8 +179,10 @@ func (p OpenAIProvider) GenerateBoardPost(ctx context.Context, req BoardPostRequ
 }
 
 type responseTextResult struct {
-	Text  string
-	Usage TokenUsage
+	Text             string
+	Usage            TokenUsage
+	WebSearchCalls   int
+	WebSearchSources []string
 }
 
 func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity string) (responseTextResult, error) {
@@ -160,7 +191,7 @@ func (p OpenAIProvider) responseText(ctx context.Context, prompt, verbosity stri
 
 func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbosity string, maxOutputTokens int) (responseTextResult, error) {
 	if p.APIKey == "" {
-		return responseTextResult{}, errors.New("OPENAI_API_KEY is not set")
+		return responseTextResult{}, errors.New("AZURE_OPENAI_API_KEY is not set")
 	}
 	client := p.Client
 	if client == nil {
@@ -171,19 +202,18 @@ func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbo
 	}
 	payload := map[string]any{"model": p.Model, "input": prompt, "text": map[string]any{"verbosity": verbosity}, "max_output_tokens": maxOutputTokens}
 	body, _ := json.Marshal(payload)
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.openai.com/v1/responses", bytes.NewReader(body))
-	if err != nil {
-		return responseTextResult{}, err
-	}
-	httpReq.Header.Set("Authorization", "Bearer "+p.APIKey)
-	httpReq.Header.Set("Content-Type", "application/json")
+	endpoint, err := azureopenai.URL(p.Endpoint, "responses")
+	if err != nil { return responseTextResult{}, err }
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil { return responseTextResult{}, err }
+	if err := azureopenai.ApplyAPIKey(httpReq, p.APIKey); err != nil { return responseTextResult{}, err }
 	resp, err := client.Do(httpReq)
 	if err != nil {
 		return responseTextResult{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return responseTextResult{}, fmt.Errorf("openai responses API returned %s", resp.Status)
+		return responseTextResult{}, fmt.Errorf("Azure OpenAI responses API returned %s", resp.Status)
 	}
 	var decoded struct {
 		Model  string `json:"model"`
@@ -226,7 +256,7 @@ func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbo
 			}
 		}
 	}
-	return responseTextResult{}, errors.New("no output_text in OpenAI response")
+	return responseTextResult{}, errors.New("no output_text in Azure OpenAI response")
 }
 
 func validateBBSTimelineIntentDraft(req BBSTimelineIntentRequest, d BBSTimelineIntentDraft) error {
@@ -302,6 +332,10 @@ func forbiddenFutureMetaTerm(lower string) string {
 }
 
 func validateBoardPostDraft(d BoardPostDraft) error {
+	return validateBoardPostDraftWithBodyLimit(d, 700)
+}
+
+func validateBoardPostDraftWithBodyLimit(d BoardPostDraft, maxBodyChars int) error {
 	a := strings.TrimSpace(d.Author)
 	s := strings.TrimSpace(d.Subject)
 	b := strings.TrimSpace(d.Body)
@@ -309,15 +343,24 @@ func validateBoardPostDraft(d BoardPostDraft) error {
 		return errors.New("board post author length is invalid")
 	}
 	for _, r := range a {
-		if !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z' || r >= '0' && r <= '9') {
-			return errors.New("board post author must be ASCII alphanumeric")
+		// Station handles may use half-width ASCII punctuation as well as
+		// alphanumerics. Space/control/non-ASCII remain invalid.
+		if r < 0x21 || r > 0x7e {
+			return errors.New("board post author must use visible half-width ASCII")
 		}
 	}
 	if s == "" || len([]rune(s)) > 36 {
 		return errors.New("board post subject is empty or too long")
 	}
-	if b == "" || len([]rune(b)) > 700 {
+	if b == "" {
 		return errors.New("board post body is empty or too long")
+	}
+	nonQuoted := bodyWithoutQuotes(b)
+	if nonQuoted == "" || len([]rune(nonQuoted)) > maxBodyChars {
+		return fmt.Errorf("board post body is empty or too long (max %d non-quoted characters)", maxBodyChars)
+	}
+	if len([]rune(b)) > 8192 {
+		return errors.New("board post body is too long (max 8192 total characters)")
 	}
 	lower := strings.ToLower(b + " " + s)
 	if forbidden := forbiddenFutureMetaTerm(lower); forbidden != "" {

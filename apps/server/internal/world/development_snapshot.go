@@ -12,6 +12,7 @@ type DevelopmentHostSnapshot struct {
 	SchemaVersion int                      `json:"schema_version"`
 	Host          Host                     `json:"host"`
 	Boards        []Board                  `json:"boards"`
+	BoardActivity []BoardActivityState     `json:"board_activity,omitempty"`
 	Posts         []Post                   `json:"posts"`
 	Personas      []Persona                `json:"personas"`
 	PersonaFacts  map[string][]PersonaFact `json:"persona_facts"`
@@ -52,6 +53,7 @@ func (s *MemoryStore) DevelopmentSnapshot(phone string) (DevelopmentHostSnapshot
 		SchemaVersion: DevelopmentHostSnapshotSchemaVersion,
 		Host:          host,
 		Boards:        boards,
+		BoardActivity: s.listBoardActivityStatesLocked(host.ID),
 		Posts:         posts,
 		Personas:      personas,
 		PersonaFacts:  facts,
@@ -76,6 +78,10 @@ func (s *MemoryStore) RestoreDevelopmentSnapshot(snapshot DevelopmentHostSnapsho
 	hostID := snapshot.Host.ID
 	s.hosts[snapshot.Host.Phone] = snapshot.Host
 	s.boards[hostID] = append([]Board(nil), snapshot.Boards...)
+	s.boardActivity[hostID] = map[string]BoardActivityState{}
+	for _, state := range snapshot.BoardActivity {
+		s.boardActivity[hostID][state.BoardID] = state
+	}
 
 	posts := make([]Post, len(snapshot.Posts))
 	maxPostID := snapshot.NextPostID
@@ -103,6 +109,15 @@ func (s *MemoryStore) RestoreDevelopmentSnapshot(snapshot DevelopmentHostSnapsho
 		s.next = maxPostID
 	}
 	return nil
+}
+
+func (s *MemoryStore) listBoardActivityStatesLocked(hostID string) []BoardActivityState {
+	states := s.boardActivity[hostID]
+	out := make([]BoardActivityState, 0, len(states))
+	for _, state := range states {
+		out = append(out, state)
+	}
+	return out
 }
 
 func clonePersona(persona Persona) Persona {

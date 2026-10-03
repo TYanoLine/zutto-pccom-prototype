@@ -13,6 +13,12 @@ func TestValidateBoardPostDraft(t *testing.T) {
 	if err := validateBoardPostDraft(BoardPostDraft{Author: "NORI96", Subject: "通信ソフトの設定", Body: "最近設定をいじっています(^^;"}); err != nil {
 		t.Fatalf("valid draft rejected: %v", err)
 	}
+	if err := validateBoardPostDraft(BoardPostDraft{Author: "MAKO.J", Subject: "通信ソフトの設定", Body: "最近設定をいじっています(^^;"}); err != nil {
+		t.Fatalf("ASCII-symbol handle rejected: %v", err)
+	}
+	if err := validateBoardPostDraft(BoardPostDraft{Author: "KAZU-O", Subject: "通信ソフトの設定", Body: "最近設定をいじっています(^^;"}); err != nil {
+		t.Fatalf("dash handle rejected: %v", err)
+	}
 	if err := validateBoardPostDraft(BoardPostDraft{Author: "日本語", Subject: "test", Body: "body"}); err == nil {
 		t.Fatal("non-ASCII handle accepted")
 	}
@@ -38,9 +44,16 @@ func TestGenerateBoardPostCapturesResponsesUsage(t *testing.T) {
 		}
 	}`
 	provider := OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if req.URL.String() != "https://test.openai.azure.com/openai/v1/responses" {
+				t.Fatalf("url=%q", req.URL.String())
+			}
+			if req.Header.Get("api-key") != "test-key" || req.Header.Get("Authorization") != "" {
+				t.Fatalf("unexpected Azure auth headers: api-key=%q authorization=%q", req.Header.Get("api-key"), req.Header.Get("Authorization"))
+			}
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Status:     "200 OK",
@@ -69,6 +82,7 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 	}`
 	var capturedPrompt string
 	provider := OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -99,14 +113,15 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"世界日付は 1996-08-29",
+		"世界日付: 1996-08-29",
+		"確定済み件名: 途中で切れた",
 		"everyday_baseline=[自宅のパソコンと通信環境は普段使いの道具]",
-		"ヘッダを読み上げない",
-		"最初の文から用件そのものに入って",
-		"当時の本人として普通に書く",
+		"canonical Situation / thread facts",
+		"この記事を書いている本人の自然な文章",
+		"時代背景: 世界時刻より未来の知識を使わない。",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("board-post prompt missing worker rule %q:\n%s", want, capturedPrompt)
+			t.Fatalf("board-post prompt missing material/context %q:\n%s", want, capturedPrompt)
 		}
 	}
 }

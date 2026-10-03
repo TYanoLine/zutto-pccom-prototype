@@ -1,0 +1,30 @@
+/*
+ * Desktop terminal fit.
+ *
+ * The terminal canvas is a fixed 8x16-cell grid (80 columns x N rows), so its
+ * displayed shape must always be 640 : (N * 16) = 40 : N. The previous rules
+ * combined `width: 100%` with `max-height: 100%`; on a wide, short window the
+ * height was clamped while the width stayed at 100%, which stretched the
+ * screen horizontally.
+ *
+ * Here the viewport becomes a size container and the canvas takes the largest
+ * width that fits BOTH the viewport width and the viewport height at that
+ * ratio. Height follows from the ratio, so the image is letterboxed or
+ * pillarboxed (the viewport is black) instead of distorted.
+ *
+ * `--terminal-rows` is set inline by TerminalCanvas. Mobile presentation
+ * (narrow or coarse pointer) keeps its own sizing rules in styles.css.
+ */
+@media (min-width: 681px) and (not (pointer: coarse)) {
+  .terminal-display .terminal-viewport {
+    container-type: size;
+  }
+
+  .terminal-display .terminal-viewport .terminal-canvas {
+    width: min(100cqw, calc(100cqh * 40 / var(--terminal-rows, 25)));
+    height: auto;
+    aspect-ratio: 40 / var(--terminal-rows, 25);
+    max-width: none;
+    max-height: none;
+  }
+}

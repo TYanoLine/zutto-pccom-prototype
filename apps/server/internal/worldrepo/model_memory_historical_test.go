@@ -46,3 +46,19 @@ func TestModelHistoricalMemoryConcretePreferenceStillUsesNoDictionary(t *testing
 		t.Fatalf("article name-preservation rule missing: %s", rules)
 	}
 }
+
+func TestProductionMinimalHistoricalPromptDoesNotBringBackCatalogOrRestrictions(t *testing.T) {
+	m := LLMMaterializer{ModelHistoricalMemory: true, ProductionMinimalHistoricalPrompt: true}
+	if got := m.withPeriodReferents("1996-08-29"); len(got.HistoricalTexture) != 0 {
+		t.Fatalf("injected reference catalog: %#v", got.HistoricalTexture)
+	}
+	rules := m.planningEraRules()
+	if !strings.Contains(rules, "当時の会員の視点") {
+		t.Fatalf("production era context missing: %s", rules)
+	}
+	for _, old := range []string{"SUPPLIED HISTORICAL", "MODEL_MEMORY_EXPERIMENT", "DIEGETIC PRESENT", "新しい実在", "proper-noun dictionary"} {
+		if strings.Contains(rules, old) {
+			t.Fatalf("production inherited historical-prompt rule stack %q: %s", old, rules)
+		}
+	}
+}

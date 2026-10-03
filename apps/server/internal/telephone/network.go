@@ -45,9 +45,6 @@ func (n *Network) dialAt(phone string, at time.Time, attempt int) DialResult {
 	}
 
 	// Hidden prototype fixtures.
-	if phone == "0450000001" {
-		return DialResult{Result: Connect, Host: host, Baud: host.MaxBaud, Line: 1}
-	}
 	if phone == "0459999999" {
 		if attempt < 5 {
 			return DialResult{Result: Busy, Host: host}

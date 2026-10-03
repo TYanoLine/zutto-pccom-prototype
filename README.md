@@ -16,7 +16,7 @@ A runnable vertical-slice starter for a 1996 Japanese PC-98-style persistent AI 
 - one sample BBS with read/write/users/logout commands
 - posts survive reconnects for the lifetime of the Go process
 - PostgreSQL schema scaffold
-- optional OpenAI Responses API provider scaffold
+- optional Azure OpenAI Responses API provider scaffold
 - product/architecture/Codex handoff docs
 
 ## Prerequisites
@@ -46,10 +46,15 @@ npm run dev
 Open the Vite URL and type:
 
 ```text
-ATDT0451234567
+ATDT0312345678
 ```
 
-Once connected:
+That is the in-browser local test station: it runs entirely in the page, with no
+server involved. To reach a server-side BBS, dial HAKATA CANAL NET
+(`ATDT0920000196`) or the generic-runtime test host (`ATDT0459999999`, see
+below).
+
+The generic BBS commands are:
 
 ```text
 H  help
@@ -61,11 +66,12 @@ G  goodbye
 
 `A/` repeats the previous dial. AUTO REDIAL is enabled by default.
 
-Prototype fixture numbers:
+Prototype hosts are defined in `apps/server/internal/hostcatalog/presets/`
+(see its README):
 
-- `0451234567` — normal sample host, dynamic BUSY probability
-- `0450000001` — nearly guaranteed connection for testing
-- `0459999999` — deliberately busy for the first few attempts to exercise redial
+- `0920000196` — HAKATA CANAL NET, the sample station, running the Erika-K style runtime (its commands differ from the list above)
+- `0459999999` — hidden test host on the generic runtime. Dials are numbered from 1 and the first four are BUSY, so with AUTO REDIAL it connects on the fifth; use it to exercise redial
+- `0312345678` — the in-browser local test station (`LOCAL_TEST_NUMBER`); not a server host
 
 ## PostgreSQL scaffold
 
@@ -75,16 +81,21 @@ docker compose up -d postgres
 
 The running server still uses its in-memory store. Connecting pgx is an intentional next milestone; see `CODEX.md`.
 
-## OpenAI
+## Azure OpenAI
 
 The prototype runs without an API key. `internal/llm/openai.go` shows the provider boundary and Responses API call shape. Configure later with:
 
 ```bash
-export OPENAI_API_KEY=...
-export OPENAI_MODEL=...
+export AZURE_OPENAI_ENDPOINT=https://YOUR-RESOURCE-NAME.openai.azure.com
+export AZURE_OPENAI_API_KEY=...
+# Use the Azure deployment name (not necessarily the underlying model ID).
+export AZURE_OPENAI_MODEL=zutto-pccom-gpt-6-luna
+# Optional, if the image PoC is used:
+# Requires a separate image model deployment on the Azure resource.
+export AZURE_OPENAI_IMAGE_MODEL=...
 ```
 
-Do not make OpenAI conversation state the world database. See `docs/LLM_POLICY.md`.
+Do not make Azure OpenAI conversation state the world database. See `docs/LLM_POLICY.md`.
 
 ## Important prototype compromises
 

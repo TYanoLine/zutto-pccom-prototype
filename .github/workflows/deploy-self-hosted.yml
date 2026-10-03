@@ -1,0 +1,40 @@
+name: deploy-self-hosted
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/web/**'
+      - '.github/workflows/deploy-self-hosted.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    defaults:
+      run:
+        shell: cmd
+        working-directory: apps/web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web application
+        run: npm run build
+
+      - name: Deploy to serving directory
+        run: |
+          if not exist "C:\zutto-web" mkdir "C:\zutto-web"
+          xcopy /E /I /Y dist "C:\zutto-web\dist"
+          xcopy /E /I /Y api "C:\zutto-web\api"
+          copy /Y server.mjs "C:\zutto-web\"
+          echo Deployment to C:\zutto-web completed successfully.

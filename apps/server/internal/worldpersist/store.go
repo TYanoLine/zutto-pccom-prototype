@@ -30,22 +30,42 @@ type Status struct {
 	LastError   string    `json:"last_error,omitempty"`
 }
 
-// Store keeps the existing MemoryStore behavior while durably snapshotting the
-// development materialization host. The intentionally narrow scope avoids
-// pretending this is the final normalized production world database.
+// HostTarget selects a fixture host whose materialized world state should survive
+// process restarts. KeepSeedHostConfig keeps the code-defined host identity and
+// operator-facing host settings authoritative while restoring boards, posts,
+// memberships, personas, and persona facts from the snapshot.
+type HostTarget struct {
+	Phone              string
+	KeepSeedHostConfig bool
+}
+
+type persistedHost struct {
+	phone              string
+	hostID             string
+	keepSeedHostConfig bool
+}
+
+// Store keeps the existing MemoryStore behavior while durably snapshotting a
+// deliberately small set of development/experiment hosts. The intentionally
+// narrow scope avoids pretending this is the final normalized production world
+// database.
 type Store struct {
 	*world.MemoryStore
 
-	phone   string
-	hostID  string
+	targets map[string]persistedHost
 	backend snapshotBackend
 
 	persistMu sync.Mutex
-	statusMu  sync.RWMutex
-	status    Status
+
+	batchMu    sync.Mutex
+	batchDepth map[string]int
+	batchDirty map[string]bool
+
+	statusMu sync.RWMutex
+	status   Status
 }
 
-func Open(ctx context.Context, databaseURL string, base *world.MemoryStore, phone string) (*Store, error) {
+func Open(ctx context.Context, databaseURL string, base *world.MemoryStore, targets []HostTarget) (*Store, error) {
 	if base == nil {
 		return nil, errors.New("memory store is nil")
 	}
@@ -56,7 +76,7 @@ func Open(ctx context.Context, databaseURL string, base *world.MemoryStore, phon
 	if err != nil {
 		return nil, err
 	}
-	store, err := newStore(ctx, base, phone, backend)
+	store, err := newStore(ctx, base, targets, backend)
 	if err != nil {
 		backend.Close()
 		return nil, err
@@ -64,36 +84,66 @@ func Open(ctx context.Context, databaseURL string, base *world.MemoryStore, phon
 	return store, nil
 }
 
-func newStore(ctx context.Context, base *world.MemoryStore, phone string, backend snapshotBackend) (*Store, error) {
-	host, err := base.HostByPhone(phone)
-	if err != nil {
-		return nil, fmt.Errorf("find development host: %w", err)
+func newStore(ctx context.Context, base *world.MemoryStore, targets []HostTarget, backend snapshotBackend) (*Store, error) {
+	if len(targets) == 0 {
+		return nil, errors.New("no snapshot persistence targets configured")
 	}
 	store := &Store{
 		MemoryStore: base,
-		phone:       phone,
-		hostID:      host.ID,
+		targets:     make(map[string]persistedHost, len(targets)),
 		backend:     backend,
+		batchDepth:  make(map[string]int),
+		batchDirty:  make(map[string]bool),
 		status:      Status{Enabled: true, Backend: "postgres-jsonb"},
 	}
-	data, found, err := backend.Load(ctx, host.ID)
-	if err != nil {
-		return nil, fmt.Errorf("load development snapshot: %w", err)
+	seenPhones := make(map[string]bool, len(targets))
+	for _, configured := range targets {
+		if configured.Phone == "" {
+			return nil, errors.New("snapshot persistence target phone is empty")
+		}
+		if seenPhones[configured.Phone] {
+			return nil, fmt.Errorf("duplicate snapshot persistence target phone %s", configured.Phone)
+		}
+		seenPhones[configured.Phone] = true
+
+		host, err := base.HostByPhone(configured.Phone)
+		if err != nil {
+			return nil, fmt.Errorf("find snapshot persistence host %s: %w", configured.Phone, err)
+		}
+		if _, exists := store.targets[host.ID]; exists {
+			return nil, fmt.Errorf("duplicate snapshot persistence host id %s", host.ID)
+		}
+		target := persistedHost{
+			phone:              configured.Phone,
+			hostID:             host.ID,
+			keepSeedHostConfig: configured.KeepSeedHostConfig,
+		}
+		store.targets[host.ID] = target
+
+		data, found, err := backend.Load(ctx, host.ID)
+		if err != nil {
+			return nil, fmt.Errorf("load snapshot for host %s: %w", host.ID, err)
+		}
+		if !found {
+			continue
+		}
+		var snapshot world.DevelopmentHostSnapshot
+		if err := json.Unmarshal(data, &snapshot); err != nil {
+			return nil, fmt.Errorf("decode snapshot for host %s: %w", host.ID, err)
+		}
+		if snapshot.Host.ID != host.ID || snapshot.Host.Phone != configured.Phone {
+			return nil, fmt.Errorf("snapshot identity does not match configured host %s", host.ID)
+		}
+		if target.keepSeedHostConfig {
+			// This host's software/runtime configuration is still a code-owned
+			// fixture. Only its evolving in-world state is restored from Postgres.
+			snapshot.Host = host
+		}
+		if err := base.RestoreDevelopmentSnapshot(snapshot); err != nil {
+			return nil, fmt.Errorf("restore snapshot for host %s: %w", host.ID, err)
+		}
+		store.status.Loaded = true
 	}
-	if !found {
-		return store, nil
-	}
-	var snapshot world.DevelopmentHostSnapshot
-	if err := json.Unmarshal(data, &snapshot); err != nil {
-		return nil, fmt.Errorf("decode development snapshot: %w", err)
-	}
-	if snapshot.Host.ID != host.ID || snapshot.Host.Phone != phone {
-		return nil, errors.New("development snapshot identity does not match configured host")
-	}
-	if err := base.RestoreDevelopmentSnapshot(snapshot); err != nil {
-		return nil, fmt.Errorf("restore development snapshot: %w", err)
-	}
-	store.status.Loaded = true
 	return store, nil
 }
 
@@ -114,112 +164,185 @@ func (s *Store) DevelopmentPersistenceStatus() Status {
 
 func (s *Store) SaveHost(host world.Host) {
 	s.MemoryStore.SaveHost(host)
-	if host.ID == s.hostID {
-		s.persist()
+	if target, ok := s.targets[host.ID]; ok {
+		s.persistTarget(target)
 	}
 }
 
 func (s *Store) AddPost(hostID string, post world.Post) world.Post {
 	post = s.MemoryStore.AddPost(hostID, post)
-	if hostID == s.hostID {
-		s.persist()
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
 	}
 	return post
 }
 
+// BeginPostBatch / EndPostBatch coalesce snapshot persistence for one already
+// planned canonical article batch. Calls are nestable per host because demanded
+// board work may overlap a background prefetch on the same experiment station.
+func (s *Store) BeginPostBatch(hostID string) {
+	if _, ok := s.targets[hostID]; !ok {
+		return
+	}
+	s.batchMu.Lock()
+	s.batchDepth[hostID]++
+	s.batchMu.Unlock()
+}
+
+func (s *Store) EndPostBatch(hostID string) {
+	target, targeted := s.targets[hostID]
+	if !targeted {
+		return
+	}
+
+	shouldPersist := false
+	s.batchMu.Lock()
+	depth := s.batchDepth[hostID]
+	if depth > 1 {
+		s.batchDepth[hostID] = depth - 1
+	} else if depth == 1 {
+		delete(s.batchDepth, hostID)
+		shouldPersist = s.batchDirty[hostID]
+		delete(s.batchDirty, hostID)
+	}
+	s.batchMu.Unlock()
+
+	if shouldPersist {
+		s.persistTarget(target)
+	}
+}
+
+func (s *Store) persistTargetOrMarkBatchDirty(target persistedHost) {
+	s.batchMu.Lock()
+	if s.batchDepth[target.hostID] > 0 {
+		s.batchDirty[target.hostID] = true
+		s.batchMu.Unlock()
+		return
+	}
+	s.batchMu.Unlock()
+	s.persistTarget(target)
+}
+
 func (s *Store) UpdatePost(hostID string, post world.Post) (world.Post, bool) {
 	updated, ok := s.MemoryStore.UpdatePost(hostID, post)
-	if ok && hostID == s.hostID {
-		s.persist()
+	if ok {
+		if target, targeted := s.targets[hostID]; targeted {
+			s.persistTarget(target)
+		}
 	}
 	return updated, ok
 }
 
 func (s *Store) ClearHostPosts(hostID string) int {
 	count := s.MemoryStore.ClearHostPosts(hostID)
-	if hostID == s.hostID {
-		s.persist()
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTarget(target)
 	}
 	return count
 }
 
+func (s *Store) ReplaceHostPosts(hostID string, posts []world.Post) int {
+	removed := s.MemoryStore.ReplaceHostPosts(hostID, posts)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTarget(target)
+	}
+	return removed
+}
+
 func (s *Store) SaveBoards(hostID string, boards []world.Board) {
 	s.MemoryStore.SaveBoards(hostID, boards)
-	if hostID == s.hostID {
-		s.persist()
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTarget(target)
 	}
 }
 
+
+func (s *Store) SaveBoardActivityState(hostID string, state world.BoardActivityState) {
+	// Activity planning must stay cheap enough for board-menu rendering. The
+	// deterministic plan is recomputable before any prose exists; once article
+	// materialization writes a post, the normal AddPost snapshot persists the
+	// activity state together with the resulting canonical history.
+	s.MemoryStore.SaveBoardActivityState(hostID, state)
+}
+
 func (s *Store) SavePersona(persona world.Persona) {
-	// Membership is the canonical link into this host snapshot. Persisting here
-	// would write an identical snapshot before AddMembership makes it observable.
 	s.MemoryStore.SavePersona(persona)
+	// New personas are normally followed by AddMembership, which persists the
+	// first observable snapshot. Existing member persona updates also need to be
+	// durable, so persist any target that already owns this persona.
+	s.persistTargets(s.targetsForPersonaIDs([]string{persona.ID}))
 }
 
 func (s *Store) AddMembership(hostID, personaID string) {
 	s.MemoryStore.AddMembership(hostID, personaID)
-	if hostID == s.hostID {
-		s.persist()
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTarget(target)
 	}
 }
 
 func (s *Store) SavePersonaFact(fact world.PersonaFact) {
 	s.MemoryStore.SavePersonaFact(fact)
-	if s.affectsDevelopmentHost([]string{fact.PersonaID}) {
-		s.persist()
-	}
+	s.persistTargets(s.targetsForPersonaIDs([]string{fact.PersonaID}))
 }
 
 func (s *Store) ClearPersonaFacts(personaIDs []string) int {
 	count := s.MemoryStore.ClearPersonaFacts(personaIDs)
-	if s.affectsDevelopmentHost(personaIDs) {
-		s.persist()
-	}
+	s.persistTargets(s.targetsForPersonaIDs(personaIDs))
 	return count
 }
 
-func (s *Store) affectsDevelopmentHost(personaIDs []string) bool {
+func (s *Store) targetsForPersonaIDs(personaIDs []string) []persistedHost {
 	if len(personaIDs) == 0 {
-		return false
+		return nil
 	}
-	snapshot, ok := s.MemoryStore.DevelopmentSnapshot(s.phone)
-	if !ok {
-		return false
-	}
-	members := make(map[string]struct{}, len(snapshot.Memberships))
-	for _, personaID := range snapshot.Memberships {
-		members[personaID] = struct{}{}
-	}
+	wanted := make(map[string]struct{}, len(personaIDs))
 	for _, personaID := range personaIDs {
-		if _, ok := members[personaID]; ok {
-			return true
+		wanted[personaID] = struct{}{}
+	}
+	out := make([]persistedHost, 0, len(s.targets))
+	for _, target := range s.targets {
+		snapshot, ok := s.MemoryStore.DevelopmentSnapshot(target.phone)
+		if !ok {
+			continue
+		}
+		for _, personaID := range snapshot.Memberships {
+			if _, ok := wanted[personaID]; ok {
+				out = append(out, target)
+				break
+			}
 		}
 	}
-	return false
+	return out
 }
 
-func (s *Store) persist() {
+func (s *Store) persistTargets(targets []persistedHost) {
+	for _, target := range targets {
+		s.persistTarget(target)
+	}
+}
+
+func (s *Store) persistTarget(target persistedHost) {
 	if s == nil || s.backend == nil {
 		return
 	}
 	s.persistMu.Lock()
 	defer s.persistMu.Unlock()
 
-	snapshot, ok := s.MemoryStore.DevelopmentSnapshot(s.phone)
+	snapshot, ok := s.MemoryStore.DevelopmentSnapshot(target.phone)
 	if !ok {
 		return
 	}
 	data, err := json.Marshal(snapshot)
 	if err == nil {
 		ctx, cancel := context.WithTimeout(context.Background(), persistTimeout)
-		err = s.backend.Save(ctx, s.hostID, s.phone, snapshot.SchemaVersion, data)
+		err = s.backend.Save(ctx, target.hostID, target.phone, snapshot.SchemaVersion, data)
 		cancel()
 	}
 
 	s.statusMu.Lock()
 	if err != nil {
 		s.status.LastError = err.Error()
-		log.Printf("development world persistence failed: %v", err)
+		log.Printf("development world persistence failed for host %s: %v", target.hostID, err)
 	} else {
 		s.status.LastSavedAt = time.Now().UTC()
 		s.status.LastError = ""

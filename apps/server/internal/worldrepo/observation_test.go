@@ -43,38 +43,40 @@ func (m *blockingObservationMaterializer) GenerateBoardPosts(ctx context.Context
 		body = "materialized body"
 	}
 	return []world.Post{{
-		BoardID:  req.BoardID,
-		Author:   "NPC",
-		Subject:  "materialized subject",
-		Body:     body,
+		BoardID:   req.BoardID,
+		Author:    "NPC",
+		Subject:   "materialized subject",
+		Body:      body,
 		CreatedAt: time.Date(1996, 8, 26, 20, 0, 0, 0, time.Local),
 	}}, nil
 }
 
 func TestHostLookupDoesNotObserveOrGenerate(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &blockingObservationMaterializer{}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 
-	if _, err := repo.HostByPhone("0450000001"); err != nil {
+	if _, err := repo.HostByPhone(genericTestPhone); err != nil {
 		t.Fatal(err)
 	}
 	if got := materializer.calls.Load(); got != 0 {
 		t.Fatalf("HostByPhone generated content: calls=%d", got)
 	}
-	if posts := base.ListPosts("quiet-test"); len(posts) != 0 {
+	if posts := base.ListPosts(genericTestHostID); len(posts) != 0 {
 		t.Fatalf("host metadata lookup created posts: %+v", posts)
 	}
 }
 
 func TestHostObservationStartsInBackgroundAndBoardReadWaits(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &blockingObservationMaterializer{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,14 +128,15 @@ func TestHostObservationStartsInBackgroundAndBoardReadWaits(t *testing.T) {
 }
 
 func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &blockingObservationMaterializer{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
 		body:    "generated article body",
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +188,6 @@ func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
 	}
 }
 
-
 type perBoardObservationMaterializer struct {
 	started chan string
 	release map[string]chan struct{}
@@ -207,7 +209,7 @@ func (m *perBoardObservationMaterializer) GenerateBoardPosts(ctx context.Context
 }
 
 func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &perBoardObservationMaterializer{
 		started: make(chan string, 2),
 		release: map[string]chan struct{}{
@@ -216,7 +218,7 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 		},
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,77 +263,166 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 	close(materializer.release["a"])
 }
 
-
-func TestResetRearmsCompletedBoardObservation(t *testing.T) {
-	base := world.NewMemoryStore()
-	materializer := &blockingObservationMaterializer{}
-	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	board := world.Board{ID: "main", Name: "フリートーク"}
-
-	repo.BeginHostObservation(host, []world.Board{board})
-	posts, err := repo.WaitForBoardHeaders(context.Background(), host, board)
-	if err != nil || len(posts) != 1 {
-		t.Fatalf("initial observation failed: posts=%+v err=%v", posts, err)
-	}
-	if got := materializer.calls.Load(); got != 1 {
-		t.Fatalf("initial materialization calls=%d", got)
-	}
-
-	cleared, _, ok := repo.ResetMaterializationConversation(host)
-	if !ok || cleared != 1 {
-		t.Fatalf("reset failed: cleared=%d ok=%v", cleared, ok)
-	}
-	if repo.boardObservationJob(host.ID, board.ID) != nil {
-		t.Fatal("completed board observation marker survived reset")
-	}
-
-	posts, err = repo.WaitForBoardHeaders(context.Background(), host, board)
-	if err != nil || len(posts) != 1 {
-		t.Fatalf("post-reset observation failed: posts=%+v err=%v", posts, err)
-	}
-	if got := materializer.calls.Load(); got != 2 {
-		t.Fatalf("reset did not start a fresh observation: calls=%d", got)
+func TestCompletedBoardObservationCanBeSafelyRearmed(t *testing.T) {
+	base:=newTestStore()
+	materializer:=&blockingObservationMaterializer{}
+	repo:=New(base,observationTestEvidence{},materializer,"1996-08-26")
+	host,err:=repo.HostByPhone(genericTestPhone);if err!=nil{t.Fatal(err)}
+	board:=world.Board{ID:"main",Name:"フリートーク"}
+	repo.BeginHostObservation(host,[]world.Board{board})
+	first,err:=repo.WaitForBoardHeaders(context.Background(),host,board)
+	if err!=nil||len(first)!=1{t.Fatalf("initial observation: posts=%v err=%v",first,err)}
+	repo.observationMu.Lock()
+	if repo.observationRunningLocked(host.ID) {repo.observationMu.Unlock();t.Fatal("completed worker still running")}
+	repo.clearCompletedObservationJobsLocked(host.ID)
+	removed:=base.ClearHostPosts(host.ID)
+	repo.observationMu.Unlock()
+	// Generic-host fallback uses a one-time realization marker as well as
+	// observation leases. Re-arm both here, as the debug reset path does.
+	repo.mu.Lock()
+	delete(repo.materialized,host.ID+"|"+board.ID)
+	repo.mu.Unlock()
+	if removed!=1 {t.Fatalf("cleared %d posts, want 1",removed)}
+	again,err:=repo.WaitForBoardHeaders(context.Background(),host,board)
+	if err!=nil||len(again)!=1||materializer.calls.Load()!=2 {
+		t.Fatalf("fresh observation failed: posts=%v err=%v calls=%d",again,err,materializer.calls.Load())
 	}
 }
 
-func TestResetRefusesWhileBoardObservationIsRunning(t *testing.T) {
-	base := world.NewMemoryStore()
-	materializer := &blockingObservationMaterializer{
-		started: make(chan struct{}),
-		release: make(chan struct{}),
+func TestRunningBoardObservationBlocksCanonicalReset(t *testing.T) {
+	base:=newTestStore()
+	materializer:=&blockingObservationMaterializer{started:make(chan struct{}),release:make(chan struct{})}
+	repo:=New(base,observationTestEvidence{},materializer,"1996-08-26")
+	host,err:=repo.HostByPhone(genericTestPhone);if err!=nil{t.Fatal(err)}
+	board:=world.Board{ID:"main",Name:"フリートーク"}
+	repo.BeginHostObservation(host,[]world.Board{board})
+	select { case <-materializer.started: case <-time.After(time.Second): t.Fatal("observation never started") }
+	repo.observationMu.Lock()
+	blocked:=repo.observationRunningLocked(host.ID)
+	repo.observationMu.Unlock()
+	if !blocked {t.Fatal("running worker did not block reset")}
+	close(materializer.release)
+	if _,err:=repo.WaitForBoardHeaders(context.Background(),host,board);err!=nil{t.Fatal(err)}
+	repo.observationMu.Lock()
+	stillRunning:=repo.observationRunningLocked(host.ID)
+	repo.observationMu.Unlock()
+	if stillRunning {t.Fatal("completed worker still blocks reset")}
+}
+
+func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(t *testing.T) {
+	base := newTestStore()
+	materializer := &perBoardObservationMaterializer{
+		started: make(chan string, 8),
+		release: map[string]chan struct{}{
+			"a": make(chan struct{}),
+			"b": make(chan struct{}),
+			"c": make(chan struct{}),
+			"d": make(chan struct{}),
+		},
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
-	board := world.Board{ID: "main", Name: "フリートーク"}
 
-	repo.BeginHostObservation(host, []world.Board{board})
+	boardA := world.Board{ID: "a", Name: "A"}
+	boardB := world.Board{ID: "b", Name: "B"}
+	boardC := world.Board{ID: "c", Name: "C"}
+	boardD := world.Board{ID: "d", Name: "D"}
+	repo.BeginHostPrefetch(host, []world.Board{boardA, boardB, boardC, boardD})
+
 	select {
-	case <-materializer.started:
+	case got := <-materializer.started:
+		if got != "a" {
+			t.Fatalf("first background board=%q, want a", got)
+		}
 	case <-time.After(time.Second):
-		t.Fatal("observation did not start")
-	}
-	if !repo.MaterializationObservationRunning(host.ID) {
-		t.Fatal("running observation was not reported")
-	}
-	if cleared, facts, ok := repo.ResetMaterializationConversation(host); ok || cleared != 0 || facts != 0 {
-		t.Fatalf("reset should be refused while worker runs: cleared=%d facts=%d ok=%v", cleared, facts, ok)
+		t.Fatal("background queue did not start board a")
 	}
 
-	close(materializer.release)
-	if _, err := repo.WaitForBoardHeaders(context.Background(), host, board); err != nil {
+	// C is waiting behind A/B. Demand should remove C from that waiting queue
+	// and start it immediately without canceling A.
+	repo.BeginHostObservation(host, []world.Board{boardC})
+	select {
+	case got := <-materializer.started:
+		if got != "c" {
+			t.Fatalf("demanded board start=%q, want c", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("demanded board c did not start in parallel with background a")
+	}
+
+	close(materializer.release["c"])
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := repo.WaitForBoardHeaders(ctx, host, boardC); err != nil {
 		t.Fatal(err)
 	}
-	if repo.MaterializationObservationRunning(host.ID) {
-		t.Fatal("completed observation still reported running")
+
+	// A is still the background item. Releasing it should advance the background
+	// queue to B, then D; C must not reappear because demand promoted it out.
+	close(materializer.release["a"])
+	select {
+	case got := <-materializer.started:
+		if got != "b" {
+			t.Fatalf("background after a=%q, want b", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background queue did not advance to b")
 	}
-	if _, _, ok := repo.ResetMaterializationConversation(host); !ok {
-		t.Fatal("reset should succeed after observation completes")
+
+	close(materializer.release["b"])
+	select {
+	case got := <-materializer.started:
+		if got != "d" {
+			t.Fatalf("background after b=%q, want d (c should be removed)", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("background queue did not advance to d")
+	}
+	close(materializer.release["d"])
+
+	select {
+	case got := <-materializer.started:
+		t.Fatalf("unexpected extra board generation after queue drain: %q", got)
+	case <-time.After(80 * time.Millisecond):
+	}
+}
+
+func TestDemandJoinsSameBoardAlreadyRunningInPrefetch(t *testing.T) {
+	base := newTestStore()
+	materializer := &perBoardObservationMaterializer{
+		started: make(chan string, 4),
+		release: map[string]chan struct{}{"c": make(chan struct{})},
+	}
+	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
+	host, err := repo.HostByPhone(genericTestPhone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	boardC := world.Board{ID: "c", Name: "C"}
+	repo.BeginHostPrefetch(host, []world.Board{boardC})
+	select {
+	case got := <-materializer.started:
+		if got != "c" {
+			t.Fatalf("prefetch started %q, want c", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("prefetch c did not start")
+	}
+
+	repo.BeginHostObservation(host, []world.Board{boardC})
+	select {
+	case got := <-materializer.started:
+		t.Fatalf("same demanded board started duplicate job: %q", got)
+	case <-time.After(80 * time.Millisecond):
+	}
+
+	close(materializer.release["c"])
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := repo.WaitForBoardHeaders(ctx, host, boardC); err != nil {
+		t.Fatal(err)
 	}
 }

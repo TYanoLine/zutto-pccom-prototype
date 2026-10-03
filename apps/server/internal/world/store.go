@@ -34,6 +34,14 @@ type HostObservationStore interface {
 	WaitForArticleBody(ctx context.Context, host Host, board Board, postID int64) (Post, bool, error)
 }
 
+// HostPrefetchStore is an optional low-priority observation queue. Prefetch work
+// is serialized in queue order, while an explicit board demand may remove a
+// queued board and start/join it immediately in parallel with the current
+// background item.
+type HostPrefetchStore interface {
+	BeginHostPrefetch(host Host, boards []Board)
+}
+
 // The following writer capabilities are intentionally optional. WorldRepository
 // uses them to persist materialized state without making every Store implementation
 // support the development materialization demo.
@@ -42,7 +50,34 @@ type BoardStore interface {
 	ListBoards(hostID string) []Board
 	SaveBoards(hostID string, boards []Board)
 }
-type PostUpdater interface{ UpdatePost(hostID string, p Post) (Post, bool) }
+
+// BoardActivityStore exposes prose-free canonical board activity state. Host
+// runtimes may use it to display counts before article headers are materialized.
+type BoardActivityStore interface {
+	BoardActivity(host Host, board Board) (BoardActivityState, bool)
+}
+
+// BoardActivityStateStore is the persistence capability used by Repository when
+// it computes/refreshes one deterministic activity plan.
+type BoardActivityStateStore interface {
+	BoardActivityState(hostID, boardID string) (BoardActivityState, bool)
+	SaveBoardActivityState(hostID string, state BoardActivityState)
+	ListBoardActivityStates(hostID string) []BoardActivityState
+}
+
+// PostBatchStore is an optional persistence optimization for a canonical batch
+// whose posts have already been fully planned/validated. The in-memory world
+// mutations remain visible immediately; a snapshot-backed store may defer its
+// durable snapshot until EndPostBatch so one world batch does not cause one
+// database write per article.
+type PostBatchStore interface {
+	BeginPostBatch(hostID string)
+	EndPostBatch(hostID string)
+}
+
+type PostUpdater interface {
+	UpdatePost(hostID string, p Post) (Post, bool)
+}
 
 // PersonaStore keeps the global-persona / host-membership split explicit even in
 // the in-memory PoC. A persona can later be attached to more than one host without
@@ -71,62 +106,40 @@ type DevelopmentConversationResetStore interface {
 }
 
 type MemoryStore struct {
-	mu           sync.RWMutex
-	hosts        map[string]Host
-	boards       map[string][]Board
-	posts        map[string][]Post
-	personas     map[string]Persona
-	personaFacts map[string][]PersonaFact
-	memberships  map[string][]string
-	next         int64
+	mu            sync.RWMutex
+	hosts         map[string]Host
+	boards        map[string][]Board
+	boardActivity map[string]map[string]BoardActivityState
+	posts         map[string][]Post
+	personas      map[string]Persona
+	personaFacts  map[string][]PersonaFact
+	memberships   map[string][]string
+	next          int64
 }
 
 func NewMemoryStore() *MemoryStore {
 	s := &MemoryStore{
-		hosts:        map[string]Host{},
-		boards:       map[string][]Board{},
-		posts:        map[string][]Post{},
-		personas:     map[string]Persona{},
-		personaFacts: map[string][]PersonaFact{},
-		memberships:  map[string][]string{},
-		next:         1000,
+		hosts:         map[string]Host{},
+		boards:        map[string][]Board{},
+		boardActivity: map[string]map[string]BoardActivityState{},
+		posts:         map[string][]Post{},
+		personas:      map[string]Persona{},
+		personaFacts:  map[string][]PersonaFact{},
+		memberships:   map[string][]string{},
+		next:          1000,
 	}
 
-	h := Host{ID: "moonlight-yokohama", Phone: "0451234567", Name: "YOKOHAMA MOONLIGHT NETWORK", Region: "神奈川県横浜市", Software: "KTBBS compatible / customized", SoftwareID: "generic", Lines: 4, Popularity: .70, MaxBaud: 14400, Members: 187, ANSI: true, GuestAllowed: true, TelehoFriendly: true}
-	s.hosts[h.Phone] = h
-	s.posts[h.ID] = []Post{
-		{ID: 1, BoardID: "main", Author: "SYSOP", Subject: "HDD増設しました", Body: "先週、HDDを340MBに増設しました。\r\nファイルボードも少し整理しています。", CreatedAt: time.Date(1996, 8, 25, 21, 14, 0, 0, time.Local)},
-		{ID: 2, BoardID: "main", Author: "NEKO", Subject: "土曜のオフ", Body: "集合は18時に関内駅でいいんでしたっけ？(^^;", CreatedAt: time.Date(1996, 8, 26, 0, 42, 0, 0, time.Local)},
-		{ID: 3, BoardID: "main", Author: "TAKA", Subject: "Win95どうです？", Body: "うちはまだ3.1です。98で使うには重い気もしますが…。", CreatedAt: time.Date(1996, 8, 26, 1, 7, 0, 0, time.Local)},
+	// Host definitions come from the embedded YAML presets
+	// (internal/hostcatalog/presets). The host with the experiment role gets the
+	// resident population the evaluation station needs.
+	for _, h := range presetHosts() {
+		s.hosts[h.Phone] = h
+		if h.IsExperiment() {
+			s.posts[h.ID] = nil
+			ensureHakataExperimentPopulationLocked(s, h)
+		}
 	}
 
-	erika := Host{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, ANSI: false, GuestAllowed: true, TelehoFriendly: true}
-	s.hosts[erika.Phone] = erika
-	s.posts[erika.ID] = []Post{
-		{ID: 101, BoardID: "1", Author: "SYSOP", Subject: "今週末のメンテナンス", Body: "土曜の午前3時ごろに30分ほど止めます。\r\nHDDの整理とログの退避をします。", CreatedAt: time.Date(1996, 8, 24, 22, 10, 0, 0, time.Local)},
-		{ID: 102, BoardID: "1", ParentID: 101, Author: "MARI", Subject: "Re: 今週末のメンテナンス", Body: "了解ですー。夜更かし組はその前に落ちます(^^;", CreatedAt: time.Date(1996, 8, 24, 23, 2, 0, 0, time.Local)},
-		{ID: 103, BoardID: "1", ParentID: 101, Author: "KAZU", Subject: "Re: 今週末のメンテナンス", Body: "バックアップご苦労さまです。", CreatedAt: time.Date(1996, 8, 25, 0, 18, 0, 0, time.Local)},
-		{ID: 120, BoardID: "4", Author: "MARI", Subject: "まだまだ暑いですね～", Body: "昼の天神は暑かったです(^^;\r\n夜になると少し楽かな。", CreatedAt: time.Date(1996, 8, 25, 19, 34, 0, 0, time.Local)},
-		{ID: 121, BoardID: "4", ParentID: 120, Author: "YUKI", Subject: "Re: まだまだ暑いですね～", Body: "こっちはクーラー全開です(笑)", CreatedAt: time.Date(1996, 8, 25, 20, 1, 0, 0, time.Local)},
-		{ID: 110, BoardID: "10/2", Author: "YUKI", Subject: "天神でオフしません？", Body: "9月の最初の土曜あたり、天神でどうでしょう。\r\n人数集まりそうなら店を探します。", CreatedAt: time.Date(1996, 8, 25, 20, 45, 0, 0, time.Local)},
-		{ID: 111, BoardID: "10/2", ParentID: 110, Author: "MARI", Subject: "Re: 天神でオフしません？", Body: "参加希望です(^_^)/", CreatedAt: time.Date(1996, 8, 25, 21, 3, 0, 0, time.Local)},
-		{ID: 130, BoardID: "20/1", Author: "KAZU", Subject: "ポケモン赤と緑", Body: "弟がずっとやってます。\r\n通信ケーブルまで買わされました(^^;", CreatedAt: time.Date(1996, 8, 25, 17, 48, 0, 0, time.Local)},
-		{ID: 201, BoardID: "60/1", Author: "TAKU", Subject: "PC-9821で28.8K", Body: "V.34モデムを入れてみました。\r\n回線によっては26400くらいに落ちますね。", CreatedAt: time.Date(1996, 8, 25, 18, 27, 0, 0, time.Local)},
-		{ID: 202, BoardID: "60/1", ParentID: 201, Author: "SYSOP", Subject: "Re: PC-9821で28.8K", Body: "うちの3回線目も夜は24000まで落ちることがあります。", CreatedAt: time.Date(1996, 8, 25, 19, 12, 0, 0, time.Local)},
-		{ID: 210, BoardID: "60/1", Author: "NORI", Subject: "WTERMの設定", Body: "自動巡回のマクロを作り直してます。\r\nうまくいったらアップします。", CreatedAt: time.Date(1996, 8, 26, 0, 20, 0, 0, time.Local)},
-		{ID: 301, BoardID: "60/3", Author: "SYSOP", Subject: "NMODEMテスト用ファイル", Body: "NMODEMの転送テストをする人は声をかけてください。\r\n夜中なら空いていることが多いです。", CreatedAt: time.Date(1996, 8, 23, 23, 50, 0, 0, time.Local)},
-		{ID: 401, BoardID: "70/1", Author: "NORI", Subject: "9821Xaのメモリ", Body: "32MBまで増やしたらWin95がかなり楽になりました。", CreatedAt: time.Date(1996, 8, 25, 22, 8, 0, 0, time.Local)},
-		{ID: 501, BoardID: "80/2", Author: "KAZU", Subject: "MSX turbo Rまだ現役", Body: "うちはFS-A1GTがまだ机の横にいます(^^)", CreatedAt: time.Date(1996, 8, 24, 21, 16, 0, 0, time.Local)},
-		{ID: 901, BoardID: "99", Author: "MIDNIGHT", Subject: "ここ見つけた人いる？", Body: "ボードマップには出てないけど BJ 99 で入れるみたい(笑)", CreatedAt: time.Date(1996, 8, 26, 2, 11, 0, 0, time.Local)},
-	}
-	seedErikaKBoardHeaders(s, erika.ID)
-
-	s.hosts["0450000001"] = Host{ID: "quiet-test", Phone: "0450000001", Name: "QUIET TEST BBS", Region: "神奈川県", Software: "mmm compatible", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, ANSI: false, GuestAllowed: true}
-	s.hosts["0459999999"] = Host{ID: "busy-test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, ANSI: true, GuestAllowed: true}
-
-	// Development-only seed: intentionally incomplete. WorldRepository fills the
-	// missing profile when this number is first dialed, then stores the result.
-	s.hosts["0450000196"] = Host{ID: "materialize-demo", Phone: "0450000196", Region: "神奈川県", SoftwareID: "materialization-demo"}
 	return s
 }
 
@@ -187,6 +200,15 @@ func (s *MemoryStore) ClearHostPosts(hostID string) int {
 	delete(s.posts, hostID)
 	return count
 }
+func (s *MemoryStore) ReplaceHostPosts(hostID string, posts []Post) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	oldCount := len(s.posts[hostID])
+	out := make([]Post, len(posts))
+	copy(out, posts)
+	s.posts[hostID] = out
+	return oldCount - len(out)
+}
 func (s *MemoryStore) ListBoards(hostID string) []Board {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -201,6 +223,33 @@ func (s *MemoryStore) SaveBoards(hostID string, boards []Board) {
 	out := make([]Board, len(boards))
 	copy(out, boards)
 	s.boards[hostID] = out
+}
+
+func (s *MemoryStore) BoardActivityState(hostID, boardID string) (BoardActivityState, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	state, ok := s.boardActivity[hostID][boardID]
+	return state, ok
+}
+
+func (s *MemoryStore) SaveBoardActivityState(hostID string, state BoardActivityState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.boardActivity[hostID] == nil {
+		s.boardActivity[hostID] = map[string]BoardActivityState{}
+	}
+	s.boardActivity[hostID][state.BoardID] = state
+}
+
+func (s *MemoryStore) ListBoardActivityStates(hostID string) []BoardActivityState {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	states := s.boardActivity[hostID]
+	out := make([]BoardActivityState, 0, len(states))
+	for _, state := range states {
+		out = append(out, state)
+	}
+	return out
 }
 func (s *MemoryStore) SavePersona(p Persona) {
 	s.mu.Lock()

@@ -11,48 +11,82 @@ import (
 )
 
 type boardNode struct {
-	Path   string
-	Key    string
-	Parent string
-	Name   string
-	Hidden bool
+	Path                 string
+	Key                  string
+	Alias                string
+	Parent               string
+	Name                 string
+	Hidden               bool
+	SemanticScope        string
+	RootAuthorPolicy     string
+	ActivityWeight       float64
+	ReplyRate            float64
+	RetainedRootCap      int
+	VerifiedReferentRate float64
 }
 
 var boardTree = []boardNode{
-	{Path: "1", Key: "1", Name: "事務局からのお知らせ"},
-	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎"},
-	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）"},
-	{Path: "4", Key: "4", Name: "ふり～と～く"},
-	{Path: "5", Key: "5", Name: "オフライントピックス"},
-	{Path: "6", Key: "6", Name: "街角情報スポット"},
-	{Path: "7", Key: "7", Name: "ＣＡＮＡＬ市場"},
-	{Path: "8", Key: "8", Name: "夢工房はかた"},
-	{Path: "10", Key: "10", Name: "博多・天神広場"},
-	{Path: "20", Key: "20", Name: "アミューズメントフォーラム"},
-	{Path: "60", Key: "60", Name: "コンピュータワールド"},
-	{Path: "68", Key: "68", Name: "ＣＡＮＡＬ Ｘ村"},
-	{Path: "70", Key: "70", Name: "９８ VS ＡＴ互換機"},
-	{Path: "80", Key: "80", Name: "その他のコンピュータ"},
-	{Path: "99", Key: "99", Name: "夜更かし部屋", Hidden: true},
+	// Activity values below are HAKATA station fiction used by the world
+	// simulation. They are not claimed Erika-K defaults.
+	{Path: "1", Key: "1", Name: "事務局からのお知らせ", SemanticScope: "HAKATA局のSYSOPによる運営案内、局内のお知らせ、メンテナンスや利用案内。", RootAuthorPolicy: "sysop_only", ActivityWeight: .10, ReplyRate: .20, RetainedRootCap: 24},
+	{Path: "2", Key: "2", Name: "自己紹介・新人歓迎", SemanticScope: "新規会員の自己紹介と入局の挨拶、常連からの歓迎、久しぶりに来た人の再訪の挨拶。各投稿の本文は名乗りや挨拶が中心で、呼び名や短い近況は添える程度にとどめる。局の外での出来事や趣味の話題は、ほかの板で扱う。", ActivityWeight: .34, ReplyRate: 1.30, RetainedRootCap: 36},
+	{Path: "3", Key: "3", Name: "Ｑ＆Ａ（質問ボード）", SemanticScope: "会員が日常の具体的な疑問や困りごとを尋ねる一般質問板。地域生活、仕事・学校、買い物、交通、食事、趣味、局の使い方など分野は幅広い。", ActivityWeight: .58, ReplyRate: 2.10, RetainedRootCap: 48},
+	{Path: "4", Key: "4", Name: "ふり～と～く", SemanticScope: "会員の日常雑談。仕事・学校・家族・食事・天気・街・趣味・最近あった小さな出来事など何でもあり。専門板の話題だけに偏らない。", ActivityWeight: 1.25, ReplyRate: 2.00, RetainedRootCap: 60},
+	{Path: "5", Key: "5", Name: "オフライントピックス", SemanticScope: "局外で会員が交流することについての雑談や、新しい集まりの提案、過去に実際に参加した集まりの感想。具体的な開催連絡や参加確認はオフ会連絡板で扱う。", ActivityWeight: .48, ReplyRate: 1.70, RetainedRootCap: 42},
+	{Path: "6", Key: "6", Name: "街角情報スポット", SemanticScope: "福岡市内とその周辺で見聞きした店、交通、暮らしの小さな発見や役立つ街の情報。博多・天神の局地的な話題は博多・天神ローカル板にも集まる。", ActivityWeight: .72, ReplyRate: 1.30, RetainedRootCap: 48, VerifiedReferentRate: .10},
+	{Path: "7", Key: "7", Name: "ＣＡＮＡＬ市場", SemanticScope: "会員が自分で譲れる品物の状態や希望条件を知らせたり、欲しい品物や交換相手を募ったりする売買・交換連絡。具体的な取引の成立は当事者同士の確認による。", ActivityWeight: .30, ReplyRate: .75, RetainedRootCap: 30},
+	// "夢工房はかた" の史実上の用途は未確認。生成入力には時代外の
+	// 調査メタ情報を渡さず、HAKATA局の暫定的な架空の交流板として扱う。
+	{Path: "8", Key: "8", Name: "夢工房はかた", SemanticScope: "局内の会員が近況や日々の話題を気軽に持ち寄る自由交流板。", ActivityWeight: .42, ReplyRate: 1.10, RetainedRootCap: 36},
+	{Path: "10", Key: "10", Alias: "HAKATA", Name: "博多・天神広場"},
+	{Path: "20", Key: "20", Alias: "AMUSE", Name: "アミューズメントフォーラム"},
+	{Path: "60", Key: "60", Alias: "COMP", Name: "コンピュータワールド"},
+	{Path: "68", Key: "68", Alias: "X68", Name: "ＣＡＮＡＬ Ｘ村"},
+	{Path: "70", Key: "70", Alias: "DOSV", Name: "９８ VS ＡＴ互換機"},
+	{Path: "80", Key: "80", Alias: "OTHER", Name: "その他のコンピュータ"},
+	{Path: "99", Key: "99", Name: "夜更かし部屋", Hidden: true, ActivityWeight: .34, ReplyRate: 2.30, RetainedRootCap: 36},
 
-	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル"},
-	{Path: "10/2", Key: "2", Parent: "10", Name: "オフ会連絡"},
-	{Path: "20/1", Key: "1", Parent: "20", Name: "ＧＡＭＥ"},
-	{Path: "20/2", Key: "2", Parent: "20", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ"},
-	{Path: "60/1", Key: "1", Parent: "60", Name: "ＰＣ－９８／ＭＯＤＥＭ"},
-	{Path: "60/2", Key: "2", Parent: "60", Name: "Ｗｉｎｄｏｗｓ／ＤＯＳ"},
-	{Path: "60/3", Key: "3", Parent: "60", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ"},
-	{Path: "68/1", Key: "1", Parent: "68", Name: "深夜雑談"},
-	{Path: "70/1", Key: "1", Parent: "70", Name: "ＰＣ－９８"},
-	{Path: "70/2", Key: "2", Parent: "70", Name: "ＤＯＳ／Ｖ"},
-	{Path: "80/1", Key: "1", Parent: "80", Name: "ＦＭ－ＴＯＷＮＳ"},
-	{Path: "80/2", Key: "2", Parent: "80", Name: "Forever with MSX"},
-	{Path: "80/3", Key: "3", Parent: "80", Name: "ワープロ"},
-	{Path: "80/4", Key: "4", Parent: "80", Name: "その他(PC88,FMR,etc)"},
+	{Path: "10/1", Key: "1", Parent: "10", Name: "博多・天神ローカル", SemanticScope: "博多・天神の現地で見聞きした店、交通、街の変化、待ち合わせの場所や地元の小さな出来事。", ActivityWeight: 1.00, ReplyRate: 1.45, RetainedRootCap: 54},
+	{Path: "10/2", Key: "2", Parent: "10", Name: "オフ会連絡", SemanticScope: "この局の会員によるオフ会の開催提案と、局内で既に共有された集まりの日時・集合場所・参加可否・当日連絡・終了後の忘れ物。", ActivityWeight: .48, ReplyRate: 1.75, RetainedRootCap: 36},
+	{Path: "20/1", Key: "1", Parent: "20", Name: "ＧＡＭＥ", SemanticScope: "家庭用・PC等のゲームについての感想、攻略上の詰まり、対戦、貸し借り、購入相談など。ゲーム以外のPC一般話題を持ち込まない。", ActivityWeight: .92, ReplyRate: 1.65, RetainedRootCap: 52, VerifiedReferentRate: .10},
+	{Path: "20/2", Key: "2", Parent: "20", Name: "ＡＮＩＭＥ／ＭＡＮＧＡ", SemanticScope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。", ActivityWeight: .64, ReplyRate: 1.55, RetainedRootCap: 44},
+	{Path: "60/1", Key: "1", Parent: "60", Name: "ＰＣ－９８／ＭＯＤＥＭ", SemanticScope: "PC-98系機種を使ったモデム接続、通信ソフト設定、回線や接続中の問題に関する具体的な相談と経験。", ActivityWeight: .84, ReplyRate: 1.95, RetainedRootCap: 50},
+	{Path: "60/2", Key: "2", Parent: "60", Name: "Ｗｉｎｄｏｗｓ／ＤＯＳ", SemanticScope: "WindowsとDOSの起動、操作、環境設定、互換性やOS上の作業についての相談と経験。", ActivityWeight: .74, ReplyRate: 1.85, RetainedRootCap: 48},
+	{Path: "60/3", Key: "3", Parent: "60", Name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ", SemanticScope: "各種アプリケーションやツールの用途・使い方、ファイル形式、データの管理・交換についての情報交流。", ActivityWeight: .70, ReplyRate: 1.70, RetainedRootCap: 46},
+	{Path: "68/1", Key: "1", Parent: "68", Name: "深夜雑談", SemanticScope: "深夜に接続している会員のゆるい雑談。日常、眠気、仕事・学校、食事、テレビ、音楽、趣味など幅広く、PC/ゲーム専用ではない。", ActivityWeight: .62, ReplyRate: 2.20, RetainedRootCap: 44},
+	{Path: "70/1", Key: "1", Parent: "70", Name: "ＰＣ－９８", SemanticScope: "PC-98系機種の利用、設定、周辺機器、ソフト利用など。", ActivityWeight: .67, ReplyRate: 1.85, RetainedRootCap: 46},
+	{Path: "70/2", Key: "2", Parent: "70", Name: "ＤＯＳ／Ｖ", SemanticScope: "DOS/V・AT互換機側の利用、設定、周辺機器、ソフト利用など。", ActivityWeight: .48, ReplyRate: 1.55, RetainedRootCap: 38},
+	{Path: "80/1", Key: "1", Parent: "80", Name: "ＦＭ－ＴＯＷＮＳ", SemanticScope: "FM TOWNS利用者の機種・ソフト・周辺機器等の情報交換。", ActivityWeight: .31, ReplyRate: 1.35, RetainedRootCap: 30},
+	{Path: "80/2", Key: "2", Parent: "80", Name: "Forever with MSX", SemanticScope: "MSX利用者の機種・ソフト・周辺機器等の情報交換。", ActivityWeight: .28, ReplyRate: 1.40, RetainedRootCap: 28},
+	{Path: "80/3", Key: "3", Parent: "80", Name: "ワープロ", SemanticScope: "ワープロ専用機や文書作成・印刷等の利用情報。", ActivityWeight: .30, ReplyRate: 1.20, RetainedRootCap: 30},
+	{Path: "80/4", Key: "4", Parent: "80", Name: "その他(PC88,FMR,etc)", SemanticScope: "PC-88、FMR等、他の専用板に当てはまらないコンピュータ機種の情報交換。", ActivityWeight: .26, ReplyRate: 1.25, RetainedRootCap: 26},
 }
 
 var unreadBoard = map[string]bool{
 	"1": true, "4": true, "10/2": true, "60/1": true, "60/3": true,
+}
+
+// BoardByPath exposes the canonical Erika-K board catalog to shared debug/
+// observation tooling without duplicating the host program's private board tree.
+func BoardByPath(path string) (world.Board, bool) {
+	node, ok := findNode(strings.TrimSpace(path))
+	if !ok || node.Hidden {
+		return world.Board{}, false
+	}
+	return worldBoard(node), true
+}
+
+func worldBoard(node boardNode) world.Board {
+	return world.Board{
+		ID:                   node.Path,
+		Name:                 node.Name,
+		SemanticScope:        node.SemanticScope,
+		RootAuthorPolicy:     node.RootAuthorPolicy,
+		ActivityWeight:       node.ActivityWeight,
+		ReplyRate:            node.ReplyRate,
+		RetainedRootCap:      node.RetainedRootCap,
+		VerifiedReferentRate: node.VerifiedReferentRate,
+	}
 }
 
 type Runtime struct {
@@ -75,17 +109,9 @@ func NewWithConfig(host world.Host, store world.Store, cfg Config) *Runtime {
 }
 
 func (r *Runtime) ObservationBoards() []world.Board {
-	// Existing board headers are immediately usable and must never trigger
-	// observation/LLM work merely because the caller connected. Only genuinely
-	// empty boards are offered to the background observation coordinator.
-	out := make([]world.Board, 0)
-	for _, node := range boardTree {
-		if r.isForum(node.Path) || len(r.cachedBoardPosts(node.Path)) > 0 {
-			continue
-		}
-		out = append(out, world.Board{ID: node.Path, Name: node.Name})
-	}
-	return out
+	// CONNECT, login and forum navigation do not materialize article headers.
+	// An explicit board-index read starts only that board's shared job.
+	return nil
 }
 
 func (r *Runtime) cachedBoardPosts(path string) []world.Post {
@@ -101,19 +127,20 @@ func (r *Runtime) cachedBoardPosts(path string) []world.Post {
 	return out
 }
 
-// observedBoardPosts deliberately means "already committed/available" for the
-// historical runtime. Board catalog/index navigation must not wait on LLM work.
-// Article body rendering has its own explicit WaitForArticleBody barrier.
+// observedBoardPosts returns only already committed canonical state. The board
+// index itself applies a blocking WaitForBoardHeaders barrier when that state is
+// not ready; article prose has its own later WaitForArticleBody barrier.
 func (r *Runtime) observedBoardPosts(path string) []world.Post {
 	return r.cachedBoardPosts(path)
 }
 
 func (r *Runtime) Welcome() string {
-	return fmt.Sprintf("\x1b[2J\x1b[Hжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж\r\n"+
+	return fmt.Sprintf("\x1b[2J\x1b[H%s\r\n"+
 		"                 %s\r\n"+
 		"        %s / %d回線 / MAX %dbps\r\n"+
-		"жжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжжж\r\n"+
-		"◎ 会員以外の方は ID:GUEST でご利用下さい\r\n\r\nYOUR ID:", trimRunes(r.Host.Name, 34), r.Host.Region, r.Host.Lines, r.Host.MaxBaud)
+		"%s\r\n"+
+		"◎ 会員以外の方は ID:GUEST でご利用下さい\r\n\r\nYOUR ID:",
+		doubleCellRule("＊", 80), trimRunes(r.Host.Name, 34), r.Host.Region, r.Host.Lines, r.Host.MaxBaud, doubleCellRule("＊", 80))
 }
 
 func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
@@ -162,10 +189,27 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 		r.state = "thread"
 		return fmt.Sprintf("\r\nMSG No.%d を登録しました。\r\n", p.ID) + r.renderThread(p.ID), false
 
+	case "append_target":
+		if line == "" {
+			r.state = "board"
+			return "\r\nアペを中止しました。\r\n" + r.renderBoardIndex(), false
+		}
+		id, err := strconv.ParseInt(strings.TrimSpace(line), 10, 64)
+		if err != nil {
+			return "番号を数字で入力してください。\r\nアペンド対象MSG番号 --> ", false
+		}
+		root, ok := r.rootPost(id)
+		if !ok || root.BoardID != r.boardPath {
+			return "そのMSGはありません。\r\nアペンド対象MSG番号 --> ", false
+		}
+		r.threadID = id
+		r.state = "append_body"
+		return fmt.Sprintf("MSG No.%d へアペンドします。\r\nAPE --> ", id), false
+
 	case "append_body":
 		if line == "" {
-			r.state = "thread"
-			return "\r\nアペを中止しました。\r\n" + r.renderThread(r.threadID), false
+			r.state = "board"
+			return "\r\nアペを中止しました。\r\n" + r.renderBoardIndex(), false
 		}
 		root, ok := r.rootPost(r.threadID)
 		if !ok {
@@ -173,10 +217,12 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			return "\r\nMSGが見つかりません。\r\n" + r.renderBoardIndex(), false
 		}
 		r.Store.AddPost(r.Host.ID, world.Post{
-			BoardID:   root.BoardID,
-			ParentID:  root.ID,
-			Author:    r.handle,
-			Subject:   "Re: " + root.Subject,
+			BoardID:  root.BoardID,
+			ParentID: root.ID,
+			Author:   r.handle,
+			// Erika-K's append is represented by the parent/root relationship;
+			// the append itself has no independently displayed subject.
+			Subject:   "",
 			Body:      line,
 			CreatedAt: time.Now(),
 		})
@@ -209,19 +255,34 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 	}
 }
 
+func (r *Runtime) planBoardActivity() {
+	planner, ok := r.Store.(world.BoardActivityStore)
+	if !ok {
+		return
+	}
+	for _, node := range boardTree {
+		if r.isForum(node.Path) {
+			continue
+		}
+		_, _ = planner.BoardActivity(r.Host, worldBoard(node))
+	}
+}
+
 func (r *Runtime) finishLogin() string {
 	r.state = "main"
+	r.planBoardActivity()
+	// Header generation is on-demand only; login never prefetches a board.
 	last := "--/--/-- --:--"
 	if r.handle != "GUEST" {
 		last = "96/08/25 23:41"
 	}
 	return fmt.Sprintf("\r\n前回アクセス %s\r\n\r\n", last) +
-		"######################## WELCOME TO HAKATA CANAL NET ########################\r\n" +
-		"■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■\r\n" +
-		"■  博多から、夜更かしネットワーカーのみなさんへ。                  ■\r\n" +
-		"■  23:00以降は混み合います。長時間の席取りはほどほどに(^^;      ■\r\n" +
-		"■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■\r\n" +
-		"############################################################ ERIKA-K ####\r\n" +
+		decorativeLine("WELCOME TO HAKATA CANAL NET", "#", 80) + "\r\n" +
+		doubleCellRule("■", 80) + "\r\n" +
+		boxedLine("博多から、夜更かしネットワーカーのみなさんへ。", 80) + "\r\n" +
+		boxedLine("23:00以降は混み合います。長時間の席取りはほどほどに(^^;", 80) + "\r\n" +
+		doubleCellRule("■", 80) + "\r\n" +
+		decorativeLine("ERIKA-K", "#", 80) + "\r\n" +
 		fmt.Sprintf("\r\n深夜のアクセスご苦労様！ %sさん、いらっしゃいませ。\r\n", r.handle) +
 		r.renderMainMenu()
 }
@@ -363,7 +424,7 @@ func (r *Runtime) handleBoard(line string) (string, bool) {
 	}
 
 	if r.boardPath == "" || r.isForum(r.boardPath) {
-		if line == "" {
+		if line == "" || line == "." {
 			if r.boardPath == "" {
 				r.state = "main"
 				return r.renderMainMenu(), false
@@ -385,7 +446,7 @@ func (r *Runtime) handleBoard(line string) (string, bool) {
 	}
 
 	// Leaf-board command mode.
-	if line == "" {
+	if line == "" || line == "." {
 		r.boardPath = parentPath(r.boardPath)
 		return r.renderBoardMenu(), false
 	}
@@ -395,8 +456,26 @@ func (r *Runtime) handleBoard(line string) (string, bool) {
 	case "T", "00", "0":
 		return r.renderBoardIndex(), false
 	case "BW", "BWX", "W", "NEW":
+		if board, ok := BoardByPath(r.boardPath); ok && board.RootAuthorPolicy == "sysop_only" {
+			return "この掲示板への新規投稿は事務局のみです。\r\n" + r.boardPrompt(), false
+		}
 		r.state = "new_subject"
 		return "TITLE --> ", false
+	case "A", "APE", "APPEND":
+		r.state = "append_target"
+		return "アペンド対象MSG番号 --> ", false
+	}
+	if strings.HasPrefix(upper, "A ") {
+		idStr := strings.TrimSpace(line[2:])
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			root, ok := r.rootPost(id)
+			if ok && root.BoardID == r.boardPath {
+				r.threadID = id
+				r.state = "append_body"
+				return fmt.Sprintf("MSG No.%d へアペンドします。\r\nAPE --> ", id), false
+			}
+		}
+		return "そのMSGはありません。\r\nアペンド対象MSG番号 --> ", false
 	}
 	if strings.HasPrefix(upper, "BR ") {
 		line = strings.TrimSpace(line[3:])
@@ -421,7 +500,7 @@ func (r *Runtime) handleThread(line string) (string, bool) {
 		return r.renderMainMenu(), false
 	}
 	switch upper {
-	case "", "BX", "BXS":
+	case "", ".", "BX", "BXS":
 		r.state = "board"
 		return r.renderBoardIndex(), false
 	case "BR", "R":
@@ -430,6 +509,9 @@ func (r *Runtime) handleThread(line string) (string, bool) {
 		r.state = "append_body"
 		return "APE --> ", false
 	case "BW", "BWX":
+		if board, ok := BoardByPath(r.boardPath); ok && board.RootAuthorPolicy == "sysop_only" {
+			return "この掲示板への新規投稿は事務局のみです。\r\n" + r.threadPrompt(), false
+		}
 		r.state = "new_subject"
 		return "TITLE --> ", false
 	case "M":
@@ -550,53 +632,23 @@ func (r *Runtime) handleSimpleMenu(line, menu string) (string, bool) {
 }
 
 func (r *Runtime) renderMainMenu() string {
-	var b strings.Builder
-	b.WriteString("\r\n-HＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版\r\n")
-	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
-	if r.canUseFeature(FeatureBoard) {
-		b.WriteString("[1] ボード(BM)\r\n")
+	const separator = "――――――――――――――――――――――――――――――――――――――――"
+	item := func(feature, label string) string {
+		if !r.canUseFeature(feature) {
+			return ""
+		}
+		return label
 	}
-	if r.canUseFeature(FeatureFile) {
-		b.WriteString("[2] ファイル(FM)\r\n")
-	}
-	if r.canUseFeature(FeatureMail) {
-		b.WriteString("[3] メール(MAIL)\r\n")
-	}
-	if r.canUseFeature(FeatureTelegramChat) {
-		b.WriteString("[4] 電報･チャット(C)\r\n")
-	}
-	if r.canUseFeature(FeatureJunk) {
-		b.WriteString("[5] ジャンク(JUNK)\r\n")
-	}
-	if r.canUseFeature(FeatureSettings) {
-		b.WriteString("[6] 各種設定(MODE)\r\n")
-	}
-	if r.canUseFeature(FeatureSysopMail) {
-		b.WriteString("[7] SYSOP宛メール\r\n")
-	}
-	b.WriteString("[9] 接続終了(BYE)\r\n")
-	if r.canUseFeature(FeatureEnrollment) {
-		b.WriteString("[0] 入会登録\r\n")
-	}
-	if r.canUseFeature(FeatureAutoRun) {
-		b.WriteString("[A] 自動運転   [ASET] 自動運転登録\r\n")
-	}
-	if r.canUseFeature(FeatureBatchDownload) {
-		b.WriteString("[BAT] バッチダウン\r\n")
-	}
-	if r.canUseFeature(FeatureBoardMap) {
-		b.WriteString("[MA] ボードマップ\r\n")
-	}
-	if r.canUseFeature(FeatureUnreadSearch) {
-		b.WriteString("[T] 未読検索\r\n")
-	}
-	if r.canUseFeature(FeatureAccessLog) {
-		b.WriteString("[V] アクセス記録\r\n")
-	}
-	b.WriteString("[H] その他のコマンド\r\n")
-	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
-	b.WriteString("MAIN MENU [?]=HELP --> ")
-	return b.String()
+	return "\r\n-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版\r\n" +
+		separator + "\r\n" +
+		menuColumns(item(FeatureBoard, "[1] ボード(BM)"), item(FeatureFile, "[2] ファイル(FM)"), item(FeatureMail, "[3] メール(MAIL)")) + "\r\n" +
+		menuColumns(item(FeatureTelegramChat, "[4] 電報･チャット(C)"), item(FeatureJunk, "[5] ジャンク(JUNK)"), item(FeatureSettings, "[6] 各種設定(MODE)")) + "\r\n" +
+		menuColumns(item(FeatureSysopMail, "[7] SYSOP宛メール"), "[9] 接続終了(BYE)", item(FeatureEnrollment, "[0] 入会登録")) + "\r\n" +
+		menuColumns(item(FeatureAutoRun, "[A] 自動運転"), item(FeatureAutoRun, "[ASET] 自動運転登録"), item(FeatureBoardMap, "[MA] ボードマップ")) + "\r\n" +
+		menuColumns(item(FeatureBatchDownload, "[BAT] バッチダウン"), "", "") + "\r\n" +
+		menuColumns(item(FeatureUnreadSearch, "[T] 未読検索"), item(FeatureAccessLog, "[V] アクセス記録"), "[H] その他のコマンド") + "\r\n" +
+		separator + "\r\n" +
+		"MAIN MENU [?]=HELP --> "
 }
 
 func (r *Runtime) renderBoardMenu() string {
@@ -608,6 +660,7 @@ func (r *Runtime) renderBoardMenu() string {
 	}
 
 	node, _ := findNode(r.boardPath)
+	// Forum navigation reads prose-free board metadata only.
 	var b strings.Builder
 	fmt.Fprintf(&b, "\r\n      〖%s〗        ★☆＝未読   〖Forum.OP〗SYSOP\r\n", node.Name)
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
@@ -650,27 +703,74 @@ func (r *Runtime) renderBoardIndex() string {
 	if !ok || r.isForum(r.boardPath) {
 		return r.renderBoardMenu()
 	}
+	board := worldBoard(node)
 	posts := r.observedBoardPosts(r.boardPath)
+	if observer, ok := r.Store.(world.HostObservationStore); ok && len(posts) == 0 {
+		// A leaf board that already has visible canonical headers is ready.
+		// Do not start a fresh catch-up merely by returning from an article:
+		// that would waste provider capacity on unrelated pending board reads.
+		// never expose an empty placeholder that requires the user to refresh.
+		//
+		// Title/header materialization can depend on external model/research
+		// services. Repository observation deliberately forgets a failed lease so
+		// a later read can retry. Do that retry here once for an explicit Erika-K
+		// board read instead of immediately leaking a transient backend failure as
+		// a host-program error. Persistent failures remain visible after attempt 2.
+		for attempt := 0; attempt < 2; attempt++ {
+			observer.BeginHostObservation(r.Host, []world.Board{board})
+			ready, err := observer.WaitForBoardHeaders(context.Background(), r.Host, board)
+			if err == nil {
+				posts = ready
+				break
+			}
+			if attempt == 1 {
+				return "\r\n? BOARD READ ERROR\r\n" + r.boardPrompt()
+			}
+		}
+	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "\r\n〖%s〗  ★☆＝未読  〖Board.OP〗SYSOP\r\n", node.Name)
-	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
-	found := false
+	mark := "☆"
+	if unreadBoard[r.boardPath] {
+		mark = "★"
+	}
+	keyInt, err := strconv.Atoi(node.Key)
+	if err != nil {
+		keyInt = 1
+	}
+	fmt.Fprintf(&b, "\r\n%sBD# %02d %s\r\n", mark, keyInt, node.Name)
+	b.WriteString("# 最新10インデックス表示\r\n")
+	b.WriteString("___No. __date__ time_ _author_  ap/ref___________i n d e x_______________\r\n")
+
+	var roots []world.Post
 	for _, p := range posts {
-		if p.ParentID != 0 {
-			continue
+		if p.ParentID == 0 {
+			roots = append(roots, p)
 		}
-		found = true
-		mark := "☆"
-		if unreadBoard[r.boardPath] {
-			mark = "★"
-		}
-		fmt.Fprintf(&b, "%s[%04d] %-10s %-28s APE:%d\r\n", mark, p.ID, trimRunes(p.Author, 10), trimRunes(p.Subject, 28), r.appendCountFrom(posts, p.ID))
 	}
-	if !found {
+
+	if len(roots) == 0 {
 		b.WriteString("              --- MSG はありません ---\r\n")
+	} else {
+		// Show latest posts (up to 10) in reverse chronological order
+		start := len(roots) - 10
+		if start < 0 {
+			start = 0
+		}
+		for i := len(roots) - 1; i >= start; i-- {
+			p := roots[i]
+			ap := r.appendCountFrom(posts, p.ID)
+			apStr := "  "
+			if ap > 0 {
+				apStr = fmt.Sprintf("%2d", ap)
+			}
+			dateStr := p.CreatedAt.Format("06/01/02 15:04")
+			author := padRunes(trimRunes(p.Author, 8), 8)
+			subj := trimRunes(p.Subject, 38)
+			fmt.Fprintf(&b, "%02d %4d %s %s %s %s\r\n", keyInt, p.ID, dateStr, author, apStr, subj)
+		}
 	}
 	b.WriteString("――――――――――――――――――――――――――――――――――――――\r\n")
-	b.WriteString("[BX]一覧 [BR n]読む [BW]書く [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP\r\n")
+	b.WriteString("[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP\r\n")
 	b.WriteString(r.boardPrompt())
 	return b.String()
 }
@@ -690,7 +790,7 @@ func (r *Runtime) renderThread(id int64) string {
 		return "\r\nMSGが見つかりません。\r\n" + r.threadPrompt()
 	}
 	boardNode, _ := findNode(r.boardPath)
-	board := world.Board{ID: r.boardPath, Name: boardNode.Name}
+	board := worldBoard(boardNode)
 	if strings.TrimSpace(root.Body) == "" {
 		if observer, ok := r.Store.(world.HostObservationStore); ok {
 			if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, root.ID); err == nil && ok {
@@ -712,17 +812,26 @@ func (r *Runtime) renderThread(id int64) string {
 		if p.ParentID != root.ID {
 			continue
 		}
+		loadFailed := false
 		if strings.TrimSpace(p.Body) == "" {
 			if observer, ok := r.Store.(world.HostObservationStore); ok {
-				if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, p.ID); err == nil && ok {
+				if rendered, ok, err := observer.WaitForArticleBody(context.Background(), r.Host, board, p.ID); err == nil && ok && strings.TrimSpace(rendered.Body) != "" {
 					p = rendered
+				} else {
+					loadFailed = true
 				}
+			} else {
+				loadFailed = true
 			}
 		}
 		appendNo++
 		fmt.Fprintf(&b, "\r\n--------------------------- アペ %d ---------------------------\r\n", appendNo)
 		fmt.Fprintf(&b, "FROM:%s  DATE:%s\r\n", p.Author, p.CreatedAt.Format("96/01/02 15:04"))
-		b.WriteString(normalizeNewlines(p.Body))
+		if loadFailed || strings.TrimSpace(p.Body) == "" {
+			b.WriteString("(アペンドの読み込みに失敗しました)")
+		} else {
+			b.WriteString(normalizeNewlines(p.Body))
+		}
 		b.WriteString("\r\n")
 	}
 	fmt.Fprintf(&b, "\r\n------------------------- APE:%d -------------------------------\r\n", appendNo)
@@ -765,7 +874,7 @@ func (r *Runtime) renderCommandHelp() string {
 }
 
 func (r *Runtime) renderBoardHelp() string {
-	return "\r\n〖BOARD COMMAND〗\r\nBM       ボード／フォーラムメニュー\r\nBJ n     階層移動   例: BJ 60 / BJ\\80\\2\r\nBX/BXS   MSGインデックス\r\nBR n     MSGを読む\r\nBW/BWX   新規MSGを書く\r\nA        現在のMSGへアペ（HAKATA局ショートカット）\r\nRETURN   前の階へ\r\n/        MAIN MENU\r\n\r\n" + r.boardPrompt()
+	return "\r\n〖BOARD COMMAND〗\r\nBM       ボード／フォーラムメニュー\r\nBJ n     階層移動   例: BJ 60 / BJ\\80\\2\r\nBX/BXS   MSGインデックス\r\nBR n     MSGを読む\r\nBW/W     新規MSGを書く\r\nA [n]    アペンド書き込み\r\n0/00/T   新着・未読表示\r\nRETURN/. 前の階へ\r\n/        MAIN MENU\r\n\r\n" + r.boardPrompt()
 }
 
 func (r *Runtime) renderFileMenu() string {
@@ -791,7 +900,6 @@ func (r *Runtime) renderTransferProtocolMenu() string {
 	b.WriteString("PROTOCOL --> ")
 	return b.String()
 }
-
 
 func (r *Runtime) renderMailMenu() string {
 	return "\r\n〖Ｍail Ｍenu〗 MAIL\r\n" +
@@ -868,15 +976,17 @@ func (r *Runtime) formatBoardEntry(node boardNode) string {
 	if unreadBoard[node.Path] {
 		mark = "★"
 	}
-	entry := fmt.Sprintf("%s[%s] %s", mark, node.Key, node.Name)
-	if !r.isForum(node.Path) {
-		entry += fmt.Sprintf(" %d", r.rootCount(node.Path))
+	if r.isForum(node.Path) {
+		if node.Alias != "" {
+			return fmt.Sprintf("%s<%s><%s> %s", mark, node.Key, node.Alias, node.Name)
+		}
+		return fmt.Sprintf("%s<%s> %s", mark, node.Key, node.Name)
 	}
-	return entry
+	return fmt.Sprintf("%s[%s] %s %d", mark, node.Key, node.Name, r.rootCount(node.Path))
 }
 
 func (r *Runtime) accountRole() string {
-	if strings.EqualFold(r.handle, "GUEST") {
+	if r.handle == "" || strings.EqualFold(r.handle, "GUEST") {
 		return "GUEST"
 	}
 	return "MEMBER"
@@ -961,6 +1071,13 @@ func (r *Runtime) rootCount(path string) int {
 	for _, p := range r.observedBoardPosts(path) {
 		if p.ParentID == 0 {
 			count++
+		}
+	}
+	if node, ok := findNode(path); ok && !r.isForum(path) {
+		if planner, ok := r.Store.(world.BoardActivityStore); ok {
+			if state, found := planner.BoardActivity(r.Host, worldBoard(node)); found && state.RetainedRoots > count {
+				return state.RetainedRoots
+			}
 		}
 	}
 	return count
@@ -1053,8 +1170,58 @@ func trimRunes(s string, n int) string {
 }
 
 func padRunes(s string, width int) string {
-	if n := len([]rune(s)); n < width {
+	if n := displayCellWidth(s); n < width {
 		return s + strings.Repeat(" ", width-n)
 	}
 	return s
+}
+
+func decorativeLine(label, fill string, width int) string {
+	middle := " " + label + " "
+	remaining := width - displayCellWidth(middle)
+	if remaining <= 0 {
+		return middle
+	}
+	left := remaining / 2
+	right := remaining - left
+	return strings.Repeat(fill, left) + middle + strings.Repeat(fill, right)
+}
+
+func doubleCellRule(symbol string, width int) string {
+	cellWidth := displayCellWidth(symbol)
+	if cellWidth <= 0 {
+		return ""
+	}
+	return strings.Repeat(symbol, width/cellWidth)
+}
+
+func boxedLine(body string, width int) string {
+	const prefix = "■  "
+	const suffix = "■"
+	innerWidth := width - displayCellWidth(prefix) - displayCellWidth(suffix)
+	return prefix + padRunes(body, innerWidth) + suffix
+}
+
+func menuColumns(first, second, third string) string {
+	const columnWidth = 22
+	return padRunes(first, columnWidth) + padRunes(second, columnWidth) + third
+}
+
+func displayCellWidth(s string) int {
+	width := 0
+	for _, r := range s {
+		width += runeCellWidth(r)
+	}
+	return width
+}
+
+func runeCellWidth(r rune) int {
+	cp := int(r)
+	if (cp >= 0xFE00 && cp <= 0xFE0F) || (cp >= 0xE0100 && cp <= 0xE01EF) || cp == 0x200D {
+		return 0
+	}
+	if cp <= 0x7F || cp == 0x00A5 || cp == 0x203E || (cp >= 0xFF61 && cp <= 0xFF9F) {
+		return 1
+	}
+	return 2
 }

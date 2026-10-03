@@ -31,6 +31,7 @@ func TestDiegeticWorldFrameIncludesPeriodNativeConversationConstraints(t *testin
 func TestGenerateBoardPostCarriesPeriodNativeConversationFrame(t *testing.T) {
 	var capturedPrompt string
 	provider := OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -66,15 +67,16 @@ func TestGenerateBoardPostCarriesPeriodNativeConversationFrame(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"世界日付は 1996-08-29",
-		"当時の本人として普通に書く",
-		"現代から振り返る説明",
-		"ヘッダを読み上げない",
-		"記事の書き方を説明せず",
-		"文章は自然なら短くて構いません",
+		"1996年前後の日本の草の根パソコン通信世界",
+		"世界日付: 1996-08-29",
+		"確定済み件名: Re: ベンチ",
+		"handle=NEKO",
+		"砕けた口調",
+		"canonical Situation / thread facts",
+		"時代背景: 世界時刻より未来の知識を使わない。",
 	} {
 		if !strings.Contains(capturedPrompt, want) {
-			t.Fatalf("body prompt missing compact period-native rule %q:\n%s", want, capturedPrompt)
+			t.Fatalf("body prompt missing period-native context or material %q:\n%s", want, capturedPrompt)
 		}
 	}
 }

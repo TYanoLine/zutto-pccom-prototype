@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
@@ -18,6 +19,7 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 
 	var capturedPrompt string
 	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
 		APIKey: "test-key",
 		Model:  "gpt-test",
 		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
@@ -107,5 +109,183 @@ func TestStructuredTimelinePlannerRequestsStrictJSONSchema(t *testing.T) {
 		if !strings.Contains(capturedPrompt, want) {
 			t.Fatalf("planner prompt missing diegetic/causal/subject calibration %q:\n%s", want, capturedPrompt)
 		}
+	}
+}
+
+func TestStructuredOpenAIReasoningEffortIsOptionalAndExplicit(t *testing.T) {
+	var gotReasoning any
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			var payload map[string]any
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode request: %v", err)
+			}
+			gotReasoning = payload["reasoning"]
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"model":"gpt-test",
+					"output":[{"content":[{"type":"output_text","text":"{}"}]}],
+					"usage":{"input_tokens":1,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":2}
+				}`)),
+			}, nil
+		})},
+	}}
+
+	_, err := provider.responseTextWithJSONSchemaReasoning(context.Background(), "test", "low", "low", 100, "test_schema", map[string]any{
+		"type": "object", "properties": map[string]any{}, "additionalProperties": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reasoning, ok := gotReasoning.(map[string]any)
+	if !ok || reasoning["effort"] != "low" {
+		t.Fatalf("reasoning=%#v, want effort=low", gotReasoning)
+	}
+}
+
+func TestStructuredOpenAIRetriesTransient429(t *testing.T) {
+	attempts := 0
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			if attempts == 1 {
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Status:     "429 Too Many Requests",
+					Header:     http.Header{"Retry-After": []string{"0"}},
+					Body:       io.NopCloser(strings.NewReader(`{"error":{"type":"rate_limit_exceeded"}}`)),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"model":"gpt-test",
+					"output":[{"content":[{"type":"output_text","text":"{}"}]}],
+					"usage":{"input_tokens":1,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":2}
+				}`)),
+			}, nil
+		})},
+	}}
+	result, err := provider.responseTextWithJSONSchema(context.Background(), "test", "low", 100, "test_schema", map[string]any{
+		"type": "object",
+		"properties": map[string]any{},
+		"additionalProperties": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Text != "{}" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts=%d, want 2", attempts)
+	}
+}
+
+func resetStructuredOpenAIGateForTest() {
+	sharedStructuredOpenAIGate.mu.Lock()
+	sharedStructuredOpenAIGate.notBefore = time.Time{}
+	sharedStructuredOpenAIGate.mu.Unlock()
+}
+
+func TestStructuredOpenAIQuota429DoesNotRetry(t *testing.T) {
+	resetStructuredOpenAIGateForTest()
+	t.Cleanup(resetStructuredOpenAIGateForTest)
+
+	attempts := 0
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			header := make(http.Header)
+			header.Set("x-request-id", "req_quota_test")
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Status:     "429 Too Many Requests",
+				Header:     header,
+				Body: io.NopCloser(strings.NewReader(`{"error":{"message":"quota exhausted","type":"insufficient_quota","code":"credit_balance_exhausted"}}`)),
+			}, nil
+		})},
+	}}
+
+	_, err := provider.responseTextWithJSONSchema(context.Background(), "test", "low", 100, "test_schema", map[string]any{
+		"type": "object", "properties": map[string]any{}, "additionalProperties": false,
+	})
+	if err == nil {
+		t.Fatal("quota 429 unexpectedly succeeded")
+	}
+	if attempts != 1 {
+		t.Fatalf("quota 429 attempts=%d, want 1", attempts)
+	}
+	for _, want := range []string{"type=insufficient_quota", "code=credit_balance_exhausted", "request_id=req_quota_test"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("quota diagnostic missing %q: %v", want, err)
+		}
+	}
+}
+
+func TestStructuredOpenAIRate429HonorsResetHeaderAndRetries(t *testing.T) {
+	resetStructuredOpenAIGateForTest()
+	t.Cleanup(resetStructuredOpenAIGateForTest)
+
+	attempts := 0
+	start := time.Now()
+	provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+		Endpoint: "https://test.openai.azure.com",
+		APIKey: "test-key",
+		Model:  "gpt-test",
+		Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempts++
+			if attempts == 1 {
+				header := make(http.Header)
+				header.Set("x-ratelimit-reset-requests", "600ms")
+				header.Set("x-ratelimit-remaining-requests", "0")
+				return &http.Response{
+					StatusCode: http.StatusTooManyRequests,
+					Status:     "429 Too Many Requests",
+					Header:     header,
+					Body: io.NopCloser(strings.NewReader(`{"error":{"message":"rate limited","type":"rate_limit_exceeded","code":"rate_limit_exceeded"}}`)),
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Header:     make(http.Header),
+				Body: io.NopCloser(strings.NewReader(`{
+					"model":"gpt-test",
+					"output":[{"content":[{"type":"output_text","text":"{}"}]}],
+					"usage":{"input_tokens":1,"input_tokens_details":{"cached_tokens":0},"output_tokens":1,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":2}
+				}`)),
+			}, nil
+		})},
+	}}
+
+	result, err := provider.responseTextWithJSONSchema(context.Background(), "test", "low", 100, "test_schema", map[string]any{
+		"type": "object", "properties": map[string]any{}, "additionalProperties": false,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Text != "{}" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+	if attempts != 2 {
+		t.Fatalf("attempts=%d, want 2", attempts)
+	}
+	if elapsed := time.Since(start); elapsed < 550*time.Millisecond {
+		t.Fatalf("retry ignored rate reset header: elapsed=%s", elapsed)
 	}
 }

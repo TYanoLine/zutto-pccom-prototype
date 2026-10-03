@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/coder/websocket"
+	"golang.org/x/text/encoding/japanese"
+	"golang.org/x/text/transform"
 	"zutto-pccom/apps/server/internal/hostprogram"
 	"zutto-pccom/apps/server/internal/telephone"
 	"zutto-pccom/apps/server/internal/world"
@@ -36,6 +39,28 @@ type serverMessage struct {
 	SessionID string      `json:"session_id,omitempty"`
 	Host      *world.Host `json:"host,omitempty"`
 	Text      string      `json:"text,omitempty"`
+}
+
+type debugBBSConnectionPreparer interface {
+	PrepareDebugBBSConnection(host world.Host) (removed int, kept int, ok bool)
+}
+
+func prepareDebugBBSConnection(store world.Store, host world.Host) bool {
+	if !host.IsExperiment() {
+		return true
+	}
+	preparer, ok := store.(debugBBSConnectionPreparer)
+	if !ok {
+		log.Printf("debug BBS auto-reset unavailable for host=%s", host.ID)
+		return false
+	}
+	removed, kept, resetOK := preparer.PrepareDebugBBSConnection(host)
+	if !resetOK {
+		log.Printf("debug BBS auto-reset blocked for host=%s", host.ID)
+		return false
+	}
+	log.Printf("debug BBS auto-reset on CONNECT: host=%s removed=%d kept=%d immediate_batch=true", host.ID, removed, kept)
+	return true
 }
 
 var fallbackSessions = NewSessionManager(DefaultReconnectGrace)
@@ -87,6 +112,18 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			res := h.Network.Dial(phone, msg.Attempt)
 			sm := serverMessage{Type: "dial_result", Result: string(res.Result), Baud: res.Baud, Line: res.Line}
 			if res.Result == telephone.Connect {
+				if !prepareDebugBBSConnection(h.Store, res.Host) {
+					// During this experiment, a CONNECT is valid only after the
+					// previous generated sample was safely cleared. Fail the dial
+					// rather than showing a mixed old/new sample.
+					sm.Result = string(telephone.NoCarrier)
+					sm.Baud = 0
+					sm.Line = 0
+					if err := writeJSON(ctx, conn, sm); err != nil {
+						return
+					}
+					continue
+				}
 				runtime := hostprogram.New(res.Host, h.Store)
 				if observer, ok := h.Store.(world.HostObservationStore); ok {
 					// A successful physical/logical CONNECT is the observation
@@ -178,6 +215,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeJSON(ctx context.Context, conn *websocket.Conn, v any) error {
+	if msg, ok := v.(serverMessage); ok && msg.Type == "terminal" {
+		msg.Text = pc98ShiftJISText(msg.Text)
+		v = msg
+	}
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -193,4 +234,35 @@ func digitsOnly(s string) string {
 		}
 	}
 	return b.String()
+}
+
+
+func pc98ShiftJISText(s string) string {
+	var out strings.Builder
+	out.Grow(len(s))
+	encoder := japanese.ShiftJIS.NewEncoder()
+
+	for _, r := range s {
+		// Unicode presentation controls have no meaning on a PC-98 Shift_JIS
+		// terminal. Drop them instead of allowing emoji-style glyph selection.
+		if (r >= 0xFE00 && r <= 0xFE0F) || (r >= 0xE0100 && r <= 0xE01EF) || r == 0x200D {
+			continue
+		}
+
+		// Preserve the visual intent of a few modern Unicode source glyphs with
+		// explicit PC-98-safe JIS equivalents.
+		switch r {
+		case '▫':
+			r = '□'
+		case '▪':
+			r = '■'
+		}
+
+		if _, _, err := transform.String(encoder, string(r)); err != nil {
+			out.WriteByte('?')
+			continue
+		}
+		out.WriteRune(r)
+	}
+	return out.String()
 }
