@@ -1,9 +1,6 @@
 package hostcatalog
 
-import (
-	"strings"
-	"testing"
-)
+import "testing"
 
 func TestPresetFlagsDefaultToOff(t *testing.T) {
 	p, err := ParsePreset("sample-bbs.yaml", []byte(samplePreset), Options{})
@@ -104,8 +101,5 @@ func TestEmbeddedPresetFlags(t *testing.T) {
 	}
 	if !seen["hakata-canal-net"] {
 		t.Error("hakata-canal-net preset is missing")
-	}
-	if strings.TrimSpace(strings.Join(nil, "")) != "" {
-		t.Fatal("unreachable")
 	}
 }
