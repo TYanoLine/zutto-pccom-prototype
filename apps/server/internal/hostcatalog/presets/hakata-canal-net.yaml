@@ -1,10 +1,10 @@
 # Preset host. See ../README.md for the schema.
 # HAKATA is the fixed station used to evaluate the shared BBS article generator
-# (see docs/ARCHITECTURE.md). Its evaluation behavior is still keyed off the
-# phone number in code; `role: experiment` is the marker to move that to.
+# (see docs/ARCHITECTURE.md). Its evaluation behavior is switched on by the
+# `debug` and `generation` blocks below, not by its phone number or key.
 schema: 1
 key: hakata-canal-net
-revision: 1
+revision: 2
 listed: true
 role: experiment
 
@@ -20,3 +20,13 @@ host:
   popularity: 0.58
   members: 326
   traits: { ansi: false, guest_allowed: true, teleho_friendly: true }
+
+# Evaluation behavior. Every flag is opt-in and off when omitted.
+debug:
+  reset_articles_on_connect: true
+  generation_trace: true
+  content_log: true
+  snapshot: true
+
+generation:
+  freeform_body: true
