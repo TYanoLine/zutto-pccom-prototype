@@ -14,7 +14,7 @@ type ServerMessage = {
   line?: number;
   session_id?: string;
   text?: string;
-  host?: { name: string; phone: string };
+  host?: { name: string; phone: string; role?: string };
 };
 
 type ModemSocket = {
@@ -56,7 +56,9 @@ type VirtualModemOptions = {
   audio?: VirtualModemAudio;
 };
 
-export type CallState = { phone: string; baud: number } | null;
+// role is the host's operational role as reported by the server (for example
+// "experiment"); it is absent for ordinary hosts and for older servers.
+export type CallState = { phone: string; baud: number; role?: string } | null;
 
 const SOCKET_OPEN = 1;
 
@@ -486,6 +488,7 @@ export class VirtualModem {
       this.sessionID = msg.session_id ?? '';
       const baud = msg.baud ?? 9600;
       const phone = msg.host?.phone ?? this.lastPhone;
+      const role = msg.host?.role;
       this.currentBaud = Math.max(300, baud);
       this.rxByteCredit = 0;
       this.preConnectRx = '';
@@ -497,14 +500,14 @@ export class VirtualModem {
       this.onStatus?.(`RINGING / ${msg.host?.name ?? phone}`);
       const begin = () => {
         this.connectTimer = undefined;
-        this.beginRemoteHandshake(phone, baud);
+        this.beginRemoteHandshake(phone, baud, role);
       };
       if (ringSeconds > 0) this.connectTimer = this.schedule(begin, Math.round(ringSeconds * 1000));
       else begin();
     }
   }
 
-  private beginRemoteHandshake(phone: string, baud: number) {
+  private beginRemoteHandshake(phone: string, baud: number, role?: string) {
     if (this.destroyed || !this.connected || !this.negotiating) return;
     this.ringing = false;
     this.emitTelemetry();
@@ -512,7 +515,7 @@ export class VirtualModem {
     const handshakeSeconds = this.playAudioDuration(() => this.audio.handshake(baud));
     const finish = () => {
       this.connectTimer = undefined;
-      this.finishRemoteConnect(phone, baud);
+      this.finishRemoteConnect(phone, baud, role);
     };
     if (handshakeSeconds > 0) {
       this.connectTimer = this.schedule(finish, Math.round(handshakeSeconds * 1000) + 80);
@@ -521,12 +524,12 @@ export class VirtualModem {
     }
   }
 
-  private finishRemoteConnect(phone: string, baud: number) {
+  private finishRemoteConnect(phone: string, baud: number, role?: string) {
     if (this.destroyed || !this.connected || !this.negotiating) return;
     if (this.recoveringCarrier) {
       this.connectTimer = this.schedule(() => {
         this.connectTimer = undefined;
-        this.finishRemoteConnect(phone, baud);
+        this.finishRemoteConnect(phone, baud, role);
       }, 200);
       return;
     }
@@ -537,7 +540,7 @@ export class VirtualModem {
     this.terminal.write(`\r\nCONNECT ${baud}\r\n`);
     this.pulseActivity('rx');
     this.onStatus?.(`ONLINE ${baud}`);
-    this.onCallState?.({ phone, baud });
+    this.onCallState?.(role ? { phone, baud, role } : { phone, baud });
 
     const buffered = this.preConnectRx;
     this.preConnectRx = '';
