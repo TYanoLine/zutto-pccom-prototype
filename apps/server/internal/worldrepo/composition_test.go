@@ -8,8 +8,8 @@ import (
 )
 
 func TestPrepareBoardCompositionUsesSemanticReplySource(t *testing.T) {
-	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0450000001")
+	store := newTestStore()
+	host, err := store.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +31,8 @@ func TestPrepareBoardCompositionUsesSemanticReplySource(t *testing.T) {
 
 
 func TestPrepareBoardCompositionTreatsFlatSemanticResponseAsReply(t *testing.T) {
-	store := world.NewMemoryStore()
-	host, err := store.HostByPhone("0450000001")
+	store := newTestStore()
+	host, err := store.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}

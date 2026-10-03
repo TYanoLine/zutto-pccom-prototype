@@ -20,10 +20,10 @@ func (f *fakeEngine) ResolveEvidence(_ context.Context, r worldengine.EvidenceRe
 }
 
 func TestListPostsIsPureAndFailedObservationRemainsRetryable(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	engine := &fakeEngine{}
 	repo := New(base, engine, FallbackMaterializer{}, "1996-08-29")
-	h, err := repo.HostByPhone("0450000001")
+	h, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}

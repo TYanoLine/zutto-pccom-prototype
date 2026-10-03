@@ -25,10 +25,7 @@ func TestPrepareDebugBBSConnectionRunsOnlyForHakata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := base.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
+	other := world.Host{ID: "other-test", Phone: "0450000010", Name: "OTHER TEST BBS"}
 	store := &debugPrepareStore{MemoryStore: base, removed: 5, kept: 920, ok: true}
 
 	if !prepareDebugBBSConnection(store, other) {

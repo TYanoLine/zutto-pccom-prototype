@@ -50,10 +50,7 @@ func TestReplyRepresentationIsHostProgramSpecific(t *testing.T) {
 		t.Fatalf("TurboBBS reply projection=%+v, want flat message with proposed subject", got)
 	}
 
-	generic, err := store.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
+	generic := world.Host{ID: "generic-test", SoftwareID: "generic"}
 	got, err = ProjectReply(generic, source, "ignored")
 	if err != nil {
 		t.Fatal(err)
