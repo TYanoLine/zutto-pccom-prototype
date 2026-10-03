@@ -16,7 +16,7 @@ func (r *Repository) SetHAKATAFreeformBody(enabled bool) {
 }
 
 func (r *Repository) useHAKATAFreeformBody(host world.Host) bool {
-    return r != nil && r.hakataFreeformBody && host.ID == hakataGeneratedContentHostID
+    return r != nil && r.hakataFreeformBody && host.IsExperiment()
 }
 
 func freeformIntentSummary(i world.PostIntent) string {

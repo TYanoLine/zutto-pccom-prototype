@@ -25,10 +25,7 @@ func TestPrepareDebugBBSConnectionRunsOnlyForHakata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := base.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
+	other := world.Host{ID: "other-test", Phone: "0450000010", Name: "OTHER TEST BBS"}
 	store := &debugPrepareStore{MemoryStore: base, removed: 5, kept: 920, ok: true}
 
 	if !prepareDebugBBSConnection(store, other) {
@@ -42,6 +39,23 @@ func TestPrepareDebugBBSConnectionRunsOnlyForHakata(t *testing.T) {
 	}
 	if store.calls != 1 {
 		t.Fatalf("HAKATA reset calls=%d, want 1", store.calls)
+	}
+}
+
+// The reset follows the experiment role, not a phone number: HAKATA's own
+// number without the role must not trigger it, and another host with the role
+// must.
+func TestPrepareDebugBBSConnectionFollowsTheExperimentRole(t *testing.T) {
+	base := world.NewMemoryStore()
+	store := &debugPrepareStore{MemoryStore: base, ok: true}
+
+	sameNumberNoRole := world.Host{ID: "hakata-canal-net", Phone: "0920000196"}
+	if !prepareDebugBBSConnection(store, sameNumberNoRole) || store.calls != 0 {
+		t.Fatalf("a host without the role was reset: calls=%d", store.calls)
+	}
+	otherWithRole := world.Host{ID: "another-station", Phone: "0450000010", Role: "experiment"}
+	if !prepareDebugBBSConnection(store, otherWithRole) || store.calls != 1 {
+		t.Fatalf("a host with the role was not reset: calls=%d", store.calls)
 	}
 }
 

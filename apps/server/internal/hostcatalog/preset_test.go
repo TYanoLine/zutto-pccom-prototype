@@ -170,3 +170,11 @@ func TestPresetDetailAndDialParsed(t *testing.T) {
 		t.Fatalf("dial/detail not parsed: %+v %q %q", p.Dial, p.DialMode, p.Detail.Welcome)
 	}
 }
+
+func TestPresetAlwaysConnectBehaviorParses(t *testing.T) {
+	src := samplePreset + "dial:\n  behavior: always_connect\n"
+	p, err := ParsePreset("sample-bbs.yaml", []byte(src), Options{})
+	if err != nil || p.Dial.Kind != DialAlwaysConnect {
+		t.Fatalf("always_connect not parsed: kind=%q err=%v", p.Dial.Kind, err)
+	}
+}

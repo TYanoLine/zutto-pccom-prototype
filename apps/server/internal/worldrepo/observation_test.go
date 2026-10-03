@@ -52,31 +52,31 @@ func (m *blockingObservationMaterializer) GenerateBoardPosts(ctx context.Context
 }
 
 func TestHostLookupDoesNotObserveOrGenerate(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &blockingObservationMaterializer{}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
 	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
 
-	if _, err := repo.HostByPhone("0450000001"); err != nil {
+	if _, err := repo.HostByPhone(genericTestPhone); err != nil {
 		t.Fatal(err)
 	}
 	if got := materializer.calls.Load(); got != 0 {
 		t.Fatalf("HostByPhone generated content: calls=%d", got)
 	}
-	if posts := base.ListPosts("quiet-test"); len(posts) != 0 {
+	if posts := base.ListPosts(genericTestHostID); len(posts) != 0 {
 		t.Fatalf("host metadata lookup created posts: %+v", posts)
 	}
 }
 
 func TestHostObservationStartsInBackgroundAndBoardReadWaits(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &blockingObservationMaterializer{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
 	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +128,7 @@ func TestHostObservationStartsInBackgroundAndBoardReadWaits(t *testing.T) {
 }
 
 func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &blockingObservationMaterializer{
 		started: make(chan struct{}),
 		release: make(chan struct{}),
@@ -136,7 +136,7 @@ func TestArticleBodyWaitSingleFlightsConcurrentReaders(t *testing.T) {
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
 	repo.SetArticleDetailPlanner(emptyArticleDetailPlanner{})
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func (m *perBoardObservationMaterializer) GenerateBoardPosts(ctx context.Context
 }
 
 func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &perBoardObservationMaterializer{
 		started: make(chan string, 2),
 		release: map[string]chan struct{}{
@@ -218,7 +218,7 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 		},
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,10 +264,10 @@ func TestBoardObservationWaitDoesNotBlockOnUnrelatedBoard(t *testing.T) {
 }
 
 func TestCompletedBoardObservationCanBeSafelyRearmed(t *testing.T) {
-	base:=world.NewMemoryStore()
+	base:=newTestStore()
 	materializer:=&blockingObservationMaterializer{}
 	repo:=New(base,observationTestEvidence{},materializer,"1996-08-26")
-	host,err:=repo.HostByPhone("0450000001");if err!=nil{t.Fatal(err)}
+	host,err:=repo.HostByPhone(genericTestPhone);if err!=nil{t.Fatal(err)}
 	board:=world.Board{ID:"main",Name:"フリートーク"}
 	repo.BeginHostObservation(host,[]world.Board{board})
 	first,err:=repo.WaitForBoardHeaders(context.Background(),host,board)
@@ -290,10 +290,10 @@ func TestCompletedBoardObservationCanBeSafelyRearmed(t *testing.T) {
 }
 
 func TestRunningBoardObservationBlocksCanonicalReset(t *testing.T) {
-	base:=world.NewMemoryStore()
+	base:=newTestStore()
 	materializer:=&blockingObservationMaterializer{started:make(chan struct{}),release:make(chan struct{})}
 	repo:=New(base,observationTestEvidence{},materializer,"1996-08-26")
-	host,err:=repo.HostByPhone("0450000001");if err!=nil{t.Fatal(err)}
+	host,err:=repo.HostByPhone(genericTestPhone);if err!=nil{t.Fatal(err)}
 	board:=world.Board{ID:"main",Name:"フリートーク"}
 	repo.BeginHostObservation(host,[]world.Board{board})
 	select { case <-materializer.started: case <-time.After(time.Second): t.Fatal("observation never started") }
@@ -310,7 +310,7 @@ func TestRunningBoardObservationBlocksCanonicalReset(t *testing.T) {
 }
 
 func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &perBoardObservationMaterializer{
 		started: make(chan string, 8),
 		release: map[string]chan struct{}{
@@ -321,7 +321,7 @@ func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(
 		},
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,13 +391,13 @@ func TestPrefetchQueuePromotesDemandedBoardWithoutStoppingCurrentBackgroundItem(
 }
 
 func TestDemandJoinsSameBoardAlreadyRunningInPrefetch(t *testing.T) {
-	base := world.NewMemoryStore()
+	base := newTestStore()
 	materializer := &perBoardObservationMaterializer{
 		started: make(chan string, 4),
 		release: map[string]chan struct{}{"c": make(chan struct{})},
 	}
 	repo := New(base, observationTestEvidence{}, materializer, "1996-08-26")
-	host, err := repo.HostByPhone("0450000001")
+	host, err := repo.HostByPhone(genericTestPhone)
 	if err != nil {
 		t.Fatal(err)
 	}

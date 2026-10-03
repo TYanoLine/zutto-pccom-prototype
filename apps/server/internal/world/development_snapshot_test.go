@@ -8,10 +8,7 @@ import (
 
 func TestDevelopmentSnapshotRoundTripPreservesMaterializedState(t *testing.T) {
 	store := NewMemoryStore()
-	host, err := store.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
+	host := genericTestHost(store)
 	host.Name = "PERSIST TEST"
 	store.SaveHost(host)
 	store.SaveBoards(host.ID, []Board{{ID: "1", Name: "雑談"}})
@@ -83,10 +80,7 @@ func TestLegacyPostIntentWithoutDetailCompletionDefaultsToIncomplete(t *testing.
 
 func TestDevelopmentSnapshotDetachesPostIntentSlices(t *testing.T) {
 	store := NewMemoryStore()
-	host, err := store.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
+	host := genericTestHost(store)
 	post := store.AddPost(host.ID, Post{
 		BoardID: "1",
 		Author:  "P1",

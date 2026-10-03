@@ -9,10 +9,8 @@ import (
 
 func TestWritePersistsInMemory(t *testing.T) {
 	store := world.NewMemoryStore()
-	h, err := store.HostByPhone("0450000001")
-	if err != nil {
-		t.Fatal(err)
-	}
+	h := world.Host{ID: "generic-test", Phone: "0450000010", Name: "GENERIC TEST BBS", SoftwareID: "generic", Lines: 1, MaxBaud: 2400}
+	store.SaveHost(h)
 	r := New(h, store)
 	_, _ = r.HandleLine("W")
 	_, _ = r.HandleLine("テスト")

@@ -84,12 +84,12 @@ func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testin
 func TestHAKATAFreeformDoesNotApplyToOtherHosts(t *testing.T) {
     repo := New(world.NewMemoryStore(),nil,nil,"1996-02-17")
     repo.SetHAKATAFreeformBody(true)
-    if !repo.useHAKATAFreeformBody(world.Host{ID:hakataGeneratedContentHostID}) ||
+    if !repo.useHAKATAFreeformBody(experimentTestHost()) ||
         repo.useHAKATAFreeformBody(world.Host{ID:"another-host"}) {
         t.Fatal("HAKATA mode leaked to other hosts")
     }
     repo.SetHAKATAFreeformBody(false)
-    if repo.useHAKATAFreeformBody(world.Host{ID:hakataGeneratedContentHostID}) {
+    if repo.useHAKATAFreeformBody(experimentTestHost()) {
         t.Fatal("HAKATA mode not reversible")
     }
 }

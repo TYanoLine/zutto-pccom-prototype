@@ -127,17 +127,15 @@ func NewMemoryStore() *MemoryStore {
 	}
 
 	// Host definitions come from the embedded YAML presets
-	// (internal/hostcatalog/presets). The HAKATA resident population below stays
-	// keyed to the preset key defined there.
-	presets := map[string]Host{}
+	// (internal/hostcatalog/presets). The host with the experiment role gets the
+	// resident population the evaluation station needs.
 	for _, h := range presetHosts() {
 		s.hosts[h.Phone] = h
-		presets[h.ID] = h
+		if h.IsExperiment() {
+			s.posts[h.ID] = nil
+			ensureHakataExperimentPopulationLocked(s, h)
+		}
 	}
-
-	erika := mustPresetHost(presets, "hakata-canal-net")
-	s.posts[erika.ID] = nil
-	ensureHakataExperimentPopulationLocked(s, erika)
 
 	return s
 }

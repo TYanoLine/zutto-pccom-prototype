@@ -11,9 +11,8 @@ import (
 // this guards both the YAML content and the descriptor -> Host conversion.
 func TestPresetHostsMatchHistoricalFixtures(t *testing.T) {
 	want := []Host{
-		{ID: "hakata-canal-net", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, FoundedOn: "1994-11-03", ANSI: false, GuestAllowed: true, TelehoFriendly: true},
-		{ID: "quiet-test", Phone: "0450000001", Name: "QUIET TEST BBS", Region: "神奈川県", Software: "mmm compatible", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, FoundedOn: "1996-05-05", ANSI: false, GuestAllowed: true},
-		{ID: "busy-test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, FoundedOn: "1993-09-15", ANSI: true, GuestAllowed: true},
+		{ID: "hakata-canal-net", Role: "experiment", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, FoundedOn: "1994-11-03", ANSI: false, GuestAllowed: true, TelehoFriendly: true},
+		{ID: "busy-test", Role: "test", Phone: "0459999999", Name: "POPULAR TEST BBS", Region: "神奈川県", Software: "BIG-Model compatible", SoftwareID: "generic", Lines: 1, Popularity: 1, MaxBaud: 14400, Members: 912, FoundedOn: "1993-09-15", ANSI: true, GuestAllowed: true},
 	}
 	store := NewMemoryStore()
 	for _, w := range want {
@@ -35,7 +34,6 @@ func TestMemoryStoreSeedDataIsKeyedToPresetHosts(t *testing.T) {
 	store := NewMemoryStore()
 	for key, wantPosts := range map[string]int{
 		"hakata-canal-net": 0, // evaluation station: no article seed at all
-		"quiet-test":       0,
 		"busy-test":        0,
 	} {
 		if got := len(store.ListPosts(key)); got != wantPosts {
@@ -45,6 +43,14 @@ func TestMemoryStoreSeedDataIsKeyedToPresetHosts(t *testing.T) {
 	if len(store.ListHostPersonas("hakata-canal-net")) == 0 {
 		t.Error("HAKATA resident population was not created")
 	}
+}
+
+// genericTestHost registers a quiet generic-runtime host for tests that need one,
+// so no production station has to exist for them.
+func genericTestHost(store *MemoryStore) Host {
+	h := Host{ID: "generic-test", Phone: "0450000010", Name: "GENERIC TEST BBS", Region: "神奈川県", Software: "mmm compatible", SoftwareID: "generic", Lines: 8, Popularity: .05, MaxBaud: 28800, Members: 22, FoundedOn: "1996-05-05", GuestAllowed: true}
+	store.SaveHost(h)
+	return h
 }
 
 func TestHostFromDescriptor(t *testing.T) {
@@ -62,13 +68,4 @@ func TestHostFromDescriptor(t *testing.T) {
 	if h := HostFromDescriptor(d); h.Software != "絵理香K版" || h.SoftwareID != "erika-k" {
 		t.Fatalf("label/program mapping: %+v", h)
 	}
-}
-
-func TestMustPresetHostPanicsWhenMissing(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Fatal("expected a panic for a missing preset host")
-		}
-	}()
-	mustPresetHost(map[string]Host{}, "hakata-canal-net")
 }

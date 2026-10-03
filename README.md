@@ -46,11 +46,15 @@ npm run dev
 Open the Vite URL and type:
 
 ```text
-ATDT0450000001
+ATDT0312345678
 ```
 
-That is the generic-runtime test host (see the fixture numbers below). Once
-connected:
+That is the in-browser local test station: it runs entirely in the page, with no
+server involved. To reach a server-side BBS, dial HAKATA CANAL NET
+(`ATDT0920000196`) or the generic-runtime test host (`ATDT0459999999`, see
+below).
+
+The generic BBS commands are:
 
 ```text
 H  help
@@ -66,8 +70,8 @@ Prototype hosts are defined in `apps/server/internal/hostcatalog/presets/`
 (see its README):
 
 - `0920000196` — HAKATA CANAL NET, the sample station, running the Erika-K style runtime (its commands differ from the list above)
-- `0450000001` — hidden test host on the generic runtime, nearly guaranteed connection for testing
-- `0459999999` — hidden test host, deliberately busy for the first few attempts to exercise redial
+- `0459999999` — hidden test host on the generic runtime. Dials are numbered from 1 and the first four are BUSY, so with AUTO REDIAL it connects on the fifth; use it to exercise redial
+- `0312345678` — the in-browser local test station (`LOCAL_TEST_NUMBER`); not a server host
 
 ## PostgreSQL scaffold
 

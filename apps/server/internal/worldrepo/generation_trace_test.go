@@ -12,7 +12,7 @@ import (
 
 func TestGenerationTraceRequiresOptInAndHAKATA(t *testing.T) {
 	r := &Repository{}
-	hakata := world.Host{ID: hakataGeneratedContentHostID}
+	hakata := experimentTestHost()
 	board := world.Board{ID: "20/1"}
 	_, finish := r.beginGenerationTrace(context.Background(), hakata, board, "headers", 0)
 	finish(nil)
@@ -41,7 +41,7 @@ func TestGenerationTraceRequiresOptInAndHAKATA(t *testing.T) {
 func TestGenerationTraceConcurrentBoundedSnapshots(t *testing.T) {
 	r := &Repository{}
 	r.SetGenerationTraceEnabled(true)
-	host := world.Host{ID: hakataGeneratedContentHostID}
+	host := experimentTestHost()
 	board := world.Board{ID:"70/1"}
 	var wg sync.WaitGroup
 	for i := 0; i < generationTraceMaxRuns+7; i++ {
