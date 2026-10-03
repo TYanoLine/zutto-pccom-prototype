@@ -30,25 +30,24 @@ type Status struct {
 	LastError   string    `json:"last_error,omitempty"`
 }
 
-// HostTarget selects a fixture host whose materialized world state should survive
-// process restarts. KeepSeedHostConfig keeps the code-defined host identity and
-// operator-facing host settings authoritative while restoring boards, posts,
-// memberships, personas, and persona facts from the snapshot.
+// HostTarget selects a host (by phone) whose materialized world state should
+// survive process restarts. Only the evolving in-world state (boards, posts,
+// memberships, personas and persona facts) is restored from the snapshot. The
+// host definition is immutable and always comes from the preset: the snapshot's
+// copy of the host is never read back.
 type HostTarget struct {
-	Phone              string
-	KeepSeedHostConfig bool
+	Phone string
 }
 
 type persistedHost struct {
-	phone              string
-	hostID             string
-	keepSeedHostConfig bool
+	phone  string
+	hostID string
 }
 
 // Store keeps the existing MemoryStore behavior while durably snapshotting a
-// deliberately small set of development/experiment hosts. The intentionally
-// narrow scope avoids pretending this is the final normalized production world
-// database.
+// deliberately small set of hosts that opt in with debug.snapshot. It is a
+// development stopgap: the intentionally narrow scope avoids pretending this is
+// the final normalized production world database.
 type Store struct {
 	*world.MemoryStore
 
@@ -114,9 +113,8 @@ func newStore(ctx context.Context, base *world.MemoryStore, targets []HostTarget
 			return nil, fmt.Errorf("duplicate snapshot persistence host id %s", host.ID)
 		}
 		target := persistedHost{
-			phone:              configured.Phone,
-			hostID:             host.ID,
-			keepSeedHostConfig: configured.KeepSeedHostConfig,
+			phone:  configured.Phone,
+			hostID: host.ID,
 		}
 		store.targets[host.ID] = target
 
@@ -131,14 +129,10 @@ func newStore(ctx context.Context, base *world.MemoryStore, targets []HostTarget
 		if err := json.Unmarshal(data, &snapshot); err != nil {
 			return nil, fmt.Errorf("decode snapshot for host %s: %w", host.ID, err)
 		}
-		if snapshot.Host.ID != host.ID || snapshot.Host.Phone != configured.Phone {
-			return nil, fmt.Errorf("snapshot identity does not match configured host %s", host.ID)
-		}
-		if target.keepSeedHostConfig {
-			// This host's software/runtime configuration is still a code-owned
-			// fixture. Only its evolving in-world state is restored from Postgres.
-			snapshot.Host = host
-		}
+		// The host definition is immutable and owned by the preset. Whatever
+		// host the snapshot carries (older snapshots stored one) is discarded;
+		// only the evolving world state is restored.
+		snapshot.Host = host
 		if err := base.RestoreDevelopmentSnapshot(snapshot); err != nil {
 			return nil, fmt.Errorf("restore snapshot for host %s: %w", host.ID, err)
 		}
@@ -160,13 +154,6 @@ func (s *Store) DevelopmentPersistenceStatus() Status {
 	s.statusMu.RLock()
 	defer s.statusMu.RUnlock()
 	return s.status
-}
-
-func (s *Store) SaveHost(host world.Host) {
-	s.MemoryStore.SaveHost(host)
-	if target, ok := s.targets[host.ID]; ok {
-		s.persistTarget(target)
-	}
 }
 
 func (s *Store) AddPost(hostID string, post world.Post) world.Post {
