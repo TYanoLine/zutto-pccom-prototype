@@ -1,0 +1,18 @@
+# Preset host. See ../README.md for the schema.
+schema: 1
+key: moonlight-yokohama
+revision: 1
+listed: true
+
+host:
+  name: YOKOHAMA MOONLIGHT NETWORK
+  phone: "0451234567"
+  region: { prefecture: 神奈川県, city: 横浜市 }
+  program: ktbbs
+  software_label: KTBBS compatible / customized
+  lines: 4
+  max_baud: 14400
+  founded_on: 1994-06-12
+  popularity: 0.70
+  members: 187
+  traits: { ansi: true, guest_allowed: true, teleho_friendly: true }

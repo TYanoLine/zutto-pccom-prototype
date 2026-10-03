@@ -1,0 +1,18 @@
+# Preset host. See ../README.md for the schema.
+schema: 1
+key: silver-horizon-bbs
+revision: 1
+listed: true
+
+host:
+  name: SILVER HORIZON BBS
+  phone: "0470001080"
+  region: { prefecture: 千葉県 }
+  program: turbobbs
+  software_label: TurboBBS 1.08 compatible / customized
+  lines: 1
+  max_baud: 2400
+  founded_on: 1989-08-20
+  popularity: 0.18
+  members: 52
+  traits: { ansi: false, guest_allowed: false, teleho_friendly: true }

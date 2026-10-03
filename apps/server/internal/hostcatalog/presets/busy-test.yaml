@@ -1,0 +1,23 @@
+# Test fixture: BUSY for the first attempts, to exercise auto-redial. Not listed.
+schema: 1
+key: busy-test
+revision: 1
+listed: false
+role: test
+
+host:
+  name: POPULAR TEST BBS
+  phone: "0459999999"
+  region: { prefecture: 神奈川県 }
+  program: big-model
+  software_label: BIG-Model compatible
+  lines: 1
+  max_baud: 14400
+  founded_on: 1993-09-15
+  popularity: 1.0
+  members: 912
+  traits: { ansi: true, guest_allowed: true, teleho_friendly: false }
+
+dial:
+  behavior: busy_first_n
+  busy_first_n: 5
