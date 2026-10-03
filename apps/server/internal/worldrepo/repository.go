@@ -58,7 +58,6 @@ type Repository struct {
 	mu                     sync.Mutex
 	materialized           map[string]bool
 	hosts                  map[string]world.Host
-	hostMaterialized       map[string]bool
 	populationMaterialized map[string]bool
 	debugImmediateBBS      map[string]bool
 
@@ -81,7 +80,6 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		worldNow:               func() time.Time { return worldTime(worldDate) },
 		materialized:           map[string]bool{},
 		hosts:                  map[string]world.Host{},
-		hostMaterialized:       map[string]bool{},
 		populationMaterialized: map[string]bool{},
 		debugImmediateBBS:      map[string]bool{},
 		observationBoardJobs:   map[string]*observationJob{},
@@ -153,32 +151,19 @@ func (r *Repository) currentWorldTime() time.Time {
 	return worldTime(r.WorldDate)
 }
 
+// HostByPhone returns the host definition as stored. The definition is
+// immutable: it is complete when it is loaded (presets are validated at startup)
+// and is never filled in or rewritten here.
 func (r *Repository) HostByPhone(phone string) (world.Host, error) {
 	h, err := r.Base.HostByPhone(phone)
 	if err != nil {
 		return h, err
 	}
-	if incompleteHost(h) {
-		h = completeDevelopmentHost(h)
-		if w, ok := r.Base.(world.HostWriter); ok {
-			w.SaveHost(h)
-		}
-		r.mu.Lock()
-		r.hostMaterialized[h.ID] = true
-		r.mu.Unlock()
-	}
 	r.mu.Lock()
 	r.hosts[h.ID] = h
 	r.mu.Unlock()
 
-
 	return h, nil
-}
-
-func (r *Repository) HostWasMaterialized(hostID string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.hostMaterialized[hostID]
 }
 
 func (r *Repository) PopulationWasMaterialized(hostID string) bool {
@@ -271,37 +256,6 @@ func filterBoard(all []world.Post, boardID string) []world.Post {
 		}
 	}
 	return out
-}
-
-func incompleteHost(h world.Host) bool {
-	return h.Name == "" || h.Software == "" || h.Lines <= 0 || h.MaxBaud <= 0
-}
-
-func completeDevelopmentHost(h world.Host) world.Host {
-	if h.Name == "" {
-		h.Name = "LAZY MATERIALIZE BBS"
-	}
-	if h.Region == "" {
-		h.Region = "神奈川県"
-	}
-	if h.Software == "" {
-		h.Software = "局固有の架空ホスト (development)"
-	}
-	if h.Lines <= 0 {
-		h.Lines = 2
-	}
-	if h.MaxBaud <= 0 {
-		h.MaxBaud = 14400
-	}
-	if h.Members <= 0 {
-		h.Members = 48
-	}
-	if h.Popularity <= 0 {
-		h.Popularity = .22
-	}
-	h.GuestAllowed = true
-	h.TelehoFriendly = true
-	return h
 }
 
 func worldTime(v string) time.Time {
