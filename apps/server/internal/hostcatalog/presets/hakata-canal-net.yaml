@@ -26,6 +26,7 @@ debug:
   reset_articles_on_connect: true
   generation_trace: true
   content_log: true
+  http_endpoints: true
   snapshot: true
 
 generation:
