@@ -10,6 +10,11 @@ generation, failed generation, and successfully committed titles.
 This is inspection of ordinary World-owned posts, not a separate generation
 engine. The old general-purpose `/api/debug/world` export was removed.
 
+Everything on this page that mentions HAKATA applies to the host with
+`role: experiment` (currently HAKATA CANAL NET). The server and the web client key on
+that role, not on its phone number; see `HOST_DEFINITION.md`. The sample endpoint
+accepts only that host, and `phone` may be omitted when exactly one host has the role.
+
 ## Automatic HAKATA generated-content logs
 
 The production observation path logs **saved** HAKATA world-engine posts to
@@ -46,7 +51,8 @@ For HAKATA only, this mode skips extra Article Detail and historical-evidence re
 ## HAKATA live generation inspector (temporary evaluation mode)
 
 While connected to **HAKATA CANAL NET**, the modern browser application shows
-a small **生成ログ** button (desktop top bar / mobile status bar). Open it to
+a small **生成ログ** button (desktop top bar / mobile status bar). The button
+appears when the server reports `role: experiment` for the connected host. Open it to
 inspect the current trace immediately; no key-entry dialog is necessary.
 Capture and polling start automatically during HAKATA evaluation.
 
