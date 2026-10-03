@@ -27,6 +27,9 @@ const (
 
 // Role is an optional operational tag. Hosts tagged debug or test must never be
 // listed in the public directory; this is enforced by validation.
+//
+// Role is only a label. Behavior that used to follow the experiment role is now
+// switched on per host through DebugFlags and GenerationFlags.
 const (
 	RoleDebug      = "debug"
 	RoleTest       = "test"
@@ -63,9 +66,37 @@ type Traits struct {
 	TelehoFriendly bool
 }
 
-// DefaultTraits mirrors the convention already used for hosts that have no trait
-// data (worldrepo.completeDevelopmentHost). It is a stopgap until traits are
-// generated as part of the host skeleton.
+// DebugFlags switch on evaluation/debug behavior for one host. Every flag
+// defaults to off: a host opts in from its preset. Flags that also have a
+// process-wide environment switch (see the config package) need both to be on.
+type DebugFlags struct {
+	// ResetArticlesOnConnect clears the host's generated articles on every new
+	// successful CONNECT so generator quality can be evaluated repeatedly. It is
+	// a station-specific exception, not the persistent-world default.
+	ResetArticlesOnConnect bool `yaml:"reset_articles_on_connect"`
+	// GenerationTrace retains prompts and responses of generation calls for the
+	// read-only generation-trace endpoint.
+	GenerationTrace bool `yaml:"generation_trace"`
+	// ContentLog logs committed, world-generated content for quality inspection.
+	ContentLog bool `yaml:"content_log"`
+	// Snapshot stores the host's materialized world state (boards, posts,
+	// memberships, personas, persona facts) as one debug snapshot so that it
+	// survives a process restart. It is a development stopgap until the world is
+	// stored in normalized Postgres tables, and it never stores the host
+	// definition: that always comes from the preset.
+	Snapshot bool `yaml:"snapshot"`
+}
+
+// GenerationFlags select experimental generation behavior for one host.
+type GenerationFlags struct {
+	// FreeformBody enables the title-led prose experiment: the article body is
+	// written from the accepted title/summary without the Article Detail and
+	// historical-evidence stages. It also needs the process-wide switch.
+	FreeformBody bool `yaml:"freeform_body"`
+}
+
+// DefaultTraits is the trait set for hosts that have no trait data. It is a
+// stopgap until traits are generated as part of the host skeleton.
 func DefaultTraits() Traits { return Traits{GuestAllowed: true, TelehoFriendly: true} }
 
 // HostDescriptor is the immutable skeleton of a host. It deliberately contains
@@ -93,6 +124,9 @@ type HostDescriptor struct {
 	Traits        Traits
 	DialMode      string // "tone" | "pulse"
 	Dial          DialBehavior
+
+	Debug           DebugFlags
+	GenerationFlags GenerationFlags
 }
 
 // SoftwareDisplay returns the label shown to users for the host program.
