@@ -2,11 +2,15 @@
 
 The canonical description of a BBS host, plus the preset hosts defined as YAML.
 
-**Status: definitions only.** Nothing in the dial path reads this package yet.
-`world.NewMemoryStore` still holds the hard-coded fixtures;
-`TestPresetsMatchLegacyFixtures` proves the YAML describes exactly the same
-hosts, and should be deleted together with those fixtures when the presets are
-wired in.
+**Status.** `world.NewMemoryStore` builds its hosts from these presets through
+`world.HostFromDescriptor`; the five hosts are no longer hard-coded there. Seed
+posts and the HAKATA resident population are still keyed to the preset keys in
+`world/store.go`. Not driven by these files yet: the directory the web client
+shows (`CenterDirectory.ts`), the dial behaviors in `telephone`, and the
+HAKATA-specific server code.
+
+`hostcatalog` must not import `world` (the store imports it), so the
+descriptor -> `world.Host` conversion lives in `world`.
 
 ## Three layers
 
@@ -80,6 +84,8 @@ implemented.
 
 - A published `key` and `phone` must not change: players already know the number
   and posts are keyed by the host.
+- `hakata-canal-net`, `moonlight-yokohama` and `silver-horizon-bbs` are required:
+  `NewMemoryStore` keys its seed data to them and panics if one is missing.
 - Raise `revision` whenever the content changes. Existing worlds keep the content
   they were created with (only `listed` is meant to follow the file).
 - Reserve numbers by passing `Options.ReservedPhones`; presets and (later)
@@ -89,6 +95,7 @@ implemented.
 ## Not done here
 
 `HostProgram` registry (`knownPrograms` / `RuntimeSoftwareID` are stopgaps),
-database migration (`origin`, `listed`, `host_key`, `host_details`), generated
-region/traits, per-program detail schemas, and moving the hard-coded dial
-fixtures in `telephone` to `dial.behavior`.
+the web client's built-in center list, database migration (`origin`, `listed`,
+`host_key`, `host_details`), generated region/traits, per-program detail
+schemas, and moving the hard-coded dial fixtures in `telephone` to
+`dial.behavior`.
