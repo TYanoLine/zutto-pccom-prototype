@@ -7,6 +7,17 @@ import (
 	"zutto-pccom/apps/server/internal/hostcatalog"
 )
 
+// ensurePopulationLocked creates the resident members that spec describes for
+// host, up to host.Members, and attaches them to the host. It never creates
+// posts or expensive persona details: detailed life facts and prose traits stay
+// lazy world state.
+//
+// The result is deterministic for a given spec and store content, and the order
+// and number of random draws is part of that contract: persisted snapshots refer
+// to these residents by ID, and the routing interests of an existing resident are
+// recomputed from the same draws on every start. Do not reorder, add or remove a
+// draw without regenerating the evidence in population_golden_test.go, and treat
+// a changed golden file as a visible change to the live station's residents.
 func ensurePopulationLocked(s *MemoryStore, host Host, spec hostcatalog.Population) int {
 	if s == nil || host.ID == "" {
 		return 0
@@ -36,6 +47,9 @@ func ensurePopulationLocked(s *MemoryStore, host Host, spec hostcatalog.Populati
 			// refer to the same core residents.
 			id = spec.IDPrefix + "-" + hostcatalog.HandleSlug(handle)
 		} else {
+			// For a resident that already exists the handle is not used, but the
+			// draws it consumes and the handle it reserves still shape what follows,
+			// so it is computed either way.
 			handle = nextResidentHandle(rng, spec, usedHandles)
 		}
 		usedHandles[strings.ToLower(handle)] = true
@@ -53,6 +67,12 @@ func ensurePopulationLocked(s *MemoryStore, host Host, spec hostcatalog.Populati
 			if strings.TrimSpace(p.ActivityPattern) == "" {
 				fillActivitySkeleton(rng, &p)
 			}
+			// Deliberately kept: refresh only the cheap routing affinities on every
+			// start, so snapshots written before the interest distribution was made
+			// sparse do not keep a computer/game-heavy distribution. Detailed
+			// persona facts remain intact. This replaces the stored interests of
+			// existing residents, so removing it changes live content; do that as a
+			// separate, explicit decision (see TestEnsurePopulationRefreshes...).
 			p.Interests = randomResidentInterests(rng)
 			s.personas[id] = p
 		}
@@ -67,7 +87,9 @@ func ensurePopulationLocked(s *MemoryStore, host Host, spec hostcatalog.Populati
 	return added
 }
 
-// EnsurePopulation restores the resident membership count declared by Host.Members.
+// EnsurePopulation restores the resident population that the host's preset
+// declares, up to Host.Members. It returns 0 for a host without a population
+// definition. It never creates posts or expensive persona details.
 func (s *MemoryStore) EnsurePopulation(phone string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -167,23 +189,31 @@ func randomResidentInterests(rng *rand.Rand) map[string]float64 {
 	return out
 }
 
+// nextResidentHandle draws a handle from the spec's vocabulary that is not in
+// used. Every attempt evaluates all candidate formats in a fixed order, whether
+// or not they are used, because each evaluation consumes random numbers.
 func nextResidentHandle(rng *rand.Rand, spec hostcatalog.Population, used map[string]bool) string {
-	for attempt := 0; attempt < 80; attempt++ {
-		base := spec.HandleBases[rng.Intn(len(spec.HandleBases))]
-		variants := []string{
-			base,
-			fmt.Sprintf("%s.%c", base, 'A'+rune(rng.Intn(26))),
-			fmt.Sprintf("%s-%c", base, 'A'+rune(rng.Intn(26))),
-			fmt.Sprintf("%s%02d", base, 1+rng.Intn(99)),
-			fmt.Sprintf("%s_%02d", base, 1+rng.Intn(99)),
-		}
-		if len(spec.HandlePrefixes) > 0 {
-			variants = append(variants, fmt.Sprintf("%s-%s", spec.HandlePrefixes[rng.Intn(len(spec.HandlePrefixes))], base))
-		}
-		for _, candidate := range variants {
-			key := strings.ToLower(candidate)
-			if !used[key] {
-				return candidate
+	// A preset is validated to have handle bases whenever it needs generated
+	// handles; this guard only keeps a hand-built spec from panicking in
+	// rng.Intn(0). With bases present it changes nothing.
+	if len(spec.HandleBases) > 0 {
+		for attempt := 0; attempt < 80; attempt++ {
+			base := spec.HandleBases[rng.Intn(len(spec.HandleBases))]
+			variants := []string{
+				base,
+				fmt.Sprintf("%s.%c", base, 'A'+rune(rng.Intn(26))),
+				fmt.Sprintf("%s-%c", base, 'A'+rune(rng.Intn(26))),
+				fmt.Sprintf("%s%02d", base, 1+rng.Intn(99)),
+				fmt.Sprintf("%s_%02d", base, 1+rng.Intn(99)),
+			}
+			if len(spec.HandlePrefixes) > 0 {
+				variants = append(variants, fmt.Sprintf("%s-%s", spec.HandlePrefixes[rng.Intn(len(spec.HandlePrefixes))], base))
+			}
+			for _, candidate := range variants {
+				key := strings.ToLower(candidate)
+				if !used[key] {
+					return candidate
+				}
 			}
 		}
 	}
