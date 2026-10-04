@@ -6,7 +6,7 @@
 
 | 種類 | 内容 | この spec での扱い |
 |---|---|---|
-| 局のデータ | `boardTree`（26 件）、`unreadBoard`（5 件）、ログイン後の局のメッセージ 2 行、会員へのあいさつ | `detail.erika_k` に外部化 |
+| 局のデータ | `boardTree`（29 件）、`unreadBoard`（5 件）、ログイン後の局のメッセージ 2 行、会員へのあいさつ | `detail.erika_k` に外部化 |
 | 局名から導出できる | メインメニューの見出し、`WELCOME TO HAKATA CANAL NET`、終了時の「また HAKATA CANAL NET で…」 | `Host.Name` / `Host.Software` から導出 |
 | ソフトの動作 | 状態遷移、コマンド、画面の組み立て、ヘルプ、`Config`（機能の有効・無効） | `erikak` に残す |
 | プロトタイプ用の固定画面 | `V`、`WHO`、`MEMB`、メール一覧、ファイル一覧、`JUNK`、前回アクセスの日時 | **スコープ外。コードに残す** |
@@ -76,7 +76,7 @@ detail:
 | `verified_referent_rate` | `VerifiedReferentRate` | 省略時 `0` |
 | `unread: true` | `unreadBoard[path]` | 現在 `1`、`4`、`10/2`、`60/1`、`60/3` が対象 |
 
-- `boardTree` の**全 26 件を、現在の順序のまま**写す。ゼロ値の項目は書かない。
+- `boardTree` の**全 29 件（トップレベル 15 件、子 14 件）を、現在の順序のまま**写す。ゼロ値の項目は書かない。
 - 値は 1 文字も変えない。数値は `.10` を `0.10` と書くなど、表記だけ YAML に合わせる（同じ値になる）。
 - 文字列はすべて二重引用符で囲む（コロンや記号を含む文字列があるため）。
 - `boardTree` の上にある 2 つのコメント（「Activity values below are HAKATA station fiction…」と、
