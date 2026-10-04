@@ -6,7 +6,7 @@ import (
     "strings"
 )
 
-// This temporary HAKATA evaluation prompt deliberately leaves article-local
+// This temporary evaluation prompt deliberately leaves article-local
 // wording choices to the model. Only accepted summary/required identities,
 // reply causality and the already displayed header remain binding. It never
 // selects or rewrites a World event.

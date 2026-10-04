@@ -157,7 +157,7 @@ When a stale scope has been unobserved for a long time, prefer a bounded catch-u
 ### Temporary HAKATA title-led prose evaluation
 
 For the fictional HAKATA quality-evaluation station only, the reversible
-`HAKATA_FREEFORM_BODY=1` trial keeps the production World-selected posting
+`GENERATION_FREEFORM_BODY=1` trial keeps the production World-selected posting
 slots, accepted Situation, title and canonical persistence unchanged, but
 passes a compact **view** of that accepted state to the final body worker.
 The displayed subject, real board name, world date, author and any essential
@@ -173,7 +173,7 @@ knowledge research calls during body reads**; initial Situation and subject
 generation still happen exactly as before. Existing saved facts, titles and
 bodies are never cleared or rewritten by enabling this flag. The standard
 detail-first path remains the default for all other hosts and for HAKATA when
-`HAKATA_FREEFORM_BODY=0`. An experiment result that invents a contradictory
+`GENERATION_FREEFORM_BODY=0`. An experiment result that invents a contradictory
 event is a quality defect, not a new canonical fact.
 
 ### Article detail before prose

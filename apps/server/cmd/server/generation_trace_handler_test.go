@@ -18,7 +18,7 @@ func (s *testTraceSource) GenerationTraceSnapshot() worldrepo.GenerationTraceSna
 
 func TestGenerationTraceHandlerIsReadOnlyAndNeedsNoToken(t *testing.T) {
     source := &testTraceSource{}
-    handler := newHakataTraceHandler(true, source)
+    handler := newGenerationTraceHandler(true, source)
     for _, tc := range []struct { method, token string; status int }{
         {"GET", "", http.StatusOK},
         {"GET", "incorrect", http.StatusOK},
@@ -46,7 +46,7 @@ func TestGenerationTraceHandlerDisabledIgnoresToken(t *testing.T) {
     request := httptest.NewRequest(http.MethodGet, "/api/debug/bbs/generation-trace", nil)
     request.Header.Set("X-Zutto-Debug-Token", "legacy-debug-key")
     response := httptest.NewRecorder()
-    newHakataTraceHandler(false, source)(response, request)
+    newGenerationTraceHandler(false, source)(response, request)
     if response.Code != http.StatusForbidden || source.calls != 0 {
         t.Fatalf("disabled trace exposed data: status=%d calls=%d", response.Code, source.calls)
     }

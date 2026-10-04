@@ -16,7 +16,7 @@ type freeformResearchSpy struct { calls int }
 
 func (s *freeformResearchSpy) ResolveEvidence(_ context.Context, _ worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
     s.calls++
-    return worldengine.EvidenceDecision{}, errors.New("HAKATA freeform mode must not call research")
+    return worldengine.EvidenceDecision{}, errors.New("freeform mode must not call research")
 }
 
 type freeformBodyRenderer struct {
@@ -31,10 +31,10 @@ func (r *freeformBodyRenderer) GenerateBoardPost(_ context.Context, req llm.Boar
 }
 func (r *freeformBodyRenderer) MaterializeBBSTitleArticleDetails(_ context.Context, _ llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
     r.detailCalls++
-    return llm.BBSTitleArticleDetailDraft{}, errors.New("HAKATA freeform mode must not call Article Detail")
+    return llm.BBSTitleArticleDetailDraft{}, errors.New("freeform mode must not call Article Detail")
 }
 
-func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testing.T) {
+func TestFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testing.T) {
     base := world.NewMemoryStore()
     host, err := base.HostByPhone("0920000196")
     if err != nil { t.Fatal(err) }
@@ -42,7 +42,7 @@ func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testin
     renderer := &freeformBodyRenderer{}
     research := &freeformResearchSpy{}
     repo := New(base, research, LLMMaterializer{Renderer:renderer, ProductionMinimalHistoricalPrompt:true, ModelHistoricalMemory:true}, "1996-02-17")
-    repo.SetHAKATAFreeformBody(true)
+    repo.SetFreeformBody(true)
     originalFacts := []string{"occurrence=プリンセスメーカー2の月末結果を見比べた", "scope_boundary=今回の結果の比較"}
     post := base.AddPost(host.ID, world.Post{
         BoardID:board.ID,
@@ -81,16 +81,16 @@ func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testin
     if secondGenerated || renderer.bodyCalls!=1 { t.Fatal("cached body generated twice") }
 }
 
-func TestHAKATAFreeformDoesNotApplyToOtherHosts(t *testing.T) {
+func TestFreeformDoesNotApplyToOtherHosts(t *testing.T) {
     repo := New(world.NewMemoryStore(),nil,nil,"1996-02-17")
-    repo.SetHAKATAFreeformBody(true)
-    if !repo.useHAKATAFreeformBody(experimentTestHost()) ||
-        repo.useHAKATAFreeformBody(world.Host{ID:"another-host"}) {
-        t.Fatal("HAKATA mode leaked to other hosts")
+    repo.SetFreeformBody(true)
+    if !repo.useFreeformBody(experimentTestHost()) ||
+        repo.useFreeformBody(world.Host{ID:"another-host"}) {
+        t.Fatal("freeform mode leaked to other hosts")
     }
-    repo.SetHAKATAFreeformBody(false)
-    if repo.useHAKATAFreeformBody(experimentTestHost()) {
-        t.Fatal("HAKATA mode not reversible")
+    repo.SetFreeformBody(false)
+    if repo.useFreeformBody(experimentTestHost()) {
+        t.Fatal("freeform mode not reversible")
     }
 }
 

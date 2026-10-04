@@ -3,7 +3,7 @@ package llm
 import "context"
 
 // DebugTraceStart is diagnostic-only. It is supplied by the caller for one
-// HAKATA evaluation operation; production calls without it do not retain
+// Evaluation operation; production calls without it do not retain
 // prompts or responses. Never add provider secrets or HTTP headers here.
 type DebugTraceStart func(stage, prompt string) func(response string, err error)
 

@@ -51,8 +51,8 @@ type Repository struct {
 	worldNow             func() time.Time
 	bbsArticles          *bbsengine.Engine
 	debugLogBBSArticleDetails                  bool
-	debugLogHAKATAGenerated                    bool
-	hakataFreeformBody                        bool
+	debugLogGeneratedContent                    bool
+	freeformBody                        bool
 	generationTrace                           *generationTraceStore
 
 	mu                     sync.Mutex

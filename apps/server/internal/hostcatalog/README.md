@@ -106,13 +106,13 @@ flags, never by a phone number, an ID or the role. The role is only a label.
 | Flag | What it does | Also needs |
 |---|---|---|
 | `debug.reset_articles_on_connect` | Clears the host's generated articles on every new successful CONNECT (see `docs/DEBUG_RESET.md`). Refused while generation runs. | nothing |
-| `debug.generation_trace` | Records prompts and responses of generation calls. | `DEBUG_HAKATA_LLM_TRACE` (process-wide) |
-| `debug.content_log` | Logs committed generated headers and bodies. | `DEBUG_LOG_HAKATA_GENERATED` (process-wide) |
+| `debug.generation_trace` | Records prompts and responses of generation calls. | `DEBUG_GENERATION_TRACE` (process-wide) |
+| `debug.content_log` | Logs committed generated headers and bodies. | `DEBUG_LOG_GENERATED_CONTENT` (process-wide) |
 | `debug.http_endpoints` | Lets `/api/debug/bbs/reset` and `/api/debug/bbs/sample` act on the host. An unknown number and a host without the flag get the same answer. | `DEBUG_RESET_TOKEN` |
 | `debug.snapshot` | Stores the host's world state (boards, posts, memberships, personas, persona facts) as one JSON snapshot in Postgres so it survives a restart. A development stopgap until the world is stored in normalized tables. It never stores or restores the host definition. | `DATABASE_URL` |
-| `generation.freeform_body` | Title-led prose experiment for article bodies. | `HAKATA_FREEFORM_BODY` (process-wide) |
+| `generation.freeform_body` | Title-led prose experiment for article bodies. | `GENERATION_FREEFORM_BODY` (process-wide) |
 
-The process-wide environment switches keep their historical names for now.
+The previous HAKATA-prefixed names are still read as deprecated aliases.
 
 There is no flag for clearing articles at startup: the snapshot keeps the
 articles, and `debug.reset_articles_on_connect` (or the debug reset endpoint)

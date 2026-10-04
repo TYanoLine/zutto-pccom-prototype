@@ -10,7 +10,7 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-func TestGenerationTraceRequiresOptInAndHAKATA(t *testing.T) {
+func TestGenerationTraceRequiresBothSwitches(t *testing.T) {
 	r := &Repository{}
 	hakata := experimentTestHost()
 	board := world.Board{ID: "20/1"}

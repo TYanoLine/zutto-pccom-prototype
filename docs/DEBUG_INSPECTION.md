@@ -1,4 +1,4 @@
-# HAKATA article inspection
+# Generated article inspection
 
 The restricted diagnostic endpoint
 `GET /api/debug/bbs/sample?phone=0920000196&board=70/1`
@@ -10,9 +10,10 @@ generation, failed generation, and successfully committed titles.
 This is inspection of ordinary World-owned posts, not a separate generation
 engine. The old general-purpose `/api/debug/world` export was removed.
 
-## Automatic HAKATA generated-content logs
+## Automatic generated-content logs
 
-The production observation path logs **saved** HAKATA world-engine posts to
+The production observation path logs **saved** world-engine posts for hosts
+whose station flags opt in to
 Render as one-line JSON prefixed with `BBS generated content:`. This restores
 quality inspection without bringing back Lab, public export APIs, or another
 generation path. `header_committed` contains board, post ID, author, visible
@@ -22,13 +23,13 @@ after the lazy body has successfully been saved. Search that prefix and join
 records by `host`, `board`, and `post_id`; reply/append records may correctly
 have an empty host-native subject.
 
-`DEBUG_LOG_HAKATA_GENERATED=1` is enabled by default for the current fictional
-HAKATA quality-evaluation station. Set it to `0` to disable content logging.
+`DEBUG_LOG_GENERATED_CONTENT=1` is enabled by default. Set it to `0` to disable
+content logging.
 This logger ignores all human posts and all other stations, including their
 normal operational timing/error telemetry. It does not log draft Situations,
 unsaved bodies, model prompts, API credentials or private persona profiles.
 The generated text is still world content: limit access to Render logs and
-turn off this setting before reusing HAKATA for real user content.
+turn off this setting before enabling real user content.
 
 A header record means the post exists in the canonical store. It is not a
 claim that all ten slots succeeded. Body records appear only as articles are
@@ -37,27 +38,29 @@ Article Detail logging remains a separate opt-in diagnostic; Situation-first
 root headers normally have their detail completion bit set upstream.
 
 
-## HAKATA title-led body trial
+## Title-led body trial
 
-When HAKATA_FREEFORM_BODY=1 (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.
+When `GENERATION_FREEFORM_BODY=1` (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.
 
-For HAKATA only, this mode skips extra Article Detail and historical-evidence research before prose. The trace therefore shows initial Situation and title calls and each body call/retry, but no invented placeholder for the skipped stages. All other stations retain their existing process. Set HAKATA_FREEFORM_BODY=0 and redeploy to restore the earlier process for subsequent article reads.
+For hosts with `generation.freeform_body`, this mode skips extra Article Detail and historical-evidence research before prose. The trace therefore shows initial Situation and title calls and each body call/retry, but no invented placeholder for the skipped stages. All other stations retain their existing process. Set `GENERATION_FREEFORM_BODY=0` and redeploy to restore the earlier process for subsequent article reads.
 
-## HAKATA live generation inspector (temporary evaluation mode)
+## Live generation inspector (temporary evaluation mode)
 
 While connected to **HAKATA CANAL NET**, the modern browser application shows
 a small **生成ログ** button (desktop top bar / mobile status bar). Open it to
 inspect the current trace immediately; no key-entry dialog is necessary.
-Capture and polling start automatically during HAKATA evaluation.
+Capture and polling start automatically for an opted-in evaluation host.
 
 `GET /api/debug/bbs/generation-trace` is a **public, unauthenticated**, read-only,
-no-store endpoint while `DEBUG_HAKATA_LLM_TRACE` is enabled (default `1`, set
+no-store endpoint while `DEBUG_GENERATION_TRACE` is enabled (default `1`, set
 `0` to disable and return HTTP 403). No other host's generation is captured.
+The previous HAKATA-prefixed environment names remain readable as deprecated
+aliases when the new names are unset.
 It never starts generation or exposes a new Lab API. The existing
 `DEBUG_RESET_TOKEN` still protects destructive BBS resets and article sample
 inspection; it does not control this trace endpoint.
 
-The panel polls every 2.5 seconds while HAKATA is connected and displays each
+The panel polls every 2.5 seconds while an opted-in host is connected and displays each
 in-progress or recent board-header/body operation, then each *actual* Azure
 OpenAI model call within it:
 
@@ -84,7 +87,7 @@ all traces. This display is a *modern development inspector*, not a historical
 host-program screen. **WARNING:** anyone who knows or discovers the public
 server URL can retrieve the trace while enabled. Existing posts (including
 human replies/quotes), persona facts, and thread context may appear in model
-prompts. This mode is only appropriate for the current one-person HAKATA
-quality evaluation. Set `DEBUG_HAKATA_LLM_TRACE=0` before enabling real user
-access. Do not mistake the absence of the browser link outside HAKATA for
+prompts. This mode is only appropriate for controlled quality evaluation. Set
+`DEBUG_GENERATION_TRACE=0` before enabling real user access. Do not mistake the
+absence of the browser link outside an opted-in host for
 server-side access control.
