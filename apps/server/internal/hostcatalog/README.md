@@ -2,7 +2,7 @@
 
 The canonical description of a BBS host, plus the preset hosts defined as YAML.
 
-**Status.** `world.NewMemoryStore` builds its hosts from these presets through
+**Status.** `world.NewMemoryStore` builds its hosts and resident definitions from these presets through
 `world.HostFromDescriptor`, which also carries the preset `role` and the
 `debug` / `generation` flags into `world.Host`; the hosts are no longer
 hard-coded there. Not driven by these files yet: the directory the web client
@@ -48,7 +48,7 @@ One file per host in `presets/`, embedded into the binary. The file name must be
 ```yaml
 schema: 1                  # required, must be 1
 key: hakata-canal-net      # required, stable, lower-case words joined by "-"
-revision: 2                # required, raise when the content changes
+revision: 3                # required, raise when the content changes
 listed: true               # required, no default
 role: experiment           # optional label: debug | test | experiment | event
 
@@ -64,6 +64,13 @@ host:
   popularity: 0.58         # 0..1
   members: 326
   traits: { ansi: false, guest_allowed: true, teleho_friendly: true }
+
+population:                # optional; residents are generated only when present
+  seed: 199608260920
+  id_prefix: "hakata"
+  core_handles: ["MARI", "YUKI", "NORI"]
+  handle_bases: ["AKI", "AYA", "MODEM"]
+  handle_prefixes: ["N88", "V30", "98"]
 
 dial:                      # optional
   mode: tone               # tone (default) | pulse
@@ -98,6 +105,17 @@ with omitted fields parses (`Preset.Missing()` lists them) but cannot become a
 store refuses to start with such a preset. Filling them deterministically from
 the world seed is the generator's job and is not implemented.
 
+## Population
+
+A host gets resident members only when its preset has a `population:` block; the
+`role` is unrelated. YAML contains the seed, ID prefix, core handles, and handle
+vocabulary, while the deterministic generation algorithm remains in `world`.
+Array order affects generated values and must not be changed. `id_prefix` must
+be unique across presets, and `host.members` determines the population size.
+The seed, ID prefix, and handle arrays are validated; core handles must be
+non-empty and unique (including their ID slugs), and a population larger than
+the core handles requires at least one handle base.
+
 ## Debug and generation flags
 
 Behavior that only an evaluation station needs is switched on per host by these
@@ -122,10 +140,8 @@ clears them when wanted.
 
 - A published `key` and `phone` must not change: players already know the number
   and posts are keyed by the host.
-- `role: experiment` still marks the evaluation station for one thing only: its
-  resident population (`world/hakata_cast.go`), which moves into the preset in a
-  later change. At most one preset may have the role, because the population
-  generator uses fixed persona IDs; loading panics otherwise.
+- Changing `population.seed`, `population.id_prefix`, or any array order changes
+  existing residents and can diverge from persisted data.
 - Raise `revision` whenever the content changes, flags included. Existing worlds
   keep the content they were created with (only `listed` is meant to follow the
   file).
