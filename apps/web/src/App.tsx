@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { TerminalCore } from './terminal/TerminalCore';
 import { TerminalCanvas, type TerminalCanvasHandle, type TerminalScreenMode } from './terminal/TerminalCanvas';
 import { VirtualModem } from './modem/VirtualModem';
+import type { HostCapabilities } from './modem/HostCapabilities';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
 import { fetchWorldCenters, loadCenters } from './modem/CenterDirectory';
 import type { RegisteredCenter } from './modem/CenterDirectory';
@@ -56,7 +57,7 @@ const configuredTelehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS as st
 const telehodaiNumbers = (configuredTelehodaiNumbers || '0920000196').split(',').map((phone: string) => phone.trim()).filter(Boolean);
 const SETTINGS_KEY = 'zutto.commSettings.v1';
 
-type ActiveCall = { phone: string; connectedAt: Date };
+type ActiveCall = { phone: string; connectedAt: Date; capabilities: HostCapabilities };
 type BootWindow = Window & { __zuttoBootOk?: () => void };
 type HandshakeRun = ReturnType<typeof playHandshake>;
 type DirectoryLoadState = 'loading' | 'ready' | 'error';
@@ -173,7 +174,7 @@ export default function App() {
     const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
     modem.onStatus = setStatus;
     modem.onTelemetry = setModemTelemetry;
-    modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now } : null; }); };
+    modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now, capabilities: call.capabilities } : null; }); };
     modem.setCommunicationSettings(commSettings);
     modem.setAutoRedial(autoRedial); modemRef.current = modem;
     const localStation = new LocalTestStation(terminal, { audio: { dial: playDialSequence, handshake: playHandshake } });
@@ -280,7 +281,7 @@ export default function App() {
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
-  const hakataTraceVisible = activeCall?.phone === '0920000196' && !standaloneLine;
+  const generationTraceVisible = activeCall?.capabilities.generationTrace === true && !standaloneLine;
   const activeCenter = activeCall ? centersRef.current.find(center => center.phone === activeCall.phone) : undefined;
   const connectedMobileName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : null;
   const mobileConnectionStatus = resolveMobileConnectionStatus(modemTelemetry.phase, connectedMobileName);
@@ -303,7 +304,7 @@ export default function App() {
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
         <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
       </span>
-      {hakataTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--desktop${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)}>{traceRunning ? '生成中…' : '生成ログ'}</button>}
+      {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--desktop${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)}>{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
         <span /><span /><span />
       </button>
@@ -337,7 +338,7 @@ export default function App() {
         </span>}
         <span className={`mobile-statusbar__name${mobileConnectionStatus.working ? ' mobile-statusbar__name--working' : ''}`}>{mobileConnectionStatus.label}</span>
       </span>
-      {hakataTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="HAKATA生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
+      {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
     <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
@@ -379,6 +380,6 @@ export default function App() {
     <aside className="quick-help"><strong>発信地:</strong> {callerLocation.label}MA ({callerLocation.areaCode})<br /><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
-    <GenerationInspector wsURL={wsURL} active={hakataTraceVisible} open={traceOpen} onClose={() => setTraceOpen(false)} onRunningChange={setTraceRunning} />
+    <GenerationInspector wsURL={wsURL} active={generationTraceVisible} open={traceOpen} onClose={() => setTraceOpen(false)} onRunningChange={setTraceRunning} />
   </main>;
 }
