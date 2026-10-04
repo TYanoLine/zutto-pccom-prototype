@@ -26,7 +26,7 @@ type goldenEntry struct {
 // ensureResidents is the only place this file calls the population generator,
 // so a later rename of that API changes exactly this one line.
 func ensureResidents(s *MemoryStore, phone string) int {
-	return s.EnsureHakataExperimentPopulation(phone)
+	return s.EnsurePopulation(phone)
 }
 
 func goldenEntries(t *testing.T, personas []Persona) []goldenEntry {

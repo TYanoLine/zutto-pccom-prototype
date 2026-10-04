@@ -4,33 +4,16 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"zutto-pccom/apps/server/internal/hostcatalog"
 )
 
-// HAKATA CANAL NET is currently a generator-evaluation station. Its article
-// state is reset between debug calls, but its membership population is stable.
-// Keep only cheap identity/activity skeletons here; detailed life facts and prose
-// traits remain lazy world state.
-var hakataCoreHandles = []string{
-	"MARI", "YUKI", "NORI", "KAZU", "TAKU",
-	"NEKO", "KEN", "MAKO", "TOMO", "AKI",
-	"RYO", "HIRO", "SACHI", "JUN", "MIDNIGHT",
-}
-
-var hakataHandleBases = []string{
-	"AKI", "AYA", "EMI", "HIDE", "HIRO", "JUN", "KAZU", "KEN", "KOJI", "MAKO",
-	"MARI", "MASA", "MIKI", "NAO", "NORI", "REI", "RYO", "SHIN", "TAKA", "TOMO",
-	"YUKI", "YUJI", "SATOSHI", "TAKESHI", "KENTA", "MEG", "MAYU", "RINA", "ERI",
-	"MINT", "WOLF", "RABBIT", "JOKER", "NOVA", "LUNA", "MARU", "KERO", "N88",
-	"V30", "X68", "PC98", "COM", "MODEM",
-}
-
-func ensureHakataExperimentPopulationLocked(s *MemoryStore, host Host) int {
+func ensurePopulationLocked(s *MemoryStore, host Host, spec hostcatalog.Population) int {
 	if s == nil || host.ID == "" {
 		return 0
 	}
 	target := host.Members
 	if target <= 0 {
-		target = 326
+		return 0
 	}
 
 	existingMembership := make(map[string]bool, len(s.memberships[host.ID]))
@@ -44,21 +27,21 @@ func ensureHakataExperimentPopulationLocked(s *MemoryStore, host Host) int {
 
 	added := 0
 	for i := 0; i < target; i++ {
-		rng := rand.New(rand.NewSource(199608260920 + int64(i+1)*7919))
-		id := fmt.Sprintf("hakata-member-%03d", i+1)
+		rng := rand.New(rand.NewSource(spec.Seed + int64(i+1)*7919))
+		id := fmt.Sprintf("%s-member-%03d", spec.IDPrefix, i+1)
 		handle := ""
-		if i < len(hakataCoreHandles) {
-			handle = hakataCoreHandles[i]
+		if i < len(spec.CoreHandles) {
+			handle = spec.CoreHandles[i]
 			// Preserve the pre-population IDs so older snapshots/facts continue to
 			// refer to the same core residents.
-			id = "hakata-" + normalizeFixtureID(handle)
+			id = spec.IDPrefix + "-" + hostcatalog.HandleSlug(handle)
 		} else {
-			handle = nextHakataHandle(rng, usedHandles)
+			handle = nextResidentHandle(rng, spec, usedHandles)
 		}
 		usedHandles[strings.ToLower(handle)] = true
 
 		if _, ok := s.personas[id]; !ok {
-			s.personas[id] = newHakataPersonaSkeleton(rng, id, handle)
+			s.personas[id] = newPersonaSkeleton(rng, id, handle)
 		} else {
 			// Older debug snapshots contained handle-only skeletons. Enrich only
 			// missing activity state without replacing any already materialized
@@ -68,12 +51,9 @@ func ensureHakataExperimentPopulationLocked(s *MemoryStore, host Host) int {
 				p.Handle = handle
 			}
 			if strings.TrimSpace(p.ActivityPattern) == "" {
-				fillHakataActivitySkeleton(rng, &p)
+				fillActivitySkeleton(rng, &p)
 			}
-			// HAKATA is an experiment station. Refresh only the cheap routing
-			// affinities on startup so older snapshots do not preserve a known
-			// computer/game-heavy distribution; detailed persona facts remain intact.
-			p.Interests = randomHakataInterests(rng)
+			p.Interests = randomResidentInterests(rng)
 			s.personas[id] = p
 		}
 
@@ -87,26 +67,29 @@ func ensureHakataExperimentPopulationLocked(s *MemoryStore, host Host) int {
 	return added
 }
 
-// EnsureHakataExperimentPopulation restores the full station membership count
-// declared by Host.Members. It never creates posts or expensive persona details.
-func (s *MemoryStore) EnsureHakataExperimentPopulation(phone string) int {
+// EnsurePopulation restores the resident membership count declared by Host.Members.
+func (s *MemoryStore) EnsurePopulation(phone string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	host, ok := s.hosts[phone]
 	if !ok || host.ID == "" {
 		return 0
 	}
-	return ensureHakataExperimentPopulationLocked(s, host)
+	spec, ok := s.populations[host.ID]
+	if !ok {
+		return 0
+	}
+	return ensurePopulationLocked(s, host, spec)
 }
 
-func newHakataPersonaSkeleton(rng *rand.Rand, id, handle string) Persona {
+func newPersonaSkeleton(rng *rand.Rand, id, handle string) Persona {
 	p := Persona{ID: id, Handle: handle}
-	fillHakataActivitySkeleton(rng, &p)
-	p.Interests = randomHakataInterests(rng)
+	fillActivitySkeleton(rng, &p)
+	p.Interests = randomResidentInterests(rng)
 	return p
 }
 
-func fillHakataActivitySkeleton(rng *rand.Rand, p *Persona) {
+func fillActivitySkeleton(rng *rand.Rand, p *Persona) {
 	x := rng.Float64()
 	switch {
 	case x < .10:
@@ -139,7 +122,7 @@ func fillHakataActivitySkeleton(rng *rand.Rand, p *Persona) {
 	p.Argumentativeness = .04 + .34*rng.Float64()
 }
 
-func randomHakataInterests(rng *rand.Rand) map[string]float64 {
+func randomResidentInterests(rng *rand.Rand) map[string]float64 {
 	// Routing affinities are intentionally sparse. Being a BBS member does not
 	// imply that every resident is simultaneously interested in games, software,
 	// hardware and communications. Broad everyday domains are represented too so
@@ -184,16 +167,18 @@ func randomHakataInterests(rng *rand.Rand) map[string]float64 {
 	return out
 }
 
-func nextHakataHandle(rng *rand.Rand, used map[string]bool) string {
+func nextResidentHandle(rng *rand.Rand, spec hostcatalog.Population, used map[string]bool) string {
 	for attempt := 0; attempt < 80; attempt++ {
-		base := hakataHandleBases[rng.Intn(len(hakataHandleBases))]
+		base := spec.HandleBases[rng.Intn(len(spec.HandleBases))]
 		variants := []string{
 			base,
 			fmt.Sprintf("%s.%c", base, 'A'+rune(rng.Intn(26))),
 			fmt.Sprintf("%s-%c", base, 'A'+rune(rng.Intn(26))),
 			fmt.Sprintf("%s%02d", base, 1+rng.Intn(99)),
 			fmt.Sprintf("%s_%02d", base, 1+rng.Intn(99)),
-			fmt.Sprintf("%s-%s", []string{"N88", "V30", "X68", "98", "COM"}[rng.Intn(5)], base),
+		}
+		if len(spec.HandlePrefixes) > 0 {
+			variants = append(variants, fmt.Sprintf("%s-%s", spec.HandlePrefixes[rng.Intn(len(spec.HandlePrefixes))], base))
 		}
 		for _, candidate := range variants {
 			key := strings.ToLower(candidate)
@@ -208,18 +193,4 @@ func nextHakataHandle(rng *rand.Rand, used map[string]bool) string {
 			return candidate
 		}
 	}
-}
-
-func normalizeFixtureID(handle string) string {
-	out := make([]byte, 0, len(handle))
-	for i := 0; i < len(handle); i++ {
-		c := handle[i]
-		if c >= 'A' && c <= 'Z' {
-			c = c - 'A' + 'a'
-		}
-		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' {
-			out = append(out, c)
-		}
-	}
-	return string(out)
 }

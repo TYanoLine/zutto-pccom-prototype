@@ -37,24 +37,47 @@ func TestExperimentHostsAreOrderedByPhone(t *testing.T) {
 	}
 }
 
-func TestOnlyExperimentHostsGetTheResidentPopulation(t *testing.T) {
+func TestResidentsFollowThePopulationDefinitionNotTheRole(t *testing.T) {
 	s := NewMemoryStore()
 	if n := len(s.ListHostPersonas("hakata-canal-net")); n == 0 {
-		t.Fatal("the experiment host has no resident population")
+		t.Fatal("a host whose preset has a population got no residents")
 	}
 	if n := len(s.ListHostPersonas("busy-test")); n != 0 {
-		t.Fatalf("a non-experiment host got %d resident personas", n)
+		t.Fatalf("a host without a population got %d residents", n)
 	}
-}
 
-func TestPresetsAllowAtMostOneExperimentHost(t *testing.T) {
-	one := []Host{{ID: "a", Role: hostcatalog.RoleExperiment}, {ID: "b"}}
-	if err := checkSingleExperiment(one); err != nil {
-		t.Fatal(err)
+	s.SaveHost(Host{ID: "exp-no-population", Phone: "0910000001", Role: hostcatalog.RoleExperiment, Members: 50})
+	if added := s.EnsurePopulation("0910000001"); added != 0 {
+		t.Fatalf("a role-only host got %d residents", added)
 	}
-	two := []Host{{ID: "a", Role: hostcatalog.RoleExperiment}, {ID: "b", Role: hostcatalog.RoleExperiment}}
-	if err := checkSingleExperiment(two); err == nil || !strings.Contains(err.Error(), "at most one") {
-		t.Fatalf("two experiment hosts accepted: %v", err)
+	if n := len(s.ListHostPersonas("exp-no-population")); n != 0 {
+		t.Fatalf("a role-only host has %d residents", n)
+	}
+
+	s.populations["pop-only"] = hostcatalog.Population{
+		Seed: 1, IDPrefix: "pop-only", CoreHandles: []string{"ALPHA"}, HandleBases: []string{"BETA", "GAMMA"},
+	}
+	s.SaveHost(Host{ID: "pop-only", Phone: "0990000002", Members: 30})
+	if added := s.EnsurePopulation("0990000002"); added != 30 {
+		t.Fatalf("added = %d, want 30", added)
+	}
+	residents := s.ListHostPersonas("pop-only")
+	if len(residents) != 30 || residents[0].ID != "pop-only-alpha" || residents[1].ID != "pop-only-member-002" {
+		t.Fatalf("unexpected residents: %d, %q, %q", len(residents), residents[0].ID, residents[1].ID)
+	}
+	handles := map[string]bool{}
+	for _, r := range residents {
+		key := strings.ToLower(r.Handle)
+		if handles[key] {
+			t.Fatalf("duplicate handle %q", r.Handle)
+		}
+		handles[key] = true
+		if !strings.HasPrefix(r.ID, "pop-only-") {
+			t.Fatalf("persona ID %q does not use the host's id_prefix", r.ID)
+		}
+	}
+	if added := s.EnsurePopulation("0990000002"); added != 0 {
+		t.Fatalf("second call added %d", added)
 	}
 }
 

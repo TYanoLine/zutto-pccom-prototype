@@ -67,13 +67,10 @@ func newRuntimeStore(databaseURL string) runtimeWorldStore {
 		log.Fatalf("initialize debug world snapshot: %v", err)
 	}
 	for _, h := range snapshotHosts {
-		// The resident population is still keyed on the experiment role; restore
-		// it after the snapshot so an older snapshot does not shrink it.
-		if !h.IsExperiment() {
-			continue
-		}
-		if added := store.EnsureHakataExperimentPopulation(h.Phone); added > 0 {
-			log.Printf("HAKATA membership population restored: added_members=%d", added)
+		// Restore resident populations after the snapshot so an older snapshot
+		// does not shrink them. Hosts without a population definition add nobody.
+		if added := store.EnsurePopulation(h.Phone); added > 0 {
+			log.Printf("resident population restored: host=%s added_members=%d", h.ID, added)
 		}
 	}
 	status := store.DevelopmentPersistenceStatus()

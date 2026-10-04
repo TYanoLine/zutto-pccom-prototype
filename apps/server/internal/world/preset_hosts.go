@@ -35,10 +35,15 @@ func HostFromDescriptor(d hostcatalog.HostDescriptor) Host {
 	}
 }
 
+type presetData struct {
+	hosts       []Host
+	populations map[string]hostcatalog.Population
+}
+
 var (
-	presetHostsOnce sync.Once
-	presetHostList  []Host
-	presetHostErr   error
+	presetDataOnce sync.Once
+	presetDataVal  presetData
+	presetDataErr  error
 )
 
 // presetHosts returns the hosts defined by the embedded YAML presets. The files
@@ -46,26 +51,42 @@ var (
 // programming error: it panics instead of letting the process start without its
 // hosts.
 func presetHosts() []Host {
-	presetHostsOnce.Do(func() {
+	return append([]Host(nil), loadPresetData().hosts...)
+}
+
+func presetPopulations() map[string]hostcatalog.Population {
+	src := loadPresetData().populations
+	out := make(map[string]hostcatalog.Population, len(src))
+	for key, spec := range src {
+		out[key] = spec
+	}
+	return out
+}
+
+func loadPresetData() presetData {
+	presetDataOnce.Do(func() {
 		presets, err := hostcatalog.LoadPresets(hostcatalog.Options{})
 		if err != nil {
-			presetHostErr = err
+			presetDataErr = err
 			return
 		}
 		descriptors, err := hostcatalog.Descriptors(presets)
 		if err != nil {
-			presetHostErr = err
+			presetDataErr = err
+			return
+		}
+		populations, err := hostcatalog.Populations(presets)
+		if err != nil {
+			presetDataErr = err
 			return
 		}
 		for _, d := range descriptors {
-			presetHostList = append(presetHostList, HostFromDescriptor(d))
+			presetDataVal.hosts = append(presetDataVal.hosts, HostFromDescriptor(d))
 		}
-		if err := checkSingleExperiment(presetHostList); err != nil {
-			presetHostErr = err
-		}
+		presetDataVal.populations = populations
 	})
-	if presetHostErr != nil {
-		panic(fmt.Sprintf("world: invalid host presets: %v", presetHostErr))
+	if presetDataErr != nil {
+		panic(fmt.Sprintf("world: invalid host presets: %v", presetDataErr))
 	}
-	return append([]Host(nil), presetHostList...)
+	return presetDataVal
 }
