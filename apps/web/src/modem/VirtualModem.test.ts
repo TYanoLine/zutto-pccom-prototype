@@ -374,7 +374,7 @@ describe('VirtualModem standalone lifecycle', () => {
     expect(calls).toEqual([{ phone: '0920000196', baud: 14400, capabilities: { generationTrace: true } }]);
 
     // Hangup
-    modem.submitLine('ATH');
+    modem.hangup();
     expect(calls).toEqual([{ phone: '0920000196', baud: 14400, capabilities: { generationTrace: true } }, null]);
 
     // Second call without generation_trace
