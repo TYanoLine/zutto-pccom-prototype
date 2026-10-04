@@ -34,7 +34,7 @@ func captureGeneratedContentRecords(t *testing.T, action func()) []generatedCont
 	return records
 }
 
-func TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
+func TestGeneratedContentAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -88,7 +88,7 @@ func TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
 	}
 }
 
-func TestHAKATAAuditLogsBodyAfterSaveOnlyOnce(t *testing.T) {
+func TestGeneratedContentAuditLogsBodyAfterSaveOnlyOnce(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {
@@ -123,7 +123,7 @@ func TestHAKATAAuditLogsBodyAfterSaveOnlyOnce(t *testing.T) {
 	}
 }
 
-func TestHAKATAAuditNeverLogsHumanBody(t *testing.T) {
+func TestGeneratedContentAuditNeverLogsHumanBody(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")
 	if err != nil {

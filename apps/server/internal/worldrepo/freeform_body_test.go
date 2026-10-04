@@ -16,7 +16,7 @@ type freeformResearchSpy struct { calls int }
 
 func (s *freeformResearchSpy) ResolveEvidence(_ context.Context, _ worldengine.EvidenceRequest) (worldengine.EvidenceDecision, error) {
     s.calls++
-    return worldengine.EvidenceDecision{}, errors.New("HAKATA freeform mode must not call research")
+    return worldengine.EvidenceDecision{}, errors.New("freeform mode must not call research")
 }
 
 type freeformBodyRenderer struct {
@@ -31,10 +31,10 @@ func (r *freeformBodyRenderer) GenerateBoardPost(_ context.Context, req llm.Boar
 }
 func (r *freeformBodyRenderer) MaterializeBBSTitleArticleDetails(_ context.Context, _ llm.BBSTitleArticleDetailRequest) (llm.BBSTitleArticleDetailDraft, error) {
     r.detailCalls++
-    return llm.BBSTitleArticleDetailDraft{}, errors.New("HAKATA freeform mode must not call Article Detail")
+    return llm.BBSTitleArticleDetailDraft{}, errors.New("freeform mode must not call Article Detail")
 }
 
-func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testing.T) {
+func TestFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testing.T) {
     base := world.NewMemoryStore()
     host, err := base.HostByPhone("0920000196")
     if err != nil { t.Fatal(err) }
@@ -81,16 +81,16 @@ func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testin
     if secondGenerated || renderer.bodyCalls!=1 { t.Fatal("cached body generated twice") }
 }
 
-func TestHAKATAFreeformDoesNotApplyToOtherHosts(t *testing.T) {
+func TestFreeformDoesNotApplyToOtherHosts(t *testing.T) {
     repo := New(world.NewMemoryStore(),nil,nil,"1996-02-17")
     repo.SetFreeformBody(true)
     if !repo.useFreeformBody(experimentTestHost()) ||
         repo.useFreeformBody(world.Host{ID:"another-host"}) {
-        t.Fatal("HAKATA mode leaked to other hosts")
+        t.Fatal("freeform mode leaked to other hosts")
     }
     repo.SetFreeformBody(false)
     if repo.useFreeformBody(experimentTestHost()) {
-        t.Fatal("HAKATA mode not reversible")
+        t.Fatal("freeform mode not reversible")
     }
 }
 
