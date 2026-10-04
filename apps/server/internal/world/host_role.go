@@ -1,7 +1,6 @@
 package world
 
 import (
-	"fmt"
 	"sort"
 
 	"zutto-pccom/apps/server/internal/hostcatalog"
@@ -13,8 +12,8 @@ import (
 // reset, the generation trace, the generated-content log, the debug HTTP
 // endpoints, the title-led prose experiment, debug snapshots) is switched on
 // per host by Host.Debug and Host.Generation, never by the role, a phone number
-// or an ID. The only remaining role-based behavior is the resident population
-// of the evaluation station, which moves into the preset in a later change.
+// or an ID. The role is only a label: the resident population is defined by the
+// preset's population block, not by the role.
 func (h Host) IsExperiment() bool { return h.Role == hostcatalog.RoleExperiment }
 
 // ExperimentHosts returns every host with the experiment role, ordered by phone.
@@ -44,21 +43,4 @@ func (s *MemoryStore) hostsWhere(keep func(Host) bool) []Host {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Phone < out[j].Phone })
 	return out
-}
-
-// checkSingleExperiment enforces that at most one host is the experiment host.
-// The resident-population generator derives persona IDs from fixed names
-// ("hakata-member-001" ...), so a second experiment host would silently share
-// personas with the first.
-func checkSingleExperiment(hosts []Host) error {
-	var ids []string
-	for _, h := range hosts {
-		if h.IsExperiment() {
-			ids = append(ids, h.ID)
-		}
-	}
-	if len(ids) > 1 {
-		return fmt.Errorf("at most one host may have role %q, found %v", hostcatalog.RoleExperiment, ids)
-	}
-	return nil
 }

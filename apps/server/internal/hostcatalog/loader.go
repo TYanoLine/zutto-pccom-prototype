@@ -31,6 +31,7 @@ func LoadPresetsFS(fsys fs.FS, dir string, o Options) ([]Preset, error) {
 	)
 	keys := map[string]string{}
 	phones := map[string]string{}
+	prefixes := map[string]string{}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
@@ -65,6 +66,13 @@ func LoadPresetsFS(fsys fs.FS, dir string, o Options) ([]Preset, error) {
 				continue
 			}
 			phones[p.Phone] = name
+		}
+		if p.Population != nil {
+			if prev, dup := prefixes[p.Population.IDPrefix]; dup {
+				errs = append(errs, fmt.Errorf("%s: population.id_prefix %q is already used by %s", name, p.Population.IDPrefix, prev))
+				continue
+			}
+			prefixes[p.Population.IDPrefix] = name
 		}
 		presets = append(presets, p)
 	}

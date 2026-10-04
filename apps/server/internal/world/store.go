@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"zutto-pccom/apps/server/internal/hostcatalog"
 )
 
 type Store interface {
@@ -114,6 +116,7 @@ type MemoryStore struct {
 	personas      map[string]Persona
 	personaFacts  map[string][]PersonaFact
 	memberships   map[string][]string
+	populations   map[string]hostcatalog.Population
 	next          int64
 }
 
@@ -126,17 +129,20 @@ func NewMemoryStore() *MemoryStore {
 		personas:      map[string]Persona{},
 		personaFacts:  map[string][]PersonaFact{},
 		memberships:   map[string][]string{},
+		populations:   map[string]hostcatalog.Population{},
 		next:          1000,
 	}
 
-	// Host definitions come from the embedded YAML presets
-	// (internal/hostcatalog/presets). The host with the experiment role gets the
-	// resident population the evaluation station needs.
+	// Host definitions and resident populations come from the embedded YAML presets.
+	populations := presetPopulations()
 	for _, h := range presetHosts() {
 		s.hosts[h.Phone] = h
 		if h.IsExperiment() {
 			s.posts[h.ID] = nil
-			ensureHakataExperimentPopulationLocked(s, h)
+		}
+		if spec, ok := populations[h.ID]; ok {
+			s.populations[h.ID] = spec
+			ensurePopulationLocked(s, h, spec)
 		}
 	}
 

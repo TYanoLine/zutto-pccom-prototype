@@ -17,16 +17,17 @@ const PresetSchemaVersion = 1
 // "not specified" can be told apart from a zero value. Decoding is strict:
 // unknown keys are errors, so a typo never silently becomes a default.
 type presetFile struct {
-	Schema     int             `yaml:"schema"`
-	Key        string          `yaml:"key"`
-	Revision   int             `yaml:"revision"`
-	Listed     *bool           `yaml:"listed"`
-	Role       string          `yaml:"role"`
-	Host       presetHost      `yaml:"host"`
-	Dial       presetDial      `yaml:"dial"`
-	Debug      DebugFlags      `yaml:"debug"`
-	Generation GenerationFlags `yaml:"generation"`
-	Detail     PresetDetail    `yaml:"detail"`
+	Schema     int               `yaml:"schema"`
+	Key        string            `yaml:"key"`
+	Revision   int               `yaml:"revision"`
+	Listed     *bool             `yaml:"listed"`
+	Role       string            `yaml:"role"`
+	Host       presetHost        `yaml:"host"`
+	Dial       presetDial        `yaml:"dial"`
+	Debug      DebugFlags        `yaml:"debug"`
+	Generation GenerationFlags   `yaml:"generation"`
+	Population *presetPopulation `yaml:"population"`
+	Detail     PresetDetail      `yaml:"detail"`
 }
 
 type presetHost struct {
@@ -96,6 +97,8 @@ type Preset struct {
 	// Debug and GenerationFlags are opt-in per host; absent means off.
 	Debug           DebugFlags
 	GenerationFlags GenerationFlags
+	// Population describes the resident members; nil means the host has none.
+	Population *Population
 
 	Detail PresetDetail
 }
@@ -189,6 +192,10 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 		dial.Kind = DialNormal
 	}
 	add("dial", checkDial(dial))
+	population, err := parsePopulation(f.Population)
+	if err != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", file, err))
+	}
 
 	if len(errs) > 0 {
 		return Preset{}, errors.Join(errs...)
@@ -216,6 +223,7 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 		Dial:            dial,
 		Debug:           f.Debug,
 		GenerationFlags: f.Generation,
+		Population:      population,
 		Detail:          f.Detail,
 	}, nil
 }

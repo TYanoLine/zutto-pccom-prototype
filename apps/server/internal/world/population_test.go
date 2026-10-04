@@ -2,7 +2,7 @@ package world
 
 import "testing"
 
-func TestHakataExperimentInterestsAreSparseAndNotComputerUniversal(t *testing.T) {
+func TestResidentInterestsAreSparseAndNotComputerUniversal(t *testing.T) {
 	store := NewMemoryStore()
 	host, err := store.HostByPhone("0920000196")
 	if err != nil {
@@ -26,7 +26,7 @@ func TestHakataExperimentInterestsAreSparseAndNotComputerUniversal(t *testing.T)
 	}
 	for _, key := range []string{"games", "communications", "software", "hardware"} {
 		if counts[key] >= len(personas) {
-			t.Fatalf("%s is still a universal HAKATA interest", key)
+			t.Fatalf("%s is still a universal interest", key)
 		}
 	}
 	if counts["daily_life"] == 0 || counts["local"] == 0 || counts["food"] == 0 || counts["shopping"] == 0 {
@@ -38,7 +38,7 @@ func TestHakataExperimentInterestsAreSparseAndNotComputerUniversal(t *testing.T)
 	}
 }
 
-func TestEnsureHakataExperimentPopulationRefreshesOldBiasedRoutingInterests(t *testing.T) {
+func TestEnsurePopulationRefreshesOldBiasedRoutingInterests(t *testing.T) {
 	store := NewMemoryStore()
 	host, err := store.HostByPhone("0920000196")
 	if err != nil {
@@ -46,14 +46,14 @@ func TestEnsureHakataExperimentPopulationRefreshesOldBiasedRoutingInterests(t *t
 	}
 	personas := store.ListHostPersonas(host.ID)
 	if len(personas) == 0 {
-		t.Fatal("missing HAKATA personas")
+		t.Fatal("missing resident personas")
 	}
 	p := personas[0]
 	p.Interests = map[string]float64{
 		"games": 1, "communications": 1, "software": 1, "hardware": 1,
 	}
 	store.SavePersona(p)
-	store.EnsureHakataExperimentPopulation(host.Phone)
+	store.EnsurePopulation(host.Phone)
 
 	refreshed, ok := store.PersonaByID(p.ID)
 	if !ok {

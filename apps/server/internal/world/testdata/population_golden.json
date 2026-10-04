@@ -1,0 +1,6530 @@
+{
+ "after_partial_restore": [
+  {
+   "id": "hakata-mari",
+   "handle": "MARI",
+   "sha256": "86e8ad16e1ac6b3fd8be19ba5bbb3115d83ffe6db7d5814ccdf6d0ed47420797"
+  },
+  {
+   "id": "hakata-yuki",
+   "handle": "YUKI",
+   "sha256": "05c2203255e6394dae6e3fe5e294cea36c846c05aad3c8be3e3c72e84218d5d3"
+  },
+  {
+   "id": "hakata-nori",
+   "handle": "NORI",
+   "sha256": "fcd3456225e443755394c4b3ab6a91b88d0823d76c48ecaf2891ac5c9f465baa"
+  },
+  {
+   "id": "hakata-kazu",
+   "handle": "KAZU",
+   "sha256": "b8ed900a7b2808396630c2aa0a570bec4b609bfeb3cce6b554a2460dda34ea1e"
+  },
+  {
+   "id": "hakata-taku",
+   "handle": "TAKU",
+   "sha256": "ed0480f63d2e6d8b641b036bb058b842b9dc35b12da0c14f89c1c5e6393ca031"
+  },
+  {
+   "id": "hakata-neko",
+   "handle": "NEKO",
+   "sha256": "625503a3b96c8d87438b021072320170caeb6d308d3a8c56eecc743174b388b2"
+  },
+  {
+   "id": "hakata-ken",
+   "handle": "KEN",
+   "sha256": "9372ee05e0094f3fb4b890b7726e258b6e2f30145dd9fc48bed19d2b660d9bf2"
+  },
+  {
+   "id": "hakata-mako",
+   "handle": "MAKO",
+   "sha256": "bd3a836733877b7fea825cc927046d9a1c28a2be3f5c3f51eb1f8a2ddd869aef"
+  },
+  {
+   "id": "hakata-tomo",
+   "handle": "TOMO",
+   "sha256": "55584113693ab7a4dd33a02c4d4a22ab53ea7e0edf4b47df9bb9c1328bdf8614"
+  },
+  {
+   "id": "hakata-aki",
+   "handle": "AKI",
+   "sha256": "533da57664610963b4ce566d6013b3df3848c804d8fe585198523c1bb2030b55"
+  },
+  {
+   "id": "hakata-ryo",
+   "handle": "RYO",
+   "sha256": "7fe310720b15e91f1a66f17b3eb4d4a44ea4386a2f687a3be4d41f59167708ad"
+  },
+  {
+   "id": "hakata-hiro",
+   "handle": "HIRO",
+   "sha256": "93d750e1bae5f0a9f34f0d68739716ef92825118466cde2be63a4646fdaa7411"
+  },
+  {
+   "id": "hakata-sachi",
+   "handle": "SACHI",
+   "sha256": "e8a02bc6639242d6c1f068a2a0e5200338766326f7726bf3db7d6c9cf8aa811f"
+  },
+  {
+   "id": "hakata-jun",
+   "handle": "JUN",
+   "sha256": "b9edb5c66f4120c2fa88bae7f2076f81c008aad8f413930e1594aee01ac2e8ca"
+  },
+  {
+   "id": "hakata-midnight",
+   "handle": "MIDNIGHT",
+   "sha256": "5b4f11ef985d955d0b940abc7775598b0aecd52a11743242b43d7004df979ce7"
+  },
+  {
+   "id": "hakata-member-016",
+   "handle": "EMI",
+   "sha256": "fa9bb6255468c91155e47f1f61d8781397a8ebeae8668893bef095252b5eed2c"
+  },
+  {
+   "id": "hakata-member-017",
+   "handle": "MEG",
+   "sha256": "975c408beb8292136d71b07b8538c7a10e363f1ce5c81fd07c1f9bb171b98407"
+  },
+  {
+   "id": "hakata-member-018",
+   "handle": "KOJI",
+   "sha256": "f659cce3e802d70024ad01462b98b12e9a26991bd8bac2f2d35096acc9076ecb"
+  },
+  {
+   "id": "hakata-member-019",
+   "handle": "SATOSHI",
+   "sha256": "36014adedabbf35f39ce65e24a3ad40f40743b9f531b80bd88b84a9f3da48464"
+  },
+  {
+   "id": "hakata-member-020",
+   "handle": "V30",
+   "sha256": "cbd25e7a63c1c3868db290687d59383a7be528c3580ef5f17f9e0fb479156470"
+  },
+  {
+   "id": "hakata-member-021",
+   "handle": "TAKESHI",
+   "sha256": "44a6be45c5fdf9c05d84026f3b6ba25e0a000ac960f6ef9586ead693ec0e1254"
+  },
+  {
+   "id": "hakata-member-022",
+   "handle": "KOJI.B",
+   "sha256": "0b56f6b004fe4dc0181bea62c76cce5eb08a178d15f376e1ffbd0925516e38f4"
+  },
+  {
+   "id": "hakata-member-023",
+   "handle": "MAYU",
+   "sha256": "fb5b99aec260618962d82a48aaeb8c5c7b5fdd9c9b2fa7d43106b843d609b8ba"
+  },
+  {
+   "id": "hakata-member-024",
+   "handle": "KERO",
+   "sha256": "22a00cd70497904c8fa516f0c327196bff5653d3cd895311025a555d89c36ff9"
+  },
+  {
+   "id": "hakata-member-025",
+   "handle": "SHIN",
+   "sha256": "862048bfa7b9645e05875c2c6f67dfcfd01dd252cc0113b3604196f65bc7aa67"
+  },
+  {
+   "id": "hakata-member-026",
+   "handle": "NAO",
+   "sha256": "c3d12e3c61e40f540ff3c06eb13b69ba28804a7eb6bba877c09c42dea9136d02"
+  },
+  {
+   "id": "hakata-member-027",
+   "handle": "NORI.Z",
+   "sha256": "c0816ea4c2777719decd8fa16a03a6e387648585be0d3cb4c68b9a38865faba1"
+  },
+  {
+   "id": "hakata-member-028",
+   "handle": "JOKER",
+   "sha256": "4d8657e8ecef6839598d4999fa3c813ca623ec31b249ce8518315a1479bb13e3"
+  },
+  {
+   "id": "hakata-member-029",
+   "handle": "NAO.Z",
+   "sha256": "62a93e13fbeca7172296ceac37271c22f1255cb939009575e6c958ff6986ef98"
+  },
+  {
+   "id": "hakata-member-030",
+   "handle": "REI",
+   "sha256": "767aed9f0a14776b67ae1f2d4be3b710a111d0ae3d36b13d11061c681b3c9e0b"
+  },
+  {
+   "id": "hakata-member-031",
+   "handle": "MINT",
+   "sha256": "5a8a118729a89ea61c11af8d0e26783302de957340fed11626e805f4f15cbe7b"
+  },
+  {
+   "id": "hakata-member-032",
+   "handle": "MASA",
+   "sha256": "d706cc5a77dfcdc0a5d7eaba67e6a51361fab50918aeca386b8a04b89f20cf49"
+  },
+  {
+   "id": "hakata-member-033",
+   "handle": "LUNA",
+   "sha256": "b6048706c41a5b6d385e72aa2266b95159552804f1d2aefe62b5fae998418adc"
+  },
+  {
+   "id": "hakata-member-034",
+   "handle": "MEG.M",
+   "sha256": "05b90d87b9e6fa30bd5c613a7bab78341137bd0abbaf89e9c40455ddeb11e4a7"
+  },
+  {
+   "id": "hakata-member-035",
+   "handle": "V30.Q",
+   "sha256": "1873be59a867172d8794c56904c1134d27974232a30e128f5a9f9d1577ff94d4"
+  },
+  {
+   "id": "hakata-member-036",
+   "handle": "HIRO.K",
+   "sha256": "25f5e937b9b6b9c66ee694b4e157753b6881cfe895f4d104d629525e0cdf4ef5"
+  },
+  {
+   "id": "hakata-member-037",
+   "handle": "COM",
+   "sha256": "f0544f71169483080a0c563195c208d5a10435d065502f5c4c5987c48d2c4eaf"
+  },
+  {
+   "id": "hakata-member-038",
+   "handle": "KAZU.D",
+   "sha256": "a68ca04e743066457c4e48889b340e4bc6b01f44dcb02f442fc4fb57bc058998"
+  },
+  {
+   "id": "hakata-member-039",
+   "handle": "TOMO.O",
+   "sha256": "eb45f30113afe270f15955179bde142ee223ead9e2c2d6a0087814b77e0a45c0"
+  },
+  {
+   "id": "hakata-member-040",
+   "handle": "NOVA",
+   "sha256": "58886a725551b020750dc573ab606fe4f4d829ac90eaa87fb6857cb8d5c0ea4a"
+  },
+  {
+   "id": "hakata-member-041",
+   "handle": "EMI.U",
+   "sha256": "8bec6fbf1b58d3216cae7d219ce09143e98339acd4839bfb480c9b917955d23a"
+  },
+  {
+   "id": "hakata-member-042",
+   "handle": "TAKA",
+   "sha256": "e4e3558f4ee3145f816d506d09dfa67e7798fceb86cf55b215494de7bebeaea7"
+  },
+  {
+   "id": "hakata-member-043",
+   "handle": "HIDE",
+   "sha256": "f7819424a745dcd33a61992b0795a9ed518ac021a73b31b9a02091c51459410e"
+  },
+  {
+   "id": "hakata-member-044",
+   "handle": "WOLF",
+   "sha256": "86d7c0c769e5832a2b6839d15a273f6e3f0d4116b7f84c2bbc1cf492f91bdc1c"
+  },
+  {
+   "id": "hakata-member-045",
+   "handle": "RYO.G",
+   "sha256": "90b99ba15b32bf83b2823ac25682cbf448fafa169114525ce50ca36c4c56dfac"
+  },
+  {
+   "id": "hakata-member-046",
+   "handle": "RYO.C",
+   "sha256": "0e5dff28af1995d814cdaeec4048758cf4f2d20ff71f3a89bf7f3b97420b2f4d"
+  },
+  {
+   "id": "hakata-member-047",
+   "handle": "SATOSHI.C",
+   "sha256": "f144ecadba40d1079ca969baad76d46821648c8e179787d8c822ba3c278847c5"
+  },
+  {
+   "id": "hakata-member-048",
+   "handle": "EMI.L",
+   "sha256": "8792c217ad1c7b4d109662cde538343ea6be1793e69e661f98413625e76c6848"
+  },
+  {
+   "id": "hakata-member-049",
+   "handle": "MINT.O",
+   "sha256": "e226a480421aa1da715a11508f3a85a1cf58630e8f54d19d5a9ba6f3973c54aa"
+  },
+  {
+   "id": "hakata-member-050",
+   "handle": "KAZU.C",
+   "sha256": "1fd2af7cb250aa4399c77aff79bd8bef8f85cf33aa5bedf2eddf9e582a914802"
+  },
+  {
+   "id": "hakata-member-051",
+   "handle": "NORI.O",
+   "sha256": "c45df2d73f121b795ba5acc2c09e6d69a9c9f53f77050d53a56f2854ee6e8830"
+  },
+  {
+   "id": "hakata-member-052",
+   "handle": "REI.Z",
+   "sha256": "f61673df9618ae2d207f6ae4bfe7f6fdd01dd4dcd7fb9f8290b1ab26f39e5b62"
+  },
+  {
+   "id": "hakata-member-053",
+   "handle": "MARI.V",
+   "sha256": "36f5d5de6b1d073a4404041e865edbde8e59e1283a5156c4834fa231771bff33"
+  },
+  {
+   "id": "hakata-member-054",
+   "handle": "JOKER.N",
+   "sha256": "b3f3f5340cd812745fc55bc01984df4dd9193433f99f647341a7e0b3fcbea04a"
+  },
+  {
+   "id": "hakata-member-055",
+   "handle": "N88",
+   "sha256": "e93b3ebea54ce7b4ba309a7e8b4984ebd6afd024c9f1c485843acc0ef67c22df"
+  },
+  {
+   "id": "hakata-member-056",
+   "handle": "LUNA.Y",
+   "sha256": "0b2c9198e5340586c8ca77e2ee57a046abae9608158594f286287184190d76e9"
+  },
+  {
+   "id": "hakata-member-057",
+   "handle": "JOKER.J",
+   "sha256": "1f0e124a2b776e21bc5354fcca714c177758c1e5d9e7eb13c1ea7ec00b59b063"
+  },
+  {
+   "id": "hakata-member-058",
+   "handle": "KAZU-W",
+   "sha256": "ce292684bded52de0df8f545000b16778cfce60fb8c1755e3dd5f8a71ab8ce91"
+  },
+  {
+   "id": "hakata-member-059",
+   "handle": "NORI.D",
+   "sha256": "08ebfca657c73561ce693eb9d9c71123826077277efae7a06846ff7a348baeaf"
+  },
+  {
+   "id": "hakata-member-060",
+   "handle": "SATOSHI.P",
+   "sha256": "ec3bf18ea763cdb672416c9f9253fcaced598b956ccc155951f1219c4bb1412d"
+  },
+  {
+   "id": "hakata-member-061",
+   "handle": "TAKA.I",
+   "sha256": "4bb5057cfad4947e3e2a4cc11d2811df08901849c1218122e803c6421a94e1da"
+  },
+  {
+   "id": "hakata-member-062",
+   "handle": "RABBIT",
+   "sha256": "156147163af9e172fbb984525d1bd543ff2fcfa1468841ae10d0a66f17063d85"
+  },
+  {
+   "id": "hakata-member-063",
+   "handle": "MARI.N",
+   "sha256": "4330c4ce194fd9871a94a2976c77cf1b3d7a53366e5a8ff3d3322c06a7da9a61"
+  },
+  {
+   "id": "hakata-member-064",
+   "handle": "TAKA.L",
+   "sha256": "f7b41945adde9864f09754747f99e9e8eace267ae94d216fd135c3e7f61fc257"
+  },
+  {
+   "id": "hakata-member-065",
+   "handle": "HIRO.T",
+   "sha256": "c1de4328d13c994d32959fc2ae3a6f97f11fa894dd09d41869c274fe7db44177"
+  },
+  {
+   "id": "hakata-member-066",
+   "handle": "KENTA",
+   "sha256": "03f9d63b94128709c88606b012cbfbf3cf3d4d58de0ce770b790e8b0b4b7d8d1"
+  },
+  {
+   "id": "hakata-member-067",
+   "handle": "MAKO.J",
+   "sha256": "06b20862e3a6dfcf87bc8e3d824ea551b9b4864590ef7fa7696df0daf27ead91"
+  },
+  {
+   "id": "hakata-member-068",
+   "handle": "EMI.F",
+   "sha256": "833d607ecca15b5cde93a44a11d795243e240e33c703d5c6f4a57a403d70ab79"
+  },
+  {
+   "id": "hakata-member-069",
+   "handle": "AYA",
+   "sha256": "a20daf05c58ac195986a98ceb15437c185f36a85a4aba21b125db44772d3a3a3"
+  },
+  {
+   "id": "hakata-member-070",
+   "handle": "SATOSHI.J",
+   "sha256": "49f08000d10f06d2a9c48d3ce12a796d0fb4407b2ac71a82337c1bcf29631727"
+  },
+  {
+   "id": "hakata-member-071",
+   "handle": "JUN.V",
+   "sha256": "0200fbf8d159fc6473a51ff87d2f94f3443834ee6a90e735798c77d2f634a2b3"
+  },
+  {
+   "id": "hakata-member-072",
+   "handle": "MAYU.P",
+   "sha256": "289809ff2ac69cdae903c6ebc48b1c94ead85a9e9381304125fa7a5ca2a73ddf"
+  },
+  {
+   "id": "hakata-member-073",
+   "handle": "HIRO.J",
+   "sha256": "58af9556c34bddf2ee2502e26c1dc03ad3a7b46fbd9a694271564b301f6cda55"
+  },
+  {
+   "id": "hakata-member-074",
+   "handle": "KEN.T",
+   "sha256": "f70c9ed29edf8c51a64e1865c5444daf3e1164cfac2abddd6f7d618abd372767"
+  },
+  {
+   "id": "hakata-member-075",
+   "handle": "MAKO.A",
+   "sha256": "a2082e29e4c486d6796d02a2adb7ee76fb4460a826bbf76e2eabed1b26a94d87"
+  },
+  {
+   "id": "hakata-member-076",
+   "handle": "AYA.B",
+   "sha256": "742665374f5035fd496b87ffd6800e35ef3517ad4d1a378aca785e7929907db5"
+  },
+  {
+   "id": "hakata-member-077",
+   "handle": "TAKA.S",
+   "sha256": "9a889353237d38e5d75ebf058a9775ae7f54f8b95f05890624907bd77133ef0f"
+  },
+  {
+   "id": "hakata-member-078",
+   "handle": "TOMO.N",
+   "sha256": "41c582852e6464bfd8a9278038705ac609369c82a8fd4f2c2420f309fbbaf075"
+  },
+  {
+   "id": "hakata-member-079",
+   "handle": "MEG.G",
+   "sha256": "f584d67b0130a8b0559592e35ead2cb645104d2a99484915eaad57165b3c511f"
+  },
+  {
+   "id": "hakata-member-080",
+   "handle": "MIKI",
+   "sha256": "4e4b85ba354ee5dbcf609797585145d9befa677c27618e11f33e1adbdb088834"
+  },
+  {
+   "id": "hakata-member-081",
+   "handle": "TOMO.Y",
+   "sha256": "dadcea2de77f709b37004d59ef952ee04cb16d94ad078efd2ce336155dfc20b2"
+  },
+  {
+   "id": "hakata-member-082",
+   "handle": "REI.G",
+   "sha256": "936732e7114e7380afc4a594824486d97adb7cc43b4b1bba80f674c7a6308b05"
+  },
+  {
+   "id": "hakata-member-083",
+   "handle": "JOKER.Y",
+   "sha256": "f3ea93069770984aea61696a3dd83c4a72f60f37e6157104b902ecd97eac10a0"
+  },
+  {
+   "id": "hakata-member-084",
+   "handle": "NORI.E",
+   "sha256": "3df6247d0d4f57bebb13ffda4a1d1f9b72fe209ece5ded1a6e570047b42af739"
+  },
+  {
+   "id": "hakata-member-085",
+   "handle": "RYO.K",
+   "sha256": "4e6610ba7f262e200eedff1ecb2fad1e273fa0d224f1de9714fc1faeed0f098e"
+  },
+  {
+   "id": "hakata-member-086",
+   "handle": "KEN.G",
+   "sha256": "7edb151f262ec5452cb8ced8129d5bfa01ef4aa4ac9fc29f1e12c70647c89e31"
+  },
+  {
+   "id": "hakata-member-087",
+   "handle": "NOVA.G",
+   "sha256": "3f146fa18ec6064ab7742214809a16434c53749ef1b92d6b497a7af095e078dc"
+  },
+  {
+   "id": "hakata-member-088",
+   "handle": "TAKESHI.Y",
+   "sha256": "b4d7b15d25af996d03015884069f47bd456a175f8bdb5940b6546813c4d3e847"
+  },
+  {
+   "id": "hakata-member-089",
+   "handle": "JUN.M",
+   "sha256": "7c99203fcae0a0b57a66eee4aad6777764bceba3552bdcfc4c4ab47782c73c55"
+  },
+  {
+   "id": "hakata-member-090",
+   "handle": "PC98",
+   "sha256": "8fb37d1d06b3bad78c96e10a69246f5bae45d67649f2131351561878b8ca4a7b"
+  },
+  {
+   "id": "hakata-member-091",
+   "handle": "JUN.G",
+   "sha256": "d77887bbc3e5f001b87b7720155c1ccccbe05cdc258a3182f606579e657123dd"
+  },
+  {
+   "id": "hakata-member-092",
+   "handle": "TOMO.Q",
+   "sha256": "9f19b9798075e822438e9824bf0f547de855381a966c273e806dc84dee659beb"
+  },
+  {
+   "id": "hakata-member-093",
+   "handle": "V30.C",
+   "sha256": "29bb84b8632ff599b0fd0ecc02222e99ef382ff18ac1bd2a01a1383921bd5f68"
+  },
+  {
+   "id": "hakata-member-094",
+   "handle": "ERI",
+   "sha256": "b6bb3abe5ecec1b8628639d39605a6a80d2297289878e54addf9001ba922e2ce"
+  },
+  {
+   "id": "hakata-member-095",
+   "handle": "AYA.L",
+   "sha256": "a8268f54735959dfa10c1b1a2839b17bdc736dde8f1158648ee3ccce10a02584"
+  },
+  {
+   "id": "hakata-member-096",
+   "handle": "MAYU.D",
+   "sha256": "7b11cb47349d51770f3c13d2d4481e7f6249015c464d6a7fc3b5018565540892"
+  },
+  {
+   "id": "hakata-member-097",
+   "handle": "MEG.D",
+   "sha256": "9e3c05857a7219b940da97e0c028057487bcf820dbccb71f135f525ac3125903"
+  },
+  {
+   "id": "hakata-member-098",
+   "handle": "YUJI",
+   "sha256": "c623f0b3f07f47f1fb2745f213af740f1dfe486a31fb418e4eecd3f277bce635"
+  },
+  {
+   "id": "hakata-member-099",
+   "handle": "NOVA.L",
+   "sha256": "e40daaff6acefba583de16b1818db3ae71bae823ac00544b54ba5c545783b9d4"
+  },
+  {
+   "id": "hakata-member-100",
+   "handle": "KEN-D",
+   "sha256": "fac05f2391656ab98e9cf21608e5b9630fbd220e045728a72d23bc73db38fb3e"
+  },
+  {
+   "id": "hakata-member-101",
+   "handle": "YUKI.P",
+   "sha256": "9c9be06444edb7586b96feef219d6cf98cc566790d921ef9870affb9a228386f"
+  },
+  {
+   "id": "hakata-member-102",
+   "handle": "NAO.Y",
+   "sha256": "552f8c30f100e66ca75847af911d0141391cd188164d4815aa0c7dc19d6e1cc3"
+  },
+  {
+   "id": "hakata-member-103",
+   "handle": "TOMO.M",
+   "sha256": "fe1911c23999a2a586d2c13a0cc6848ac32cf17a5d6f5cfe3d7387fdd9866d19"
+  },
+  {
+   "id": "hakata-member-104",
+   "handle": "SATOSHI.F",
+   "sha256": "e6ad626a1993a74791e30da48a16ab96e5aa8498a517ac5d86084315edfabc06"
+  },
+  {
+   "id": "hakata-member-105",
+   "handle": "YUJI.K",
+   "sha256": "76222317f2d13a852ca3bdd47e420716adf9cde81897112924b46fba6b1b6eb8"
+  },
+  {
+   "id": "hakata-member-106",
+   "handle": "MARI.B",
+   "sha256": "d9247f03cf0dac40d134a20898d861a0843f9919795a1de133bc7998eceb1256"
+  },
+  {
+   "id": "hakata-member-107",
+   "handle": "MINT.I",
+   "sha256": "22e2cb30230cd1c04cf5f074ee7bb39f586c634d3d5156fb2b4779c0122197e0"
+  },
+  {
+   "id": "hakata-member-108",
+   "handle": "MARU",
+   "sha256": "db96a2533a2674aae0c8a34c52ce143aefaf222e2ddefc425bc1ed639c118802"
+  },
+  {
+   "id": "hakata-member-109",
+   "handle": "WOLF.F",
+   "sha256": "0a9f675309583f90ab2936b7625e0cb97b850261e86f1a43601645d2cd6b1bc5"
+  },
+  {
+   "id": "hakata-member-110",
+   "handle": "KEN.H",
+   "sha256": "6f1759ab764e36cc867453889199e2a49344e6a75e3179de315d1e0e5dcb2f24"
+  },
+  {
+   "id": "hakata-member-111",
+   "handle": "ERI.Z",
+   "sha256": "957eedfa7066d7b2be810751833975c83deb9e0184fed2a646fc9dcca2eea858"
+  },
+  {
+   "id": "hakata-member-112",
+   "handle": "V30.H",
+   "sha256": "770a65ae8e9b73d85ae96f077f523133a7c47ed3c158a335762cc072dd4458fc"
+  },
+  {
+   "id": "hakata-member-113",
+   "handle": "MEG.F",
+   "sha256": "84db25313fb130775bce3c48402ffa855172781b86f5559262c009d57bacf8c0"
+  },
+  {
+   "id": "hakata-member-114",
+   "handle": "MEG.N",
+   "sha256": "184752056bede4f4bab73b4b03fcde67fffc3cc30b5caa671efb58ecbb481037"
+  },
+  {
+   "id": "hakata-member-115",
+   "handle": "MASA.J",
+   "sha256": "4fb43768f4d34b928c3e90752f771463f787dd7c65aeb90ebd6633e6e0b56484"
+  },
+  {
+   "id": "hakata-member-116",
+   "handle": "TOMO.A",
+   "sha256": "a1f9bd6c27c663f6e3a49c4f35e502f4f0b46c8f5d18df3eb64fd72d7e1a597d"
+  },
+  {
+   "id": "hakata-member-117",
+   "handle": "SHIN.J",
+   "sha256": "ecdae866d48ecc1d376b66e83629ca1efeedb84dcc821f2d8e22637461af4925"
+  },
+  {
+   "id": "hakata-member-118",
+   "handle": "TOMO.T",
+   "sha256": "f0252c638eebdac52a63388b366ec205ac245b6e12c898df20028e45888b372d"
+  },
+  {
+   "id": "hakata-member-119",
+   "handle": "TAKESHI.R",
+   "sha256": "5eb4f79719a5917df2e4556484ce83053cd602b06497294d4e61d714ac8f8692"
+  },
+  {
+   "id": "hakata-member-120",
+   "handle": "TOMO.P",
+   "sha256": "fda1d19a95cc244bc1dc8047912b98f4d21f5e3c95e8f2643c234fb3e3a11e81"
+  },
+  {
+   "id": "hakata-member-121",
+   "handle": "SATOSHI.X",
+   "sha256": "379c2bb8b1fd45e720f1892b33a42f019e591848f318e69ff39df95be893bcb2"
+  },
+  {
+   "id": "hakata-member-122",
+   "handle": "RABBIT.E",
+   "sha256": "b0218b2c58945469ac3ccba46cb7b34356397bf6c5e71349af13f514dacc1403"
+  },
+  {
+   "id": "hakata-member-123",
+   "handle": "NOVA.I",
+   "sha256": "743b86247eda8eaab72411f2519eb75bd9cb4d05457bc3525e7bc21252c07e3e"
+  },
+  {
+   "id": "hakata-member-124",
+   "handle": "JOKER.W",
+   "sha256": "dd8a361859c56f7096b6d0ea817e6713f16d237f2bec30b616d65f8f97af3c16"
+  },
+  {
+   "id": "hakata-member-125",
+   "handle": "KAZU.Y",
+   "sha256": "b5d9df143f7af1a8f4d9917fcae182934b7ca57ff20c7632a59c963cdaf71a2b"
+  },
+  {
+   "id": "hakata-member-126",
+   "handle": "HIRO.Y",
+   "sha256": "ec9239df1faf0698834d6294c664c27747a5ef33c8a44a022e89aad221d9396d"
+  },
+  {
+   "id": "hakata-member-127",
+   "handle": "JUN.I",
+   "sha256": "820f766ccd27b6537f9b9c05cc7a1a94ea21ea57ca2c9b6fe50190243bda9486"
+  },
+  {
+   "id": "hakata-member-128",
+   "handle": "MARI.Q",
+   "sha256": "fa23ea7f25375db95fe37e3f552417efb8b99f24a6a174e17fc4ae4a74fb38fb"
+  },
+  {
+   "id": "hakata-member-129",
+   "handle": "RYO.U",
+   "sha256": "2c525c29f598f7a7cd9e6ea04871da9a8f204ce3f655f32b3835d9f5bdb30478"
+  },
+  {
+   "id": "hakata-member-130",
+   "handle": "MINT.E",
+   "sha256": "1490af82f9b0d7bc5569c5b1967e1d06056697e0dcddd400c7b98c80a2c826ff"
+  },
+  {
+   "id": "hakata-member-131",
+   "handle": "WOLF.A",
+   "sha256": "c030c97553778f1c939078fa6ea55e0f950c2fc4ad9c749622d837ad78f95f93"
+  },
+  {
+   "id": "hakata-member-132",
+   "handle": "JOKER.A",
+   "sha256": "9bc005fdded5c29557a5590bb61b2571d857327c056a95816c0655604ff73387"
+  },
+  {
+   "id": "hakata-member-133",
+   "handle": "KAZU-M",
+   "sha256": "e83afe21d7ae8267517118705acde9d2d36841eecb3cf7b6448888712fa4f3e6"
+  },
+  {
+   "id": "hakata-member-134",
+   "handle": "EMI-R",
+   "sha256": "df1225a378c24ada0bfe9ea99dd606d6f0548ff4e83161b24b6bd7e3bfb3e53a"
+  },
+  {
+   "id": "hakata-member-135",
+   "handle": "HIRO.S",
+   "sha256": "7a6aee8156d4824d18681a4111ef22582e355e8a202704bb9cda11c72dc61341"
+  },
+  {
+   "id": "hakata-member-136",
+   "handle": "NORI.K",
+   "sha256": "ba0896040af3845ad41042dd9f6e54068145f1e3c70b72fb313981380f325907"
+  },
+  {
+   "id": "hakata-member-137",
+   "handle": "EMI.M",
+   "sha256": "25afaae734da064b8d55cb0e812447e4ae32033ceaefba6f818a28e1aa3885d3"
+  },
+  {
+   "id": "hakata-member-138",
+   "handle": "LUNA.H",
+   "sha256": "cd984e2dffe5ad2f7ca24125e23bde130d7e44ec5f299a55a425361228af2284"
+  },
+  {
+   "id": "hakata-member-139",
+   "handle": "KAZU.P",
+   "sha256": "4081a3c0e3bc1d73aead1b51ba5ac5afc1da73656c307565e3a6c79eeed9cece"
+  },
+  {
+   "id": "hakata-member-140",
+   "handle": "AYA.W",
+   "sha256": "715447bd82e14aaa10e14ad49ddbad4c5eaec3bbfc16d7977ad6bb9615668ff6"
+  },
+  {
+   "id": "hakata-member-141",
+   "handle": "N88.M",
+   "sha256": "05b5555e5c32a0d893a15a3bdaff1f0234df44bd2bdb55ae8e1011046fb45586"
+  },
+  {
+   "id": "hakata-member-142",
+   "handle": "MARI-L",
+   "sha256": "1e634096ad1ec1a324ca2d7928bcbe0d57ceeef6a17151c20fb962dc5679b9cf"
+  },
+  {
+   "id": "hakata-member-143",
+   "handle": "MINT.L",
+   "sha256": "8a329011286262028db2578bf8b2c258ab05984114909546e3bf896e9b991822"
+  },
+  {
+   "id": "hakata-member-144",
+   "handle": "JUN.T",
+   "sha256": "4c697887e457ce7116acfd0b3d71683278d64407e17e88cdba2dc7c997171c57"
+  },
+  {
+   "id": "hakata-member-145",
+   "handle": "MAKO-F",
+   "sha256": "8c283bb3d7b421174561f4d19b0f48d465bd4514bc02b92a65fdda8c2136c083"
+  },
+  {
+   "id": "hakata-member-146",
+   "handle": "NAO.N",
+   "sha256": "58f445a82d4a49e573e5dc64d3b33aa7bc44ec02e52bda1b673e4ceb43b12722"
+  },
+  {
+   "id": "hakata-member-147",
+   "handle": "KEN-Y",
+   "sha256": "4838f68ce5fc3667cf409974bd28fb3e0c3df728286be6e0cd0314802390a20a"
+  },
+  {
+   "id": "hakata-member-148",
+   "handle": "MODEM",
+   "sha256": "bd3077f62cd6d0d3b38b9a5ad0ab192b1f3d22ea2874a802526ac59ea77adafa"
+  },
+  {
+   "id": "hakata-member-149",
+   "handle": "MARI.T",
+   "sha256": "9b0cfe24420ad3d18c06b54618fff5427f3b598b8d05827b8ddcea9559a8d66f"
+  },
+  {
+   "id": "hakata-member-150",
+   "handle": "KAZU.L",
+   "sha256": "2f5c163957f09d0d25d57103bad8f2837293e61390b5175510f41396e1e1f10b"
+  },
+  {
+   "id": "hakata-member-151",
+   "handle": "MIKI.Z",
+   "sha256": "399bee6264babf45fa7ce0e8c8ddc83bed041b21644a0d91a4c15e96cbc77fad"
+  },
+  {
+   "id": "hakata-member-152",
+   "handle": "SATOSHI-P",
+   "sha256": "ca56798500d681c775c991b903a68b2f5e9e2a846b7c8f4f00211b8d23517536"
+  },
+  {
+   "id": "hakata-member-153",
+   "handle": "MINT.D",
+   "sha256": "6bb81ec22d7a8d0216437e81ce4f84b51e32b7e093520e3c41b2c653bf7134d7"
+  },
+  {
+   "id": "hakata-member-154",
+   "handle": "KENTA.B",
+   "sha256": "08de434218179634678bb422f933ee8fa6c03d4835d52a10b914e47faaf2a934"
+  },
+  {
+   "id": "hakata-member-155",
+   "handle": "N88.Q",
+   "sha256": "0a5c634b65ecbfdc9735ebd0b385fd894824de254f03a0b095073d18408d7aa6"
+  },
+  {
+   "id": "hakata-member-156",
+   "handle": "KERO.V",
+   "sha256": "eccc5f0abb84c8c75de830339ee19a54cde02c43a441f8bcea5ecbb29ec9fff6"
+  },
+  {
+   "id": "hakata-member-157",
+   "handle": "TAKA-I",
+   "sha256": "ffa76622ba5a83b53f57563bc18b4738128f3bb98ceab09f8b9eea7a08fce1c1"
+  },
+  {
+   "id": "hakata-member-158",
+   "handle": "NOVA.Z",
+   "sha256": "0327fc43b457544351cf8f66225438c1c5a556b0d349aae4a6a2513848a2644a"
+  },
+  {
+   "id": "hakata-member-159",
+   "handle": "RYO.V",
+   "sha256": "bf9e16a09530887fdd852354bd87231e5f9ccd5d0a8ebda335b4e7bb842cec8c"
+  },
+  {
+   "id": "hakata-member-160",
+   "handle": "KENTA-H",
+   "sha256": "c88518c03f5e5578f1801769571e1429e6b5ca6fad5cad031c58075a78f1e3b0"
+  },
+  {
+   "id": "hakata-member-161",
+   "handle": "KERO.R",
+   "sha256": "5e8284204bd72dcc3d7ff958355bf1f72f9047b62f569036eca9994f0731e8e7"
+  },
+  {
+   "id": "hakata-member-162",
+   "handle": "NAO.U",
+   "sha256": "99e38965e319034b40e6bcb2093810b8c4bde20f7292c70f5249ffe72490b542"
+  },
+  {
+   "id": "hakata-member-163",
+   "handle": "AYA-T",
+   "sha256": "1e9af9d4f99398acd5c61fe018a4e400ce8f0810f7d47df340a6ef2cbd0052a9"
+  },
+  {
+   "id": "hakata-member-164",
+   "handle": "MIKI.U",
+   "sha256": "dfe87ba7715e8e7120b0f57c953e627e599e61ab1cc6d36e77699ea836397f40"
+  },
+  {
+   "id": "hakata-member-165",
+   "handle": "NAO-M",
+   "sha256": "a61feeb1a9cb725b1ccfc7c4d54286f2cb1e49fa8d880bff00784e1592777793"
+  },
+  {
+   "id": "hakata-member-166",
+   "handle": "MAYU.X",
+   "sha256": "53228bb9b7ab7fe1ec72e538dbe1c677b4846c9d4d8c78ecfe798efc07a6c926"
+  },
+  {
+   "id": "hakata-member-167",
+   "handle": "MASA.Q",
+   "sha256": "e2856d5544a5216d8773a486914b6ecf52972411adf8ba2a12181db8e30cdd07"
+  },
+  {
+   "id": "hakata-member-168",
+   "handle": "RYO.E",
+   "sha256": "40a621da934fe4cafe019000f298dc2b36f8b4f58f29d80a99e6e959ce5fa5ad"
+  },
+  {
+   "id": "hakata-member-169",
+   "handle": "JUN.O",
+   "sha256": "dd85b89b34fc9d6ead6897e1bcdbe795f1fb660905d54894c2c110fba588f1b4"
+  },
+  {
+   "id": "hakata-member-170",
+   "handle": "KERO.E",
+   "sha256": "5f6200abdd6a7f8c1a7cb21d7ce4f11eb1aa1365c2de1e626810e1ed7349230b"
+  },
+  {
+   "id": "hakata-member-171",
+   "handle": "MAKO-K",
+   "sha256": "83ee3a662f47c6195248b4ce681e137e05096012b938ce4f574abb0bbf058ea4"
+  },
+  {
+   "id": "hakata-member-172",
+   "handle": "COM.S",
+   "sha256": "28fbafd8de9ebc5adef2c336ac630bfdc1355118250cb193f5ee3815dc01aecd"
+  },
+  {
+   "id": "hakata-member-173",
+   "handle": "SATOSHI.A",
+   "sha256": "b102bb7ba442e4d9e26216a1b4a2651728286c1c953a44a46ce1e00120fe0e0e"
+  },
+  {
+   "id": "hakata-member-174",
+   "handle": "MINT.Y",
+   "sha256": "d4f0ca22bbadc4ad08f73ec64138f5b683fd3e1204070ebf6c01b0ecb4111288"
+  },
+  {
+   "id": "hakata-member-175",
+   "handle": "TAKESHI.V",
+   "sha256": "2e5e34ad736788642c63b4e68aa12def448001656334881efd63d34fb15450a2"
+  },
+  {
+   "id": "hakata-member-176",
+   "handle": "N88-H",
+   "sha256": "df65bdf87aefdfd0bee80c266c9107473cb24e315f5849fb33b951268f9ca30e"
+  },
+  {
+   "id": "hakata-member-177",
+   "handle": "AKI.I",
+   "sha256": "67e512b3e0672397e3fa1c90fd3ea9675ed704a4db217da125da25c3fc373545"
+  },
+  {
+   "id": "hakata-member-178",
+   "handle": "LUNA.O",
+   "sha256": "48bfccb9ac6c1daa9ed1f5c95aee85cca76d6879ce6d613d38754b1d51c8217e"
+  },
+  {
+   "id": "hakata-member-179",
+   "handle": "MINT.S",
+   "sha256": "210cf61001dc5a627c9530e6962cee3c2fa25af851fca4b9c197301001347596"
+  },
+  {
+   "id": "hakata-member-180",
+   "handle": "SATOSHI.V",
+   "sha256": "fb425569428b4b89a32270f3fdc48f2d7daf470b39e5dca42621b6f431819324"
+  },
+  {
+   "id": "hakata-member-181",
+   "handle": "KOJI.G",
+   "sha256": "02c92467a50cd4e54547198ddc079812162bf1dfd3acd8754135bbe4be9c35d7"
+  },
+  {
+   "id": "hakata-member-182",
+   "handle": "NOVA.A",
+   "sha256": "096b88d24e82cc8f9e34ac9902215a8c2d2084d15a6efb4f877a543b675b3330"
+  },
+  {
+   "id": "hakata-member-183",
+   "handle": "NAO.T",
+   "sha256": "0515af63272bd63b269f32a4dcee0f807f05efbc1225f6ea0b66ccf4cf3f4404"
+  },
+  {
+   "id": "hakata-member-184",
+   "handle": "JOKER-Q",
+   "sha256": "75b49485b2e162c1a66cfaf35ba72cc62a0be42089741770dffeb9dff2eaee33"
+  },
+  {
+   "id": "hakata-member-185",
+   "handle": "SHIN.K",
+   "sha256": "e7c6c0f345b7d6b8c4e1f2c558c1a29ebfa90aed8ac5302c605c223c212b6d88"
+  },
+  {
+   "id": "hakata-member-186",
+   "handle": "KEN.L",
+   "sha256": "726d2a6f8c9c62614a4565138db6b7bb0e8fcde90e146f7750069dc84de345c8"
+  },
+  {
+   "id": "hakata-member-187",
+   "handle": "WOLF.U",
+   "sha256": "c245a83a6240f906026a5d070b4b203067f4f4739963c4a1277c862546ede441"
+  },
+  {
+   "id": "hakata-member-188",
+   "handle": "TAKESHI.H",
+   "sha256": "ffb6e34dc3de0dac1b99d19bc2e9cf7d7c81bc12de4bb9d3706b271672db8f42"
+  },
+  {
+   "id": "hakata-member-189",
+   "handle": "AKI.M",
+   "sha256": "ae69e710e6a597f58b13e1c5b756673a40b7bbc858ee883cc1c4a5b9f9926549"
+  },
+  {
+   "id": "hakata-member-190",
+   "handle": "TOMO.D",
+   "sha256": "e0a9f3ae6ee76256b8b4c3134c0af5d639770673e0e2f3227a2fd293c2a817e5"
+  },
+  {
+   "id": "hakata-member-191",
+   "handle": "MINT.X",
+   "sha256": "a8f8e819fe50a9199c505c18bdc32c69f44889d32c819d5d94fcd03f4d325429"
+  },
+  {
+   "id": "hakata-member-192",
+   "handle": "MEG.T",
+   "sha256": "e71e29d2589bcf30d591c6f7a6b2350326aa2bbd9ca0f7e756844691b194158d"
+  },
+  {
+   "id": "hakata-member-193",
+   "handle": "RINA",
+   "sha256": "9601d932540c0c1bc12243fd978a2127032371ff0043f0042167016678916365"
+  },
+  {
+   "id": "hakata-member-194",
+   "handle": "HIDE.T",
+   "sha256": "a5e8ad2557240a60ca5ee3597b614b2e0bb5226d661b46a0fa38f52b29e87eb8"
+  },
+  {
+   "id": "hakata-member-195",
+   "handle": "AKI.Z",
+   "sha256": "a311db46ffc1c09e8ca5bee2e4e5ac85bed3897a33a6433291649c0545fc5431"
+  },
+  {
+   "id": "hakata-member-196",
+   "handle": "SATOSHI-A",
+   "sha256": "d8ef3adc802b1aeefa8443aaa74179451a0d39094ebb757320a5fffe211eb7bd"
+  },
+  {
+   "id": "hakata-member-197",
+   "handle": "PC98.F",
+   "sha256": "a2f2a0e8d85e36cf118b2c87aaa420171ffff656d5cd0ce31dbd7d6a1afd1974"
+  },
+  {
+   "id": "hakata-member-198",
+   "handle": "NOVA.O",
+   "sha256": "6665f5369a8bc245131d969d92d7409bef9e2cda403beb356b12246a7d3d2bd7"
+  },
+  {
+   "id": "hakata-member-199",
+   "handle": "JOKER.R",
+   "sha256": "ee383b1fd08adc144be56334a671d68640fefe5953413f9a8d15fbce0a4f5ce2"
+  },
+  {
+   "id": "hakata-member-200",
+   "handle": "SATOSHI-Y",
+   "sha256": "07cdc372519d016d268e2da6db2164cd132296a5cbcede548a2253b2969f15c5"
+  },
+  {
+   "id": "hakata-member-201",
+   "handle": "MEG.I",
+   "sha256": "836cd67f66ff927602d79786da7c72ab16694d215844e6c4768bfa37b6c3a345"
+  },
+  {
+   "id": "hakata-member-202",
+   "handle": "KENTA.N",
+   "sha256": "8f80fd5cbee9dea5a4dc81b3c447d36c352179a6335d82feab94d72ae0b26fa2"
+  },
+  {
+   "id": "hakata-member-203",
+   "handle": "YUJI.G",
+   "sha256": "c182a4b0b4014a69e9ad85b0dc146b52e910dad59e2efebb8747c83bfc251e8b"
+  },
+  {
+   "id": "hakata-member-204",
+   "handle": "MIKI.Q",
+   "sha256": "10c28c45da39e7f3fab9ed1d9c4f991dd4981e5d5201ace4fb755cce78d290c6"
+  },
+  {
+   "id": "hakata-member-205",
+   "handle": "MEG-X",
+   "sha256": "b981a2224d97d6964dea8299a28423e75b1906950947346c8b48d4b08eacb549"
+  },
+  {
+   "id": "hakata-member-206",
+   "handle": "KERO.A",
+   "sha256": "a3816e6073ac5864fef657291dc3b4b9336b0014f23a1f55d4f76eb356345f0f"
+  },
+  {
+   "id": "hakata-member-207",
+   "handle": "RINA.D",
+   "sha256": "72569e370127f1f17e04e739f39953cbdebcdd9f7eda99cb06c03d88bb45471a"
+  },
+  {
+   "id": "hakata-member-208",
+   "handle": "X68",
+   "sha256": "789c81fda9217dac74269510ecd503be1b515168d6d08a3a91252a1c64ac8cdd"
+  },
+  {
+   "id": "hakata-member-209",
+   "handle": "X68.U",
+   "sha256": "701bb0770eb48f223abaf3e524f135d11638457db9900127c4f6386626aa4b99"
+  },
+  {
+   "id": "hakata-member-210",
+   "handle": "X68.W",
+   "sha256": "84a6c2c3574f51d12013931f88db7990ce02890c407eed351a27d23923c00a2e"
+  },
+  {
+   "id": "hakata-member-211",
+   "handle": "LUNA.A",
+   "sha256": "b8f7ee99f2c64c26ef21857ff48ef0a3fa5bc828bc8c6cfa766f48f233567e9a"
+  },
+  {
+   "id": "hakata-member-212",
+   "handle": "X68.Y",
+   "sha256": "d206a58b8c82477e80db62b58cec6d8043daf91a3d5a42b81d72af272864fb1e"
+  },
+  {
+   "id": "hakata-member-213",
+   "handle": "MASA.I",
+   "sha256": "d9821fbf771e493c03ef8acbc3995bf8c7aef175ed76b644e0586782b9064cb0"
+  },
+  {
+   "id": "hakata-member-214",
+   "handle": "TOMO-Y",
+   "sha256": "73a509791291408a80c23f552ffa2864a2fddf14f5c8ff14ee19789c13173b21"
+  },
+  {
+   "id": "hakata-member-215",
+   "handle": "KAZU.O",
+   "sha256": "5f77689670f86382d810f93aeec72bf611598f2c4f5dfca6fac59c4168071513"
+  },
+  {
+   "id": "hakata-member-216",
+   "handle": "KOJI.I",
+   "sha256": "a080936e0483b7ff82fc6d830a7897553dbb85bb8272794b06ac071e92589dbd"
+  },
+  {
+   "id": "hakata-member-217",
+   "handle": "MIKI.C",
+   "sha256": "29e4e09002aaddfdea623075e591e0d4bd189f8f2366730a98f560dd442b59f6"
+  },
+  {
+   "id": "hakata-member-218",
+   "handle": "NAO.I",
+   "sha256": "5cff8e4479ef590b5a5e1f8ba2586ef2ed917554ce6377654c0099cf9c619472"
+  },
+  {
+   "id": "hakata-member-219",
+   "handle": "MARI.S",
+   "sha256": "028a44a08986bf62cccb72571b69708de985c1e6067349cdd3e50d082a9bdc32"
+  },
+  {
+   "id": "hakata-member-220",
+   "handle": "ERI.Q",
+   "sha256": "5448ba719b3f67b6e887127fe3ca14f7af87df31b4981d8affaa195b46bfb9f4"
+  },
+  {
+   "id": "hakata-member-221",
+   "handle": "MINT-I",
+   "sha256": "a5350481264109858a3b97a2be27551cada2a183edbc4d5ad5d1ba6f3d66ee96"
+  },
+  {
+   "id": "hakata-member-222",
+   "handle": "SATOSHI.U",
+   "sha256": "5a41123fa78d497ea9f405e64422115e8a04fb1f91cfc00f9df720d1fe905079"
+  },
+  {
+   "id": "hakata-member-223",
+   "handle": "YUJI.W",
+   "sha256": "f6b5a4769a610f736197529c0b6dd59ad19e4fbf1ccb97dface9fe00601b07e0"
+  },
+  {
+   "id": "hakata-member-224",
+   "handle": "KAZU.V",
+   "sha256": "9d0995c437454f3d7a510b4923b0e4e47d2c5fc95152332096dca51a068d0f91"
+  },
+  {
+   "id": "hakata-member-225",
+   "handle": "YUKI.X",
+   "sha256": "530df44359211c21c688cc4c199dc46958c51430d8f83f815710054ca65c3b81"
+  },
+  {
+   "id": "hakata-member-226",
+   "handle": "V30-F",
+   "sha256": "9d90af04a0911cf9754f9b4da498641b8f4206d62a7667057e50dd757e1aa392"
+  },
+  {
+   "id": "hakata-member-227",
+   "handle": "EMI.H",
+   "sha256": "320538c5e76bd03576b01dbd21b2bd3a0d48db5e5501d9adfeb47d1a0513cbee"
+  },
+  {
+   "id": "hakata-member-228",
+   "handle": "MIKI.O",
+   "sha256": "dd1f11ad686d79a2b41584bcf94f2d6863a360a637e51b539e6689e0c52c3ce7"
+  },
+  {
+   "id": "hakata-member-229",
+   "handle": "TAKESHI.D",
+   "sha256": "d3f2244db8936a36a8bf7aa8d75d7986d9d1e264d85a780c3f5fb82f43aee297"
+  },
+  {
+   "id": "hakata-member-230",
+   "handle": "RINA.J",
+   "sha256": "1fb7651331978f3942c8afadcaec2a87e9d6f96ccbe64f1a4f06faf2103cb4cc"
+  },
+  {
+   "id": "hakata-member-231",
+   "handle": "MINT.R",
+   "sha256": "88ae095f92ec90acc316690dcfcf0ed136aa05c9ccfab9822f7763d99541b58f"
+  },
+  {
+   "id": "hakata-member-232",
+   "handle": "KERO.C",
+   "sha256": "50f3c1f1a37f362c7970b0bcce7d42a46e62cebe6dbeb300b1bc89e068b67c95"
+  },
+  {
+   "id": "hakata-member-233",
+   "handle": "EMI.N",
+   "sha256": "59ad48466353c34955c2bab024c9f95e90dde636e58cef6d634224832ecde56d"
+  },
+  {
+   "id": "hakata-member-234",
+   "handle": "RABBIT.T",
+   "sha256": "dd78c2372fec56363b58df1bea3ec03aa0e8235894ce980d94b3ca11f4749b6a"
+  },
+  {
+   "id": "hakata-member-235",
+   "handle": "KEN.V",
+   "sha256": "a18b911e175385dfe17d54a17ce76003472925b65e62e24860e2b35908dd042a"
+  },
+  {
+   "id": "hakata-member-236",
+   "handle": "TOMO-T",
+   "sha256": "ebdb22fa7b6ed5650596a15b5f42daebb152ed532f19da369ae2272a78e4424d"
+  },
+  {
+   "id": "hakata-member-237",
+   "handle": "MAKO.L",
+   "sha256": "68669095a4d0f47f066542001a6b8508afb3d931b061734a63988ea76bcd2419"
+  },
+  {
+   "id": "hakata-member-238",
+   "handle": "KOJI.L",
+   "sha256": "53c7a7dc523a270ed6604e98a873c1a2ff44e10a1bb54ee66b869930b4ee6955"
+  },
+  {
+   "id": "hakata-member-239",
+   "handle": "X68.X",
+   "sha256": "49df00098a5edfd6039ddc17193db082c16a67bb6fb96d648de86b8e1e45e3c5"
+  },
+  {
+   "id": "hakata-member-240",
+   "handle": "MAYU-B",
+   "sha256": "d020aa93fdebe57110cf44a6254c764500542f098c61ead06e1be2eb0c82ddd2"
+  },
+  {
+   "id": "hakata-member-241",
+   "handle": "AYA.G",
+   "sha256": "705e3173f1d4ee047983787069db8d913fb4adcb5a44210295f079c037dd1cb1"
+  },
+  {
+   "id": "hakata-member-242",
+   "handle": "MAKO.Z",
+   "sha256": "ca1c430b27c3ec762a12cdd9f537ba009da508a774539d903b81b70555760811"
+  },
+  {
+   "id": "hakata-member-243",
+   "handle": "MAKO-Z",
+   "sha256": "2f09c04d347811a93dcae0a5ca83c22f50c8789a9ffa205c8c1060a672083046"
+  },
+  {
+   "id": "hakata-member-244",
+   "handle": "MASA.C",
+   "sha256": "31ef3a3ed5ee3268da9e3ef12f92afef2d0d6f1b0dc1bf961b34905cf95786b0"
+  },
+  {
+   "id": "hakata-member-245",
+   "handle": "SHIN.D",
+   "sha256": "672732084f7ec3384830cd1c8bc6ed130a98b28d3ad3b1b96e21b23cc05d7553"
+  },
+  {
+   "id": "hakata-member-246",
+   "handle": "MASA.M",
+   "sha256": "8de70956e48bd334b600f1d3fd29ba4f208f9116d73aa1e1bc19fd913a9ab659"
+  },
+  {
+   "id": "hakata-member-247",
+   "handle": "MIKI.A",
+   "sha256": "7233ade6ecafdccd7ea7cb4b21b61954f22fe681c789fee7af09da292007b69b"
+  },
+  {
+   "id": "hakata-member-248",
+   "handle": "MIKI.J",
+   "sha256": "6c440cbde35e6e93789f785e9e8582e3b0fdfe7376863e6c2b457126fc2a72a4"
+  },
+  {
+   "id": "hakata-member-249",
+   "handle": "KOJI-C",
+   "sha256": "3829c12e2c037cadec6df33fe0b169096baa1d44560aba862ce0b580015ecf63"
+  },
+  {
+   "id": "hakata-member-250",
+   "handle": "MARI.J",
+   "sha256": "6e511a0934ad7b4ee4e038bb567af21272933ca88963fc3cdf219a0c6ddcff92"
+  },
+  {
+   "id": "hakata-member-251",
+   "handle": "EMI-N",
+   "sha256": "165a62992b4b3546ae1356d2aedff27442af133073d77c696c6511a3267520d4"
+  },
+  {
+   "id": "hakata-member-252",
+   "handle": "KEN.I",
+   "sha256": "a6d5a5bd194d342fde0d6aa80e0b9bcb4ccdc2af3d8c820d981622deda63d59b"
+  },
+  {
+   "id": "hakata-member-253",
+   "handle": "KEN.M",
+   "sha256": "1bbfd13483e660e591b13eb9eb30a53001fc50b1d5b2a4a56a3ec1ebef28eeb6"
+  },
+  {
+   "id": "hakata-member-254",
+   "handle": "KOJI.C",
+   "sha256": "d1961ec191ae885667cdf9475efd33d7a9d5a1d3dfc0cb3bd7325d051a21f13e"
+  },
+  {
+   "id": "hakata-member-255",
+   "handle": "HIDE.I",
+   "sha256": "8c3c29a782ff7d44d5f6c6cf259c00c866e9227b80377c0df3fd5c4140ad5570"
+  },
+  {
+   "id": "hakata-member-256",
+   "handle": "SHIN.O",
+   "sha256": "c9752f579a15f0a868bf50cc1e5ef9b3ad93e40ff89a384e6109239b3e135690"
+  },
+  {
+   "id": "hakata-member-257",
+   "handle": "X68.G",
+   "sha256": "7ff13544aa3aaaaa626587a6106c387c1f28ffaa5edd6b4832b49100d0753bdd"
+  },
+  {
+   "id": "hakata-member-258",
+   "handle": "RYO-X",
+   "sha256": "0b0d08a6b71586691812575da284a9bfdd0e857410fabf70cb22567eacbbc709"
+  },
+  {
+   "id": "hakata-member-259",
+   "handle": "HIRO.C",
+   "sha256": "5f3f06dc8aeb9e6058bc78cb35b8c48353de63099c88161aa3b7cffb3ade9e8c"
+  },
+  {
+   "id": "hakata-member-260",
+   "handle": "RABBIT.S",
+   "sha256": "50a32b1591d36503864a2911d81c23b6ba54e7669f2958034c79a47ec079e7bc"
+  },
+  {
+   "id": "hakata-member-261",
+   "handle": "RYO.M",
+   "sha256": "2c2b40dacdb9845a267deb8360371372e06ebf457125a43c998621882c3e945a"
+  },
+  {
+   "id": "hakata-member-262",
+   "handle": "NAO.R",
+   "sha256": "2cf47cf3fca31906093249d57cdaa172e54fe17fdafbc232849ad272af4e0e67"
+  },
+  {
+   "id": "hakata-member-263",
+   "handle": "ERI.U",
+   "sha256": "81f7ac70f765fcb84899a407ee26f1eeda86438a0e34cb73171afcd8c9a9867e"
+  },
+  {
+   "id": "hakata-member-264",
+   "handle": "ERI.S",
+   "sha256": "32de7e4ca35642c836c881835ec49dbb784a1fd8a9b9068391652e0082b85145"
+  },
+  {
+   "id": "hakata-member-265",
+   "handle": "EMI.Q",
+   "sha256": "af39ec69f306ae3a6396e80f90ca257f1434f21c08a7c41e01120f8f4c879a54"
+  },
+  {
+   "id": "hakata-member-266",
+   "handle": "LUNA.L",
+   "sha256": "3072378cfffd592c122cffbbf3af81e0f1b048de0f6c0b10fe53d775eaadebc1"
+  },
+  {
+   "id": "hakata-member-267",
+   "handle": "X68.Z",
+   "sha256": "49ba02fd2338edb42af392a4c6bb8e0e2e32ede2d42fbef4f71f0d46a8ee2ea3"
+  },
+  {
+   "id": "hakata-member-268",
+   "handle": "NAO.A",
+   "sha256": "519c9e1804c4e9e3c5b45d937a84c61f342d2de04cb7b63cbdc9c745b91ab87c"
+  },
+  {
+   "id": "hakata-member-269",
+   "handle": "KERO.I",
+   "sha256": "0774a97a80901fed9d72e4a3338179de4e9d0c86de93326a47251b0384da9b24"
+  },
+  {
+   "id": "hakata-member-270",
+   "handle": "KOJI-S",
+   "sha256": "29ecefcb7ab8f8d4f90d70dc2b4d25dd7862715e28d7c8af59f85d088faf9b8d"
+  },
+  {
+   "id": "hakata-member-271",
+   "handle": "AYA.N",
+   "sha256": "5b3f8c93157147add5800e97d467ce7b06db566b5c1b85268cff3bf5f8ebdd23"
+  },
+  {
+   "id": "hakata-member-272",
+   "handle": "HIRO.F",
+   "sha256": "c5c3ac7538be5db87377481e516ff0e28be19f551d1b21667bdde3b7707829a7"
+  },
+  {
+   "id": "hakata-member-273",
+   "handle": "JOKER.B",
+   "sha256": "3799f049bf801f5cb08308adf2f6b37e4276f67547851b5aad663bb3d224f306"
+  },
+  {
+   "id": "hakata-member-274",
+   "handle": "KAZU.F",
+   "sha256": "31d2db93d4d4a812d2ba5fdc9356b57b3296a6b1ca786de73cd070eaf38ba631"
+  },
+  {
+   "id": "hakata-member-275",
+   "handle": "JUN.D",
+   "sha256": "52fd5a9af17325f37bde18930c93d68515d02862280239ca61cafca61a3affc8"
+  },
+  {
+   "id": "hakata-member-276",
+   "handle": "HIRO.R",
+   "sha256": "f28f119b26ca0aa47ebeacb46ce34d8f5d758d9d20fc27ae583f67703475f890"
+  },
+  {
+   "id": "hakata-member-277",
+   "handle": "MAKO.X",
+   "sha256": "47a8bb9aa8f39753560ff05eb69f7ab658881c70e9aad00728cb29cf89118601"
+  },
+  {
+   "id": "hakata-member-278",
+   "handle": "MEG07",
+   "sha256": "955798a8706a4d19ea5e3cb8c0e3dc65d089ace6f3a90321cf718e2865a71b77"
+  },
+  {
+   "id": "hakata-member-279",
+   "handle": "V30-V",
+   "sha256": "c13720d02dddc5da28ec6a65d8b297875893bce4f62c2064036adb58d09e2c2e"
+  },
+  {
+   "id": "hakata-member-280",
+   "handle": "KENTA.E",
+   "sha256": "514c74cae82cb0e5326d93ec84679fe4b008feacf46c1f07ce8089bb7ff2e9c8"
+  },
+  {
+   "id": "hakata-member-281",
+   "handle": "X68.V",
+   "sha256": "7838ec56cd36cb1a80d820cef1cbb0702b6a44f1abf4d665a359770d5a0723bd"
+  },
+  {
+   "id": "hakata-member-282",
+   "handle": "MARU.T",
+   "sha256": "b39d9aa8c58d80b3fa8f6b53512c88749f9b6be9a620b77d2a66167cd1b4c6eb"
+  },
+  {
+   "id": "hakata-member-283",
+   "handle": "RYO.L",
+   "sha256": "801795758419fc4b97ab13fa72e3ea1baf4d5cbe34ffb3b7d9d2687c4bf2705f"
+  },
+  {
+   "id": "hakata-member-284",
+   "handle": "COM.F",
+   "sha256": "dd2ab4689838833a70cad2ad74df3379ab3ea95f7cd649057064db12d3a4e41b"
+  },
+  {
+   "id": "hakata-member-285",
+   "handle": "PC98.I",
+   "sha256": "d6443b5c898042d08cf0b3b03f93dd5f639537c5bcb22b5f58918a8ca254d6b7"
+  },
+  {
+   "id": "hakata-member-286",
+   "handle": "KERO.O",
+   "sha256": "b2f300b0b6638b844bab32715f1fc58d3680e6118461abfca443c1aa6db58162"
+  },
+  {
+   "id": "hakata-member-287",
+   "handle": "JUN.B",
+   "sha256": "59095c4a348b5539574c297615dfb083b3d2f9c1cff084360e47bb4680e188db"
+  },
+  {
+   "id": "hakata-member-288",
+   "handle": "KEN.A",
+   "sha256": "c6b77dc37891efd51c575ad307e0759af05d3b31d86bbe3bb3cbd5e75550658b"
+  },
+  {
+   "id": "hakata-member-289",
+   "handle": "V30.X",
+   "sha256": "23845a1bac5d546cbe50292eb44cbd0b12cb70adb63241533d09c32c87de6fb0"
+  },
+  {
+   "id": "hakata-member-290",
+   "handle": "MARU.Q",
+   "sha256": "b47ee31b9f3475aebabc77a76c2a815556f6164922d898a7808d15a7f7728221"
+  },
+  {
+   "id": "hakata-member-291",
+   "handle": "MASA.Y",
+   "sha256": "702d9c0376a368f118fa441fce0c9bcd055ccb1f339dfc28369321bafcb0737c"
+  },
+  {
+   "id": "hakata-member-292",
+   "handle": "X68.C",
+   "sha256": "4e0ea374bb4f04dcb52d096899427b625b13ead20aaa68421e9a945632f3ca4c"
+  },
+  {
+   "id": "hakata-member-293",
+   "handle": "MEG.A",
+   "sha256": "9e69fd777186b48cee8717f4465cf5e628c3e0306cae8c8521428771c3973156"
+  },
+  {
+   "id": "hakata-member-294",
+   "handle": "TOMO.F",
+   "sha256": "8dfce1b85ebe31374fc823709c67047e2f66ab810f3e0a5e255c5031092c24d7"
+  },
+  {
+   "id": "hakata-member-295",
+   "handle": "MODEM.G",
+   "sha256": "dc8212c5da14e785de3f0c2101e6be1b03babf79b4bde1ba592c5c425100dd55"
+  },
+  {
+   "id": "hakata-member-296",
+   "handle": "MINT.A",
+   "sha256": "91e3a609d92b6a848c28e0fc21afaa05ddcab61435f7fa13406c20e784806be1"
+  },
+  {
+   "id": "hakata-member-297",
+   "handle": "EMI34",
+   "sha256": "4f129d7b080b0b31e9ca4a8bff5fac2d14830cf07212e187ca2e974c0880103b"
+  },
+  {
+   "id": "hakata-member-298",
+   "handle": "MINT-Y",
+   "sha256": "005280a44fa4edc0fcc7e6d729fe56330b39e5aaaf0cd8b93d1a64ef07d08079"
+  },
+  {
+   "id": "hakata-member-299",
+   "handle": "MASA-W",
+   "sha256": "36907045a1dfd252517d258c613253236f1062d63f033e3760363a8c8229fef7"
+  },
+  {
+   "id": "hakata-member-300",
+   "handle": "MAKO.M",
+   "sha256": "ea0f22a3e6526b03c80f014996a8b6f3203a11f2cc04e6b9c32f7c7cdc263011"
+  },
+  {
+   "id": "hakata-member-301",
+   "handle": "RYO-Q",
+   "sha256": "e1a3ddb5d78f69f566538d888644cf13f10245bbb2c5ebba73f7eba3794561dc"
+  },
+  {
+   "id": "hakata-member-302",
+   "handle": "PC98.K",
+   "sha256": "37883a63b7c118250f9a5e24c63fb34d153a4a850bfead676a84bcbd8c91e7ff"
+  },
+  {
+   "id": "hakata-member-303",
+   "handle": "REI.E",
+   "sha256": "93749790f6c5ca077e4c467a532e2b13c355780285bfb84600d65ac19be6c804"
+  },
+  {
+   "id": "hakata-member-304",
+   "handle": "TOMO.K",
+   "sha256": "9669915baec7d7bbed583ffdf079568567a96a78d094934d9b20c4ab8c26b58b"
+  },
+  {
+   "id": "hakata-member-305",
+   "handle": "HIRO.G",
+   "sha256": "e6accbab5698c38669edea90bb8f01fb1cfe1dcf1124d403319aa75ded4b6044"
+  },
+  {
+   "id": "hakata-member-306",
+   "handle": "MAKO.E",
+   "sha256": "fe5f06b9b7c50877a495cfd74ad6e92f159c3ccfad034c274b17b39005e422d0"
+  },
+  {
+   "id": "hakata-member-307",
+   "handle": "MAKO.P",
+   "sha256": "cbca9e15dbe00e30e8fc314721cc6f4c185f2b959215dfae35da3f77a70b58ee"
+  },
+  {
+   "id": "hakata-member-308",
+   "handle": "LUNA.I",
+   "sha256": "03e3ec12fd0b01f74d125c048827beda15215795b00d95301d6278c0ed15862c"
+  },
+  {
+   "id": "hakata-member-309",
+   "handle": "V30.J",
+   "sha256": "ff36c85bac6bfb3181d1860b77f8989b7a07bb26d0588c96810392e3254e938b"
+  },
+  {
+   "id": "hakata-member-310",
+   "handle": "RINA.O",
+   "sha256": "e8fa32d481be405da032af2c31673b9d848034d23b58e7a9b1e983deb8b6842c"
+  },
+  {
+   "id": "hakata-member-311",
+   "handle": "YUJI.M",
+   "sha256": "0b3418fedead791a9bcdd1d3ae8fbd780c39a60b3d74bf057c05b330d15e8d69"
+  },
+  {
+   "id": "hakata-member-312",
+   "handle": "SHIN.X",
+   "sha256": "9d80a2018007da6fd48ab4d37c3eedeb5b7e63b75b80c6ab0876de039a758609"
+  },
+  {
+   "id": "hakata-member-313",
+   "handle": "YUJI.F",
+   "sha256": "0af3bb23110dd38ad587ed20de9d0b3564ae0999756ee9bdab7907870684ee50"
+  },
+  {
+   "id": "hakata-member-314",
+   "handle": "MINT-P",
+   "sha256": "6f6c2c8fc5253b5e9842c54142ea6cf1500c0c8433c18def3d07036528681aa4"
+  },
+  {
+   "id": "hakata-member-315",
+   "handle": "MEG-M",
+   "sha256": "fb68d1bcd1ef5451abd2c586b44d1aec050d00cca298c8fabf62bcf66a9f0e25"
+  },
+  {
+   "id": "hakata-member-316",
+   "handle": "AYA.I",
+   "sha256": "81e6da800acffe7826d215c794f4179f1aace6467bf11733b767c4e9bb7a83de"
+  },
+  {
+   "id": "hakata-member-317",
+   "handle": "MAYU.F",
+   "sha256": "b4603b69a723e635a713154a5ee940dece2b532d948801fa2a6b42257983ae30"
+  },
+  {
+   "id": "hakata-member-318",
+   "handle": "ERI.H",
+   "sha256": "de0d1ccf9847a60dfd793ba54c9871296ffa0bcff5730e7912793c28f5423ce4"
+  },
+  {
+   "id": "hakata-member-319",
+   "handle": "RYO.P",
+   "sha256": "315284e1fc34e426f9b1c53504984e7e52c8b9ccf32875d46f2b503cc47dc81e"
+  },
+  {
+   "id": "hakata-member-320",
+   "handle": "COM.J",
+   "sha256": "30086f61caf02d96775b06b33961c12e3952a948fa6ae5f222a5b830a8242317"
+  },
+  {
+   "id": "hakata-member-321",
+   "handle": "MINT.N",
+   "sha256": "543a24e488b7be83de1a63a771b5d7d20af3a86816ea5b21b268649cc83f9a49"
+  },
+  {
+   "id": "hakata-member-322",
+   "handle": "PC98.B",
+   "sha256": "14865b4578954751a677626b626baa64b0f46fec623caacbf160650ac6e395f6"
+  },
+  {
+   "id": "hakata-member-323",
+   "handle": "REI.V",
+   "sha256": "e4037e8cb480a6619fa77ab4943b05f68cd00482d9d3c76fcfb6a2cd2764fc0f"
+  },
+  {
+   "id": "hakata-member-324",
+   "handle": "HIDE.F",
+   "sha256": "650d54cff8aa98913010f5c0575890c9668d185490e129995545e699d4897888"
+  },
+  {
+   "id": "hakata-member-325",
+   "handle": "SATOSHI-V",
+   "sha256": "46f5c6bba46f3d9b85f65a6fcb653293cbab569b5eebb1c0a236047507f16f27"
+  },
+  {
+   "id": "hakata-member-326",
+   "handle": "MASA.R",
+   "sha256": "f3701d0cd758bae4ad0a69f02f8e1b8990865317628ecfb3bf4687365d3ba250"
+  }
+ ],
+ "after_re_ensure": [
+  {
+   "id": "hakata-mari",
+   "handle": "MARI",
+   "sha256": "86e8ad16e1ac6b3fd8be19ba5bbb3115d83ffe6db7d5814ccdf6d0ed47420797"
+  },
+  {
+   "id": "hakata-yuki",
+   "handle": "YUKI",
+   "sha256": "05c2203255e6394dae6e3fe5e294cea36c846c05aad3c8be3e3c72e84218d5d3"
+  },
+  {
+   "id": "hakata-nori",
+   "handle": "NORI",
+   "sha256": "fcd3456225e443755394c4b3ab6a91b88d0823d76c48ecaf2891ac5c9f465baa"
+  },
+  {
+   "id": "hakata-kazu",
+   "handle": "KAZU",
+   "sha256": "b8ed900a7b2808396630c2aa0a570bec4b609bfeb3cce6b554a2460dda34ea1e"
+  },
+  {
+   "id": "hakata-taku",
+   "handle": "TAKU",
+   "sha256": "ed0480f63d2e6d8b641b036bb058b842b9dc35b12da0c14f89c1c5e6393ca031"
+  },
+  {
+   "id": "hakata-neko",
+   "handle": "NEKO",
+   "sha256": "625503a3b96c8d87438b021072320170caeb6d308d3a8c56eecc743174b388b2"
+  },
+  {
+   "id": "hakata-ken",
+   "handle": "KEN",
+   "sha256": "9372ee05e0094f3fb4b890b7726e258b6e2f30145dd9fc48bed19d2b660d9bf2"
+  },
+  {
+   "id": "hakata-mako",
+   "handle": "MAKO",
+   "sha256": "bd3a836733877b7fea825cc927046d9a1c28a2be3f5c3f51eb1f8a2ddd869aef"
+  },
+  {
+   "id": "hakata-tomo",
+   "handle": "TOMO",
+   "sha256": "55584113693ab7a4dd33a02c4d4a22ab53ea7e0edf4b47df9bb9c1328bdf8614"
+  },
+  {
+   "id": "hakata-aki",
+   "handle": "AKI",
+   "sha256": "533da57664610963b4ce566d6013b3df3848c804d8fe585198523c1bb2030b55"
+  },
+  {
+   "id": "hakata-ryo",
+   "handle": "RYO",
+   "sha256": "7fe310720b15e91f1a66f17b3eb4d4a44ea4386a2f687a3be4d41f59167708ad"
+  },
+  {
+   "id": "hakata-hiro",
+   "handle": "HIRO",
+   "sha256": "93d750e1bae5f0a9f34f0d68739716ef92825118466cde2be63a4646fdaa7411"
+  },
+  {
+   "id": "hakata-sachi",
+   "handle": "SACHI",
+   "sha256": "e8a02bc6639242d6c1f068a2a0e5200338766326f7726bf3db7d6c9cf8aa811f"
+  },
+  {
+   "id": "hakata-jun",
+   "handle": "JUN",
+   "sha256": "b9edb5c66f4120c2fa88bae7f2076f81c008aad8f413930e1594aee01ac2e8ca"
+  },
+  {
+   "id": "hakata-midnight",
+   "handle": "MIDNIGHT",
+   "sha256": "5b4f11ef985d955d0b940abc7775598b0aecd52a11743242b43d7004df979ce7"
+  },
+  {
+   "id": "hakata-member-016",
+   "handle": "EMI",
+   "sha256": "fa9bb6255468c91155e47f1f61d8781397a8ebeae8668893bef095252b5eed2c"
+  },
+  {
+   "id": "hakata-member-017",
+   "handle": "MEG",
+   "sha256": "975c408beb8292136d71b07b8538c7a10e363f1ce5c81fd07c1f9bb171b98407"
+  },
+  {
+   "id": "hakata-member-018",
+   "handle": "KOJI",
+   "sha256": "f659cce3e802d70024ad01462b98b12e9a26991bd8bac2f2d35096acc9076ecb"
+  },
+  {
+   "id": "hakata-member-019",
+   "handle": "SATOSHI",
+   "sha256": "36014adedabbf35f39ce65e24a3ad40f40743b9f531b80bd88b84a9f3da48464"
+  },
+  {
+   "id": "hakata-member-020",
+   "handle": "V30",
+   "sha256": "cbd25e7a63c1c3868db290687d59383a7be528c3580ef5f17f9e0fb479156470"
+  },
+  {
+   "id": "hakata-member-021",
+   "handle": "TAKESHI",
+   "sha256": "b66a106313466018bd41a512cf49a25647d0e65910d9d01b5f310f257a22a5c0"
+  },
+  {
+   "id": "hakata-member-022",
+   "handle": "KOJI.B",
+   "sha256": "79d33732c32ebbfc890e50013140e00105312b28cf076b805ca4f7368d975c65"
+  },
+  {
+   "id": "hakata-member-023",
+   "handle": "MAYU",
+   "sha256": "9d2fafd542da534ab9ca0e640eee172ae0e4bb1f9fee12b2af90f77b1ed44666"
+  },
+  {
+   "id": "hakata-member-024",
+   "handle": "KERO",
+   "sha256": "a02f411ee0bf4aa21aeacafa10a41e2ff2329af912e4d10447071bdabe6d61f2"
+  },
+  {
+   "id": "hakata-member-025",
+   "handle": "SHIN",
+   "sha256": "978b3677d8273f54e85c4e54af68451a69d3301643a7c0a8960d7f628e352514"
+  },
+  {
+   "id": "hakata-member-026",
+   "handle": "NAO",
+   "sha256": "372b3aa7baece81702f0fd1e3988d03dc7bd722ed9bc4ba62a3145d19586dae6"
+  },
+  {
+   "id": "hakata-member-027",
+   "handle": "NORI.Z",
+   "sha256": "33c0927bf5fdeac7b1fac8e6d3ae47ccd2c48061c0a8310c3c77a60efb7d4127"
+  },
+  {
+   "id": "hakata-member-028",
+   "handle": "JOKER",
+   "sha256": "8521fe0ed936594f4c280849acb5b0cc59c678f0940b266098cb70efa87b9c34"
+  },
+  {
+   "id": "hakata-member-029",
+   "handle": "NAO.Z",
+   "sha256": "6ab71fc480ace9622fa851df94568c406aae66282a910231776d6b99f2e09983"
+  },
+  {
+   "id": "hakata-member-030",
+   "handle": "REI",
+   "sha256": "9abca7b17df2ac18cee1dd6522f4c09ecc3c58708ef5b2e5f3b90b7892c1190b"
+  },
+  {
+   "id": "hakata-member-031",
+   "handle": "MINT",
+   "sha256": "15c4afa5c266f54af8f885fa7d69798e999088b819c39858b74e87fbdfa4e3b0"
+  },
+  {
+   "id": "hakata-member-032",
+   "handle": "MASA",
+   "sha256": "db08c001d0b44d64b14f71bfa58c8dfee34faff9e366eb1763bff678bfad1e61"
+  },
+  {
+   "id": "hakata-member-033",
+   "handle": "LUNA",
+   "sha256": "420d27170c4341976ee47be14e84ac1bb3a43e7ddce90f53ca4a11653b8c2393"
+  },
+  {
+   "id": "hakata-member-034",
+   "handle": "MEG.M",
+   "sha256": "7de6e85c7828c44d28b92366afad9e56b87d28bfa66d4021af3715339a428d0a"
+  },
+  {
+   "id": "hakata-member-035",
+   "handle": "V30.Q",
+   "sha256": "9911958584fc136c3a1bcaa03b74e0fd7c43c75f2a23f87c201580b7155cd57d"
+  },
+  {
+   "id": "hakata-member-036",
+   "handle": "HIRO.K",
+   "sha256": "e27e8987a1c38c92dc704d5779e901df6db6de7e81b1d4740b1b2ac2568aba9b"
+  },
+  {
+   "id": "hakata-member-037",
+   "handle": "COM",
+   "sha256": "3cbbdf0d646b168d104b33174c742bca8f8250bd48bdded07b16662233b54203"
+  },
+  {
+   "id": "hakata-member-038",
+   "handle": "KAZU.D",
+   "sha256": "965c622ebf469d0fd2adc85582515a5367932bd9a957d487baff074c177b73ad"
+  },
+  {
+   "id": "hakata-member-039",
+   "handle": "TOMO.O",
+   "sha256": "38de0f48ea358524b925edf5b1583873d13eb5b2e41f21b69fdfb217dfcdead7"
+  },
+  {
+   "id": "hakata-member-040",
+   "handle": "NOVA",
+   "sha256": "9c7a294901daf16e12f4f6d4c31ff87b2ec61d7ce6d3417979201b1464bede4e"
+  },
+  {
+   "id": "hakata-member-041",
+   "handle": "EMI.U",
+   "sha256": "70f67560a1b295a8a792a2d6c33fa13f605996c99552885a547bbafa52c0633e"
+  },
+  {
+   "id": "hakata-member-042",
+   "handle": "TAKA",
+   "sha256": "86129b6f2076f5afc62f0ecc74d56e97973a7c915b9f796e4744842cd687a1d9"
+  },
+  {
+   "id": "hakata-member-043",
+   "handle": "HIDE",
+   "sha256": "3720f45d96d248e218c3bc80097a383e5f445efdc98219d57bcbe627f7d6b4cb"
+  },
+  {
+   "id": "hakata-member-044",
+   "handle": "WOLF",
+   "sha256": "b1c4f01a18aa31ed7fb02c4de2a8fd90c1725eab6ca419e8fcd49a42f01bb693"
+  },
+  {
+   "id": "hakata-member-045",
+   "handle": "RYO.G",
+   "sha256": "703e2342459214d908e36598ef0911c9ff99c68727249bad48defaf299bcb688"
+  },
+  {
+   "id": "hakata-member-046",
+   "handle": "RYO.C",
+   "sha256": "4dedb1a23d61dfec3f4a4d97192f999f4b2863bbae497be5cf7fb4452e5da4b9"
+  },
+  {
+   "id": "hakata-member-047",
+   "handle": "SATOSHI.C",
+   "sha256": "042dd52b38b131bbcc49be72e03d92e998deb81e9265f40cb6f73226140dfef5"
+  },
+  {
+   "id": "hakata-member-048",
+   "handle": "EMI.L",
+   "sha256": "aaf71d1095b50dfc342a72444e8a70f3726e23047c455d2a66bd4ca68ff076d2"
+  },
+  {
+   "id": "hakata-member-049",
+   "handle": "MINT.O",
+   "sha256": "c6fd19ccbd088314c4ac3d1899469377493324d109760f027808bac53be1b2c0"
+  },
+  {
+   "id": "hakata-member-050",
+   "handle": "KAZU.C",
+   "sha256": "d780158958f47848824c16181873b444cc7efbb10cf525ffbaec104f207e6d5c"
+  },
+  {
+   "id": "hakata-member-051",
+   "handle": "NORI.O",
+   "sha256": "880656fd6ab22f5eaa5d8fefb7ac7599033b5bddb6bdce75b2fd54d65c208766"
+  },
+  {
+   "id": "hakata-member-052",
+   "handle": "REI.Z",
+   "sha256": "7382d3cae8a720b0c2e7643148c579f33a76ed856a906efe3f61066d73f7e6c5"
+  },
+  {
+   "id": "hakata-member-053",
+   "handle": "MARI.V",
+   "sha256": "b48ac6ad523be82979cf06d0afd5e4c5cc3c5554e58d8148bc52087cc236034c"
+  },
+  {
+   "id": "hakata-member-054",
+   "handle": "JOKER.N",
+   "sha256": "292495404cc343a6414fce75f88e1637dafdbbeaedec6f5c6493f676ea5ddd74"
+  },
+  {
+   "id": "hakata-member-055",
+   "handle": "N88",
+   "sha256": "5017699fcf8930ac5e183b1bcf05baa8b42599ebc4ee9e80ea54d910d8c91b90"
+  },
+  {
+   "id": "hakata-member-056",
+   "handle": "LUNA.Y",
+   "sha256": "dadbbb49b11583e73a8f5c9fbf2c8fd691a36a1c48a1512cf27bdb396f66d0d3"
+  },
+  {
+   "id": "hakata-member-057",
+   "handle": "JOKER.J",
+   "sha256": "05b92235da2ae79dea17396ae61a1c3a6de811411a31a9e8059a351b37c6969e"
+  },
+  {
+   "id": "hakata-member-058",
+   "handle": "KAZU-W",
+   "sha256": "e4b10f23ae2b2ce06a4673758373ede850e148edf3ea01b7db832a93e3f0310e"
+  },
+  {
+   "id": "hakata-member-059",
+   "handle": "NORI.D",
+   "sha256": "70191e71973da8cb77a6fbb51ba1075b9525a60cfb3497f949be1f5c57142b18"
+  },
+  {
+   "id": "hakata-member-060",
+   "handle": "SATOSHI.P",
+   "sha256": "f5465b452c7feb0d457ed7817bbd4a5e2a0c6b84e427483e723a56a143f8a6ab"
+  },
+  {
+   "id": "hakata-member-061",
+   "handle": "TAKA.I",
+   "sha256": "46aa5a5fabfdcaafdd6ceea25c738287369ad8ef44987d3c9a00cabe54e387f2"
+  },
+  {
+   "id": "hakata-member-062",
+   "handle": "RABBIT",
+   "sha256": "d4cb7756e8b133002a7c933ff675c52ebd19725138862f88857fa782ef010879"
+  },
+  {
+   "id": "hakata-member-063",
+   "handle": "MARI.N",
+   "sha256": "b389df59f92995aba0283c7ee5896b35485c9ab73b24217a6f1284b82753b2f6"
+  },
+  {
+   "id": "hakata-member-064",
+   "handle": "TAKA.L",
+   "sha256": "20f17ecffde1897df462e568df59c254c1b78159ae7ca641996de5183b8a0212"
+  },
+  {
+   "id": "hakata-member-065",
+   "handle": "HIRO.T",
+   "sha256": "98027f9237c58b13e86827238e305f80c4299c028d41c0e9ac4c6bca44090b9a"
+  },
+  {
+   "id": "hakata-member-066",
+   "handle": "KENTA",
+   "sha256": "c60d3d6f8b40834ce958a9b59e4f2ce9ff6f27dc67ae08e1b21f4e47d42b21d4"
+  },
+  {
+   "id": "hakata-member-067",
+   "handle": "MAKO.J",
+   "sha256": "5feeab89520f05dc4c089e7c4968a82b5b023e41ca9b4e186e123fd4738afcbc"
+  },
+  {
+   "id": "hakata-member-068",
+   "handle": "EMI.F",
+   "sha256": "46deb07547a1cd623db0d3eaf6ece7ca15770d35ef9f4ee3928fd6665dcaf7eb"
+  },
+  {
+   "id": "hakata-member-069",
+   "handle": "AYA",
+   "sha256": "318c6a90705e93bf9df3aab494abb96f6647f8af09d0667240fd00f58e4d438b"
+  },
+  {
+   "id": "hakata-member-070",
+   "handle": "SATOSHI.J",
+   "sha256": "abb02a8eda56dfa7ccec74aea3fc2b81f23d2d368d9379f3d8c618397afd0284"
+  },
+  {
+   "id": "hakata-member-071",
+   "handle": "JUN.V",
+   "sha256": "d23017a300d992e79bd1190e5a0c5a8f5da2e92fe84c502b5036c218a548fa4c"
+  },
+  {
+   "id": "hakata-member-072",
+   "handle": "MAYU.P",
+   "sha256": "4c06c9922c38e37b08f1b23a8c060e418c34c3557e46b7643bf3f401c3fcaa3d"
+  },
+  {
+   "id": "hakata-member-073",
+   "handle": "HIRO.J",
+   "sha256": "ee311d10890242f88542cab73175a9d472455ea343d18aba050b07ef6183a588"
+  },
+  {
+   "id": "hakata-member-074",
+   "handle": "KEN.T",
+   "sha256": "9535c5b91c19eb105a26b1736899ab7b346be77ea845d82c4074557e9baadde3"
+  },
+  {
+   "id": "hakata-member-075",
+   "handle": "MAKO.A",
+   "sha256": "757ae314946b6bcc6d3a65fc11c97daf74573b420e7c5e1530fa1b22bacaa2dc"
+  },
+  {
+   "id": "hakata-member-076",
+   "handle": "AYA.B",
+   "sha256": "f01ced19d0f24a0e9bf22d55bb751dd5e9c8d1a7ebd377df9f321f57a9c6a77c"
+  },
+  {
+   "id": "hakata-member-077",
+   "handle": "TAKA.S",
+   "sha256": "b4a3767aa51b23fcd9c6c71f0277c0b71b8a83b3eba2a6ebbb67f25202842a60"
+  },
+  {
+   "id": "hakata-member-078",
+   "handle": "TOMO.N",
+   "sha256": "7949bb7591acfae9d76b264f9df60f1509358586ac651c44f882997026c439e9"
+  },
+  {
+   "id": "hakata-member-079",
+   "handle": "MEG.G",
+   "sha256": "f000b929be8e5c8cb4e942ab64b60cb7cd44c2b140f8c4fb3642cf52dee6ee52"
+  },
+  {
+   "id": "hakata-member-080",
+   "handle": "MIKI",
+   "sha256": "3c1888c61c82fefb2b200c6b133e5abb51b8a8c82da2ed31c1703bb244e96371"
+  },
+  {
+   "id": "hakata-member-081",
+   "handle": "TOMO.Y",
+   "sha256": "3b7f718c1614bf2fa102f5901338abb5a88ff2ba7f088c429bd86617ae592912"
+  },
+  {
+   "id": "hakata-member-082",
+   "handle": "REI.G",
+   "sha256": "6c305c6cde0616317e50a8524828981effe43decc5aea466cc351bd0f10a9cb1"
+  },
+  {
+   "id": "hakata-member-083",
+   "handle": "JOKER.Y",
+   "sha256": "ed569e00e9f4db72895bc54ab441e75a9ba4219710a195fecd18db6a80ee6b0e"
+  },
+  {
+   "id": "hakata-member-084",
+   "handle": "NORI.E",
+   "sha256": "c31dbd368e0d6e08f3518d04b546322c23ed96c5b4b3d4976657e00d54d80f8a"
+  },
+  {
+   "id": "hakata-member-085",
+   "handle": "RYO.K",
+   "sha256": "67b0f827e48a9dc00c161c44216497756522114ec8a4f0798ea4b0ee6b5b5cd3"
+  },
+  {
+   "id": "hakata-member-086",
+   "handle": "KEN.G",
+   "sha256": "4b21a3249159532b433df3eb4739ea9e5dde034d961165dbcd7e13017fa40053"
+  },
+  {
+   "id": "hakata-member-087",
+   "handle": "NOVA.G",
+   "sha256": "96702c45a46c3c88d03004c59ef74c2a8909d49c4825db3c834e05b86fe96b65"
+  },
+  {
+   "id": "hakata-member-088",
+   "handle": "TAKESHI.Y",
+   "sha256": "465ee21b8e6da7cc22da0762ef4cefaf5f35d9118083203f66ee48856f1f73d9"
+  },
+  {
+   "id": "hakata-member-089",
+   "handle": "JUN.M",
+   "sha256": "31e6daa5751ec9435af182f2deb06ddcfa1c9200d59d7cb013e04e881eac38d2"
+  },
+  {
+   "id": "hakata-member-090",
+   "handle": "PC98",
+   "sha256": "f8eb0bbb2bb995c7e556eca65e38e1d5c49c5fee8aab321d515476e523add472"
+  },
+  {
+   "id": "hakata-member-091",
+   "handle": "JUN.G",
+   "sha256": "f366ea2a7edfeab9da08327f59ab72441c115cbbd8614609718e9e81a8880e8c"
+  },
+  {
+   "id": "hakata-member-092",
+   "handle": "TOMO.Q",
+   "sha256": "d29f65829a7c5aad8c221042d3893e135207fccfaf41aa07ceb6aed6748de26c"
+  },
+  {
+   "id": "hakata-member-093",
+   "handle": "V30.C",
+   "sha256": "70d9b62f56d600cb9ceecb96c8717b63585a248f9ccd6195c00f1f78e30c973f"
+  },
+  {
+   "id": "hakata-member-094",
+   "handle": "ERI",
+   "sha256": "6462115a2d15add4b35daf8b9500128cf6e65892af0bb848456971b2e91ea5ab"
+  },
+  {
+   "id": "hakata-member-095",
+   "handle": "AYA.L",
+   "sha256": "f90d655ea094ea360683ca4c30f912e67855035408ba7b21fabec3fb37393c11"
+  },
+  {
+   "id": "hakata-member-096",
+   "handle": "MAYU.D",
+   "sha256": "8fe3206ed8ef6f9110b4e38a5b0114088899c7264787d7f473d1440f30e2f86c"
+  },
+  {
+   "id": "hakata-member-097",
+   "handle": "MEG.D",
+   "sha256": "b2fbf875b2a5af49821e2ab9365cea3cf2417579e0b85cc8c3ef8becefe33f04"
+  },
+  {
+   "id": "hakata-member-098",
+   "handle": "YUJI",
+   "sha256": "96af48ff26d2f935fc8f4ae61c71b612267fe52e62921ed346f433016fb46d0d"
+  },
+  {
+   "id": "hakata-member-099",
+   "handle": "NOVA.L",
+   "sha256": "fb2b9cbfe2af20cc662b89df9e1686e73b89f6dbcff9319666c7eee9cc3a1697"
+  },
+  {
+   "id": "hakata-member-100",
+   "handle": "KEN-D",
+   "sha256": "e03d662838ea92e57740a26095d5e6d513d941685dd25edf5f2aeebef218627d"
+  },
+  {
+   "id": "hakata-member-101",
+   "handle": "YUKI.P",
+   "sha256": "773d9881b3e279b8dc0dc192ea3b51ea611332befaed5c8c9121fb45ccd7673e"
+  },
+  {
+   "id": "hakata-member-102",
+   "handle": "NAO.Y",
+   "sha256": "0b92af4f46377b76920dae1f8d33f3e659b563624f0df16d5b96218bacbd5765"
+  },
+  {
+   "id": "hakata-member-103",
+   "handle": "TOMO.M",
+   "sha256": "c5e4ec8b11c57507ac1626ed83a09791d60b27f8a2e0e6d2dbd0f7721f698b6f"
+  },
+  {
+   "id": "hakata-member-104",
+   "handle": "SATOSHI.F",
+   "sha256": "babee69d52d27327497d0a887f8574571dc2724ab9e4fd249ada2831f8a80413"
+  },
+  {
+   "id": "hakata-member-105",
+   "handle": "YUJI.K",
+   "sha256": "ef629f363fcbf7fd9e37e3e6dc79210259a69b92a5e57ba4f727117d06509a41"
+  },
+  {
+   "id": "hakata-member-106",
+   "handle": "MARI.B",
+   "sha256": "19d125d840e79cf743162374191325d7e1173ee2793475b662e3a8a2f9d9802c"
+  },
+  {
+   "id": "hakata-member-107",
+   "handle": "MINT.I",
+   "sha256": "b7f4955d2eb97faaba35c62090cbcd0ffb4e80d68b810316428dd5e42d39fa39"
+  },
+  {
+   "id": "hakata-member-108",
+   "handle": "MARU",
+   "sha256": "0c9d54aba274552cd15eec860204969ee4a3c0ea2d64c1c709e7cac8f1f83708"
+  },
+  {
+   "id": "hakata-member-109",
+   "handle": "WOLF.F",
+   "sha256": "498571f972e909d41a1d6ef91892e262ef64c5c256075431439ec9e717af50bf"
+  },
+  {
+   "id": "hakata-member-110",
+   "handle": "KEN.H",
+   "sha256": "88dff6e0db4b268beb8f75ddea2fde25274f28ad0a98f36b5fafe6eff39f4b2e"
+  },
+  {
+   "id": "hakata-member-111",
+   "handle": "ERI.Z",
+   "sha256": "37c687ca7638568cb7b0f735593222562074ea4cf1a534b19e5bc7a67242c2ef"
+  },
+  {
+   "id": "hakata-member-112",
+   "handle": "V30.H",
+   "sha256": "8412085a746cd1ddaa6174846eb389058d0d54e32edb0c9bc1d2a309b16107a4"
+  },
+  {
+   "id": "hakata-member-113",
+   "handle": "MEG.F",
+   "sha256": "eab33594886050d44ad78fe0bf63a3ccf16882f26e7b3ae33b45a4f901f5f132"
+  },
+  {
+   "id": "hakata-member-114",
+   "handle": "MEG.N",
+   "sha256": "5ea3c5b049ff9402b0b7d83630654fefc2a68f888c3719fa5ea3ad439702f8ad"
+  },
+  {
+   "id": "hakata-member-115",
+   "handle": "MASA.J",
+   "sha256": "57fb01d6a36270d89a0e0c18008336af9f7030eaace5ed49d51bd7c3ec27766f"
+  },
+  {
+   "id": "hakata-member-116",
+   "handle": "TOMO.A",
+   "sha256": "aef2641b38137faad54a43ae64f380b4709a0965375e5852ca9bdf414d8b55d5"
+  },
+  {
+   "id": "hakata-member-117",
+   "handle": "SHIN.J",
+   "sha256": "d5552ee83985eacde85dd1741bf2e5d4ca7c3fba8f18fac400e0217321bbefd8"
+  },
+  {
+   "id": "hakata-member-118",
+   "handle": "TOMO.T",
+   "sha256": "7f341b825a45997c452f638cb5ce2420a9845f7bf7c45688b059b8c0ad8e243b"
+  },
+  {
+   "id": "hakata-member-119",
+   "handle": "TAKESHI.R",
+   "sha256": "b795d00e320ebeed6bc491a100e67098534fde96f37dfafcd315af6fb66120c3"
+  },
+  {
+   "id": "hakata-member-120",
+   "handle": "TOMO.P",
+   "sha256": "6f94bfa7ee4f7373d2b1921e07f7b502bc03c02a5420a371ad5ba562f5b00967"
+  },
+  {
+   "id": "hakata-member-121",
+   "handle": "SATOSHI.X",
+   "sha256": "283617e4eba8bf61b473a6be75995cc1991d502857ff13bc23a720ace1193641"
+  },
+  {
+   "id": "hakata-member-122",
+   "handle": "RABBIT.E",
+   "sha256": "23f759b6f42ee471a99d16ab9f606259469d136981a1f35718f8edddefd6f7ac"
+  },
+  {
+   "id": "hakata-member-123",
+   "handle": "NOVA.I",
+   "sha256": "4a03a059ada724a6173622eb423a1d4689ae3ebd089397f5eecea8186565b4c6"
+  },
+  {
+   "id": "hakata-member-124",
+   "handle": "JOKER.W",
+   "sha256": "c602f2d1dd5da5a4718a114e4a40ec660e983dbf468375dbfea8fd511225ae8d"
+  },
+  {
+   "id": "hakata-member-125",
+   "handle": "KAZU.Y",
+   "sha256": "f50dd82ffcf0eb08983dd4930a2df8e47470d913e757dea47089dc7d1943e011"
+  },
+  {
+   "id": "hakata-member-126",
+   "handle": "HIRO.Y",
+   "sha256": "073eed96b2a2fa4580a36780b5b9dbd43be078f9208bfb979c37b43a8691d37f"
+  },
+  {
+   "id": "hakata-member-127",
+   "handle": "JUN.I",
+   "sha256": "fb6f3df819520ea609a4496c516b818959a0c09a0b4e8a1842fb3ac3629ac44d"
+  },
+  {
+   "id": "hakata-member-128",
+   "handle": "MARI.Q",
+   "sha256": "fee7ca8b6dbe47fa199380b3c77276bbfd2017fcb6b91d24cb87a23807e74bbf"
+  },
+  {
+   "id": "hakata-member-129",
+   "handle": "RYO.U",
+   "sha256": "b2eaa318da415c777e6716d303402a689b9f32929457da5479338fa073ca2637"
+  },
+  {
+   "id": "hakata-member-130",
+   "handle": "MINT.E",
+   "sha256": "26f825f9310dab3bff2b0a5010dc245d3e309c4e30f7724c115759f5b3572ecb"
+  },
+  {
+   "id": "hakata-member-131",
+   "handle": "WOLF.A",
+   "sha256": "9ba3b12ca307a3b18153a91e2adf0804a9c816ec13c1abbbe2c02e648319c4b8"
+  },
+  {
+   "id": "hakata-member-132",
+   "handle": "JOKER.A",
+   "sha256": "48b6e42d7d33e754cc53ff94f2b170ad90a86eb8d569b2b64f18b0f9a316e198"
+  },
+  {
+   "id": "hakata-member-133",
+   "handle": "KAZU-M",
+   "sha256": "1ef2f1b59dfe354453b0b3f689da82e873422fb41b77959e511d1e66b766c5cb"
+  },
+  {
+   "id": "hakata-member-134",
+   "handle": "EMI-R",
+   "sha256": "82815ee4c8823df311e0c120d203888304f85b5dcd7ebbf3e81749d30a481b31"
+  },
+  {
+   "id": "hakata-member-135",
+   "handle": "HIRO.S",
+   "sha256": "c7a70e296e88b770b4769f5f6c97aebb83ac85a0445639e214989fe2d94a904f"
+  },
+  {
+   "id": "hakata-member-136",
+   "handle": "NORI.K",
+   "sha256": "3f073b1a70b3449ef454f536887d4567c40e0bef3865458ab6f1045359342d6f"
+  },
+  {
+   "id": "hakata-member-137",
+   "handle": "EMI.M",
+   "sha256": "8d4245add2d4dd153133a311b0bf09451e6e3f340d55064c65eec931fdb3ceb9"
+  },
+  {
+   "id": "hakata-member-138",
+   "handle": "LUNA.H",
+   "sha256": "53ca9a02b18b89ceb8e2d76156ab72ac97294008b3737249b304a5b028572c86"
+  },
+  {
+   "id": "hakata-member-139",
+   "handle": "KAZU.P",
+   "sha256": "c804b0c2d90d886a27e72c47187b2f6a59ba6e7efbdf44a1a0202cde3750107c"
+  },
+  {
+   "id": "hakata-member-140",
+   "handle": "AYA.W",
+   "sha256": "948840544807d5173628433d880a77b1c25b7bd200cbe587ecb80c320d865966"
+  },
+  {
+   "id": "hakata-member-141",
+   "handle": "N88.M",
+   "sha256": "d5648de6de1694cc5815374d14072da491a7adc9566cad7e396576089a8fe441"
+  },
+  {
+   "id": "hakata-member-142",
+   "handle": "MARI-L",
+   "sha256": "33cfd4024120c2fe8440184b62cfc78d9d9cab44dc2b0841bddb7c2c85e05263"
+  },
+  {
+   "id": "hakata-member-143",
+   "handle": "MINT.L",
+   "sha256": "0fe3197846d70bac345cf87c44ad5f9e604b3e8d93e7e99599203aa44bc2136e"
+  },
+  {
+   "id": "hakata-member-144",
+   "handle": "JUN.T",
+   "sha256": "a69f24a5ee34380950a7146e36af18954060d3dc82602c3163eefc005a8e39d6"
+  },
+  {
+   "id": "hakata-member-145",
+   "handle": "MAKO-F",
+   "sha256": "2bf0968d5dbfe2a70807650bf66e655ce39a6410b76b736a44e2f69f869adc1d"
+  },
+  {
+   "id": "hakata-member-146",
+   "handle": "NAO.N",
+   "sha256": "0ab7654dd22038ea423b41364580eece66ab7d91cad0865ec1c8690d3925f316"
+  },
+  {
+   "id": "hakata-member-147",
+   "handle": "KEN-Y",
+   "sha256": "02ba34c76cd55afcda73d5451cfc340c7230f5bd5df6b9a5f6424b1eeadd8cfe"
+  },
+  {
+   "id": "hakata-member-148",
+   "handle": "MODEM",
+   "sha256": "ce6acdc8fc1dc6ccf6644dd04f66a36cf230556e022d56fab59137e0069e5c10"
+  },
+  {
+   "id": "hakata-member-149",
+   "handle": "MARI.T",
+   "sha256": "c4d3d1551df42c430cfb0de6b3054d4d04ab7f7f87488f68b23b7b8a68bfa2c4"
+  },
+  {
+   "id": "hakata-member-150",
+   "handle": "KAZU.L",
+   "sha256": "cc48dd10fbba5aff1482bf73f8c5780357a80b6064e2292f351d766ba9bdf59e"
+  },
+  {
+   "id": "hakata-member-151",
+   "handle": "MIKI.Z",
+   "sha256": "834fbd74461d05dfada63b81b2ea3f488b9736308ea6d6e960e891c0107e82db"
+  },
+  {
+   "id": "hakata-member-152",
+   "handle": "SATOSHI.T",
+   "sha256": "160cd5636d25b68fdf3af4c866ad9b65deb513a5aab4b7f2068191460d92bff8"
+  },
+  {
+   "id": "hakata-member-153",
+   "handle": "MINT.D",
+   "sha256": "fc8a02a54720a2c6e1f2854bde1fd967e63405e46b13ca133af8df4aef64c98a"
+  },
+  {
+   "id": "hakata-member-154",
+   "handle": "KENTA.B",
+   "sha256": "fb6ba685cd5fca1d2b91b6b1176433a8eefc1d7f3bded7f17bd25681997baba8"
+  },
+  {
+   "id": "hakata-member-155",
+   "handle": "N88.Q",
+   "sha256": "f3bf386645b1d0763ab081221362549718283a22746912edf884f288e63b9315"
+  },
+  {
+   "id": "hakata-member-156",
+   "handle": "KERO.V",
+   "sha256": "66c09b55d20a052c4f8173eebfa8f7171590a6abce751198db331a280a1f8a58"
+  },
+  {
+   "id": "hakata-member-157",
+   "handle": "TAKA-I",
+   "sha256": "b183c1e4a986a4035ff33e1fb0ba0a32936d837de07e122abba0c8c838e9154f"
+  },
+  {
+   "id": "hakata-member-158",
+   "handle": "NOVA.Z",
+   "sha256": "56aca7eb7b14db4ce3b069cae43afbedf06af06f03f4dda6e9e5f8ce36f556b2"
+  },
+  {
+   "id": "hakata-member-159",
+   "handle": "RYO.V",
+   "sha256": "e8bb4ee24322ab5ad534644100c9705013798aea9b3b01a30257bde465dc99f6"
+  },
+  {
+   "id": "hakata-member-160",
+   "handle": "KENTA-H",
+   "sha256": "6f5d0930e601936cb481497a79acb0b93f56990ab263265452632135f28afb4c"
+  },
+  {
+   "id": "hakata-member-161",
+   "handle": "KERO.R",
+   "sha256": "ef2268c9db5d1a716491c4e6cb8e75284574b1945d6a1098628c532f25fc78bd"
+  },
+  {
+   "id": "hakata-member-162",
+   "handle": "NAO.U",
+   "sha256": "62c4fc10e41b82ebf007407099b6b91ab5ff53a296cceef5f0caaeb9410305ff"
+  },
+  {
+   "id": "hakata-member-163",
+   "handle": "AYA-T",
+   "sha256": "88b97b1237024e7667645cb11ca8d57c2bd79f2e24c0c3b7f13642e1d5135a32"
+  },
+  {
+   "id": "hakata-member-164",
+   "handle": "MIKI.U",
+   "sha256": "06d97e8e6349996ccef5154e016244055d6eaf727807d10eb893f8ec1b6b5351"
+  },
+  {
+   "id": "hakata-member-165",
+   "handle": "NAO-M",
+   "sha256": "94864e1541b35450b8ed892fe413a5c533a135be87e4cf922ade5f54628f6f2e"
+  },
+  {
+   "id": "hakata-member-166",
+   "handle": "MAYU.X",
+   "sha256": "651f66657d473c2ffc1d26261d928030edb0d04d581d901cf45499a5ee12d562"
+  },
+  {
+   "id": "hakata-member-167",
+   "handle": "MASA.Q",
+   "sha256": "c7abc67361987fb47bc87103ee42a029be07484a9573bbdc81493fe22b6f638f"
+  },
+  {
+   "id": "hakata-member-168",
+   "handle": "RYO.E",
+   "sha256": "f46ec7d0bc4fd9fefa0dd9568ff5f3cb9d0745d1392135c12ff8df143acb3482"
+  },
+  {
+   "id": "hakata-member-169",
+   "handle": "JUN.O",
+   "sha256": "ab6b506f87fd604cb8bf96d6f7d181396136a0a98df951b8ebe90a501b5851c4"
+  },
+  {
+   "id": "hakata-member-170",
+   "handle": "KERO.E",
+   "sha256": "7f506c062aebdf976f0231ab186e0ff2033b83bf54f590583823522afffefd18"
+  },
+  {
+   "id": "hakata-member-171",
+   "handle": "MAKO-K",
+   "sha256": "01d8f503dd48ee10eed666a4cd4655416ab0fb1ca5b62112e394632b6010a94f"
+  },
+  {
+   "id": "hakata-member-172",
+   "handle": "COM.S",
+   "sha256": "a8e7d3a1d5657e52d4324c8380f803068e60d2a3a74893e89c45d28c0586623e"
+  },
+  {
+   "id": "hakata-member-173",
+   "handle": "SATOSHI.A",
+   "sha256": "9e489312b7d422666b777d252c8e52e6528f9686460440acf36a1bb74c6481f2"
+  },
+  {
+   "id": "hakata-member-174",
+   "handle": "MINT.Y",
+   "sha256": "7da28299135aa743748b428dd15b6eda242a20f73cea72637d6851c8d18c6158"
+  },
+  {
+   "id": "hakata-member-175",
+   "handle": "TAKESHI.V",
+   "sha256": "44fb0a6de6f4afb1bfee07c13dc7559975345e4de0ed435054ad31e453adbb9c"
+  },
+  {
+   "id": "hakata-member-176",
+   "handle": "N88-H",
+   "sha256": "3330cf14368e278f7d3a4988f18616ba326e4a949723bbce2d9a918a0de84f32"
+  },
+  {
+   "id": "hakata-member-177",
+   "handle": "AKI.I",
+   "sha256": "0d79914001238d3ef5c0dd08853754736862df2772217a6f6df616154b5f4ed8"
+  },
+  {
+   "id": "hakata-member-178",
+   "handle": "LUNA.O",
+   "sha256": "bc1ee40f56358dcbc0de54812949574bb976cf5dafdac7002a48dc0971a838fd"
+  },
+  {
+   "id": "hakata-member-179",
+   "handle": "MINT.S",
+   "sha256": "75f191b94c3e2763781f4d7d0d77a532adfcabe0fa42e9c6463a72d703f60d3b"
+  },
+  {
+   "id": "hakata-member-180",
+   "handle": "SATOSHI.V",
+   "sha256": "e6ac418a516a163c3ec4150c4cdb08a902e82907e70bb18ac2b2f2dd1b2ee0d2"
+  },
+  {
+   "id": "hakata-member-181",
+   "handle": "KOJI.G",
+   "sha256": "ce4dd129007f2f201cd34b0f5143d574bf05c1430af23cd28fb7c0212c83ee44"
+  },
+  {
+   "id": "hakata-member-182",
+   "handle": "NOVA.A",
+   "sha256": "7304876508b4473e004100fc5b0dda96377e128611c3d02bcbd5c3e6089d527a"
+  },
+  {
+   "id": "hakata-member-183",
+   "handle": "NAO.T",
+   "sha256": "75e06e219cab5e42aa882079d2d1b502f6a050773743a9fa9f028fe7b0a6903c"
+  },
+  {
+   "id": "hakata-member-184",
+   "handle": "JOKER-Q",
+   "sha256": "1caeb70b27b407053fb53981b617962ff4a1d79d70da0be587c0d3857c200324"
+  },
+  {
+   "id": "hakata-member-185",
+   "handle": "SHIN.K",
+   "sha256": "26b17ac07fc84de1cd653e1212adc6a9005ef5e2d55efe1aa6b69c2f5b7c0e4b"
+  },
+  {
+   "id": "hakata-member-186",
+   "handle": "KEN.L",
+   "sha256": "39f803aa9e9e62bfe79d2ec1d2c2b5860c70157abee6b2e36d33b54796310fa2"
+  },
+  {
+   "id": "hakata-member-187",
+   "handle": "WOLF.U",
+   "sha256": "38b169d2121c39d802edb5ee9db1c1592e30377accf7637d9b485c1837d4bda4"
+  },
+  {
+   "id": "hakata-member-188",
+   "handle": "TAKESHI.H",
+   "sha256": "f51b7f132c55a97cfff3835f949ed00bbad33df275133a949893f15c251ca932"
+  },
+  {
+   "id": "hakata-member-189",
+   "handle": "AKI.M",
+   "sha256": "b1faa6dbdd45ab0d35183b8c69c8d884daffe0041d1db7db76c4e589d91ec842"
+  },
+  {
+   "id": "hakata-member-190",
+   "handle": "TOMO.D",
+   "sha256": "18e842beac44c2474e74feabcb0e69a0bbf3fe288a1301ca4e51008c94c27cc3"
+  },
+  {
+   "id": "hakata-member-191",
+   "handle": "MINT.X",
+   "sha256": "80e7acf04b6c93a8e32720e48fa7038941ee47b58d30e4376f1b4a23a674874f"
+  },
+  {
+   "id": "hakata-member-192",
+   "handle": "MEG.T",
+   "sha256": "dab1a388c7c23a9b4190b414d3483b7321a88e6cf59f2890a3dad4cef1ea232e"
+  },
+  {
+   "id": "hakata-member-193",
+   "handle": "RINA",
+   "sha256": "5e5655ce08de88934ee923fcd198477ce71eb47f8ed856adb826550bd3e0b741"
+  },
+  {
+   "id": "hakata-member-194",
+   "handle": "HIDE.T",
+   "sha256": "847707d98485ff75890c61f96935d9a4e3cd0ee26f22768795476f439e4c865f"
+  },
+  {
+   "id": "hakata-member-195",
+   "handle": "AKI.Z",
+   "sha256": "a708e58448833a37eb1a788ac8179c46f9aa65ed813905e5463efed85c8f905c"
+  },
+  {
+   "id": "hakata-member-196",
+   "handle": "SATOSHI-A",
+   "sha256": "9a33b28cd4022a435b9870cd3eb81a8afed9195f59b9d9132cf55ca1ed4ca75b"
+  },
+  {
+   "id": "hakata-member-197",
+   "handle": "PC98.F",
+   "sha256": "41dfdb4fcf13f6706d4ef7eb8f8601b2d9a3650c62516fca02033bbc6b07ab25"
+  },
+  {
+   "id": "hakata-member-198",
+   "handle": "NOVA.O",
+   "sha256": "ffd4c1e1768558ff922aa36c297e7a33dc4f60288fd82f899d1606c3d7f9f70a"
+  },
+  {
+   "id": "hakata-member-199",
+   "handle": "JOKER.R",
+   "sha256": "53b1817738736c823929fec0af5056790b8645ed7c575b55d8964b81fd7237fe"
+  },
+  {
+   "id": "hakata-member-200",
+   "handle": "SATOSHI-Y",
+   "sha256": "6e54fa0ce4c8fba92fb5532e0ce9836579ee1ab805d4e83113d25de48682648b"
+  },
+  {
+   "id": "hakata-member-201",
+   "handle": "MEG.I",
+   "sha256": "fef8ff5f99247e95d90a8130caa6ce32e7addb519dd9d24d4cfe3a512dca1421"
+  },
+  {
+   "id": "hakata-member-202",
+   "handle": "KENTA.N",
+   "sha256": "72044d9fcc7422a6aaba37a0748b086fef6d2ff96ea96c6b2bc382dfd4e4565c"
+  },
+  {
+   "id": "hakata-member-203",
+   "handle": "YUJI.G",
+   "sha256": "974b6a19a114aafec3fe261ea2990a334f442354812bbe9048e84615b30d304d"
+  },
+  {
+   "id": "hakata-member-204",
+   "handle": "MIKI.Q",
+   "sha256": "260904ffece2fd4c76ba0936cb5cca2774e7c39048d3a4a0906dedfc67ee8e69"
+  },
+  {
+   "id": "hakata-member-205",
+   "handle": "MEG-X",
+   "sha256": "63ea65c0584669d3ac6b4613a8a1b2739d01fed38644e4e55ac00c9f5fa92207"
+  },
+  {
+   "id": "hakata-member-206",
+   "handle": "KERO.A",
+   "sha256": "73bcaee2bb63ff3bd34d611d5ac6ee06e48476e7a747f7849270e747b750ba85"
+  },
+  {
+   "id": "hakata-member-207",
+   "handle": "RINA.D",
+   "sha256": "6bcba19194602371041398ed6b2f54530c469b25327ddf7a5fb6ca82c884f0ee"
+  },
+  {
+   "id": "hakata-member-208",
+   "handle": "X68",
+   "sha256": "dedaf6d08c0240cfdcb0d193a7c625843665f6cb9d8de651f0c9d7a3cef80176"
+  },
+  {
+   "id": "hakata-member-209",
+   "handle": "X68.U",
+   "sha256": "5b83878a104709b86c5f2d2578ef5dd33a37d3dc8299e9f7565f89a34a5b8dba"
+  },
+  {
+   "id": "hakata-member-210",
+   "handle": "X68.W",
+   "sha256": "b2d1cc203f0b4396e893e84a381222f5728cebf6d8131d071e1ac36835a7ccd1"
+  },
+  {
+   "id": "hakata-member-211",
+   "handle": "LUNA.A",
+   "sha256": "53c7d1e3269c2790f3acd69b6c2136fde4a5555d4340df07740ed2c3de94e22a"
+  },
+  {
+   "id": "hakata-member-212",
+   "handle": "X68.Y",
+   "sha256": "8ecbd45bfd2d921310cc6ac6e0b6e25d49a0b376c7bfa4274f169805a2ed6eb5"
+  },
+  {
+   "id": "hakata-member-213",
+   "handle": "MASA.I",
+   "sha256": "d20928429214483fd00c8b58ab6fdec73549409b20ec65b2ce8369de8735cc7d"
+  },
+  {
+   "id": "hakata-member-214",
+   "handle": "TOMO-Y",
+   "sha256": "6280b48c292f5c9c3a09f614d4b28bce5969de5c71dfcf98bddcb41ab1236ca0"
+  },
+  {
+   "id": "hakata-member-215",
+   "handle": "KAZU.O",
+   "sha256": "7f10c1f2062b1ba7faa1f9288a9061df90e87d7240fdae6969f43ad1cf940c3e"
+  },
+  {
+   "id": "hakata-member-216",
+   "handle": "KOJI.I",
+   "sha256": "2dec6c825e314aaedade17e1978a7d21a9704f92f8f6933d3e9a2e8907a49556"
+  },
+  {
+   "id": "hakata-member-217",
+   "handle": "MIKI.C",
+   "sha256": "bc868f6d108a5abe557f28675f9f8a35a249bfcf76c4fee35cf32939b0d25a05"
+  },
+  {
+   "id": "hakata-member-218",
+   "handle": "NAO.I",
+   "sha256": "61e97855720c462185c51d68c7d8623be42ee29f6069643201d7c6e6a358db8e"
+  },
+  {
+   "id": "hakata-member-219",
+   "handle": "MARI.S",
+   "sha256": "7180cec126ee37b9b7a03480e26d0d508041768b3562126f17cf4aafce723360"
+  },
+  {
+   "id": "hakata-member-220",
+   "handle": "ERI.Q",
+   "sha256": "654975e904410b778c5c7942e34c372ff76a20949cf39836198fabd316d45a96"
+  },
+  {
+   "id": "hakata-member-221",
+   "handle": "MINT-I",
+   "sha256": "1fd76e605df0d5aa923ad9422ecdba1edf9efb963433984bfacbf93d66ce7688"
+  },
+  {
+   "id": "hakata-member-222",
+   "handle": "SATOSHI.U",
+   "sha256": "b73901572b888e2910da3be1e531914c53931418fc47e6d70ab2e732527606dc"
+  },
+  {
+   "id": "hakata-member-223",
+   "handle": "YUJI.W",
+   "sha256": "19697749a6e62140e30bcb917b838086602ece058e5fae71aeb1eb01e3d8d613"
+  },
+  {
+   "id": "hakata-member-224",
+   "handle": "KAZU.V",
+   "sha256": "17881bf84a155dd6eb5f334c82490b07205671ae17fca36c481017b0f120b6e0"
+  },
+  {
+   "id": "hakata-member-225",
+   "handle": "YUKI.X",
+   "sha256": "ab2f37a63c29212c9fba767d6411f788ab990e53da2746f80fc26d80cf69f44f"
+  },
+  {
+   "id": "hakata-member-226",
+   "handle": "V30-F",
+   "sha256": "199b75734d2e9200a1a9f512c5c5781c6adff18381ce26f298c01344a6f58b9e"
+  },
+  {
+   "id": "hakata-member-227",
+   "handle": "EMI.H",
+   "sha256": "c94d4911b57cec1c55a9731ab5905ce6b03c8c597c6639927490ec93b7ccd918"
+  },
+  {
+   "id": "hakata-member-228",
+   "handle": "MIKI.O",
+   "sha256": "f6d2a5c61bde1a551491f2da78cb51bc8107a45892d57df5b14c2badc09da4b2"
+  },
+  {
+   "id": "hakata-member-229",
+   "handle": "TAKESHI.D",
+   "sha256": "1a43ab7df9803d8f49a4829b3efe93c71c5b1046ca2b487220f0ab6430bba73b"
+  },
+  {
+   "id": "hakata-member-230",
+   "handle": "RINA.J",
+   "sha256": "9cc87ebf9044fdc5d9944cce8828c2ddc84e3922f33f1159c904e57c67dce6dc"
+  },
+  {
+   "id": "hakata-member-231",
+   "handle": "MINT.R",
+   "sha256": "f6822690b7e7c17f310e61d0d41fbd6bcdc590d55a6fee7d981b4b1d9a1ec524"
+  },
+  {
+   "id": "hakata-member-232",
+   "handle": "KERO.C",
+   "sha256": "6e26399f4320de3cffdc920fe1e55039854acd3bd98b256d4885f32a18f7b726"
+  },
+  {
+   "id": "hakata-member-233",
+   "handle": "EMI.N",
+   "sha256": "324c2e6e009c1554e2cc0a30a603928982f93697ddf27528a3cdc406685a2771"
+  },
+  {
+   "id": "hakata-member-234",
+   "handle": "RABBIT.T",
+   "sha256": "d68def77fca50ea024a3cb91a01e19fd9f18a9496331c797079011d9eec49fda"
+  },
+  {
+   "id": "hakata-member-235",
+   "handle": "KEN.V",
+   "sha256": "c258ddf0d1558ea82d8f6e1fdefdb0419001cde95b1f915daaacdeda4b6bb2b1"
+  },
+  {
+   "id": "hakata-member-236",
+   "handle": "TOMO-T",
+   "sha256": "f1141cc0c5f62ffcbe22ea8b4403438f8660b88fa8bb8d522e32cc2a12c0ffe6"
+  },
+  {
+   "id": "hakata-member-237",
+   "handle": "MAKO.L",
+   "sha256": "44e286381d46b2ef5499fd4960e693a6ecaf5e70c356ab0d9a93d89dc2aef265"
+  },
+  {
+   "id": "hakata-member-238",
+   "handle": "KOJI.L",
+   "sha256": "25cbb32d3cbac88736956c98c8eb0e04b641d33c17f06d04220d4653ce7ce901"
+  },
+  {
+   "id": "hakata-member-239",
+   "handle": "X68.X",
+   "sha256": "0c0154271d0ea7f8fba924c767e8c45a1fde0bfa8fbccad6a9412ef101075308"
+  },
+  {
+   "id": "hakata-member-240",
+   "handle": "MAYU-B",
+   "sha256": "534c973096f6dd35234b9a46ee29224a6a6e96f8e7d7e97e5fad0612cce8713c"
+  },
+  {
+   "id": "hakata-member-241",
+   "handle": "AYA.G",
+   "sha256": "860c4c2ef8756b68475bc4089c7db98681f41051376d2f0ef7bfb26d8df54ece"
+  },
+  {
+   "id": "hakata-member-242",
+   "handle": "MAKO.Z",
+   "sha256": "f61c746b257236fda435a89e530c40fe177a52b6161cb42014b9d9369eb40c43"
+  },
+  {
+   "id": "hakata-member-243",
+   "handle": "MAKO-Z",
+   "sha256": "f91949051ca5f8c2b615370cd62f58318bc1057e028c80ab512d95562610cc7e"
+  },
+  {
+   "id": "hakata-member-244",
+   "handle": "MASA.C",
+   "sha256": "d7cb1a8d4d8a62880418e6afbb1ebffffdb23d5c0a1f50884be34a5b92ce148f"
+  },
+  {
+   "id": "hakata-member-245",
+   "handle": "SHIN.D",
+   "sha256": "005dc6859a8db4049e30d630476aae7903e9296a12a8a95038d7fc5198849d66"
+  },
+  {
+   "id": "hakata-member-246",
+   "handle": "MASA.M",
+   "sha256": "f18bfcaae01a3feea9d37e8ba84e2a4f30109d852804757b1fa011bdbc5efecb"
+  },
+  {
+   "id": "hakata-member-247",
+   "handle": "MIKI.A",
+   "sha256": "285c1d3f245a365f8a1421dfcf9d943732e4dd13859357eaa631d7f1b9dd6058"
+  },
+  {
+   "id": "hakata-member-248",
+   "handle": "MIKI.J",
+   "sha256": "56f36f5e155e2d873c9a4ed69f049f82a1729aaf8159b6a042bb0cc907011c6f"
+  },
+  {
+   "id": "hakata-member-249",
+   "handle": "KOJI-C",
+   "sha256": "43a04f98c8252988b0fb360533b9817e1909865b823b23b49a4b033f1a5ee64b"
+  },
+  {
+   "id": "hakata-member-250",
+   "handle": "MARI.J",
+   "sha256": "df35848983575a6c3d4768015b98c3f8f47a3a1d585ea70e0b66da9b1c541e5f"
+  },
+  {
+   "id": "hakata-member-251",
+   "handle": "EMI.E",
+   "sha256": "4715a0b267a633ed4073b1bdc83ee1cd6707bf096e0041cbb45881f0508bc0a2"
+  },
+  {
+   "id": "hakata-member-252",
+   "handle": "KEN.I",
+   "sha256": "7e787265d756ca18e68aba31ed7f309601dcddf00a8ece58ea25886d102d4980"
+  },
+  {
+   "id": "hakata-member-253",
+   "handle": "KEN.M",
+   "sha256": "59ec54d8d3c802192bf8399109a7776070a2909ce5aacce204d4ff49345469a8"
+  },
+  {
+   "id": "hakata-member-254",
+   "handle": "KOJI.C",
+   "sha256": "26ed12eb570e7cedff3ee1493b270b7ce93b34c82503005b6d1b47165e68b9b2"
+  },
+  {
+   "id": "hakata-member-255",
+   "handle": "HIDE.I",
+   "sha256": "dd8f450dbf7e95723646da641016e5e19d8d7b310a258c8aff735cf9fb69f0fa"
+  },
+  {
+   "id": "hakata-member-256",
+   "handle": "SHIN.O",
+   "sha256": "0ec69b769ed63caf9733aef8ad1014f51ecb4c4fa0d049f9cac2f204938bb2d0"
+  },
+  {
+   "id": "hakata-member-257",
+   "handle": "X68.G",
+   "sha256": "b4036ce89220281b2458ce01df88ee84df5a40ade08e18bba1b5b4dffb13221c"
+  },
+  {
+   "id": "hakata-member-258",
+   "handle": "RYO-X",
+   "sha256": "f66d502adfa7d678bbfe40c51b97813f4fb44b0a0dd82f54a4685aeb460c1cc8"
+  },
+  {
+   "id": "hakata-member-259",
+   "handle": "HIRO.C",
+   "sha256": "74a3f70b27f59b697a1349446344a231458fab5d610196003577bc0973642378"
+  },
+  {
+   "id": "hakata-member-260",
+   "handle": "RABBIT.S",
+   "sha256": "d5d384e0c44067491d3c6dd70821721bed58599e7cc95f594873a2f7585ff63f"
+  },
+  {
+   "id": "hakata-member-261",
+   "handle": "RYO.M",
+   "sha256": "478152427a78945ae70a7ddc5df7673b73665fc00eec1f29d91804d1710df723"
+  },
+  {
+   "id": "hakata-member-262",
+   "handle": "NAO.R",
+   "sha256": "a1361b34b389f16596666191889cfbb3c6fd5c71d71c0f855ab33e3e218e133c"
+  },
+  {
+   "id": "hakata-member-263",
+   "handle": "ERI.U",
+   "sha256": "c08bdd66236a49ac076cc4f39ab57d5a8dbdcf37609c2f5f221098426fd4d55f"
+  },
+  {
+   "id": "hakata-member-264",
+   "handle": "ERI.S",
+   "sha256": "0bdb5b96fe897505e30603dd3d90de64a26391b5a9e160433151819e59e71ab0"
+  },
+  {
+   "id": "hakata-member-265",
+   "handle": "EMI.Q",
+   "sha256": "54635ad13a6c5463fcca99382ae0987c87b8386696560aa79104e4599957d33e"
+  },
+  {
+   "id": "hakata-member-266",
+   "handle": "LUNA.L",
+   "sha256": "d43c003ce5dff096fd265c9de1ad279a970e307a58b2d0d8058f953d023c1509"
+  },
+  {
+   "id": "hakata-member-267",
+   "handle": "X68.Z",
+   "sha256": "5e248e1af213b887d14193214c648ec568da2c9b5160cd8cbdf881d66514b681"
+  },
+  {
+   "id": "hakata-member-268",
+   "handle": "NAO.A",
+   "sha256": "c23eb0f04e42761da847d98826368b0c48594caac4aebf0fb95e4ccd9505cd8e"
+  },
+  {
+   "id": "hakata-member-269",
+   "handle": "KERO.I",
+   "sha256": "7a551ed890af43dc4452116c294e1b465d66b94ced2c03e657089b2352e8157f"
+  },
+  {
+   "id": "hakata-member-270",
+   "handle": "KOJI-S",
+   "sha256": "c71e46cb768012778bc81e98dacabbda145becb5e9e8876a16d7d9e5fa90a2e7"
+  },
+  {
+   "id": "hakata-member-271",
+   "handle": "AYA.N",
+   "sha256": "e1e6fdbff1c2bb077876ee2cbe19a933b1f6a4b6696684d56a9cf9ad66a8dc78"
+  },
+  {
+   "id": "hakata-member-272",
+   "handle": "HIRO.F",
+   "sha256": "18ec8186f33ae8ebc91790c583fbeea372e4383fcf6981d1765d856325cdfb53"
+  },
+  {
+   "id": "hakata-member-273",
+   "handle": "JOKER.B",
+   "sha256": "b9724b7e5dbbb5dc22ca12a13f7a9b70ce708c1ae37838ded357995ab6b5dfb1"
+  },
+  {
+   "id": "hakata-member-274",
+   "handle": "KAZU.F",
+   "sha256": "16414c0f62795a9078941047c095027226a4797b8090c9db14279836ca4188cf"
+  },
+  {
+   "id": "hakata-member-275",
+   "handle": "JUN.D",
+   "sha256": "40a8dc423f8c1d12aed9830af8f2689e13a64b7cb05f11207c9ddc6c7bc4c2e8"
+  },
+  {
+   "id": "hakata-member-276",
+   "handle": "HIRO.R",
+   "sha256": "19fb2a194b47cebaee9027d9a2eafa75bfafe4d70001c44bc85c18d8a49be01a"
+  },
+  {
+   "id": "hakata-member-277",
+   "handle": "MAKO.X",
+   "sha256": "2c45004bcac4ef95b826dcf554e11f1a2e702776884ff27e4b580e76f9ded50a"
+  },
+  {
+   "id": "hakata-member-278",
+   "handle": "MEG.X",
+   "sha256": "f7338de021b7acaa125f2e6ce78e6772571d8014ebfbdba7db6aec46f6331720"
+  },
+  {
+   "id": "hakata-member-279",
+   "handle": "V30.L",
+   "sha256": "ed4f51020ae54328b8498f75b3c62a8518d5c9e0b5bd1c84625b121953640ac6"
+  },
+  {
+   "id": "hakata-member-280",
+   "handle": "KENTA.E",
+   "sha256": "00d016a143b6c3afaae977bd6c1e7246d5efe8fd0192ef0d1e15254250fc8802"
+  },
+  {
+   "id": "hakata-member-281",
+   "handle": "X68.V",
+   "sha256": "fd605e85f4a8da68b6f665a123b13891790eec23eabc4bdd1cc8d76c9b6e3b4b"
+  },
+  {
+   "id": "hakata-member-282",
+   "handle": "MARU.T",
+   "sha256": "f1c8b2945bb1f614420d53187e49cf88b29cf1c995c844dd7bbe0341c03aa6b8"
+  },
+  {
+   "id": "hakata-member-283",
+   "handle": "RYO.L",
+   "sha256": "9a55756cde9defd1aa041f926bd7440b039f06418ef8ceceaac4a3c154a1cfa1"
+  },
+  {
+   "id": "hakata-member-284",
+   "handle": "COM.F",
+   "sha256": "07f6c77e68e4830f5a8c5c9ac07260fbfe11899ca4ba7c971a7e42d163892481"
+  },
+  {
+   "id": "hakata-member-285",
+   "handle": "PC98.I",
+   "sha256": "c73523059ca2f9503193883af330479608b46e32a876c2a49454358bce2212e4"
+  },
+  {
+   "id": "hakata-member-286",
+   "handle": "KERO.O",
+   "sha256": "92289fed3ddc0b6e98e5fc925099e33e625d0d451107742826b8bda7421b719f"
+  },
+  {
+   "id": "hakata-member-287",
+   "handle": "JUN.B",
+   "sha256": "882ba40566bb57126c76c7cb30133c1d39e07b56bc8fd21a3b8657047f3ad76e"
+  },
+  {
+   "id": "hakata-member-288",
+   "handle": "KEN.A",
+   "sha256": "b07c1dabe6dc697344f4b1dcf86e3e56d41dfa560daaf62d93094489305926eb"
+  },
+  {
+   "id": "hakata-member-289",
+   "handle": "V30.X",
+   "sha256": "a3396f8f2390d8929861ba6a387ae09f66ac9fb61821a76173ed9c114af8635b"
+  },
+  {
+   "id": "hakata-member-290",
+   "handle": "MARU.Q",
+   "sha256": "92658192e9b113ef69675891b61b2cff125ae6f55694151ca26533783af1f4fa"
+  },
+  {
+   "id": "hakata-member-291",
+   "handle": "MASA.Y",
+   "sha256": "6180c2c0a928d60d5c2648dbacf3ef3beefecff7d75a9ef8844e4b2fde5e36dc"
+  },
+  {
+   "id": "hakata-member-292",
+   "handle": "X68.C",
+   "sha256": "057f8e310d6cdadb79a2237e306478c63bea14cd993ec7b132cbdaf4d1b66a47"
+  },
+  {
+   "id": "hakata-member-293",
+   "handle": "MEG.A",
+   "sha256": "2d657b15be17f4ba6d5f0c8ef7bee16d52fe5cf7c0928002e37ca66984bf7dc7"
+  },
+  {
+   "id": "hakata-member-294",
+   "handle": "TOMO.F",
+   "sha256": "6fb29e9e3975f1d6b3b45cf310210aab9f5d563c22d9b0f7f73837a8567e2137"
+  },
+  {
+   "id": "hakata-member-295",
+   "handle": "MODEM.G",
+   "sha256": "ee24e81e213decd6390f920f6e5dc130ffa989d0e33451a0cb99fa0c01d116c1"
+  },
+  {
+   "id": "hakata-member-296",
+   "handle": "MINT.A",
+   "sha256": "fc460aa63c5be4048a2481a30237f6ccdc49b33b1e026cb926e334604aa56d28"
+  },
+  {
+   "id": "hakata-member-297",
+   "handle": "EMI-N",
+   "sha256": "ecfbca8c5c6f3065e7ebea4962894a1c563aac9405ab93f0d4b7b1749e57e6b6"
+  },
+  {
+   "id": "hakata-member-298",
+   "handle": "MINT-Y",
+   "sha256": "1eb7cfb8f8470d0c8deb107ace9b9a53a15678e22b1fc6564970d5842eafa3f7"
+  },
+  {
+   "id": "hakata-member-299",
+   "handle": "MASA-W",
+   "sha256": "6b1efcd659a12a6f2a84d5fa8ed8c66ece55ab92bdcac2b25dbcf611aec868e0"
+  },
+  {
+   "id": "hakata-member-300",
+   "handle": "MAKO.M",
+   "sha256": "426207d52e1a32ffa5f654d715801cf63f7a4d843f5cb58c5e93003a5f78d2c3"
+  },
+  {
+   "id": "hakata-member-301",
+   "handle": "RYO-Q",
+   "sha256": "dd91801f5cc62939644f9398d21c769caf88d170261b1af4ba51e4d65540572e"
+  },
+  {
+   "id": "hakata-member-302",
+   "handle": "PC98.K",
+   "sha256": "4183f3dca48f37441199b923bb57c0ed52d81442dee3aba74e492f7401843686"
+  },
+  {
+   "id": "hakata-member-303",
+   "handle": "REI.E",
+   "sha256": "554ab38ca0db207085d969ca6c8f8b568bed63a8f554e14b11bd6a456dca527c"
+  },
+  {
+   "id": "hakata-member-304",
+   "handle": "TOMO.K",
+   "sha256": "14236ebfb3df96617095f47e01b7f5be9fabec1a125acbc6b00c37d0083af596"
+  },
+  {
+   "id": "hakata-member-305",
+   "handle": "HIRO.G",
+   "sha256": "1be894f656b67ca7125a3acd2aa24440311ed00fe74b79e9d5b29c0bc372083d"
+  },
+  {
+   "id": "hakata-member-306",
+   "handle": "MAKO.E",
+   "sha256": "a5cb3c74b040308f7f8f70ccdc856e5f99554f83d0fb32540e0e3f8e97f2114c"
+  },
+  {
+   "id": "hakata-member-307",
+   "handle": "MAKO.P",
+   "sha256": "a4949eb2b4e8ecd90af0e60ac9543c8444caa603505d2d9e9204b11b611b9e7c"
+  },
+  {
+   "id": "hakata-member-308",
+   "handle": "LUNA.I",
+   "sha256": "2835b3d407981459436e0bd02ae4348857a995a8e50f872163152dae6df68b58"
+  },
+  {
+   "id": "hakata-member-309",
+   "handle": "V30.J",
+   "sha256": "eb6369f53c1a25b074f5f6abfeaf166b953c2b9702130f9b7f2e048f1b8c9b6b"
+  },
+  {
+   "id": "hakata-member-310",
+   "handle": "RINA.O",
+   "sha256": "d09f67c741e6603f9d815b037ce1bfa7f9c3d45b19e053a433e651fa3c398874"
+  },
+  {
+   "id": "hakata-member-311",
+   "handle": "YUJI.M",
+   "sha256": "c7e5c99655d7d64502ed3751393e894e45c438c57250faac173708d98dceb5af"
+  },
+  {
+   "id": "hakata-member-312",
+   "handle": "SHIN.X",
+   "sha256": "8752556a9c79cb3dbb8ab8db292713298ce7f89a9e9bb218ca224052bdd3f82f"
+  },
+  {
+   "id": "hakata-member-313",
+   "handle": "YUJI.F",
+   "sha256": "8d7ff146cb6f29def912c8318447fbec7c9e977363d41d04ee562f91f77025a6"
+  },
+  {
+   "id": "hakata-member-314",
+   "handle": "MINT-P",
+   "sha256": "8d7aa5740a092dcaa6fed3d514ca85e44da86c1d2036c3283d2ad5dbc77174fa"
+  },
+  {
+   "id": "hakata-member-315",
+   "handle": "MEG-M",
+   "sha256": "2ee1a3cb8dde032ca6d4b764f329c0df52565c17bfb3dd1d534c57900668ce54"
+  },
+  {
+   "id": "hakata-member-316",
+   "handle": "AYA.I",
+   "sha256": "deb86aad59b7e089f4322de9e9e7f40d7b54f7f2406cd7122dbcb52d1eab4956"
+  },
+  {
+   "id": "hakata-member-317",
+   "handle": "MAYU.F",
+   "sha256": "ed053ca7b9f1e23be11349bfeffd56fea27c61bc1a5ad5a0fcaa618e3633307d"
+  },
+  {
+   "id": "hakata-member-318",
+   "handle": "ERI.H",
+   "sha256": "a50c1a78a1e3b15b8acf0c19fc1743031f7a70f6dd98379fedf18e3ccd70dd47"
+  },
+  {
+   "id": "hakata-member-319",
+   "handle": "RYO.P",
+   "sha256": "eb931fa95584d74fb60c0038a6e4911ee81f172abae604144f505ad907ba6d16"
+  },
+  {
+   "id": "hakata-member-320",
+   "handle": "COM.J",
+   "sha256": "e82458f088e43bc0178405ccf1f60066a74f7d4e2b17028b1d429e102465f403"
+  },
+  {
+   "id": "hakata-member-321",
+   "handle": "MINT.N",
+   "sha256": "3eca697a99ba2db44c50e0242029cba13bf788e00d7aacf4cdfa94cb7efe1a34"
+  },
+  {
+   "id": "hakata-member-322",
+   "handle": "PC98.B",
+   "sha256": "04d847819d819bcacc0f6fed4c08d7a5412826f332650dbf4a4b980646af4d65"
+  },
+  {
+   "id": "hakata-member-323",
+   "handle": "REI.V",
+   "sha256": "dc08b183c3e5821e5cc81b40ccc9fd6a263c0b35bc9f973ed83f57470ac2b35b"
+  },
+  {
+   "id": "hakata-member-324",
+   "handle": "HIDE.F",
+   "sha256": "75c5149b2d3414512d798cd4fd17b9f72ef68b9fcc19d3f2562c144678997748"
+  },
+  {
+   "id": "hakata-member-325",
+   "handle": "SATOSHI-V",
+   "sha256": "20735eaee5d7dbffb3aa9bbd60ffac1c6f74e65caf2abff7f3e9fc3e4a159367"
+  },
+  {
+   "id": "hakata-member-326",
+   "handle": "MASA.R",
+   "sha256": "03a7c64167483c9e65f769a37a4b3d65e0753ed43695d28d296cc65e96c2d7ea"
+  }
+ ],
+ "fresh_constructor": [
+  {
+   "id": "hakata-mari",
+   "handle": "MARI",
+   "sha256": "d6fcb6315ecd129322b1aa5b1e95bdf5881380fe4549f0cee461a4dae4181e7a"
+  },
+  {
+   "id": "hakata-yuki",
+   "handle": "YUKI",
+   "sha256": "32e08f49653a7f68d06c3a06c1adf49075ff24cf7d78e9cbdb0688120a204edc"
+  },
+  {
+   "id": "hakata-nori",
+   "handle": "NORI",
+   "sha256": "ceca7c8b258f711e8d6974f90deac96f58bd944fae79ef4642cf566f6e8bd2aa"
+  },
+  {
+   "id": "hakata-kazu",
+   "handle": "KAZU",
+   "sha256": "4731e941902babf41e0229ec5d4f90ed0917b221d53a51e45dacd0543bd54522"
+  },
+  {
+   "id": "hakata-taku",
+   "handle": "TAKU",
+   "sha256": "9e4a91996f7e48f2b822d89102462f56993bcb469014db27b4cdb5a322d65272"
+  },
+  {
+   "id": "hakata-neko",
+   "handle": "NEKO",
+   "sha256": "c8d46e834e85fd15adf2268eb73d1794d3bcbfe45a3ce241ba5cec2a3b28f2aa"
+  },
+  {
+   "id": "hakata-ken",
+   "handle": "KEN",
+   "sha256": "b9534cb0506c0fadfaf51e002f9dbd3a35b87048d7a1b82305dfa4250de578ea"
+  },
+  {
+   "id": "hakata-mako",
+   "handle": "MAKO",
+   "sha256": "0f1a5737dcaab7852340b63edaa92fb9cce9331db19279540823f5575d6fd08d"
+  },
+  {
+   "id": "hakata-tomo",
+   "handle": "TOMO",
+   "sha256": "223bdc413c339f36648fcdb86d4a05b59a7d0d9aeb650398afaded7c17465463"
+  },
+  {
+   "id": "hakata-aki",
+   "handle": "AKI",
+   "sha256": "504fc71a2935a0c4f221d0819e660cd67a0473c3fcef4519ad538fd9d56b8e86"
+  },
+  {
+   "id": "hakata-ryo",
+   "handle": "RYO",
+   "sha256": "9842bc3d8b6514dd7034de185f52e0326ff6e2341aa0821e0452847d4303b3f9"
+  },
+  {
+   "id": "hakata-hiro",
+   "handle": "HIRO",
+   "sha256": "ae313e13389bae4e52dcade7b24efa3efe331a51658e6fabbd1b1d7bafd63933"
+  },
+  {
+   "id": "hakata-sachi",
+   "handle": "SACHI",
+   "sha256": "45694798fe42e5771fbffcf58ec75692e85b3ec47bbf6775533f8ab0f5be1daa"
+  },
+  {
+   "id": "hakata-jun",
+   "handle": "JUN",
+   "sha256": "ade91cd8dfb853f7211a58869b254e48596bca06326d381119bfcdd93cfc9000"
+  },
+  {
+   "id": "hakata-midnight",
+   "handle": "MIDNIGHT",
+   "sha256": "a33230dbb9513c09d3aa601b97f246f79895e643d71ba8b40b46c176224309b2"
+  },
+  {
+   "id": "hakata-member-016",
+   "handle": "EMI",
+   "sha256": "ce86dbf68b31e4d0dca55059ed87dfbf6f963fd17ef75586a465d17231549fcc"
+  },
+  {
+   "id": "hakata-member-017",
+   "handle": "MEG",
+   "sha256": "fa910c1538085f4923e919d83ae17727dab3f1ff0ce91dd0665a0545a68be336"
+  },
+  {
+   "id": "hakata-member-018",
+   "handle": "KOJI",
+   "sha256": "0ab2f3ce7299274c72ac75486e7839c253434b1a9beedc315b448fbdf854d209"
+  },
+  {
+   "id": "hakata-member-019",
+   "handle": "SATOSHI",
+   "sha256": "269c7556783767f8597baedfa821e72c2e97c89eb4a4da477b4dab81e8c60b3c"
+  },
+  {
+   "id": "hakata-member-020",
+   "handle": "V30",
+   "sha256": "1ae446e5709e3a8a5db90986395a136a51e0156fe9eca241806d38782b121a52"
+  },
+  {
+   "id": "hakata-member-021",
+   "handle": "TAKESHI",
+   "sha256": "44a6be45c5fdf9c05d84026f3b6ba25e0a000ac960f6ef9586ead693ec0e1254"
+  },
+  {
+   "id": "hakata-member-022",
+   "handle": "KOJI.B",
+   "sha256": "0b56f6b004fe4dc0181bea62c76cce5eb08a178d15f376e1ffbd0925516e38f4"
+  },
+  {
+   "id": "hakata-member-023",
+   "handle": "MAYU",
+   "sha256": "fb5b99aec260618962d82a48aaeb8c5c7b5fdd9c9b2fa7d43106b843d609b8ba"
+  },
+  {
+   "id": "hakata-member-024",
+   "handle": "KERO",
+   "sha256": "22a00cd70497904c8fa516f0c327196bff5653d3cd895311025a555d89c36ff9"
+  },
+  {
+   "id": "hakata-member-025",
+   "handle": "SHIN",
+   "sha256": "862048bfa7b9645e05875c2c6f67dfcfd01dd252cc0113b3604196f65bc7aa67"
+  },
+  {
+   "id": "hakata-member-026",
+   "handle": "NAO",
+   "sha256": "c3d12e3c61e40f540ff3c06eb13b69ba28804a7eb6bba877c09c42dea9136d02"
+  },
+  {
+   "id": "hakata-member-027",
+   "handle": "NORI.Z",
+   "sha256": "c0816ea4c2777719decd8fa16a03a6e387648585be0d3cb4c68b9a38865faba1"
+  },
+  {
+   "id": "hakata-member-028",
+   "handle": "JOKER",
+   "sha256": "4d8657e8ecef6839598d4999fa3c813ca623ec31b249ce8518315a1479bb13e3"
+  },
+  {
+   "id": "hakata-member-029",
+   "handle": "NAO.Z",
+   "sha256": "62a93e13fbeca7172296ceac37271c22f1255cb939009575e6c958ff6986ef98"
+  },
+  {
+   "id": "hakata-member-030",
+   "handle": "REI",
+   "sha256": "767aed9f0a14776b67ae1f2d4be3b710a111d0ae3d36b13d11061c681b3c9e0b"
+  },
+  {
+   "id": "hakata-member-031",
+   "handle": "MINT",
+   "sha256": "5a8a118729a89ea61c11af8d0e26783302de957340fed11626e805f4f15cbe7b"
+  },
+  {
+   "id": "hakata-member-032",
+   "handle": "MASA",
+   "sha256": "d706cc5a77dfcdc0a5d7eaba67e6a51361fab50918aeca386b8a04b89f20cf49"
+  },
+  {
+   "id": "hakata-member-033",
+   "handle": "LUNA",
+   "sha256": "b6048706c41a5b6d385e72aa2266b95159552804f1d2aefe62b5fae998418adc"
+  },
+  {
+   "id": "hakata-member-034",
+   "handle": "MEG.M",
+   "sha256": "05b90d87b9e6fa30bd5c613a7bab78341137bd0abbaf89e9c40455ddeb11e4a7"
+  },
+  {
+   "id": "hakata-member-035",
+   "handle": "V30.Q",
+   "sha256": "1873be59a867172d8794c56904c1134d27974232a30e128f5a9f9d1577ff94d4"
+  },
+  {
+   "id": "hakata-member-036",
+   "handle": "HIRO.K",
+   "sha256": "25f5e937b9b6b9c66ee694b4e157753b6881cfe895f4d104d629525e0cdf4ef5"
+  },
+  {
+   "id": "hakata-member-037",
+   "handle": "COM",
+   "sha256": "f0544f71169483080a0c563195c208d5a10435d065502f5c4c5987c48d2c4eaf"
+  },
+  {
+   "id": "hakata-member-038",
+   "handle": "KAZU.D",
+   "sha256": "a68ca04e743066457c4e48889b340e4bc6b01f44dcb02f442fc4fb57bc058998"
+  },
+  {
+   "id": "hakata-member-039",
+   "handle": "TOMO.O",
+   "sha256": "eb45f30113afe270f15955179bde142ee223ead9e2c2d6a0087814b77e0a45c0"
+  },
+  {
+   "id": "hakata-member-040",
+   "handle": "NOVA",
+   "sha256": "58886a725551b020750dc573ab606fe4f4d829ac90eaa87fb6857cb8d5c0ea4a"
+  },
+  {
+   "id": "hakata-member-041",
+   "handle": "EMI.U",
+   "sha256": "8bec6fbf1b58d3216cae7d219ce09143e98339acd4839bfb480c9b917955d23a"
+  },
+  {
+   "id": "hakata-member-042",
+   "handle": "TAKA",
+   "sha256": "e4e3558f4ee3145f816d506d09dfa67e7798fceb86cf55b215494de7bebeaea7"
+  },
+  {
+   "id": "hakata-member-043",
+   "handle": "HIDE",
+   "sha256": "f7819424a745dcd33a61992b0795a9ed518ac021a73b31b9a02091c51459410e"
+  },
+  {
+   "id": "hakata-member-044",
+   "handle": "WOLF",
+   "sha256": "86d7c0c769e5832a2b6839d15a273f6e3f0d4116b7f84c2bbc1cf492f91bdc1c"
+  },
+  {
+   "id": "hakata-member-045",
+   "handle": "RYO.G",
+   "sha256": "90b99ba15b32bf83b2823ac25682cbf448fafa169114525ce50ca36c4c56dfac"
+  },
+  {
+   "id": "hakata-member-046",
+   "handle": "RYO.C",
+   "sha256": "0e5dff28af1995d814cdaeec4048758cf4f2d20ff71f3a89bf7f3b97420b2f4d"
+  },
+  {
+   "id": "hakata-member-047",
+   "handle": "SATOSHI.C",
+   "sha256": "f144ecadba40d1079ca969baad76d46821648c8e179787d8c822ba3c278847c5"
+  },
+  {
+   "id": "hakata-member-048",
+   "handle": "EMI.L",
+   "sha256": "8792c217ad1c7b4d109662cde538343ea6be1793e69e661f98413625e76c6848"
+  },
+  {
+   "id": "hakata-member-049",
+   "handle": "MINT.O",
+   "sha256": "e226a480421aa1da715a11508f3a85a1cf58630e8f54d19d5a9ba6f3973c54aa"
+  },
+  {
+   "id": "hakata-member-050",
+   "handle": "KAZU.C",
+   "sha256": "1fd2af7cb250aa4399c77aff79bd8bef8f85cf33aa5bedf2eddf9e582a914802"
+  },
+  {
+   "id": "hakata-member-051",
+   "handle": "NORI.O",
+   "sha256": "c45df2d73f121b795ba5acc2c09e6d69a9c9f53f77050d53a56f2854ee6e8830"
+  },
+  {
+   "id": "hakata-member-052",
+   "handle": "REI.Z",
+   "sha256": "f61673df9618ae2d207f6ae4bfe7f6fdd01dd4dcd7fb9f8290b1ab26f39e5b62"
+  },
+  {
+   "id": "hakata-member-053",
+   "handle": "MARI.V",
+   "sha256": "36f5d5de6b1d073a4404041e865edbde8e59e1283a5156c4834fa231771bff33"
+  },
+  {
+   "id": "hakata-member-054",
+   "handle": "JOKER.N",
+   "sha256": "b3f3f5340cd812745fc55bc01984df4dd9193433f99f647341a7e0b3fcbea04a"
+  },
+  {
+   "id": "hakata-member-055",
+   "handle": "N88",
+   "sha256": "e93b3ebea54ce7b4ba309a7e8b4984ebd6afd024c9f1c485843acc0ef67c22df"
+  },
+  {
+   "id": "hakata-member-056",
+   "handle": "LUNA.Y",
+   "sha256": "0b2c9198e5340586c8ca77e2ee57a046abae9608158594f286287184190d76e9"
+  },
+  {
+   "id": "hakata-member-057",
+   "handle": "JOKER.J",
+   "sha256": "1f0e124a2b776e21bc5354fcca714c177758c1e5d9e7eb13c1ea7ec00b59b063"
+  },
+  {
+   "id": "hakata-member-058",
+   "handle": "KAZU-W",
+   "sha256": "ce292684bded52de0df8f545000b16778cfce60fb8c1755e3dd5f8a71ab8ce91"
+  },
+  {
+   "id": "hakata-member-059",
+   "handle": "NORI.D",
+   "sha256": "08ebfca657c73561ce693eb9d9c71123826077277efae7a06846ff7a348baeaf"
+  },
+  {
+   "id": "hakata-member-060",
+   "handle": "SATOSHI.P",
+   "sha256": "ec3bf18ea763cdb672416c9f9253fcaced598b956ccc155951f1219c4bb1412d"
+  },
+  {
+   "id": "hakata-member-061",
+   "handle": "TAKA.I",
+   "sha256": "4bb5057cfad4947e3e2a4cc11d2811df08901849c1218122e803c6421a94e1da"
+  },
+  {
+   "id": "hakata-member-062",
+   "handle": "RABBIT",
+   "sha256": "156147163af9e172fbb984525d1bd543ff2fcfa1468841ae10d0a66f17063d85"
+  },
+  {
+   "id": "hakata-member-063",
+   "handle": "MARI.N",
+   "sha256": "4330c4ce194fd9871a94a2976c77cf1b3d7a53366e5a8ff3d3322c06a7da9a61"
+  },
+  {
+   "id": "hakata-member-064",
+   "handle": "TAKA.L",
+   "sha256": "f7b41945adde9864f09754747f99e9e8eace267ae94d216fd135c3e7f61fc257"
+  },
+  {
+   "id": "hakata-member-065",
+   "handle": "HIRO.T",
+   "sha256": "c1de4328d13c994d32959fc2ae3a6f97f11fa894dd09d41869c274fe7db44177"
+  },
+  {
+   "id": "hakata-member-066",
+   "handle": "KENTA",
+   "sha256": "03f9d63b94128709c88606b012cbfbf3cf3d4d58de0ce770b790e8b0b4b7d8d1"
+  },
+  {
+   "id": "hakata-member-067",
+   "handle": "MAKO.J",
+   "sha256": "06b20862e3a6dfcf87bc8e3d824ea551b9b4864590ef7fa7696df0daf27ead91"
+  },
+  {
+   "id": "hakata-member-068",
+   "handle": "EMI.F",
+   "sha256": "833d607ecca15b5cde93a44a11d795243e240e33c703d5c6f4a57a403d70ab79"
+  },
+  {
+   "id": "hakata-member-069",
+   "handle": "AYA",
+   "sha256": "a20daf05c58ac195986a98ceb15437c185f36a85a4aba21b125db44772d3a3a3"
+  },
+  {
+   "id": "hakata-member-070",
+   "handle": "SATOSHI.J",
+   "sha256": "49f08000d10f06d2a9c48d3ce12a796d0fb4407b2ac71a82337c1bcf29631727"
+  },
+  {
+   "id": "hakata-member-071",
+   "handle": "JUN.V",
+   "sha256": "0200fbf8d159fc6473a51ff87d2f94f3443834ee6a90e735798c77d2f634a2b3"
+  },
+  {
+   "id": "hakata-member-072",
+   "handle": "MAYU.P",
+   "sha256": "289809ff2ac69cdae903c6ebc48b1c94ead85a9e9381304125fa7a5ca2a73ddf"
+  },
+  {
+   "id": "hakata-member-073",
+   "handle": "HIRO.J",
+   "sha256": "58af9556c34bddf2ee2502e26c1dc03ad3a7b46fbd9a694271564b301f6cda55"
+  },
+  {
+   "id": "hakata-member-074",
+   "handle": "KEN.T",
+   "sha256": "f70c9ed29edf8c51a64e1865c5444daf3e1164cfac2abddd6f7d618abd372767"
+  },
+  {
+   "id": "hakata-member-075",
+   "handle": "MAKO.A",
+   "sha256": "a2082e29e4c486d6796d02a2adb7ee76fb4460a826bbf76e2eabed1b26a94d87"
+  },
+  {
+   "id": "hakata-member-076",
+   "handle": "AYA.B",
+   "sha256": "742665374f5035fd496b87ffd6800e35ef3517ad4d1a378aca785e7929907db5"
+  },
+  {
+   "id": "hakata-member-077",
+   "handle": "TAKA.S",
+   "sha256": "9a889353237d38e5d75ebf058a9775ae7f54f8b95f05890624907bd77133ef0f"
+  },
+  {
+   "id": "hakata-member-078",
+   "handle": "TOMO.N",
+   "sha256": "41c582852e6464bfd8a9278038705ac609369c82a8fd4f2c2420f309fbbaf075"
+  },
+  {
+   "id": "hakata-member-079",
+   "handle": "MEG.G",
+   "sha256": "f584d67b0130a8b0559592e35ead2cb645104d2a99484915eaad57165b3c511f"
+  },
+  {
+   "id": "hakata-member-080",
+   "handle": "MIKI",
+   "sha256": "4e4b85ba354ee5dbcf609797585145d9befa677c27618e11f33e1adbdb088834"
+  },
+  {
+   "id": "hakata-member-081",
+   "handle": "TOMO.Y",
+   "sha256": "dadcea2de77f709b37004d59ef952ee04cb16d94ad078efd2ce336155dfc20b2"
+  },
+  {
+   "id": "hakata-member-082",
+   "handle": "REI.G",
+   "sha256": "936732e7114e7380afc4a594824486d97adb7cc43b4b1bba80f674c7a6308b05"
+  },
+  {
+   "id": "hakata-member-083",
+   "handle": "JOKER.Y",
+   "sha256": "f3ea93069770984aea61696a3dd83c4a72f60f37e6157104b902ecd97eac10a0"
+  },
+  {
+   "id": "hakata-member-084",
+   "handle": "NORI.E",
+   "sha256": "3df6247d0d4f57bebb13ffda4a1d1f9b72fe209ece5ded1a6e570047b42af739"
+  },
+  {
+   "id": "hakata-member-085",
+   "handle": "RYO.K",
+   "sha256": "4e6610ba7f262e200eedff1ecb2fad1e273fa0d224f1de9714fc1faeed0f098e"
+  },
+  {
+   "id": "hakata-member-086",
+   "handle": "KEN.G",
+   "sha256": "7edb151f262ec5452cb8ced8129d5bfa01ef4aa4ac9fc29f1e12c70647c89e31"
+  },
+  {
+   "id": "hakata-member-087",
+   "handle": "NOVA.G",
+   "sha256": "3f146fa18ec6064ab7742214809a16434c53749ef1b92d6b497a7af095e078dc"
+  },
+  {
+   "id": "hakata-member-088",
+   "handle": "TAKESHI.Y",
+   "sha256": "b4d7b15d25af996d03015884069f47bd456a175f8bdb5940b6546813c4d3e847"
+  },
+  {
+   "id": "hakata-member-089",
+   "handle": "JUN.M",
+   "sha256": "7c99203fcae0a0b57a66eee4aad6777764bceba3552bdcfc4c4ab47782c73c55"
+  },
+  {
+   "id": "hakata-member-090",
+   "handle": "PC98",
+   "sha256": "8fb37d1d06b3bad78c96e10a69246f5bae45d67649f2131351561878b8ca4a7b"
+  },
+  {
+   "id": "hakata-member-091",
+   "handle": "JUN.G",
+   "sha256": "d77887bbc3e5f001b87b7720155c1ccccbe05cdc258a3182f606579e657123dd"
+  },
+  {
+   "id": "hakata-member-092",
+   "handle": "TOMO.Q",
+   "sha256": "9f19b9798075e822438e9824bf0f547de855381a966c273e806dc84dee659beb"
+  },
+  {
+   "id": "hakata-member-093",
+   "handle": "V30.C",
+   "sha256": "29bb84b8632ff599b0fd0ecc02222e99ef382ff18ac1bd2a01a1383921bd5f68"
+  },
+  {
+   "id": "hakata-member-094",
+   "handle": "ERI",
+   "sha256": "b6bb3abe5ecec1b8628639d39605a6a80d2297289878e54addf9001ba922e2ce"
+  },
+  {
+   "id": "hakata-member-095",
+   "handle": "AYA.L",
+   "sha256": "a8268f54735959dfa10c1b1a2839b17bdc736dde8f1158648ee3ccce10a02584"
+  },
+  {
+   "id": "hakata-member-096",
+   "handle": "MAYU.D",
+   "sha256": "7b11cb47349d51770f3c13d2d4481e7f6249015c464d6a7fc3b5018565540892"
+  },
+  {
+   "id": "hakata-member-097",
+   "handle": "MEG.D",
+   "sha256": "9e3c05857a7219b940da97e0c028057487bcf820dbccb71f135f525ac3125903"
+  },
+  {
+   "id": "hakata-member-098",
+   "handle": "YUJI",
+   "sha256": "c623f0b3f07f47f1fb2745f213af740f1dfe486a31fb418e4eecd3f277bce635"
+  },
+  {
+   "id": "hakata-member-099",
+   "handle": "NOVA.L",
+   "sha256": "e40daaff6acefba583de16b1818db3ae71bae823ac00544b54ba5c545783b9d4"
+  },
+  {
+   "id": "hakata-member-100",
+   "handle": "KEN-D",
+   "sha256": "fac05f2391656ab98e9cf21608e5b9630fbd220e045728a72d23bc73db38fb3e"
+  },
+  {
+   "id": "hakata-member-101",
+   "handle": "YUKI.P",
+   "sha256": "9c9be06444edb7586b96feef219d6cf98cc566790d921ef9870affb9a228386f"
+  },
+  {
+   "id": "hakata-member-102",
+   "handle": "NAO.Y",
+   "sha256": "552f8c30f100e66ca75847af911d0141391cd188164d4815aa0c7dc19d6e1cc3"
+  },
+  {
+   "id": "hakata-member-103",
+   "handle": "TOMO.M",
+   "sha256": "fe1911c23999a2a586d2c13a0cc6848ac32cf17a5d6f5cfe3d7387fdd9866d19"
+  },
+  {
+   "id": "hakata-member-104",
+   "handle": "SATOSHI.F",
+   "sha256": "e6ad626a1993a74791e30da48a16ab96e5aa8498a517ac5d86084315edfabc06"
+  },
+  {
+   "id": "hakata-member-105",
+   "handle": "YUJI.K",
+   "sha256": "76222317f2d13a852ca3bdd47e420716adf9cde81897112924b46fba6b1b6eb8"
+  },
+  {
+   "id": "hakata-member-106",
+   "handle": "MARI.B",
+   "sha256": "d9247f03cf0dac40d134a20898d861a0843f9919795a1de133bc7998eceb1256"
+  },
+  {
+   "id": "hakata-member-107",
+   "handle": "MINT.I",
+   "sha256": "22e2cb30230cd1c04cf5f074ee7bb39f586c634d3d5156fb2b4779c0122197e0"
+  },
+  {
+   "id": "hakata-member-108",
+   "handle": "MARU",
+   "sha256": "db96a2533a2674aae0c8a34c52ce143aefaf222e2ddefc425bc1ed639c118802"
+  },
+  {
+   "id": "hakata-member-109",
+   "handle": "WOLF.F",
+   "sha256": "0a9f675309583f90ab2936b7625e0cb97b850261e86f1a43601645d2cd6b1bc5"
+  },
+  {
+   "id": "hakata-member-110",
+   "handle": "KEN.H",
+   "sha256": "6f1759ab764e36cc867453889199e2a49344e6a75e3179de315d1e0e5dcb2f24"
+  },
+  {
+   "id": "hakata-member-111",
+   "handle": "ERI.Z",
+   "sha256": "957eedfa7066d7b2be810751833975c83deb9e0184fed2a646fc9dcca2eea858"
+  },
+  {
+   "id": "hakata-member-112",
+   "handle": "V30.H",
+   "sha256": "770a65ae8e9b73d85ae96f077f523133a7c47ed3c158a335762cc072dd4458fc"
+  },
+  {
+   "id": "hakata-member-113",
+   "handle": "MEG.F",
+   "sha256": "84db25313fb130775bce3c48402ffa855172781b86f5559262c009d57bacf8c0"
+  },
+  {
+   "id": "hakata-member-114",
+   "handle": "MEG.N",
+   "sha256": "184752056bede4f4bab73b4b03fcde67fffc3cc30b5caa671efb58ecbb481037"
+  },
+  {
+   "id": "hakata-member-115",
+   "handle": "MASA.J",
+   "sha256": "4fb43768f4d34b928c3e90752f771463f787dd7c65aeb90ebd6633e6e0b56484"
+  },
+  {
+   "id": "hakata-member-116",
+   "handle": "TOMO.A",
+   "sha256": "a1f9bd6c27c663f6e3a49c4f35e502f4f0b46c8f5d18df3eb64fd72d7e1a597d"
+  },
+  {
+   "id": "hakata-member-117",
+   "handle": "SHIN.J",
+   "sha256": "ecdae866d48ecc1d376b66e83629ca1efeedb84dcc821f2d8e22637461af4925"
+  },
+  {
+   "id": "hakata-member-118",
+   "handle": "TOMO.T",
+   "sha256": "f0252c638eebdac52a63388b366ec205ac245b6e12c898df20028e45888b372d"
+  },
+  {
+   "id": "hakata-member-119",
+   "handle": "TAKESHI.R",
+   "sha256": "5eb4f79719a5917df2e4556484ce83053cd602b06497294d4e61d714ac8f8692"
+  },
+  {
+   "id": "hakata-member-120",
+   "handle": "TOMO.P",
+   "sha256": "fda1d19a95cc244bc1dc8047912b98f4d21f5e3c95e8f2643c234fb3e3a11e81"
+  },
+  {
+   "id": "hakata-member-121",
+   "handle": "SATOSHI.X",
+   "sha256": "379c2bb8b1fd45e720f1892b33a42f019e591848f318e69ff39df95be893bcb2"
+  },
+  {
+   "id": "hakata-member-122",
+   "handle": "RABBIT.E",
+   "sha256": "b0218b2c58945469ac3ccba46cb7b34356397bf6c5e71349af13f514dacc1403"
+  },
+  {
+   "id": "hakata-member-123",
+   "handle": "NOVA.I",
+   "sha256": "743b86247eda8eaab72411f2519eb75bd9cb4d05457bc3525e7bc21252c07e3e"
+  },
+  {
+   "id": "hakata-member-124",
+   "handle": "JOKER.W",
+   "sha256": "dd8a361859c56f7096b6d0ea817e6713f16d237f2bec30b616d65f8f97af3c16"
+  },
+  {
+   "id": "hakata-member-125",
+   "handle": "KAZU.Y",
+   "sha256": "b5d9df143f7af1a8f4d9917fcae182934b7ca57ff20c7632a59c963cdaf71a2b"
+  },
+  {
+   "id": "hakata-member-126",
+   "handle": "HIRO.Y",
+   "sha256": "ec9239df1faf0698834d6294c664c27747a5ef33c8a44a022e89aad221d9396d"
+  },
+  {
+   "id": "hakata-member-127",
+   "handle": "JUN.I",
+   "sha256": "820f766ccd27b6537f9b9c05cc7a1a94ea21ea57ca2c9b6fe50190243bda9486"
+  },
+  {
+   "id": "hakata-member-128",
+   "handle": "MARI.Q",
+   "sha256": "fa23ea7f25375db95fe37e3f552417efb8b99f24a6a174e17fc4ae4a74fb38fb"
+  },
+  {
+   "id": "hakata-member-129",
+   "handle": "RYO.U",
+   "sha256": "2c525c29f598f7a7cd9e6ea04871da9a8f204ce3f655f32b3835d9f5bdb30478"
+  },
+  {
+   "id": "hakata-member-130",
+   "handle": "MINT.E",
+   "sha256": "1490af82f9b0d7bc5569c5b1967e1d06056697e0dcddd400c7b98c80a2c826ff"
+  },
+  {
+   "id": "hakata-member-131",
+   "handle": "WOLF.A",
+   "sha256": "c030c97553778f1c939078fa6ea55e0f950c2fc4ad9c749622d837ad78f95f93"
+  },
+  {
+   "id": "hakata-member-132",
+   "handle": "JOKER.A",
+   "sha256": "9bc005fdded5c29557a5590bb61b2571d857327c056a95816c0655604ff73387"
+  },
+  {
+   "id": "hakata-member-133",
+   "handle": "KAZU-M",
+   "sha256": "e83afe21d7ae8267517118705acde9d2d36841eecb3cf7b6448888712fa4f3e6"
+  },
+  {
+   "id": "hakata-member-134",
+   "handle": "EMI-R",
+   "sha256": "df1225a378c24ada0bfe9ea99dd606d6f0548ff4e83161b24b6bd7e3bfb3e53a"
+  },
+  {
+   "id": "hakata-member-135",
+   "handle": "HIRO.S",
+   "sha256": "7a6aee8156d4824d18681a4111ef22582e355e8a202704bb9cda11c72dc61341"
+  },
+  {
+   "id": "hakata-member-136",
+   "handle": "NORI.K",
+   "sha256": "ba0896040af3845ad41042dd9f6e54068145f1e3c70b72fb313981380f325907"
+  },
+  {
+   "id": "hakata-member-137",
+   "handle": "EMI.M",
+   "sha256": "25afaae734da064b8d55cb0e812447e4ae32033ceaefba6f818a28e1aa3885d3"
+  },
+  {
+   "id": "hakata-member-138",
+   "handle": "LUNA.H",
+   "sha256": "cd984e2dffe5ad2f7ca24125e23bde130d7e44ec5f299a55a425361228af2284"
+  },
+  {
+   "id": "hakata-member-139",
+   "handle": "KAZU.P",
+   "sha256": "4081a3c0e3bc1d73aead1b51ba5ac5afc1da73656c307565e3a6c79eeed9cece"
+  },
+  {
+   "id": "hakata-member-140",
+   "handle": "AYA.W",
+   "sha256": "715447bd82e14aaa10e14ad49ddbad4c5eaec3bbfc16d7977ad6bb9615668ff6"
+  },
+  {
+   "id": "hakata-member-141",
+   "handle": "N88.M",
+   "sha256": "05b5555e5c32a0d893a15a3bdaff1f0234df44bd2bdb55ae8e1011046fb45586"
+  },
+  {
+   "id": "hakata-member-142",
+   "handle": "MARI-L",
+   "sha256": "1e634096ad1ec1a324ca2d7928bcbe0d57ceeef6a17151c20fb962dc5679b9cf"
+  },
+  {
+   "id": "hakata-member-143",
+   "handle": "MINT.L",
+   "sha256": "8a329011286262028db2578bf8b2c258ab05984114909546e3bf896e9b991822"
+  },
+  {
+   "id": "hakata-member-144",
+   "handle": "JUN.T",
+   "sha256": "4c697887e457ce7116acfd0b3d71683278d64407e17e88cdba2dc7c997171c57"
+  },
+  {
+   "id": "hakata-member-145",
+   "handle": "MAKO-F",
+   "sha256": "8c283bb3d7b421174561f4d19b0f48d465bd4514bc02b92a65fdda8c2136c083"
+  },
+  {
+   "id": "hakata-member-146",
+   "handle": "NAO.N",
+   "sha256": "58f445a82d4a49e573e5dc64d3b33aa7bc44ec02e52bda1b673e4ceb43b12722"
+  },
+  {
+   "id": "hakata-member-147",
+   "handle": "KEN-Y",
+   "sha256": "4838f68ce5fc3667cf409974bd28fb3e0c3df728286be6e0cd0314802390a20a"
+  },
+  {
+   "id": "hakata-member-148",
+   "handle": "MODEM",
+   "sha256": "bd3077f62cd6d0d3b38b9a5ad0ab192b1f3d22ea2874a802526ac59ea77adafa"
+  },
+  {
+   "id": "hakata-member-149",
+   "handle": "MARI.T",
+   "sha256": "9b0cfe24420ad3d18c06b54618fff5427f3b598b8d05827b8ddcea9559a8d66f"
+  },
+  {
+   "id": "hakata-member-150",
+   "handle": "KAZU.L",
+   "sha256": "2f5c163957f09d0d25d57103bad8f2837293e61390b5175510f41396e1e1f10b"
+  },
+  {
+   "id": "hakata-member-151",
+   "handle": "MIKI.Z",
+   "sha256": "399bee6264babf45fa7ce0e8c8ddc83bed041b21644a0d91a4c15e96cbc77fad"
+  },
+  {
+   "id": "hakata-member-152",
+   "handle": "SATOSHI.T",
+   "sha256": "c86afd28430dc4d273909c5faa9d9d0039a3437994aeceb7f0b4d87dbfe9c91f"
+  },
+  {
+   "id": "hakata-member-153",
+   "handle": "MINT.D",
+   "sha256": "6bb81ec22d7a8d0216437e81ce4f84b51e32b7e093520e3c41b2c653bf7134d7"
+  },
+  {
+   "id": "hakata-member-154",
+   "handle": "KENTA.B",
+   "sha256": "08de434218179634678bb422f933ee8fa6c03d4835d52a10b914e47faaf2a934"
+  },
+  {
+   "id": "hakata-member-155",
+   "handle": "N88.Q",
+   "sha256": "0a5c634b65ecbfdc9735ebd0b385fd894824de254f03a0b095073d18408d7aa6"
+  },
+  {
+   "id": "hakata-member-156",
+   "handle": "KERO.V",
+   "sha256": "eccc5f0abb84c8c75de830339ee19a54cde02c43a441f8bcea5ecbb29ec9fff6"
+  },
+  {
+   "id": "hakata-member-157",
+   "handle": "TAKA-I",
+   "sha256": "ffa76622ba5a83b53f57563bc18b4738128f3bb98ceab09f8b9eea7a08fce1c1"
+  },
+  {
+   "id": "hakata-member-158",
+   "handle": "NOVA.Z",
+   "sha256": "0327fc43b457544351cf8f66225438c1c5a556b0d349aae4a6a2513848a2644a"
+  },
+  {
+   "id": "hakata-member-159",
+   "handle": "RYO.V",
+   "sha256": "bf9e16a09530887fdd852354bd87231e5f9ccd5d0a8ebda335b4e7bb842cec8c"
+  },
+  {
+   "id": "hakata-member-160",
+   "handle": "KENTA-H",
+   "sha256": "c88518c03f5e5578f1801769571e1429e6b5ca6fad5cad031c58075a78f1e3b0"
+  },
+  {
+   "id": "hakata-member-161",
+   "handle": "KERO.R",
+   "sha256": "5e8284204bd72dcc3d7ff958355bf1f72f9047b62f569036eca9994f0731e8e7"
+  },
+  {
+   "id": "hakata-member-162",
+   "handle": "NAO.U",
+   "sha256": "99e38965e319034b40e6bcb2093810b8c4bde20f7292c70f5249ffe72490b542"
+  },
+  {
+   "id": "hakata-member-163",
+   "handle": "AYA-T",
+   "sha256": "1e9af9d4f99398acd5c61fe018a4e400ce8f0810f7d47df340a6ef2cbd0052a9"
+  },
+  {
+   "id": "hakata-member-164",
+   "handle": "MIKI.U",
+   "sha256": "dfe87ba7715e8e7120b0f57c953e627e599e61ab1cc6d36e77699ea836397f40"
+  },
+  {
+   "id": "hakata-member-165",
+   "handle": "NAO-M",
+   "sha256": "a61feeb1a9cb725b1ccfc7c4d54286f2cb1e49fa8d880bff00784e1592777793"
+  },
+  {
+   "id": "hakata-member-166",
+   "handle": "MAYU.X",
+   "sha256": "53228bb9b7ab7fe1ec72e538dbe1c677b4846c9d4d8c78ecfe798efc07a6c926"
+  },
+  {
+   "id": "hakata-member-167",
+   "handle": "MASA.Q",
+   "sha256": "e2856d5544a5216d8773a486914b6ecf52972411adf8ba2a12181db8e30cdd07"
+  },
+  {
+   "id": "hakata-member-168",
+   "handle": "RYO.E",
+   "sha256": "40a621da934fe4cafe019000f298dc2b36f8b4f58f29d80a99e6e959ce5fa5ad"
+  },
+  {
+   "id": "hakata-member-169",
+   "handle": "JUN.O",
+   "sha256": "dd85b89b34fc9d6ead6897e1bcdbe795f1fb660905d54894c2c110fba588f1b4"
+  },
+  {
+   "id": "hakata-member-170",
+   "handle": "KERO.E",
+   "sha256": "5f6200abdd6a7f8c1a7cb21d7ce4f11eb1aa1365c2de1e626810e1ed7349230b"
+  },
+  {
+   "id": "hakata-member-171",
+   "handle": "MAKO-K",
+   "sha256": "83ee3a662f47c6195248b4ce681e137e05096012b938ce4f574abb0bbf058ea4"
+  },
+  {
+   "id": "hakata-member-172",
+   "handle": "COM.S",
+   "sha256": "28fbafd8de9ebc5adef2c336ac630bfdc1355118250cb193f5ee3815dc01aecd"
+  },
+  {
+   "id": "hakata-member-173",
+   "handle": "SATOSHI.A",
+   "sha256": "b102bb7ba442e4d9e26216a1b4a2651728286c1c953a44a46ce1e00120fe0e0e"
+  },
+  {
+   "id": "hakata-member-174",
+   "handle": "MINT.Y",
+   "sha256": "d4f0ca22bbadc4ad08f73ec64138f5b683fd3e1204070ebf6c01b0ecb4111288"
+  },
+  {
+   "id": "hakata-member-175",
+   "handle": "TAKESHI.V",
+   "sha256": "2e5e34ad736788642c63b4e68aa12def448001656334881efd63d34fb15450a2"
+  },
+  {
+   "id": "hakata-member-176",
+   "handle": "N88-H",
+   "sha256": "df65bdf87aefdfd0bee80c266c9107473cb24e315f5849fb33b951268f9ca30e"
+  },
+  {
+   "id": "hakata-member-177",
+   "handle": "AKI.I",
+   "sha256": "67e512b3e0672397e3fa1c90fd3ea9675ed704a4db217da125da25c3fc373545"
+  },
+  {
+   "id": "hakata-member-178",
+   "handle": "LUNA.O",
+   "sha256": "48bfccb9ac6c1daa9ed1f5c95aee85cca76d6879ce6d613d38754b1d51c8217e"
+  },
+  {
+   "id": "hakata-member-179",
+   "handle": "MINT.S",
+   "sha256": "210cf61001dc5a627c9530e6962cee3c2fa25af851fca4b9c197301001347596"
+  },
+  {
+   "id": "hakata-member-180",
+   "handle": "SATOSHI.V",
+   "sha256": "fb425569428b4b89a32270f3fdc48f2d7daf470b39e5dca42621b6f431819324"
+  },
+  {
+   "id": "hakata-member-181",
+   "handle": "KOJI.G",
+   "sha256": "02c92467a50cd4e54547198ddc079812162bf1dfd3acd8754135bbe4be9c35d7"
+  },
+  {
+   "id": "hakata-member-182",
+   "handle": "NOVA.A",
+   "sha256": "096b88d24e82cc8f9e34ac9902215a8c2d2084d15a6efb4f877a543b675b3330"
+  },
+  {
+   "id": "hakata-member-183",
+   "handle": "NAO.T",
+   "sha256": "0515af63272bd63b269f32a4dcee0f807f05efbc1225f6ea0b66ccf4cf3f4404"
+  },
+  {
+   "id": "hakata-member-184",
+   "handle": "JOKER-Q",
+   "sha256": "75b49485b2e162c1a66cfaf35ba72cc62a0be42089741770dffeb9dff2eaee33"
+  },
+  {
+   "id": "hakata-member-185",
+   "handle": "SHIN.K",
+   "sha256": "e7c6c0f345b7d6b8c4e1f2c558c1a29ebfa90aed8ac5302c605c223c212b6d88"
+  },
+  {
+   "id": "hakata-member-186",
+   "handle": "KEN.L",
+   "sha256": "726d2a6f8c9c62614a4565138db6b7bb0e8fcde90e146f7750069dc84de345c8"
+  },
+  {
+   "id": "hakata-member-187",
+   "handle": "WOLF.U",
+   "sha256": "c245a83a6240f906026a5d070b4b203067f4f4739963c4a1277c862546ede441"
+  },
+  {
+   "id": "hakata-member-188",
+   "handle": "TAKESHI.H",
+   "sha256": "ffb6e34dc3de0dac1b99d19bc2e9cf7d7c81bc12de4bb9d3706b271672db8f42"
+  },
+  {
+   "id": "hakata-member-189",
+   "handle": "AKI.M",
+   "sha256": "ae69e710e6a597f58b13e1c5b756673a40b7bbc858ee883cc1c4a5b9f9926549"
+  },
+  {
+   "id": "hakata-member-190",
+   "handle": "TOMO.D",
+   "sha256": "e0a9f3ae6ee76256b8b4c3134c0af5d639770673e0e2f3227a2fd293c2a817e5"
+  },
+  {
+   "id": "hakata-member-191",
+   "handle": "MINT.X",
+   "sha256": "a8f8e819fe50a9199c505c18bdc32c69f44889d32c819d5d94fcd03f4d325429"
+  },
+  {
+   "id": "hakata-member-192",
+   "handle": "MEG.T",
+   "sha256": "e71e29d2589bcf30d591c6f7a6b2350326aa2bbd9ca0f7e756844691b194158d"
+  },
+  {
+   "id": "hakata-member-193",
+   "handle": "RINA",
+   "sha256": "9601d932540c0c1bc12243fd978a2127032371ff0043f0042167016678916365"
+  },
+  {
+   "id": "hakata-member-194",
+   "handle": "HIDE.T",
+   "sha256": "a5e8ad2557240a60ca5ee3597b614b2e0bb5226d661b46a0fa38f52b29e87eb8"
+  },
+  {
+   "id": "hakata-member-195",
+   "handle": "AKI.Z",
+   "sha256": "a311db46ffc1c09e8ca5bee2e4e5ac85bed3897a33a6433291649c0545fc5431"
+  },
+  {
+   "id": "hakata-member-196",
+   "handle": "SATOSHI-A",
+   "sha256": "d8ef3adc802b1aeefa8443aaa74179451a0d39094ebb757320a5fffe211eb7bd"
+  },
+  {
+   "id": "hakata-member-197",
+   "handle": "PC98.F",
+   "sha256": "a2f2a0e8d85e36cf118b2c87aaa420171ffff656d5cd0ce31dbd7d6a1afd1974"
+  },
+  {
+   "id": "hakata-member-198",
+   "handle": "NOVA.O",
+   "sha256": "6665f5369a8bc245131d969d92d7409bef9e2cda403beb356b12246a7d3d2bd7"
+  },
+  {
+   "id": "hakata-member-199",
+   "handle": "JOKER.R",
+   "sha256": "ee383b1fd08adc144be56334a671d68640fefe5953413f9a8d15fbce0a4f5ce2"
+  },
+  {
+   "id": "hakata-member-200",
+   "handle": "SATOSHI-Y",
+   "sha256": "07cdc372519d016d268e2da6db2164cd132296a5cbcede548a2253b2969f15c5"
+  },
+  {
+   "id": "hakata-member-201",
+   "handle": "MEG.I",
+   "sha256": "836cd67f66ff927602d79786da7c72ab16694d215844e6c4768bfa37b6c3a345"
+  },
+  {
+   "id": "hakata-member-202",
+   "handle": "KENTA.N",
+   "sha256": "8f80fd5cbee9dea5a4dc81b3c447d36c352179a6335d82feab94d72ae0b26fa2"
+  },
+  {
+   "id": "hakata-member-203",
+   "handle": "YUJI.G",
+   "sha256": "c182a4b0b4014a69e9ad85b0dc146b52e910dad59e2efebb8747c83bfc251e8b"
+  },
+  {
+   "id": "hakata-member-204",
+   "handle": "MIKI.Q",
+   "sha256": "10c28c45da39e7f3fab9ed1d9c4f991dd4981e5d5201ace4fb755cce78d290c6"
+  },
+  {
+   "id": "hakata-member-205",
+   "handle": "MEG-X",
+   "sha256": "b981a2224d97d6964dea8299a28423e75b1906950947346c8b48d4b08eacb549"
+  },
+  {
+   "id": "hakata-member-206",
+   "handle": "KERO.A",
+   "sha256": "a3816e6073ac5864fef657291dc3b4b9336b0014f23a1f55d4f76eb356345f0f"
+  },
+  {
+   "id": "hakata-member-207",
+   "handle": "RINA.D",
+   "sha256": "72569e370127f1f17e04e739f39953cbdebcdd9f7eda99cb06c03d88bb45471a"
+  },
+  {
+   "id": "hakata-member-208",
+   "handle": "X68",
+   "sha256": "789c81fda9217dac74269510ecd503be1b515168d6d08a3a91252a1c64ac8cdd"
+  },
+  {
+   "id": "hakata-member-209",
+   "handle": "X68.U",
+   "sha256": "701bb0770eb48f223abaf3e524f135d11638457db9900127c4f6386626aa4b99"
+  },
+  {
+   "id": "hakata-member-210",
+   "handle": "X68.W",
+   "sha256": "84a6c2c3574f51d12013931f88db7990ce02890c407eed351a27d23923c00a2e"
+  },
+  {
+   "id": "hakata-member-211",
+   "handle": "LUNA.A",
+   "sha256": "b8f7ee99f2c64c26ef21857ff48ef0a3fa5bc828bc8c6cfa766f48f233567e9a"
+  },
+  {
+   "id": "hakata-member-212",
+   "handle": "X68.Y",
+   "sha256": "d206a58b8c82477e80db62b58cec6d8043daf91a3d5a42b81d72af272864fb1e"
+  },
+  {
+   "id": "hakata-member-213",
+   "handle": "MASA.I",
+   "sha256": "d9821fbf771e493c03ef8acbc3995bf8c7aef175ed76b644e0586782b9064cb0"
+  },
+  {
+   "id": "hakata-member-214",
+   "handle": "TOMO-Y",
+   "sha256": "73a509791291408a80c23f552ffa2864a2fddf14f5c8ff14ee19789c13173b21"
+  },
+  {
+   "id": "hakata-member-215",
+   "handle": "KAZU.O",
+   "sha256": "5f77689670f86382d810f93aeec72bf611598f2c4f5dfca6fac59c4168071513"
+  },
+  {
+   "id": "hakata-member-216",
+   "handle": "KOJI.I",
+   "sha256": "a080936e0483b7ff82fc6d830a7897553dbb85bb8272794b06ac071e92589dbd"
+  },
+  {
+   "id": "hakata-member-217",
+   "handle": "MIKI.C",
+   "sha256": "29e4e09002aaddfdea623075e591e0d4bd189f8f2366730a98f560dd442b59f6"
+  },
+  {
+   "id": "hakata-member-218",
+   "handle": "NAO.I",
+   "sha256": "5cff8e4479ef590b5a5e1f8ba2586ef2ed917554ce6377654c0099cf9c619472"
+  },
+  {
+   "id": "hakata-member-219",
+   "handle": "MARI.S",
+   "sha256": "028a44a08986bf62cccb72571b69708de985c1e6067349cdd3e50d082a9bdc32"
+  },
+  {
+   "id": "hakata-member-220",
+   "handle": "ERI.Q",
+   "sha256": "5448ba719b3f67b6e887127fe3ca14f7af87df31b4981d8affaa195b46bfb9f4"
+  },
+  {
+   "id": "hakata-member-221",
+   "handle": "MINT-I",
+   "sha256": "a5350481264109858a3b97a2be27551cada2a183edbc4d5ad5d1ba6f3d66ee96"
+  },
+  {
+   "id": "hakata-member-222",
+   "handle": "SATOSHI.U",
+   "sha256": "5a41123fa78d497ea9f405e64422115e8a04fb1f91cfc00f9df720d1fe905079"
+  },
+  {
+   "id": "hakata-member-223",
+   "handle": "YUJI.W",
+   "sha256": "f6b5a4769a610f736197529c0b6dd59ad19e4fbf1ccb97dface9fe00601b07e0"
+  },
+  {
+   "id": "hakata-member-224",
+   "handle": "KAZU.V",
+   "sha256": "9d0995c437454f3d7a510b4923b0e4e47d2c5fc95152332096dca51a068d0f91"
+  },
+  {
+   "id": "hakata-member-225",
+   "handle": "YUKI.X",
+   "sha256": "530df44359211c21c688cc4c199dc46958c51430d8f83f815710054ca65c3b81"
+  },
+  {
+   "id": "hakata-member-226",
+   "handle": "V30-F",
+   "sha256": "9d90af04a0911cf9754f9b4da498641b8f4206d62a7667057e50dd757e1aa392"
+  },
+  {
+   "id": "hakata-member-227",
+   "handle": "EMI.H",
+   "sha256": "320538c5e76bd03576b01dbd21b2bd3a0d48db5e5501d9adfeb47d1a0513cbee"
+  },
+  {
+   "id": "hakata-member-228",
+   "handle": "MIKI.O",
+   "sha256": "dd1f11ad686d79a2b41584bcf94f2d6863a360a637e51b539e6689e0c52c3ce7"
+  },
+  {
+   "id": "hakata-member-229",
+   "handle": "TAKESHI.D",
+   "sha256": "d3f2244db8936a36a8bf7aa8d75d7986d9d1e264d85a780c3f5fb82f43aee297"
+  },
+  {
+   "id": "hakata-member-230",
+   "handle": "RINA.J",
+   "sha256": "1fb7651331978f3942c8afadcaec2a87e9d6f96ccbe64f1a4f06faf2103cb4cc"
+  },
+  {
+   "id": "hakata-member-231",
+   "handle": "MINT.R",
+   "sha256": "88ae095f92ec90acc316690dcfcf0ed136aa05c9ccfab9822f7763d99541b58f"
+  },
+  {
+   "id": "hakata-member-232",
+   "handle": "KERO.C",
+   "sha256": "50f3c1f1a37f362c7970b0bcce7d42a46e62cebe6dbeb300b1bc89e068b67c95"
+  },
+  {
+   "id": "hakata-member-233",
+   "handle": "EMI.N",
+   "sha256": "59ad48466353c34955c2bab024c9f95e90dde636e58cef6d634224832ecde56d"
+  },
+  {
+   "id": "hakata-member-234",
+   "handle": "RABBIT.T",
+   "sha256": "dd78c2372fec56363b58df1bea3ec03aa0e8235894ce980d94b3ca11f4749b6a"
+  },
+  {
+   "id": "hakata-member-235",
+   "handle": "KEN.V",
+   "sha256": "a18b911e175385dfe17d54a17ce76003472925b65e62e24860e2b35908dd042a"
+  },
+  {
+   "id": "hakata-member-236",
+   "handle": "TOMO-T",
+   "sha256": "ebdb22fa7b6ed5650596a15b5f42daebb152ed532f19da369ae2272a78e4424d"
+  },
+  {
+   "id": "hakata-member-237",
+   "handle": "MAKO.L",
+   "sha256": "68669095a4d0f47f066542001a6b8508afb3d931b061734a63988ea76bcd2419"
+  },
+  {
+   "id": "hakata-member-238",
+   "handle": "KOJI.L",
+   "sha256": "53c7a7dc523a270ed6604e98a873c1a2ff44e10a1bb54ee66b869930b4ee6955"
+  },
+  {
+   "id": "hakata-member-239",
+   "handle": "X68.X",
+   "sha256": "49df00098a5edfd6039ddc17193db082c16a67bb6fb96d648de86b8e1e45e3c5"
+  },
+  {
+   "id": "hakata-member-240",
+   "handle": "MAYU-B",
+   "sha256": "d020aa93fdebe57110cf44a6254c764500542f098c61ead06e1be2eb0c82ddd2"
+  },
+  {
+   "id": "hakata-member-241",
+   "handle": "AYA.G",
+   "sha256": "705e3173f1d4ee047983787069db8d913fb4adcb5a44210295f079c037dd1cb1"
+  },
+  {
+   "id": "hakata-member-242",
+   "handle": "MAKO.Z",
+   "sha256": "ca1c430b27c3ec762a12cdd9f537ba009da508a774539d903b81b70555760811"
+  },
+  {
+   "id": "hakata-member-243",
+   "handle": "MAKO-Z",
+   "sha256": "2f09c04d347811a93dcae0a5ca83c22f50c8789a9ffa205c8c1060a672083046"
+  },
+  {
+   "id": "hakata-member-244",
+   "handle": "MASA.C",
+   "sha256": "31ef3a3ed5ee3268da9e3ef12f92afef2d0d6f1b0dc1bf961b34905cf95786b0"
+  },
+  {
+   "id": "hakata-member-245",
+   "handle": "SHIN.D",
+   "sha256": "672732084f7ec3384830cd1c8bc6ed130a98b28d3ad3b1b96e21b23cc05d7553"
+  },
+  {
+   "id": "hakata-member-246",
+   "handle": "MASA.M",
+   "sha256": "8de70956e48bd334b600f1d3fd29ba4f208f9116d73aa1e1bc19fd913a9ab659"
+  },
+  {
+   "id": "hakata-member-247",
+   "handle": "MIKI.A",
+   "sha256": "7233ade6ecafdccd7ea7cb4b21b61954f22fe681c789fee7af09da292007b69b"
+  },
+  {
+   "id": "hakata-member-248",
+   "handle": "MIKI.J",
+   "sha256": "6c440cbde35e6e93789f785e9e8582e3b0fdfe7376863e6c2b457126fc2a72a4"
+  },
+  {
+   "id": "hakata-member-249",
+   "handle": "KOJI-C",
+   "sha256": "3829c12e2c037cadec6df33fe0b169096baa1d44560aba862ce0b580015ecf63"
+  },
+  {
+   "id": "hakata-member-250",
+   "handle": "MARI.J",
+   "sha256": "6e511a0934ad7b4ee4e038bb567af21272933ca88963fc3cdf219a0c6ddcff92"
+  },
+  {
+   "id": "hakata-member-251",
+   "handle": "EMI.E",
+   "sha256": "98ad6fda45034bfc22729519aca6ee37ef4ba5678621fe96b0d641b1915bf42f"
+  },
+  {
+   "id": "hakata-member-252",
+   "handle": "KEN.I",
+   "sha256": "a6d5a5bd194d342fde0d6aa80e0b9bcb4ccdc2af3d8c820d981622deda63d59b"
+  },
+  {
+   "id": "hakata-member-253",
+   "handle": "KEN.M",
+   "sha256": "1bbfd13483e660e591b13eb9eb30a53001fc50b1d5b2a4a56a3ec1ebef28eeb6"
+  },
+  {
+   "id": "hakata-member-254",
+   "handle": "KOJI.C",
+   "sha256": "d1961ec191ae885667cdf9475efd33d7a9d5a1d3dfc0cb3bd7325d051a21f13e"
+  },
+  {
+   "id": "hakata-member-255",
+   "handle": "HIDE.I",
+   "sha256": "8c3c29a782ff7d44d5f6c6cf259c00c866e9227b80377c0df3fd5c4140ad5570"
+  },
+  {
+   "id": "hakata-member-256",
+   "handle": "SHIN.O",
+   "sha256": "c9752f579a15f0a868bf50cc1e5ef9b3ad93e40ff89a384e6109239b3e135690"
+  },
+  {
+   "id": "hakata-member-257",
+   "handle": "X68.G",
+   "sha256": "7ff13544aa3aaaaa626587a6106c387c1f28ffaa5edd6b4832b49100d0753bdd"
+  },
+  {
+   "id": "hakata-member-258",
+   "handle": "RYO-X",
+   "sha256": "0b0d08a6b71586691812575da284a9bfdd0e857410fabf70cb22567eacbbc709"
+  },
+  {
+   "id": "hakata-member-259",
+   "handle": "HIRO.C",
+   "sha256": "5f3f06dc8aeb9e6058bc78cb35b8c48353de63099c88161aa3b7cffb3ade9e8c"
+  },
+  {
+   "id": "hakata-member-260",
+   "handle": "RABBIT.S",
+   "sha256": "50a32b1591d36503864a2911d81c23b6ba54e7669f2958034c79a47ec079e7bc"
+  },
+  {
+   "id": "hakata-member-261",
+   "handle": "RYO.M",
+   "sha256": "2c2b40dacdb9845a267deb8360371372e06ebf457125a43c998621882c3e945a"
+  },
+  {
+   "id": "hakata-member-262",
+   "handle": "NAO.R",
+   "sha256": "2cf47cf3fca31906093249d57cdaa172e54fe17fdafbc232849ad272af4e0e67"
+  },
+  {
+   "id": "hakata-member-263",
+   "handle": "ERI.U",
+   "sha256": "81f7ac70f765fcb84899a407ee26f1eeda86438a0e34cb73171afcd8c9a9867e"
+  },
+  {
+   "id": "hakata-member-264",
+   "handle": "ERI.S",
+   "sha256": "32de7e4ca35642c836c881835ec49dbb784a1fd8a9b9068391652e0082b85145"
+  },
+  {
+   "id": "hakata-member-265",
+   "handle": "EMI.Q",
+   "sha256": "af39ec69f306ae3a6396e80f90ca257f1434f21c08a7c41e01120f8f4c879a54"
+  },
+  {
+   "id": "hakata-member-266",
+   "handle": "LUNA.L",
+   "sha256": "3072378cfffd592c122cffbbf3af81e0f1b048de0f6c0b10fe53d775eaadebc1"
+  },
+  {
+   "id": "hakata-member-267",
+   "handle": "X68.Z",
+   "sha256": "49ba02fd2338edb42af392a4c6bb8e0e2e32ede2d42fbef4f71f0d46a8ee2ea3"
+  },
+  {
+   "id": "hakata-member-268",
+   "handle": "NAO.A",
+   "sha256": "519c9e1804c4e9e3c5b45d937a84c61f342d2de04cb7b63cbdc9c745b91ab87c"
+  },
+  {
+   "id": "hakata-member-269",
+   "handle": "KERO.I",
+   "sha256": "0774a97a80901fed9d72e4a3338179de4e9d0c86de93326a47251b0384da9b24"
+  },
+  {
+   "id": "hakata-member-270",
+   "handle": "KOJI-S",
+   "sha256": "29ecefcb7ab8f8d4f90d70dc2b4d25dd7862715e28d7c8af59f85d088faf9b8d"
+  },
+  {
+   "id": "hakata-member-271",
+   "handle": "AYA.N",
+   "sha256": "5b3f8c93157147add5800e97d467ce7b06db566b5c1b85268cff3bf5f8ebdd23"
+  },
+  {
+   "id": "hakata-member-272",
+   "handle": "HIRO.F",
+   "sha256": "c5c3ac7538be5db87377481e516ff0e28be19f551d1b21667bdde3b7707829a7"
+  },
+  {
+   "id": "hakata-member-273",
+   "handle": "JOKER.B",
+   "sha256": "3799f049bf801f5cb08308adf2f6b37e4276f67547851b5aad663bb3d224f306"
+  },
+  {
+   "id": "hakata-member-274",
+   "handle": "KAZU.F",
+   "sha256": "31d2db93d4d4a812d2ba5fdc9356b57b3296a6b1ca786de73cd070eaf38ba631"
+  },
+  {
+   "id": "hakata-member-275",
+   "handle": "JUN.D",
+   "sha256": "52fd5a9af17325f37bde18930c93d68515d02862280239ca61cafca61a3affc8"
+  },
+  {
+   "id": "hakata-member-276",
+   "handle": "HIRO.R",
+   "sha256": "f28f119b26ca0aa47ebeacb46ce34d8f5d758d9d20fc27ae583f67703475f890"
+  },
+  {
+   "id": "hakata-member-277",
+   "handle": "MAKO.X",
+   "sha256": "47a8bb9aa8f39753560ff05eb69f7ab658881c70e9aad00728cb29cf89118601"
+  },
+  {
+   "id": "hakata-member-278",
+   "handle": "MEG.X",
+   "sha256": "c2f2ebf275e998b6d205664fb49e03a944b3353099a51deaecc5479f775de770"
+  },
+  {
+   "id": "hakata-member-279",
+   "handle": "V30.L",
+   "sha256": "278bbb191211d74a7033594be53150a38177fdbebbb559b8e185f4ac4368fb19"
+  },
+  {
+   "id": "hakata-member-280",
+   "handle": "KENTA.E",
+   "sha256": "514c74cae82cb0e5326d93ec84679fe4b008feacf46c1f07ce8089bb7ff2e9c8"
+  },
+  {
+   "id": "hakata-member-281",
+   "handle": "X68.V",
+   "sha256": "7838ec56cd36cb1a80d820cef1cbb0702b6a44f1abf4d665a359770d5a0723bd"
+  },
+  {
+   "id": "hakata-member-282",
+   "handle": "MARU.T",
+   "sha256": "b39d9aa8c58d80b3fa8f6b53512c88749f9b6be9a620b77d2a66167cd1b4c6eb"
+  },
+  {
+   "id": "hakata-member-283",
+   "handle": "RYO.L",
+   "sha256": "801795758419fc4b97ab13fa72e3ea1baf4d5cbe34ffb3b7d9d2687c4bf2705f"
+  },
+  {
+   "id": "hakata-member-284",
+   "handle": "COM.F",
+   "sha256": "dd2ab4689838833a70cad2ad74df3379ab3ea95f7cd649057064db12d3a4e41b"
+  },
+  {
+   "id": "hakata-member-285",
+   "handle": "PC98.I",
+   "sha256": "d6443b5c898042d08cf0b3b03f93dd5f639537c5bcb22b5f58918a8ca254d6b7"
+  },
+  {
+   "id": "hakata-member-286",
+   "handle": "KERO.O",
+   "sha256": "b2f300b0b6638b844bab32715f1fc58d3680e6118461abfca443c1aa6db58162"
+  },
+  {
+   "id": "hakata-member-287",
+   "handle": "JUN.B",
+   "sha256": "59095c4a348b5539574c297615dfb083b3d2f9c1cff084360e47bb4680e188db"
+  },
+  {
+   "id": "hakata-member-288",
+   "handle": "KEN.A",
+   "sha256": "c6b77dc37891efd51c575ad307e0759af05d3b31d86bbe3bb3cbd5e75550658b"
+  },
+  {
+   "id": "hakata-member-289",
+   "handle": "V30.X",
+   "sha256": "23845a1bac5d546cbe50292eb44cbd0b12cb70adb63241533d09c32c87de6fb0"
+  },
+  {
+   "id": "hakata-member-290",
+   "handle": "MARU.Q",
+   "sha256": "b47ee31b9f3475aebabc77a76c2a815556f6164922d898a7808d15a7f7728221"
+  },
+  {
+   "id": "hakata-member-291",
+   "handle": "MASA.Y",
+   "sha256": "702d9c0376a368f118fa441fce0c9bcd055ccb1f339dfc28369321bafcb0737c"
+  },
+  {
+   "id": "hakata-member-292",
+   "handle": "X68.C",
+   "sha256": "4e0ea374bb4f04dcb52d096899427b625b13ead20aaa68421e9a945632f3ca4c"
+  },
+  {
+   "id": "hakata-member-293",
+   "handle": "MEG.A",
+   "sha256": "9e69fd777186b48cee8717f4465cf5e628c3e0306cae8c8521428771c3973156"
+  },
+  {
+   "id": "hakata-member-294",
+   "handle": "TOMO.F",
+   "sha256": "8dfce1b85ebe31374fc823709c67047e2f66ab810f3e0a5e255c5031092c24d7"
+  },
+  {
+   "id": "hakata-member-295",
+   "handle": "MODEM.G",
+   "sha256": "dc8212c5da14e785de3f0c2101e6be1b03babf79b4bde1ba592c5c425100dd55"
+  },
+  {
+   "id": "hakata-member-296",
+   "handle": "MINT.A",
+   "sha256": "91e3a609d92b6a848c28e0fc21afaa05ddcab61435f7fa13406c20e784806be1"
+  },
+  {
+   "id": "hakata-member-297",
+   "handle": "EMI-N",
+   "sha256": "3aff5dbe871e74f0694e932b337373dacf2a6f285aff9e13849335c63a203103"
+  },
+  {
+   "id": "hakata-member-298",
+   "handle": "MINT-Y",
+   "sha256": "005280a44fa4edc0fcc7e6d729fe56330b39e5aaaf0cd8b93d1a64ef07d08079"
+  },
+  {
+   "id": "hakata-member-299",
+   "handle": "MASA-W",
+   "sha256": "36907045a1dfd252517d258c613253236f1062d63f033e3760363a8c8229fef7"
+  },
+  {
+   "id": "hakata-member-300",
+   "handle": "MAKO.M",
+   "sha256": "ea0f22a3e6526b03c80f014996a8b6f3203a11f2cc04e6b9c32f7c7cdc263011"
+  },
+  {
+   "id": "hakata-member-301",
+   "handle": "RYO-Q",
+   "sha256": "e1a3ddb5d78f69f566538d888644cf13f10245bbb2c5ebba73f7eba3794561dc"
+  },
+  {
+   "id": "hakata-member-302",
+   "handle": "PC98.K",
+   "sha256": "37883a63b7c118250f9a5e24c63fb34d153a4a850bfead676a84bcbd8c91e7ff"
+  },
+  {
+   "id": "hakata-member-303",
+   "handle": "REI.E",
+   "sha256": "93749790f6c5ca077e4c467a532e2b13c355780285bfb84600d65ac19be6c804"
+  },
+  {
+   "id": "hakata-member-304",
+   "handle": "TOMO.K",
+   "sha256": "9669915baec7d7bbed583ffdf079568567a96a78d094934d9b20c4ab8c26b58b"
+  },
+  {
+   "id": "hakata-member-305",
+   "handle": "HIRO.G",
+   "sha256": "e6accbab5698c38669edea90bb8f01fb1cfe1dcf1124d403319aa75ded4b6044"
+  },
+  {
+   "id": "hakata-member-306",
+   "handle": "MAKO.E",
+   "sha256": "fe5f06b9b7c50877a495cfd74ad6e92f159c3ccfad034c274b17b39005e422d0"
+  },
+  {
+   "id": "hakata-member-307",
+   "handle": "MAKO.P",
+   "sha256": "cbca9e15dbe00e30e8fc314721cc6f4c185f2b959215dfae35da3f77a70b58ee"
+  },
+  {
+   "id": "hakata-member-308",
+   "handle": "LUNA.I",
+   "sha256": "03e3ec12fd0b01f74d125c048827beda15215795b00d95301d6278c0ed15862c"
+  },
+  {
+   "id": "hakata-member-309",
+   "handle": "V30.J",
+   "sha256": "ff36c85bac6bfb3181d1860b77f8989b7a07bb26d0588c96810392e3254e938b"
+  },
+  {
+   "id": "hakata-member-310",
+   "handle": "RINA.O",
+   "sha256": "e8fa32d481be405da032af2c31673b9d848034d23b58e7a9b1e983deb8b6842c"
+  },
+  {
+   "id": "hakata-member-311",
+   "handle": "YUJI.M",
+   "sha256": "0b3418fedead791a9bcdd1d3ae8fbd780c39a60b3d74bf057c05b330d15e8d69"
+  },
+  {
+   "id": "hakata-member-312",
+   "handle": "SHIN.X",
+   "sha256": "9d80a2018007da6fd48ab4d37c3eedeb5b7e63b75b80c6ab0876de039a758609"
+  },
+  {
+   "id": "hakata-member-313",
+   "handle": "YUJI.F",
+   "sha256": "0af3bb23110dd38ad587ed20de9d0b3564ae0999756ee9bdab7907870684ee50"
+  },
+  {
+   "id": "hakata-member-314",
+   "handle": "MINT-P",
+   "sha256": "6f6c2c8fc5253b5e9842c54142ea6cf1500c0c8433c18def3d07036528681aa4"
+  },
+  {
+   "id": "hakata-member-315",
+   "handle": "MEG-M",
+   "sha256": "fb68d1bcd1ef5451abd2c586b44d1aec050d00cca298c8fabf62bcf66a9f0e25"
+  },
+  {
+   "id": "hakata-member-316",
+   "handle": "AYA.I",
+   "sha256": "81e6da800acffe7826d215c794f4179f1aace6467bf11733b767c4e9bb7a83de"
+  },
+  {
+   "id": "hakata-member-317",
+   "handle": "MAYU.F",
+   "sha256": "b4603b69a723e635a713154a5ee940dece2b532d948801fa2a6b42257983ae30"
+  },
+  {
+   "id": "hakata-member-318",
+   "handle": "ERI.H",
+   "sha256": "de0d1ccf9847a60dfd793ba54c9871296ffa0bcff5730e7912793c28f5423ce4"
+  },
+  {
+   "id": "hakata-member-319",
+   "handle": "RYO.P",
+   "sha256": "315284e1fc34e426f9b1c53504984e7e52c8b9ccf32875d46f2b503cc47dc81e"
+  },
+  {
+   "id": "hakata-member-320",
+   "handle": "COM.J",
+   "sha256": "30086f61caf02d96775b06b33961c12e3952a948fa6ae5f222a5b830a8242317"
+  },
+  {
+   "id": "hakata-member-321",
+   "handle": "MINT.N",
+   "sha256": "543a24e488b7be83de1a63a771b5d7d20af3a86816ea5b21b268649cc83f9a49"
+  },
+  {
+   "id": "hakata-member-322",
+   "handle": "PC98.B",
+   "sha256": "14865b4578954751a677626b626baa64b0f46fec623caacbf160650ac6e395f6"
+  },
+  {
+   "id": "hakata-member-323",
+   "handle": "REI.V",
+   "sha256": "e4037e8cb480a6619fa77ab4943b05f68cd00482d9d3c76fcfb6a2cd2764fc0f"
+  },
+  {
+   "id": "hakata-member-324",
+   "handle": "HIDE.F",
+   "sha256": "650d54cff8aa98913010f5c0575890c9668d185490e129995545e699d4897888"
+  },
+  {
+   "id": "hakata-member-325",
+   "handle": "SATOSHI-V",
+   "sha256": "46f5c6bba46f3d9b85f65a6fcb653293cbab569b5eebb1c0a236047507f16f27"
+  },
+  {
+   "id": "hakata-member-326",
+   "handle": "MASA.R",
+   "sha256": "f3701d0cd758bae4ad0a69f02f8e1b8990865317628ecfb3bf4687365d3ba250"
+  }
+ ],
+ "from_handle_only": [
+  {
+   "id": "hakata-mari",
+   "handle": "MARI",
+   "sha256": "d6fcb6315ecd129322b1aa5b1e95bdf5881380fe4549f0cee461a4dae4181e7a"
+  },
+  {
+   "id": "hakata-yuki",
+   "handle": "YUKI",
+   "sha256": "32e08f49653a7f68d06c3a06c1adf49075ff24cf7d78e9cbdb0688120a204edc"
+  },
+  {
+   "id": "hakata-nori",
+   "handle": "NORI",
+   "sha256": "ceca7c8b258f711e8d6974f90deac96f58bd944fae79ef4642cf566f6e8bd2aa"
+  },
+  {
+   "id": "hakata-kazu",
+   "handle": "KAZU",
+   "sha256": "4731e941902babf41e0229ec5d4f90ed0917b221d53a51e45dacd0543bd54522"
+  },
+  {
+   "id": "hakata-taku",
+   "handle": "TAKU",
+   "sha256": "9e4a91996f7e48f2b822d89102462f56993bcb469014db27b4cdb5a322d65272"
+  },
+  {
+   "id": "hakata-neko",
+   "handle": "NEKO",
+   "sha256": "c8d46e834e85fd15adf2268eb73d1794d3bcbfe45a3ce241ba5cec2a3b28f2aa"
+  },
+  {
+   "id": "hakata-ken",
+   "handle": "KEN",
+   "sha256": "b9534cb0506c0fadfaf51e002f9dbd3a35b87048d7a1b82305dfa4250de578ea"
+  },
+  {
+   "id": "hakata-mako",
+   "handle": "MAKO",
+   "sha256": "0f1a5737dcaab7852340b63edaa92fb9cce9331db19279540823f5575d6fd08d"
+  },
+  {
+   "id": "hakata-tomo",
+   "handle": "TOMO",
+   "sha256": "223bdc413c339f36648fcdb86d4a05b59a7d0d9aeb650398afaded7c17465463"
+  },
+  {
+   "id": "hakata-aki",
+   "handle": "AKI",
+   "sha256": "504fc71a2935a0c4f221d0819e660cd67a0473c3fcef4519ad538fd9d56b8e86"
+  },
+  {
+   "id": "hakata-ryo",
+   "handle": "RYO",
+   "sha256": "9842bc3d8b6514dd7034de185f52e0326ff6e2341aa0821e0452847d4303b3f9"
+  },
+  {
+   "id": "hakata-hiro",
+   "handle": "HIRO",
+   "sha256": "ae313e13389bae4e52dcade7b24efa3efe331a51658e6fabbd1b1d7bafd63933"
+  },
+  {
+   "id": "hakata-sachi",
+   "handle": "SACHI",
+   "sha256": "45694798fe42e5771fbffcf58ec75692e85b3ec47bbf6775533f8ab0f5be1daa"
+  },
+  {
+   "id": "hakata-jun",
+   "handle": "JUN",
+   "sha256": "ade91cd8dfb853f7211a58869b254e48596bca06326d381119bfcdd93cfc9000"
+  },
+  {
+   "id": "hakata-midnight",
+   "handle": "MIDNIGHT",
+   "sha256": "a33230dbb9513c09d3aa601b97f246f79895e643d71ba8b40b46c176224309b2"
+  },
+  {
+   "id": "hakata-member-016",
+   "handle": "EMI",
+   "sha256": "ce86dbf68b31e4d0dca55059ed87dfbf6f963fd17ef75586a465d17231549fcc"
+  },
+  {
+   "id": "hakata-member-017",
+   "handle": "MEG",
+   "sha256": "fa910c1538085f4923e919d83ae17727dab3f1ff0ce91dd0665a0545a68be336"
+  },
+  {
+   "id": "hakata-member-018",
+   "handle": "KOJI",
+   "sha256": "0ab2f3ce7299274c72ac75486e7839c253434b1a9beedc315b448fbdf854d209"
+  },
+  {
+   "id": "hakata-member-019",
+   "handle": "SATOSHI",
+   "sha256": "269c7556783767f8597baedfa821e72c2e97c89eb4a4da477b4dab81e8c60b3c"
+  },
+  {
+   "id": "hakata-member-020",
+   "handle": "V30",
+   "sha256": "1ae446e5709e3a8a5db90986395a136a51e0156fe9eca241806d38782b121a52"
+  },
+  {
+   "id": "hakata-member-021",
+   "handle": "TAKESHI",
+   "sha256": "44a6be45c5fdf9c05d84026f3b6ba25e0a000ac960f6ef9586ead693ec0e1254"
+  },
+  {
+   "id": "hakata-member-022",
+   "handle": "KOJI.B",
+   "sha256": "0b56f6b004fe4dc0181bea62c76cce5eb08a178d15f376e1ffbd0925516e38f4"
+  },
+  {
+   "id": "hakata-member-023",
+   "handle": "MAYU",
+   "sha256": "fb5b99aec260618962d82a48aaeb8c5c7b5fdd9c9b2fa7d43106b843d609b8ba"
+  },
+  {
+   "id": "hakata-member-024",
+   "handle": "KERO",
+   "sha256": "22a00cd70497904c8fa516f0c327196bff5653d3cd895311025a555d89c36ff9"
+  },
+  {
+   "id": "hakata-member-025",
+   "handle": "SHIN",
+   "sha256": "862048bfa7b9645e05875c2c6f67dfcfd01dd252cc0113b3604196f65bc7aa67"
+  },
+  {
+   "id": "hakata-member-026",
+   "handle": "NAO",
+   "sha256": "c3d12e3c61e40f540ff3c06eb13b69ba28804a7eb6bba877c09c42dea9136d02"
+  },
+  {
+   "id": "hakata-member-027",
+   "handle": "NORI.Z",
+   "sha256": "c0816ea4c2777719decd8fa16a03a6e387648585be0d3cb4c68b9a38865faba1"
+  },
+  {
+   "id": "hakata-member-028",
+   "handle": "JOKER",
+   "sha256": "4d8657e8ecef6839598d4999fa3c813ca623ec31b249ce8518315a1479bb13e3"
+  },
+  {
+   "id": "hakata-member-029",
+   "handle": "NAO.Z",
+   "sha256": "62a93e13fbeca7172296ceac37271c22f1255cb939009575e6c958ff6986ef98"
+  },
+  {
+   "id": "hakata-member-030",
+   "handle": "REI",
+   "sha256": "767aed9f0a14776b67ae1f2d4be3b710a111d0ae3d36b13d11061c681b3c9e0b"
+  },
+  {
+   "id": "hakata-member-031",
+   "handle": "MINT",
+   "sha256": "5a8a118729a89ea61c11af8d0e26783302de957340fed11626e805f4f15cbe7b"
+  },
+  {
+   "id": "hakata-member-032",
+   "handle": "MASA",
+   "sha256": "d706cc5a77dfcdc0a5d7eaba67e6a51361fab50918aeca386b8a04b89f20cf49"
+  },
+  {
+   "id": "hakata-member-033",
+   "handle": "LUNA",
+   "sha256": "b6048706c41a5b6d385e72aa2266b95159552804f1d2aefe62b5fae998418adc"
+  },
+  {
+   "id": "hakata-member-034",
+   "handle": "MEG.M",
+   "sha256": "05b90d87b9e6fa30bd5c613a7bab78341137bd0abbaf89e9c40455ddeb11e4a7"
+  },
+  {
+   "id": "hakata-member-035",
+   "handle": "V30.Q",
+   "sha256": "1873be59a867172d8794c56904c1134d27974232a30e128f5a9f9d1577ff94d4"
+  },
+  {
+   "id": "hakata-member-036",
+   "handle": "HIRO.K",
+   "sha256": "25f5e937b9b6b9c66ee694b4e157753b6881cfe895f4d104d629525e0cdf4ef5"
+  },
+  {
+   "id": "hakata-member-037",
+   "handle": "COM",
+   "sha256": "f0544f71169483080a0c563195c208d5a10435d065502f5c4c5987c48d2c4eaf"
+  },
+  {
+   "id": "hakata-member-038",
+   "handle": "KAZU.D",
+   "sha256": "a68ca04e743066457c4e48889b340e4bc6b01f44dcb02f442fc4fb57bc058998"
+  },
+  {
+   "id": "hakata-member-039",
+   "handle": "TOMO.O",
+   "sha256": "eb45f30113afe270f15955179bde142ee223ead9e2c2d6a0087814b77e0a45c0"
+  },
+  {
+   "id": "hakata-member-040",
+   "handle": "NOVA",
+   "sha256": "58886a725551b020750dc573ab606fe4f4d829ac90eaa87fb6857cb8d5c0ea4a"
+  },
+  {
+   "id": "hakata-member-041",
+   "handle": "EMI.U",
+   "sha256": "8bec6fbf1b58d3216cae7d219ce09143e98339acd4839bfb480c9b917955d23a"
+  },
+  {
+   "id": "hakata-member-042",
+   "handle": "TAKA",
+   "sha256": "e4e3558f4ee3145f816d506d09dfa67e7798fceb86cf55b215494de7bebeaea7"
+  },
+  {
+   "id": "hakata-member-043",
+   "handle": "HIDE",
+   "sha256": "f7819424a745dcd33a61992b0795a9ed518ac021a73b31b9a02091c51459410e"
+  },
+  {
+   "id": "hakata-member-044",
+   "handle": "WOLF",
+   "sha256": "86d7c0c769e5832a2b6839d15a273f6e3f0d4116b7f84c2bbc1cf492f91bdc1c"
+  },
+  {
+   "id": "hakata-member-045",
+   "handle": "RYO.G",
+   "sha256": "90b99ba15b32bf83b2823ac25682cbf448fafa169114525ce50ca36c4c56dfac"
+  },
+  {
+   "id": "hakata-member-046",
+   "handle": "RYO.C",
+   "sha256": "0e5dff28af1995d814cdaeec4048758cf4f2d20ff71f3a89bf7f3b97420b2f4d"
+  },
+  {
+   "id": "hakata-member-047",
+   "handle": "SATOSHI.C",
+   "sha256": "f144ecadba40d1079ca969baad76d46821648c8e179787d8c822ba3c278847c5"
+  },
+  {
+   "id": "hakata-member-048",
+   "handle": "EMI.L",
+   "sha256": "8792c217ad1c7b4d109662cde538343ea6be1793e69e661f98413625e76c6848"
+  },
+  {
+   "id": "hakata-member-049",
+   "handle": "MINT.O",
+   "sha256": "e226a480421aa1da715a11508f3a85a1cf58630e8f54d19d5a9ba6f3973c54aa"
+  },
+  {
+   "id": "hakata-member-050",
+   "handle": "KAZU.C",
+   "sha256": "1fd2af7cb250aa4399c77aff79bd8bef8f85cf33aa5bedf2eddf9e582a914802"
+  },
+  {
+   "id": "hakata-member-051",
+   "handle": "NORI.O",
+   "sha256": "c45df2d73f121b795ba5acc2c09e6d69a9c9f53f77050d53a56f2854ee6e8830"
+  },
+  {
+   "id": "hakata-member-052",
+   "handle": "REI.Z",
+   "sha256": "f61673df9618ae2d207f6ae4bfe7f6fdd01dd4dcd7fb9f8290b1ab26f39e5b62"
+  },
+  {
+   "id": "hakata-member-053",
+   "handle": "MARI.V",
+   "sha256": "36f5d5de6b1d073a4404041e865edbde8e59e1283a5156c4834fa231771bff33"
+  },
+  {
+   "id": "hakata-member-054",
+   "handle": "JOKER.N",
+   "sha256": "b3f3f5340cd812745fc55bc01984df4dd9193433f99f647341a7e0b3fcbea04a"
+  },
+  {
+   "id": "hakata-member-055",
+   "handle": "N88",
+   "sha256": "e93b3ebea54ce7b4ba309a7e8b4984ebd6afd024c9f1c485843acc0ef67c22df"
+  },
+  {
+   "id": "hakata-member-056",
+   "handle": "LUNA.Y",
+   "sha256": "0b2c9198e5340586c8ca77e2ee57a046abae9608158594f286287184190d76e9"
+  },
+  {
+   "id": "hakata-member-057",
+   "handle": "JOKER.J",
+   "sha256": "1f0e124a2b776e21bc5354fcca714c177758c1e5d9e7eb13c1ea7ec00b59b063"
+  },
+  {
+   "id": "hakata-member-058",
+   "handle": "KAZU-W",
+   "sha256": "ce292684bded52de0df8f545000b16778cfce60fb8c1755e3dd5f8a71ab8ce91"
+  },
+  {
+   "id": "hakata-member-059",
+   "handle": "NORI.D",
+   "sha256": "08ebfca657c73561ce693eb9d9c71123826077277efae7a06846ff7a348baeaf"
+  },
+  {
+   "id": "hakata-member-060",
+   "handle": "SATOSHI.P",
+   "sha256": "ec3bf18ea763cdb672416c9f9253fcaced598b956ccc155951f1219c4bb1412d"
+  },
+  {
+   "id": "hakata-member-061",
+   "handle": "TAKA.I",
+   "sha256": "4bb5057cfad4947e3e2a4cc11d2811df08901849c1218122e803c6421a94e1da"
+  },
+  {
+   "id": "hakata-member-062",
+   "handle": "RABBIT",
+   "sha256": "156147163af9e172fbb984525d1bd543ff2fcfa1468841ae10d0a66f17063d85"
+  },
+  {
+   "id": "hakata-member-063",
+   "handle": "MARI.N",
+   "sha256": "4330c4ce194fd9871a94a2976c77cf1b3d7a53366e5a8ff3d3322c06a7da9a61"
+  },
+  {
+   "id": "hakata-member-064",
+   "handle": "TAKA.L",
+   "sha256": "f7b41945adde9864f09754747f99e9e8eace267ae94d216fd135c3e7f61fc257"
+  },
+  {
+   "id": "hakata-member-065",
+   "handle": "HIRO.T",
+   "sha256": "c1de4328d13c994d32959fc2ae3a6f97f11fa894dd09d41869c274fe7db44177"
+  },
+  {
+   "id": "hakata-member-066",
+   "handle": "KENTA",
+   "sha256": "03f9d63b94128709c88606b012cbfbf3cf3d4d58de0ce770b790e8b0b4b7d8d1"
+  },
+  {
+   "id": "hakata-member-067",
+   "handle": "MAKO.J",
+   "sha256": "06b20862e3a6dfcf87bc8e3d824ea551b9b4864590ef7fa7696df0daf27ead91"
+  },
+  {
+   "id": "hakata-member-068",
+   "handle": "EMI.F",
+   "sha256": "833d607ecca15b5cde93a44a11d795243e240e33c703d5c6f4a57a403d70ab79"
+  },
+  {
+   "id": "hakata-member-069",
+   "handle": "AYA",
+   "sha256": "a20daf05c58ac195986a98ceb15437c185f36a85a4aba21b125db44772d3a3a3"
+  },
+  {
+   "id": "hakata-member-070",
+   "handle": "SATOSHI.J",
+   "sha256": "49f08000d10f06d2a9c48d3ce12a796d0fb4407b2ac71a82337c1bcf29631727"
+  },
+  {
+   "id": "hakata-member-071",
+   "handle": "JUN.V",
+   "sha256": "0200fbf8d159fc6473a51ff87d2f94f3443834ee6a90e735798c77d2f634a2b3"
+  },
+  {
+   "id": "hakata-member-072",
+   "handle": "MAYU.P",
+   "sha256": "289809ff2ac69cdae903c6ebc48b1c94ead85a9e9381304125fa7a5ca2a73ddf"
+  },
+  {
+   "id": "hakata-member-073",
+   "handle": "HIRO.J",
+   "sha256": "58af9556c34bddf2ee2502e26c1dc03ad3a7b46fbd9a694271564b301f6cda55"
+  },
+  {
+   "id": "hakata-member-074",
+   "handle": "KEN.T",
+   "sha256": "f70c9ed29edf8c51a64e1865c5444daf3e1164cfac2abddd6f7d618abd372767"
+  },
+  {
+   "id": "hakata-member-075",
+   "handle": "MAKO.A",
+   "sha256": "a2082e29e4c486d6796d02a2adb7ee76fb4460a826bbf76e2eabed1b26a94d87"
+  },
+  {
+   "id": "hakata-member-076",
+   "handle": "AYA.B",
+   "sha256": "742665374f5035fd496b87ffd6800e35ef3517ad4d1a378aca785e7929907db5"
+  },
+  {
+   "id": "hakata-member-077",
+   "handle": "TAKA.S",
+   "sha256": "9a889353237d38e5d75ebf058a9775ae7f54f8b95f05890624907bd77133ef0f"
+  },
+  {
+   "id": "hakata-member-078",
+   "handle": "TOMO.N",
+   "sha256": "41c582852e6464bfd8a9278038705ac609369c82a8fd4f2c2420f309fbbaf075"
+  },
+  {
+   "id": "hakata-member-079",
+   "handle": "MEG.G",
+   "sha256": "f584d67b0130a8b0559592e35ead2cb645104d2a99484915eaad57165b3c511f"
+  },
+  {
+   "id": "hakata-member-080",
+   "handle": "MIKI",
+   "sha256": "4e4b85ba354ee5dbcf609797585145d9befa677c27618e11f33e1adbdb088834"
+  },
+  {
+   "id": "hakata-member-081",
+   "handle": "TOMO.Y",
+   "sha256": "dadcea2de77f709b37004d59ef952ee04cb16d94ad078efd2ce336155dfc20b2"
+  },
+  {
+   "id": "hakata-member-082",
+   "handle": "REI.G",
+   "sha256": "936732e7114e7380afc4a594824486d97adb7cc43b4b1bba80f674c7a6308b05"
+  },
+  {
+   "id": "hakata-member-083",
+   "handle": "JOKER.Y",
+   "sha256": "f3ea93069770984aea61696a3dd83c4a72f60f37e6157104b902ecd97eac10a0"
+  },
+  {
+   "id": "hakata-member-084",
+   "handle": "NORI.E",
+   "sha256": "3df6247d0d4f57bebb13ffda4a1d1f9b72fe209ece5ded1a6e570047b42af739"
+  },
+  {
+   "id": "hakata-member-085",
+   "handle": "RYO.K",
+   "sha256": "4e6610ba7f262e200eedff1ecb2fad1e273fa0d224f1de9714fc1faeed0f098e"
+  },
+  {
+   "id": "hakata-member-086",
+   "handle": "KEN.G",
+   "sha256": "7edb151f262ec5452cb8ced8129d5bfa01ef4aa4ac9fc29f1e12c70647c89e31"
+  },
+  {
+   "id": "hakata-member-087",
+   "handle": "NOVA.G",
+   "sha256": "3f146fa18ec6064ab7742214809a16434c53749ef1b92d6b497a7af095e078dc"
+  },
+  {
+   "id": "hakata-member-088",
+   "handle": "TAKESHI.Y",
+   "sha256": "b4d7b15d25af996d03015884069f47bd456a175f8bdb5940b6546813c4d3e847"
+  },
+  {
+   "id": "hakata-member-089",
+   "handle": "JUN.M",
+   "sha256": "7c99203fcae0a0b57a66eee4aad6777764bceba3552bdcfc4c4ab47782c73c55"
+  },
+  {
+   "id": "hakata-member-090",
+   "handle": "PC98",
+   "sha256": "8fb37d1d06b3bad78c96e10a69246f5bae45d67649f2131351561878b8ca4a7b"
+  },
+  {
+   "id": "hakata-member-091",
+   "handle": "JUN.G",
+   "sha256": "d77887bbc3e5f001b87b7720155c1ccccbe05cdc258a3182f606579e657123dd"
+  },
+  {
+   "id": "hakata-member-092",
+   "handle": "TOMO.Q",
+   "sha256": "9f19b9798075e822438e9824bf0f547de855381a966c273e806dc84dee659beb"
+  },
+  {
+   "id": "hakata-member-093",
+   "handle": "V30.C",
+   "sha256": "29bb84b8632ff599b0fd0ecc02222e99ef382ff18ac1bd2a01a1383921bd5f68"
+  },
+  {
+   "id": "hakata-member-094",
+   "handle": "ERI",
+   "sha256": "b6bb3abe5ecec1b8628639d39605a6a80d2297289878e54addf9001ba922e2ce"
+  },
+  {
+   "id": "hakata-member-095",
+   "handle": "AYA.L",
+   "sha256": "a8268f54735959dfa10c1b1a2839b17bdc736dde8f1158648ee3ccce10a02584"
+  },
+  {
+   "id": "hakata-member-096",
+   "handle": "MAYU.D",
+   "sha256": "7b11cb47349d51770f3c13d2d4481e7f6249015c464d6a7fc3b5018565540892"
+  },
+  {
+   "id": "hakata-member-097",
+   "handle": "MEG.D",
+   "sha256": "9e3c05857a7219b940da97e0c028057487bcf820dbccb71f135f525ac3125903"
+  },
+  {
+   "id": "hakata-member-098",
+   "handle": "YUJI",
+   "sha256": "c623f0b3f07f47f1fb2745f213af740f1dfe486a31fb418e4eecd3f277bce635"
+  },
+  {
+   "id": "hakata-member-099",
+   "handle": "NOVA.L",
+   "sha256": "e40daaff6acefba583de16b1818db3ae71bae823ac00544b54ba5c545783b9d4"
+  },
+  {
+   "id": "hakata-member-100",
+   "handle": "KEN-D",
+   "sha256": "fac05f2391656ab98e9cf21608e5b9630fbd220e045728a72d23bc73db38fb3e"
+  },
+  {
+   "id": "hakata-member-101",
+   "handle": "YUKI.P",
+   "sha256": "9c9be06444edb7586b96feef219d6cf98cc566790d921ef9870affb9a228386f"
+  },
+  {
+   "id": "hakata-member-102",
+   "handle": "NAO.Y",
+   "sha256": "552f8c30f100e66ca75847af911d0141391cd188164d4815aa0c7dc19d6e1cc3"
+  },
+  {
+   "id": "hakata-member-103",
+   "handle": "TOMO.M",
+   "sha256": "fe1911c23999a2a586d2c13a0cc6848ac32cf17a5d6f5cfe3d7387fdd9866d19"
+  },
+  {
+   "id": "hakata-member-104",
+   "handle": "SATOSHI.F",
+   "sha256": "e6ad626a1993a74791e30da48a16ab96e5aa8498a517ac5d86084315edfabc06"
+  },
+  {
+   "id": "hakata-member-105",
+   "handle": "YUJI.K",
+   "sha256": "76222317f2d13a852ca3bdd47e420716adf9cde81897112924b46fba6b1b6eb8"
+  },
+  {
+   "id": "hakata-member-106",
+   "handle": "MARI.B",
+   "sha256": "d9247f03cf0dac40d134a20898d861a0843f9919795a1de133bc7998eceb1256"
+  },
+  {
+   "id": "hakata-member-107",
+   "handle": "MINT.I",
+   "sha256": "22e2cb30230cd1c04cf5f074ee7bb39f586c634d3d5156fb2b4779c0122197e0"
+  },
+  {
+   "id": "hakata-member-108",
+   "handle": "MARU",
+   "sha256": "db96a2533a2674aae0c8a34c52ce143aefaf222e2ddefc425bc1ed639c118802"
+  },
+  {
+   "id": "hakata-member-109",
+   "handle": "WOLF.F",
+   "sha256": "0a9f675309583f90ab2936b7625e0cb97b850261e86f1a43601645d2cd6b1bc5"
+  },
+  {
+   "id": "hakata-member-110",
+   "handle": "KEN.H",
+   "sha256": "6f1759ab764e36cc867453889199e2a49344e6a75e3179de315d1e0e5dcb2f24"
+  },
+  {
+   "id": "hakata-member-111",
+   "handle": "ERI.Z",
+   "sha256": "957eedfa7066d7b2be810751833975c83deb9e0184fed2a646fc9dcca2eea858"
+  },
+  {
+   "id": "hakata-member-112",
+   "handle": "V30.H",
+   "sha256": "770a65ae8e9b73d85ae96f077f523133a7c47ed3c158a335762cc072dd4458fc"
+  },
+  {
+   "id": "hakata-member-113",
+   "handle": "MEG.F",
+   "sha256": "84db25313fb130775bce3c48402ffa855172781b86f5559262c009d57bacf8c0"
+  },
+  {
+   "id": "hakata-member-114",
+   "handle": "MEG.N",
+   "sha256": "184752056bede4f4bab73b4b03fcde67fffc3cc30b5caa671efb58ecbb481037"
+  },
+  {
+   "id": "hakata-member-115",
+   "handle": "MASA.J",
+   "sha256": "4fb43768f4d34b928c3e90752f771463f787dd7c65aeb90ebd6633e6e0b56484"
+  },
+  {
+   "id": "hakata-member-116",
+   "handle": "TOMO.A",
+   "sha256": "a1f9bd6c27c663f6e3a49c4f35e502f4f0b46c8f5d18df3eb64fd72d7e1a597d"
+  },
+  {
+   "id": "hakata-member-117",
+   "handle": "SHIN.J",
+   "sha256": "ecdae866d48ecc1d376b66e83629ca1efeedb84dcc821f2d8e22637461af4925"
+  },
+  {
+   "id": "hakata-member-118",
+   "handle": "TOMO.T",
+   "sha256": "f0252c638eebdac52a63388b366ec205ac245b6e12c898df20028e45888b372d"
+  },
+  {
+   "id": "hakata-member-119",
+   "handle": "TAKESHI.R",
+   "sha256": "5eb4f79719a5917df2e4556484ce83053cd602b06497294d4e61d714ac8f8692"
+  },
+  {
+   "id": "hakata-member-120",
+   "handle": "TOMO.P",
+   "sha256": "fda1d19a95cc244bc1dc8047912b98f4d21f5e3c95e8f2643c234fb3e3a11e81"
+  },
+  {
+   "id": "hakata-member-121",
+   "handle": "SATOSHI.X",
+   "sha256": "379c2bb8b1fd45e720f1892b33a42f019e591848f318e69ff39df95be893bcb2"
+  },
+  {
+   "id": "hakata-member-122",
+   "handle": "RABBIT.E",
+   "sha256": "b0218b2c58945469ac3ccba46cb7b34356397bf6c5e71349af13f514dacc1403"
+  },
+  {
+   "id": "hakata-member-123",
+   "handle": "NOVA.I",
+   "sha256": "743b86247eda8eaab72411f2519eb75bd9cb4d05457bc3525e7bc21252c07e3e"
+  },
+  {
+   "id": "hakata-member-124",
+   "handle": "JOKER.W",
+   "sha256": "dd8a361859c56f7096b6d0ea817e6713f16d237f2bec30b616d65f8f97af3c16"
+  },
+  {
+   "id": "hakata-member-125",
+   "handle": "KAZU.Y",
+   "sha256": "b5d9df143f7af1a8f4d9917fcae182934b7ca57ff20c7632a59c963cdaf71a2b"
+  },
+  {
+   "id": "hakata-member-126",
+   "handle": "HIRO.Y",
+   "sha256": "ec9239df1faf0698834d6294c664c27747a5ef33c8a44a022e89aad221d9396d"
+  },
+  {
+   "id": "hakata-member-127",
+   "handle": "JUN.I",
+   "sha256": "820f766ccd27b6537f9b9c05cc7a1a94ea21ea57ca2c9b6fe50190243bda9486"
+  },
+  {
+   "id": "hakata-member-128",
+   "handle": "MARI.Q",
+   "sha256": "fa23ea7f25375db95fe37e3f552417efb8b99f24a6a174e17fc4ae4a74fb38fb"
+  },
+  {
+   "id": "hakata-member-129",
+   "handle": "RYO.U",
+   "sha256": "2c525c29f598f7a7cd9e6ea04871da9a8f204ce3f655f32b3835d9f5bdb30478"
+  },
+  {
+   "id": "hakata-member-130",
+   "handle": "MINT.E",
+   "sha256": "1490af82f9b0d7bc5569c5b1967e1d06056697e0dcddd400c7b98c80a2c826ff"
+  },
+  {
+   "id": "hakata-member-131",
+   "handle": "WOLF.A",
+   "sha256": "c030c97553778f1c939078fa6ea55e0f950c2fc4ad9c749622d837ad78f95f93"
+  },
+  {
+   "id": "hakata-member-132",
+   "handle": "JOKER.A",
+   "sha256": "9bc005fdded5c29557a5590bb61b2571d857327c056a95816c0655604ff73387"
+  },
+  {
+   "id": "hakata-member-133",
+   "handle": "KAZU-M",
+   "sha256": "e83afe21d7ae8267517118705acde9d2d36841eecb3cf7b6448888712fa4f3e6"
+  },
+  {
+   "id": "hakata-member-134",
+   "handle": "EMI-R",
+   "sha256": "df1225a378c24ada0bfe9ea99dd606d6f0548ff4e83161b24b6bd7e3bfb3e53a"
+  },
+  {
+   "id": "hakata-member-135",
+   "handle": "HIRO.S",
+   "sha256": "7a6aee8156d4824d18681a4111ef22582e355e8a202704bb9cda11c72dc61341"
+  },
+  {
+   "id": "hakata-member-136",
+   "handle": "NORI.K",
+   "sha256": "ba0896040af3845ad41042dd9f6e54068145f1e3c70b72fb313981380f325907"
+  },
+  {
+   "id": "hakata-member-137",
+   "handle": "EMI.M",
+   "sha256": "25afaae734da064b8d55cb0e812447e4ae32033ceaefba6f818a28e1aa3885d3"
+  },
+  {
+   "id": "hakata-member-138",
+   "handle": "LUNA.H",
+   "sha256": "cd984e2dffe5ad2f7ca24125e23bde130d7e44ec5f299a55a425361228af2284"
+  },
+  {
+   "id": "hakata-member-139",
+   "handle": "KAZU.P",
+   "sha256": "4081a3c0e3bc1d73aead1b51ba5ac5afc1da73656c307565e3a6c79eeed9cece"
+  },
+  {
+   "id": "hakata-member-140",
+   "handle": "AYA.W",
+   "sha256": "715447bd82e14aaa10e14ad49ddbad4c5eaec3bbfc16d7977ad6bb9615668ff6"
+  },
+  {
+   "id": "hakata-member-141",
+   "handle": "N88.M",
+   "sha256": "05b5555e5c32a0d893a15a3bdaff1f0234df44bd2bdb55ae8e1011046fb45586"
+  },
+  {
+   "id": "hakata-member-142",
+   "handle": "MARI-L",
+   "sha256": "1e634096ad1ec1a324ca2d7928bcbe0d57ceeef6a17151c20fb962dc5679b9cf"
+  },
+  {
+   "id": "hakata-member-143",
+   "handle": "MINT.L",
+   "sha256": "8a329011286262028db2578bf8b2c258ab05984114909546e3bf896e9b991822"
+  },
+  {
+   "id": "hakata-member-144",
+   "handle": "JUN.T",
+   "sha256": "4c697887e457ce7116acfd0b3d71683278d64407e17e88cdba2dc7c997171c57"
+  },
+  {
+   "id": "hakata-member-145",
+   "handle": "MAKO-F",
+   "sha256": "8c283bb3d7b421174561f4d19b0f48d465bd4514bc02b92a65fdda8c2136c083"
+  },
+  {
+   "id": "hakata-member-146",
+   "handle": "NAO.N",
+   "sha256": "58f445a82d4a49e573e5dc64d3b33aa7bc44ec02e52bda1b673e4ceb43b12722"
+  },
+  {
+   "id": "hakata-member-147",
+   "handle": "KEN-Y",
+   "sha256": "4838f68ce5fc3667cf409974bd28fb3e0c3df728286be6e0cd0314802390a20a"
+  },
+  {
+   "id": "hakata-member-148",
+   "handle": "MODEM",
+   "sha256": "bd3077f62cd6d0d3b38b9a5ad0ab192b1f3d22ea2874a802526ac59ea77adafa"
+  },
+  {
+   "id": "hakata-member-149",
+   "handle": "MARI.T",
+   "sha256": "9b0cfe24420ad3d18c06b54618fff5427f3b598b8d05827b8ddcea9559a8d66f"
+  },
+  {
+   "id": "hakata-member-150",
+   "handle": "KAZU.L",
+   "sha256": "2f5c163957f09d0d25d57103bad8f2837293e61390b5175510f41396e1e1f10b"
+  },
+  {
+   "id": "hakata-member-151",
+   "handle": "MIKI.Z",
+   "sha256": "399bee6264babf45fa7ce0e8c8ddc83bed041b21644a0d91a4c15e96cbc77fad"
+  },
+  {
+   "id": "hakata-member-152",
+   "handle": "SATOSHI.T",
+   "sha256": "c86afd28430dc4d273909c5faa9d9d0039a3437994aeceb7f0b4d87dbfe9c91f"
+  },
+  {
+   "id": "hakata-member-153",
+   "handle": "MINT.D",
+   "sha256": "6bb81ec22d7a8d0216437e81ce4f84b51e32b7e093520e3c41b2c653bf7134d7"
+  },
+  {
+   "id": "hakata-member-154",
+   "handle": "KENTA.B",
+   "sha256": "08de434218179634678bb422f933ee8fa6c03d4835d52a10b914e47faaf2a934"
+  },
+  {
+   "id": "hakata-member-155",
+   "handle": "N88.Q",
+   "sha256": "0a5c634b65ecbfdc9735ebd0b385fd894824de254f03a0b095073d18408d7aa6"
+  },
+  {
+   "id": "hakata-member-156",
+   "handle": "KERO.V",
+   "sha256": "eccc5f0abb84c8c75de830339ee19a54cde02c43a441f8bcea5ecbb29ec9fff6"
+  },
+  {
+   "id": "hakata-member-157",
+   "handle": "TAKA-I",
+   "sha256": "ffa76622ba5a83b53f57563bc18b4738128f3bb98ceab09f8b9eea7a08fce1c1"
+  },
+  {
+   "id": "hakata-member-158",
+   "handle": "NOVA.Z",
+   "sha256": "0327fc43b457544351cf8f66225438c1c5a556b0d349aae4a6a2513848a2644a"
+  },
+  {
+   "id": "hakata-member-159",
+   "handle": "RYO.V",
+   "sha256": "bf9e16a09530887fdd852354bd87231e5f9ccd5d0a8ebda335b4e7bb842cec8c"
+  },
+  {
+   "id": "hakata-member-160",
+   "handle": "KENTA-H",
+   "sha256": "c88518c03f5e5578f1801769571e1429e6b5ca6fad5cad031c58075a78f1e3b0"
+  },
+  {
+   "id": "hakata-member-161",
+   "handle": "KERO.R",
+   "sha256": "5e8284204bd72dcc3d7ff958355bf1f72f9047b62f569036eca9994f0731e8e7"
+  },
+  {
+   "id": "hakata-member-162",
+   "handle": "NAO.U",
+   "sha256": "99e38965e319034b40e6bcb2093810b8c4bde20f7292c70f5249ffe72490b542"
+  },
+  {
+   "id": "hakata-member-163",
+   "handle": "AYA-T",
+   "sha256": "1e9af9d4f99398acd5c61fe018a4e400ce8f0810f7d47df340a6ef2cbd0052a9"
+  },
+  {
+   "id": "hakata-member-164",
+   "handle": "MIKI.U",
+   "sha256": "dfe87ba7715e8e7120b0f57c953e627e599e61ab1cc6d36e77699ea836397f40"
+  },
+  {
+   "id": "hakata-member-165",
+   "handle": "NAO-M",
+   "sha256": "a61feeb1a9cb725b1ccfc7c4d54286f2cb1e49fa8d880bff00784e1592777793"
+  },
+  {
+   "id": "hakata-member-166",
+   "handle": "MAYU.X",
+   "sha256": "53228bb9b7ab7fe1ec72e538dbe1c677b4846c9d4d8c78ecfe798efc07a6c926"
+  },
+  {
+   "id": "hakata-member-167",
+   "handle": "MASA.Q",
+   "sha256": "e2856d5544a5216d8773a486914b6ecf52972411adf8ba2a12181db8e30cdd07"
+  },
+  {
+   "id": "hakata-member-168",
+   "handle": "RYO.E",
+   "sha256": "40a621da934fe4cafe019000f298dc2b36f8b4f58f29d80a99e6e959ce5fa5ad"
+  },
+  {
+   "id": "hakata-member-169",
+   "handle": "JUN.O",
+   "sha256": "dd85b89b34fc9d6ead6897e1bcdbe795f1fb660905d54894c2c110fba588f1b4"
+  },
+  {
+   "id": "hakata-member-170",
+   "handle": "KERO.E",
+   "sha256": "5f6200abdd6a7f8c1a7cb21d7ce4f11eb1aa1365c2de1e626810e1ed7349230b"
+  },
+  {
+   "id": "hakata-member-171",
+   "handle": "MAKO-K",
+   "sha256": "83ee3a662f47c6195248b4ce681e137e05096012b938ce4f574abb0bbf058ea4"
+  },
+  {
+   "id": "hakata-member-172",
+   "handle": "COM.S",
+   "sha256": "28fbafd8de9ebc5adef2c336ac630bfdc1355118250cb193f5ee3815dc01aecd"
+  },
+  {
+   "id": "hakata-member-173",
+   "handle": "SATOSHI.A",
+   "sha256": "b102bb7ba442e4d9e26216a1b4a2651728286c1c953a44a46ce1e00120fe0e0e"
+  },
+  {
+   "id": "hakata-member-174",
+   "handle": "MINT.Y",
+   "sha256": "d4f0ca22bbadc4ad08f73ec64138f5b683fd3e1204070ebf6c01b0ecb4111288"
+  },
+  {
+   "id": "hakata-member-175",
+   "handle": "TAKESHI.V",
+   "sha256": "2e5e34ad736788642c63b4e68aa12def448001656334881efd63d34fb15450a2"
+  },
+  {
+   "id": "hakata-member-176",
+   "handle": "N88-H",
+   "sha256": "df65bdf87aefdfd0bee80c266c9107473cb24e315f5849fb33b951268f9ca30e"
+  },
+  {
+   "id": "hakata-member-177",
+   "handle": "AKI.I",
+   "sha256": "67e512b3e0672397e3fa1c90fd3ea9675ed704a4db217da125da25c3fc373545"
+  },
+  {
+   "id": "hakata-member-178",
+   "handle": "LUNA.O",
+   "sha256": "48bfccb9ac6c1daa9ed1f5c95aee85cca76d6879ce6d613d38754b1d51c8217e"
+  },
+  {
+   "id": "hakata-member-179",
+   "handle": "MINT.S",
+   "sha256": "210cf61001dc5a627c9530e6962cee3c2fa25af851fca4b9c197301001347596"
+  },
+  {
+   "id": "hakata-member-180",
+   "handle": "SATOSHI.V",
+   "sha256": "fb425569428b4b89a32270f3fdc48f2d7daf470b39e5dca42621b6f431819324"
+  },
+  {
+   "id": "hakata-member-181",
+   "handle": "KOJI.G",
+   "sha256": "02c92467a50cd4e54547198ddc079812162bf1dfd3acd8754135bbe4be9c35d7"
+  },
+  {
+   "id": "hakata-member-182",
+   "handle": "NOVA.A",
+   "sha256": "096b88d24e82cc8f9e34ac9902215a8c2d2084d15a6efb4f877a543b675b3330"
+  },
+  {
+   "id": "hakata-member-183",
+   "handle": "NAO.T",
+   "sha256": "0515af63272bd63b269f32a4dcee0f807f05efbc1225f6ea0b66ccf4cf3f4404"
+  },
+  {
+   "id": "hakata-member-184",
+   "handle": "JOKER-Q",
+   "sha256": "75b49485b2e162c1a66cfaf35ba72cc62a0be42089741770dffeb9dff2eaee33"
+  },
+  {
+   "id": "hakata-member-185",
+   "handle": "SHIN.K",
+   "sha256": "e7c6c0f345b7d6b8c4e1f2c558c1a29ebfa90aed8ac5302c605c223c212b6d88"
+  },
+  {
+   "id": "hakata-member-186",
+   "handle": "KEN.L",
+   "sha256": "726d2a6f8c9c62614a4565138db6b7bb0e8fcde90e146f7750069dc84de345c8"
+  },
+  {
+   "id": "hakata-member-187",
+   "handle": "WOLF.U",
+   "sha256": "c245a83a6240f906026a5d070b4b203067f4f4739963c4a1277c862546ede441"
+  },
+  {
+   "id": "hakata-member-188",
+   "handle": "TAKESHI.H",
+   "sha256": "ffb6e34dc3de0dac1b99d19bc2e9cf7d7c81bc12de4bb9d3706b271672db8f42"
+  },
+  {
+   "id": "hakata-member-189",
+   "handle": "AKI.M",
+   "sha256": "ae69e710e6a597f58b13e1c5b756673a40b7bbc858ee883cc1c4a5b9f9926549"
+  },
+  {
+   "id": "hakata-member-190",
+   "handle": "TOMO.D",
+   "sha256": "e0a9f3ae6ee76256b8b4c3134c0af5d639770673e0e2f3227a2fd293c2a817e5"
+  },
+  {
+   "id": "hakata-member-191",
+   "handle": "MINT.X",
+   "sha256": "a8f8e819fe50a9199c505c18bdc32c69f44889d32c819d5d94fcd03f4d325429"
+  },
+  {
+   "id": "hakata-member-192",
+   "handle": "MEG.T",
+   "sha256": "e71e29d2589bcf30d591c6f7a6b2350326aa2bbd9ca0f7e756844691b194158d"
+  },
+  {
+   "id": "hakata-member-193",
+   "handle": "RINA",
+   "sha256": "9601d932540c0c1bc12243fd978a2127032371ff0043f0042167016678916365"
+  },
+  {
+   "id": "hakata-member-194",
+   "handle": "HIDE.T",
+   "sha256": "a5e8ad2557240a60ca5ee3597b614b2e0bb5226d661b46a0fa38f52b29e87eb8"
+  },
+  {
+   "id": "hakata-member-195",
+   "handle": "AKI.Z",
+   "sha256": "a311db46ffc1c09e8ca5bee2e4e5ac85bed3897a33a6433291649c0545fc5431"
+  },
+  {
+   "id": "hakata-member-196",
+   "handle": "SATOSHI-A",
+   "sha256": "d8ef3adc802b1aeefa8443aaa74179451a0d39094ebb757320a5fffe211eb7bd"
+  },
+  {
+   "id": "hakata-member-197",
+   "handle": "PC98.F",
+   "sha256": "a2f2a0e8d85e36cf118b2c87aaa420171ffff656d5cd0ce31dbd7d6a1afd1974"
+  },
+  {
+   "id": "hakata-member-198",
+   "handle": "NOVA.O",
+   "sha256": "6665f5369a8bc245131d969d92d7409bef9e2cda403beb356b12246a7d3d2bd7"
+  },
+  {
+   "id": "hakata-member-199",
+   "handle": "JOKER.R",
+   "sha256": "ee383b1fd08adc144be56334a671d68640fefe5953413f9a8d15fbce0a4f5ce2"
+  },
+  {
+   "id": "hakata-member-200",
+   "handle": "SATOSHI-Y",
+   "sha256": "07cdc372519d016d268e2da6db2164cd132296a5cbcede548a2253b2969f15c5"
+  },
+  {
+   "id": "hakata-member-201",
+   "handle": "MEG.I",
+   "sha256": "836cd67f66ff927602d79786da7c72ab16694d215844e6c4768bfa37b6c3a345"
+  },
+  {
+   "id": "hakata-member-202",
+   "handle": "KENTA.N",
+   "sha256": "8f80fd5cbee9dea5a4dc81b3c447d36c352179a6335d82feab94d72ae0b26fa2"
+  },
+  {
+   "id": "hakata-member-203",
+   "handle": "YUJI.G",
+   "sha256": "c182a4b0b4014a69e9ad85b0dc146b52e910dad59e2efebb8747c83bfc251e8b"
+  },
+  {
+   "id": "hakata-member-204",
+   "handle": "MIKI.Q",
+   "sha256": "10c28c45da39e7f3fab9ed1d9c4f991dd4981e5d5201ace4fb755cce78d290c6"
+  },
+  {
+   "id": "hakata-member-205",
+   "handle": "MEG-X",
+   "sha256": "b981a2224d97d6964dea8299a28423e75b1906950947346c8b48d4b08eacb549"
+  },
+  {
+   "id": "hakata-member-206",
+   "handle": "KERO.A",
+   "sha256": "a3816e6073ac5864fef657291dc3b4b9336b0014f23a1f55d4f76eb356345f0f"
+  },
+  {
+   "id": "hakata-member-207",
+   "handle": "RINA.D",
+   "sha256": "72569e370127f1f17e04e739f39953cbdebcdd9f7eda99cb06c03d88bb45471a"
+  },
+  {
+   "id": "hakata-member-208",
+   "handle": "X68",
+   "sha256": "789c81fda9217dac74269510ecd503be1b515168d6d08a3a91252a1c64ac8cdd"
+  },
+  {
+   "id": "hakata-member-209",
+   "handle": "X68.U",
+   "sha256": "701bb0770eb48f223abaf3e524f135d11638457db9900127c4f6386626aa4b99"
+  },
+  {
+   "id": "hakata-member-210",
+   "handle": "X68.W",
+   "sha256": "84a6c2c3574f51d12013931f88db7990ce02890c407eed351a27d23923c00a2e"
+  },
+  {
+   "id": "hakata-member-211",
+   "handle": "LUNA.A",
+   "sha256": "b8f7ee99f2c64c26ef21857ff48ef0a3fa5bc828bc8c6cfa766f48f233567e9a"
+  },
+  {
+   "id": "hakata-member-212",
+   "handle": "X68.Y",
+   "sha256": "d206a58b8c82477e80db62b58cec6d8043daf91a3d5a42b81d72af272864fb1e"
+  },
+  {
+   "id": "hakata-member-213",
+   "handle": "MASA.I",
+   "sha256": "d9821fbf771e493c03ef8acbc3995bf8c7aef175ed76b644e0586782b9064cb0"
+  },
+  {
+   "id": "hakata-member-214",
+   "handle": "TOMO-Y",
+   "sha256": "73a509791291408a80c23f552ffa2864a2fddf14f5c8ff14ee19789c13173b21"
+  },
+  {
+   "id": "hakata-member-215",
+   "handle": "KAZU.O",
+   "sha256": "5f77689670f86382d810f93aeec72bf611598f2c4f5dfca6fac59c4168071513"
+  },
+  {
+   "id": "hakata-member-216",
+   "handle": "KOJI.I",
+   "sha256": "a080936e0483b7ff82fc6d830a7897553dbb85bb8272794b06ac071e92589dbd"
+  },
+  {
+   "id": "hakata-member-217",
+   "handle": "MIKI.C",
+   "sha256": "29e4e09002aaddfdea623075e591e0d4bd189f8f2366730a98f560dd442b59f6"
+  },
+  {
+   "id": "hakata-member-218",
+   "handle": "NAO.I",
+   "sha256": "5cff8e4479ef590b5a5e1f8ba2586ef2ed917554ce6377654c0099cf9c619472"
+  },
+  {
+   "id": "hakata-member-219",
+   "handle": "MARI.S",
+   "sha256": "028a44a08986bf62cccb72571b69708de985c1e6067349cdd3e50d082a9bdc32"
+  },
+  {
+   "id": "hakata-member-220",
+   "handle": "ERI.Q",
+   "sha256": "5448ba719b3f67b6e887127fe3ca14f7af87df31b4981d8affaa195b46bfb9f4"
+  },
+  {
+   "id": "hakata-member-221",
+   "handle": "MINT-I",
+   "sha256": "a5350481264109858a3b97a2be27551cada2a183edbc4d5ad5d1ba6f3d66ee96"
+  },
+  {
+   "id": "hakata-member-222",
+   "handle": "SATOSHI.U",
+   "sha256": "5a41123fa78d497ea9f405e64422115e8a04fb1f91cfc00f9df720d1fe905079"
+  },
+  {
+   "id": "hakata-member-223",
+   "handle": "YUJI.W",
+   "sha256": "f6b5a4769a610f736197529c0b6dd59ad19e4fbf1ccb97dface9fe00601b07e0"
+  },
+  {
+   "id": "hakata-member-224",
+   "handle": "KAZU.V",
+   "sha256": "9d0995c437454f3d7a510b4923b0e4e47d2c5fc95152332096dca51a068d0f91"
+  },
+  {
+   "id": "hakata-member-225",
+   "handle": "YUKI.X",
+   "sha256": "530df44359211c21c688cc4c199dc46958c51430d8f83f815710054ca65c3b81"
+  },
+  {
+   "id": "hakata-member-226",
+   "handle": "V30-F",
+   "sha256": "9d90af04a0911cf9754f9b4da498641b8f4206d62a7667057e50dd757e1aa392"
+  },
+  {
+   "id": "hakata-member-227",
+   "handle": "EMI.H",
+   "sha256": "320538c5e76bd03576b01dbd21b2bd3a0d48db5e5501d9adfeb47d1a0513cbee"
+  },
+  {
+   "id": "hakata-member-228",
+   "handle": "MIKI.O",
+   "sha256": "dd1f11ad686d79a2b41584bcf94f2d6863a360a637e51b539e6689e0c52c3ce7"
+  },
+  {
+   "id": "hakata-member-229",
+   "handle": "TAKESHI.D",
+   "sha256": "d3f2244db8936a36a8bf7aa8d75d7986d9d1e264d85a780c3f5fb82f43aee297"
+  },
+  {
+   "id": "hakata-member-230",
+   "handle": "RINA.J",
+   "sha256": "1fb7651331978f3942c8afadcaec2a87e9d6f96ccbe64f1a4f06faf2103cb4cc"
+  },
+  {
+   "id": "hakata-member-231",
+   "handle": "MINT.R",
+   "sha256": "88ae095f92ec90acc316690dcfcf0ed136aa05c9ccfab9822f7763d99541b58f"
+  },
+  {
+   "id": "hakata-member-232",
+   "handle": "KERO.C",
+   "sha256": "50f3c1f1a37f362c7970b0bcce7d42a46e62cebe6dbeb300b1bc89e068b67c95"
+  },
+  {
+   "id": "hakata-member-233",
+   "handle": "EMI.N",
+   "sha256": "59ad48466353c34955c2bab024c9f95e90dde636e58cef6d634224832ecde56d"
+  },
+  {
+   "id": "hakata-member-234",
+   "handle": "RABBIT.T",
+   "sha256": "dd78c2372fec56363b58df1bea3ec03aa0e8235894ce980d94b3ca11f4749b6a"
+  },
+  {
+   "id": "hakata-member-235",
+   "handle": "KEN.V",
+   "sha256": "a18b911e175385dfe17d54a17ce76003472925b65e62e24860e2b35908dd042a"
+  },
+  {
+   "id": "hakata-member-236",
+   "handle": "TOMO-T",
+   "sha256": "ebdb22fa7b6ed5650596a15b5f42daebb152ed532f19da369ae2272a78e4424d"
+  },
+  {
+   "id": "hakata-member-237",
+   "handle": "MAKO.L",
+   "sha256": "68669095a4d0f47f066542001a6b8508afb3d931b061734a63988ea76bcd2419"
+  },
+  {
+   "id": "hakata-member-238",
+   "handle": "KOJI.L",
+   "sha256": "53c7a7dc523a270ed6604e98a873c1a2ff44e10a1bb54ee66b869930b4ee6955"
+  },
+  {
+   "id": "hakata-member-239",
+   "handle": "X68.X",
+   "sha256": "49df00098a5edfd6039ddc17193db082c16a67bb6fb96d648de86b8e1e45e3c5"
+  },
+  {
+   "id": "hakata-member-240",
+   "handle": "MAYU-B",
+   "sha256": "d020aa93fdebe57110cf44a6254c764500542f098c61ead06e1be2eb0c82ddd2"
+  },
+  {
+   "id": "hakata-member-241",
+   "handle": "AYA.G",
+   "sha256": "705e3173f1d4ee047983787069db8d913fb4adcb5a44210295f079c037dd1cb1"
+  },
+  {
+   "id": "hakata-member-242",
+   "handle": "MAKO.Z",
+   "sha256": "ca1c430b27c3ec762a12cdd9f537ba009da508a774539d903b81b70555760811"
+  },
+  {
+   "id": "hakata-member-243",
+   "handle": "MAKO-Z",
+   "sha256": "2f09c04d347811a93dcae0a5ca83c22f50c8789a9ffa205c8c1060a672083046"
+  },
+  {
+   "id": "hakata-member-244",
+   "handle": "MASA.C",
+   "sha256": "31ef3a3ed5ee3268da9e3ef12f92afef2d0d6f1b0dc1bf961b34905cf95786b0"
+  },
+  {
+   "id": "hakata-member-245",
+   "handle": "SHIN.D",
+   "sha256": "672732084f7ec3384830cd1c8bc6ed130a98b28d3ad3b1b96e21b23cc05d7553"
+  },
+  {
+   "id": "hakata-member-246",
+   "handle": "MASA.M",
+   "sha256": "8de70956e48bd334b600f1d3fd29ba4f208f9116d73aa1e1bc19fd913a9ab659"
+  },
+  {
+   "id": "hakata-member-247",
+   "handle": "MIKI.A",
+   "sha256": "7233ade6ecafdccd7ea7cb4b21b61954f22fe681c789fee7af09da292007b69b"
+  },
+  {
+   "id": "hakata-member-248",
+   "handle": "MIKI.J",
+   "sha256": "6c440cbde35e6e93789f785e9e8582e3b0fdfe7376863e6c2b457126fc2a72a4"
+  },
+  {
+   "id": "hakata-member-249",
+   "handle": "KOJI-C",
+   "sha256": "3829c12e2c037cadec6df33fe0b169096baa1d44560aba862ce0b580015ecf63"
+  },
+  {
+   "id": "hakata-member-250",
+   "handle": "MARI.J",
+   "sha256": "6e511a0934ad7b4ee4e038bb567af21272933ca88963fc3cdf219a0c6ddcff92"
+  },
+  {
+   "id": "hakata-member-251",
+   "handle": "EMI.E",
+   "sha256": "98ad6fda45034bfc22729519aca6ee37ef4ba5678621fe96b0d641b1915bf42f"
+  },
+  {
+   "id": "hakata-member-252",
+   "handle": "KEN.I",
+   "sha256": "a6d5a5bd194d342fde0d6aa80e0b9bcb4ccdc2af3d8c820d981622deda63d59b"
+  },
+  {
+   "id": "hakata-member-253",
+   "handle": "KEN.M",
+   "sha256": "1bbfd13483e660e591b13eb9eb30a53001fc50b1d5b2a4a56a3ec1ebef28eeb6"
+  },
+  {
+   "id": "hakata-member-254",
+   "handle": "KOJI.C",
+   "sha256": "d1961ec191ae885667cdf9475efd33d7a9d5a1d3dfc0cb3bd7325d051a21f13e"
+  },
+  {
+   "id": "hakata-member-255",
+   "handle": "HIDE.I",
+   "sha256": "8c3c29a782ff7d44d5f6c6cf259c00c866e9227b80377c0df3fd5c4140ad5570"
+  },
+  {
+   "id": "hakata-member-256",
+   "handle": "SHIN.O",
+   "sha256": "c9752f579a15f0a868bf50cc1e5ef9b3ad93e40ff89a384e6109239b3e135690"
+  },
+  {
+   "id": "hakata-member-257",
+   "handle": "X68.G",
+   "sha256": "7ff13544aa3aaaaa626587a6106c387c1f28ffaa5edd6b4832b49100d0753bdd"
+  },
+  {
+   "id": "hakata-member-258",
+   "handle": "RYO-X",
+   "sha256": "0b0d08a6b71586691812575da284a9bfdd0e857410fabf70cb22567eacbbc709"
+  },
+  {
+   "id": "hakata-member-259",
+   "handle": "HIRO.C",
+   "sha256": "5f3f06dc8aeb9e6058bc78cb35b8c48353de63099c88161aa3b7cffb3ade9e8c"
+  },
+  {
+   "id": "hakata-member-260",
+   "handle": "RABBIT.S",
+   "sha256": "50a32b1591d36503864a2911d81c23b6ba54e7669f2958034c79a47ec079e7bc"
+  },
+  {
+   "id": "hakata-member-261",
+   "handle": "RYO.M",
+   "sha256": "2c2b40dacdb9845a267deb8360371372e06ebf457125a43c998621882c3e945a"
+  },
+  {
+   "id": "hakata-member-262",
+   "handle": "NAO.R",
+   "sha256": "2cf47cf3fca31906093249d57cdaa172e54fe17fdafbc232849ad272af4e0e67"
+  },
+  {
+   "id": "hakata-member-263",
+   "handle": "ERI.U",
+   "sha256": "81f7ac70f765fcb84899a407ee26f1eeda86438a0e34cb73171afcd8c9a9867e"
+  },
+  {
+   "id": "hakata-member-264",
+   "handle": "ERI.S",
+   "sha256": "32de7e4ca35642c836c881835ec49dbb784a1fd8a9b9068391652e0082b85145"
+  },
+  {
+   "id": "hakata-member-265",
+   "handle": "EMI.Q",
+   "sha256": "af39ec69f306ae3a6396e80f90ca257f1434f21c08a7c41e01120f8f4c879a54"
+  },
+  {
+   "id": "hakata-member-266",
+   "handle": "LUNA.L",
+   "sha256": "3072378cfffd592c122cffbbf3af81e0f1b048de0f6c0b10fe53d775eaadebc1"
+  },
+  {
+   "id": "hakata-member-267",
+   "handle": "X68.Z",
+   "sha256": "49ba02fd2338edb42af392a4c6bb8e0e2e32ede2d42fbef4f71f0d46a8ee2ea3"
+  },
+  {
+   "id": "hakata-member-268",
+   "handle": "NAO.A",
+   "sha256": "519c9e1804c4e9e3c5b45d937a84c61f342d2de04cb7b63cbdc9c745b91ab87c"
+  },
+  {
+   "id": "hakata-member-269",
+   "handle": "KERO.I",
+   "sha256": "0774a97a80901fed9d72e4a3338179de4e9d0c86de93326a47251b0384da9b24"
+  },
+  {
+   "id": "hakata-member-270",
+   "handle": "KOJI-S",
+   "sha256": "29ecefcb7ab8f8d4f90d70dc2b4d25dd7862715e28d7c8af59f85d088faf9b8d"
+  },
+  {
+   "id": "hakata-member-271",
+   "handle": "AYA.N",
+   "sha256": "5b3f8c93157147add5800e97d467ce7b06db566b5c1b85268cff3bf5f8ebdd23"
+  },
+  {
+   "id": "hakata-member-272",
+   "handle": "HIRO.F",
+   "sha256": "c5c3ac7538be5db87377481e516ff0e28be19f551d1b21667bdde3b7707829a7"
+  },
+  {
+   "id": "hakata-member-273",
+   "handle": "JOKER.B",
+   "sha256": "3799f049bf801f5cb08308adf2f6b37e4276f67547851b5aad663bb3d224f306"
+  },
+  {
+   "id": "hakata-member-274",
+   "handle": "KAZU.F",
+   "sha256": "31d2db93d4d4a812d2ba5fdc9356b57b3296a6b1ca786de73cd070eaf38ba631"
+  },
+  {
+   "id": "hakata-member-275",
+   "handle": "JUN.D",
+   "sha256": "52fd5a9af17325f37bde18930c93d68515d02862280239ca61cafca61a3affc8"
+  },
+  {
+   "id": "hakata-member-276",
+   "handle": "HIRO.R",
+   "sha256": "f28f119b26ca0aa47ebeacb46ce34d8f5d758d9d20fc27ae583f67703475f890"
+  },
+  {
+   "id": "hakata-member-277",
+   "handle": "MAKO.X",
+   "sha256": "47a8bb9aa8f39753560ff05eb69f7ab658881c70e9aad00728cb29cf89118601"
+  },
+  {
+   "id": "hakata-member-278",
+   "handle": "MEG.X",
+   "sha256": "c2f2ebf275e998b6d205664fb49e03a944b3353099a51deaecc5479f775de770"
+  },
+  {
+   "id": "hakata-member-279",
+   "handle": "V30.L",
+   "sha256": "278bbb191211d74a7033594be53150a38177fdbebbb559b8e185f4ac4368fb19"
+  },
+  {
+   "id": "hakata-member-280",
+   "handle": "KENTA.E",
+   "sha256": "514c74cae82cb0e5326d93ec84679fe4b008feacf46c1f07ce8089bb7ff2e9c8"
+  },
+  {
+   "id": "hakata-member-281",
+   "handle": "X68.V",
+   "sha256": "7838ec56cd36cb1a80d820cef1cbb0702b6a44f1abf4d665a359770d5a0723bd"
+  },
+  {
+   "id": "hakata-member-282",
+   "handle": "MARU.T",
+   "sha256": "b39d9aa8c58d80b3fa8f6b53512c88749f9b6be9a620b77d2a66167cd1b4c6eb"
+  },
+  {
+   "id": "hakata-member-283",
+   "handle": "RYO.L",
+   "sha256": "801795758419fc4b97ab13fa72e3ea1baf4d5cbe34ffb3b7d9d2687c4bf2705f"
+  },
+  {
+   "id": "hakata-member-284",
+   "handle": "COM.F",
+   "sha256": "dd2ab4689838833a70cad2ad74df3379ab3ea95f7cd649057064db12d3a4e41b"
+  },
+  {
+   "id": "hakata-member-285",
+   "handle": "PC98.I",
+   "sha256": "d6443b5c898042d08cf0b3b03f93dd5f639537c5bcb22b5f58918a8ca254d6b7"
+  },
+  {
+   "id": "hakata-member-286",
+   "handle": "KERO.O",
+   "sha256": "b2f300b0b6638b844bab32715f1fc58d3680e6118461abfca443c1aa6db58162"
+  },
+  {
+   "id": "hakata-member-287",
+   "handle": "JUN.B",
+   "sha256": "59095c4a348b5539574c297615dfb083b3d2f9c1cff084360e47bb4680e188db"
+  },
+  {
+   "id": "hakata-member-288",
+   "handle": "KEN.A",
+   "sha256": "c6b77dc37891efd51c575ad307e0759af05d3b31d86bbe3bb3cbd5e75550658b"
+  },
+  {
+   "id": "hakata-member-289",
+   "handle": "V30.X",
+   "sha256": "23845a1bac5d546cbe50292eb44cbd0b12cb70adb63241533d09c32c87de6fb0"
+  },
+  {
+   "id": "hakata-member-290",
+   "handle": "MARU.Q",
+   "sha256": "b47ee31b9f3475aebabc77a76c2a815556f6164922d898a7808d15a7f7728221"
+  },
+  {
+   "id": "hakata-member-291",
+   "handle": "MASA.Y",
+   "sha256": "702d9c0376a368f118fa441fce0c9bcd055ccb1f339dfc28369321bafcb0737c"
+  },
+  {
+   "id": "hakata-member-292",
+   "handle": "X68.C",
+   "sha256": "4e0ea374bb4f04dcb52d096899427b625b13ead20aaa68421e9a945632f3ca4c"
+  },
+  {
+   "id": "hakata-member-293",
+   "handle": "MEG.A",
+   "sha256": "9e69fd777186b48cee8717f4465cf5e628c3e0306cae8c8521428771c3973156"
+  },
+  {
+   "id": "hakata-member-294",
+   "handle": "TOMO.F",
+   "sha256": "8dfce1b85ebe31374fc823709c67047e2f66ab810f3e0a5e255c5031092c24d7"
+  },
+  {
+   "id": "hakata-member-295",
+   "handle": "MODEM.G",
+   "sha256": "dc8212c5da14e785de3f0c2101e6be1b03babf79b4bde1ba592c5c425100dd55"
+  },
+  {
+   "id": "hakata-member-296",
+   "handle": "MINT.A",
+   "sha256": "91e3a609d92b6a848c28e0fc21afaa05ddcab61435f7fa13406c20e784806be1"
+  },
+  {
+   "id": "hakata-member-297",
+   "handle": "EMI-N",
+   "sha256": "3aff5dbe871e74f0694e932b337373dacf2a6f285aff9e13849335c63a203103"
+  },
+  {
+   "id": "hakata-member-298",
+   "handle": "MINT-Y",
+   "sha256": "005280a44fa4edc0fcc7e6d729fe56330b39e5aaaf0cd8b93d1a64ef07d08079"
+  },
+  {
+   "id": "hakata-member-299",
+   "handle": "MASA-W",
+   "sha256": "36907045a1dfd252517d258c613253236f1062d63f033e3760363a8c8229fef7"
+  },
+  {
+   "id": "hakata-member-300",
+   "handle": "MAKO.M",
+   "sha256": "ea0f22a3e6526b03c80f014996a8b6f3203a11f2cc04e6b9c32f7c7cdc263011"
+  },
+  {
+   "id": "hakata-member-301",
+   "handle": "RYO-Q",
+   "sha256": "e1a3ddb5d78f69f566538d888644cf13f10245bbb2c5ebba73f7eba3794561dc"
+  },
+  {
+   "id": "hakata-member-302",
+   "handle": "PC98.K",
+   "sha256": "37883a63b7c118250f9a5e24c63fb34d153a4a850bfead676a84bcbd8c91e7ff"
+  },
+  {
+   "id": "hakata-member-303",
+   "handle": "REI.E",
+   "sha256": "93749790f6c5ca077e4c467a532e2b13c355780285bfb84600d65ac19be6c804"
+  },
+  {
+   "id": "hakata-member-304",
+   "handle": "TOMO.K",
+   "sha256": "9669915baec7d7bbed583ffdf079568567a96a78d094934d9b20c4ab8c26b58b"
+  },
+  {
+   "id": "hakata-member-305",
+   "handle": "HIRO.G",
+   "sha256": "e6accbab5698c38669edea90bb8f01fb1cfe1dcf1124d403319aa75ded4b6044"
+  },
+  {
+   "id": "hakata-member-306",
+   "handle": "MAKO.E",
+   "sha256": "fe5f06b9b7c50877a495cfd74ad6e92f159c3ccfad034c274b17b39005e422d0"
+  },
+  {
+   "id": "hakata-member-307",
+   "handle": "MAKO.P",
+   "sha256": "cbca9e15dbe00e30e8fc314721cc6f4c185f2b959215dfae35da3f77a70b58ee"
+  },
+  {
+   "id": "hakata-member-308",
+   "handle": "LUNA.I",
+   "sha256": "03e3ec12fd0b01f74d125c048827beda15215795b00d95301d6278c0ed15862c"
+  },
+  {
+   "id": "hakata-member-309",
+   "handle": "V30.J",
+   "sha256": "ff36c85bac6bfb3181d1860b77f8989b7a07bb26d0588c96810392e3254e938b"
+  },
+  {
+   "id": "hakata-member-310",
+   "handle": "RINA.O",
+   "sha256": "e8fa32d481be405da032af2c31673b9d848034d23b58e7a9b1e983deb8b6842c"
+  },
+  {
+   "id": "hakata-member-311",
+   "handle": "YUJI.M",
+   "sha256": "0b3418fedead791a9bcdd1d3ae8fbd780c39a60b3d74bf057c05b330d15e8d69"
+  },
+  {
+   "id": "hakata-member-312",
+   "handle": "SHIN.X",
+   "sha256": "9d80a2018007da6fd48ab4d37c3eedeb5b7e63b75b80c6ab0876de039a758609"
+  },
+  {
+   "id": "hakata-member-313",
+   "handle": "YUJI.F",
+   "sha256": "0af3bb23110dd38ad587ed20de9d0b3564ae0999756ee9bdab7907870684ee50"
+  },
+  {
+   "id": "hakata-member-314",
+   "handle": "MINT-P",
+   "sha256": "6f6c2c8fc5253b5e9842c54142ea6cf1500c0c8433c18def3d07036528681aa4"
+  },
+  {
+   "id": "hakata-member-315",
+   "handle": "MEG-M",
+   "sha256": "fb68d1bcd1ef5451abd2c586b44d1aec050d00cca298c8fabf62bcf66a9f0e25"
+  },
+  {
+   "id": "hakata-member-316",
+   "handle": "AYA.I",
+   "sha256": "81e6da800acffe7826d215c794f4179f1aace6467bf11733b767c4e9bb7a83de"
+  },
+  {
+   "id": "hakata-member-317",
+   "handle": "MAYU.F",
+   "sha256": "b4603b69a723e635a713154a5ee940dece2b532d948801fa2a6b42257983ae30"
+  },
+  {
+   "id": "hakata-member-318",
+   "handle": "ERI.H",
+   "sha256": "de0d1ccf9847a60dfd793ba54c9871296ffa0bcff5730e7912793c28f5423ce4"
+  },
+  {
+   "id": "hakata-member-319",
+   "handle": "RYO.P",
+   "sha256": "315284e1fc34e426f9b1c53504984e7e52c8b9ccf32875d46f2b503cc47dc81e"
+  },
+  {
+   "id": "hakata-member-320",
+   "handle": "COM.J",
+   "sha256": "30086f61caf02d96775b06b33961c12e3952a948fa6ae5f222a5b830a8242317"
+  },
+  {
+   "id": "hakata-member-321",
+   "handle": "MINT.N",
+   "sha256": "543a24e488b7be83de1a63a771b5d7d20af3a86816ea5b21b268649cc83f9a49"
+  },
+  {
+   "id": "hakata-member-322",
+   "handle": "PC98.B",
+   "sha256": "14865b4578954751a677626b626baa64b0f46fec623caacbf160650ac6e395f6"
+  },
+  {
+   "id": "hakata-member-323",
+   "handle": "REI.V",
+   "sha256": "e4037e8cb480a6619fa77ab4943b05f68cd00482d9d3c76fcfb6a2cd2764fc0f"
+  },
+  {
+   "id": "hakata-member-324",
+   "handle": "HIDE.F",
+   "sha256": "650d54cff8aa98913010f5c0575890c9668d185490e129995545e699d4897888"
+  },
+  {
+   "id": "hakata-member-325",
+   "handle": "SATOSHI-V",
+   "sha256": "46f5c6bba46f3d9b85f65a6fcb653293cbab569b5eebb1c0a236047507f16f27"
+  },
+  {
+   "id": "hakata-member-326",
+   "handle": "MASA.R",
+   "sha256": "f3701d0cd758bae4ad0a69f02f8e1b8990865317628ecfb3bf4687365d3ba250"
+  }
+ ]
+}
