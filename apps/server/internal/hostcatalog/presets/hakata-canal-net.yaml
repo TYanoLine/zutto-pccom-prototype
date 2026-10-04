@@ -2,9 +2,10 @@
 # HAKATA is the fixed station used to evaluate the shared BBS article generator
 # (see docs/ARCHITECTURE.md). Its evaluation behavior is switched on by the
 # `debug` and `generation` blocks below, not by its phone number or key.
+# Its resident definition is in the `population:` block.
 schema: 1
 key: hakata-canal-net
-revision: 2
+revision: 3
 listed: true
 role: experiment
 
@@ -31,3 +32,10 @@ debug:
 
 generation:
   freeform_body: true
+
+population:
+  seed: 199608260920
+  id_prefix: "hakata"
+  core_handles: ["MARI", "YUKI", "NORI", "KAZU", "TAKU", "NEKO", "KEN", "MAKO", "TOMO", "AKI", "RYO", "HIRO", "SACHI", "JUN", "MIDNIGHT"]
+  handle_bases: ["AKI", "AYA", "EMI", "HIDE", "HIRO", "JUN", "KAZU", "KEN", "KOJI", "MAKO", "MARI", "MASA", "MIKI", "NAO", "NORI", "REI", "RYO", "SHIN", "TAKA", "TOMO", "YUKI", "YUJI", "SATOSHI", "TAKESHI", "KENTA", "MEG", "MAYU", "RINA", "ERI", "MINT", "WOLF", "RABBIT", "JOKER", "NOVA", "LUNA", "MARU", "KERO", "N88", "V30", "X68", "PC98", "COM", "MODEM"]
+  handle_prefixes: ["N88", "V30", "X68", "98", "COM"]
