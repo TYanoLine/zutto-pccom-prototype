@@ -160,7 +160,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
 		// If this board has never been materialized, realize the prose-free
 		// activity state that already existed before the user opened the board.
-		// This replaces the old HAKATA-only fixed 40-root evaluation batch.
+		// This replaces the old fixed-size evaluation batch.
 		var err error
 		ctx, traceDone := r.beginGenerationTrace(context.Background(), host, board, "headers", 0)
 		existing := filterBoard(r.Base.ListPosts(host.ID), board.ID)

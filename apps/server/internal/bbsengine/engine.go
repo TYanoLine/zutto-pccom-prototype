@@ -728,7 +728,7 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 		}
 		// Staff-origin boards are a World-level actor constraint, not
 		// something the language model may simulate by changing a handle.
-		// HAKATA's dedicated SYSOP exists as station configuration; reuse a
+		// A dedicated SYSOP can exist as station configuration; reuse a
 		// stored SYSOP persona if one has been materialized.
 		if !shouldReply && board.RootAuthorPolicy == "sysop_only" {
 			slot.Author = "SYSOP"

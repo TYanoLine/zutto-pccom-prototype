@@ -30,7 +30,7 @@ type generatedContentLog struct {
 
 // SetDebugLogGeneratedContent is the process-wide switch for the generated
 // content log. A host is logged only when this is on and the host opted in with
-// debug.content_log. (The HAKATA-specific name is historical.)
+// debug.content_log.
 func (r *Repository) SetDebugLogGeneratedContent(enabled bool) {
 	if r != nil {
 		r.debugLogGeneratedContent = enabled

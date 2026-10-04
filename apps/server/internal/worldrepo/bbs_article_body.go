@@ -88,7 +88,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	freeform := r.useFreeformBody(host)
 	detailDiagnostic := ""
 	if !freeform {
-		// Detail generation is not needed for the HAKATA title-led experiment.
+		// Detail generation is not needed for the title-led experiment.
 		// Existing persisted Situation/Detail facts are not altered.
 		var detailErr error
 		selected, detailDiagnostic, detailErr = r.materializeArticleDetails(traceCtx, host, board, selected)
@@ -123,7 +123,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 
 	ctx, cancel := context.WithTimeout(traceCtx, 35*time.Second)
 	defer cancel()
-	// Normal materialization still uses World evidence. In HAKATA's temporary
+	// Normal materialization still uses World evidence. In the temporary
 	// model-memory body trial, historical facts were not supplied to the prose
 	// worker in the first place. Avoid spending an extra research/LLM call.
 	decision := worldengine.EvidenceDecision{

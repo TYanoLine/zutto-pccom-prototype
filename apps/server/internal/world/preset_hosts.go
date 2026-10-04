@@ -10,7 +10,7 @@ import (
 // HostFromDescriptor converts a HostDescriptor into the runtime Host.
 //
 // Host.ID is the descriptor Key. That keeps the IDs the in-memory store, the
-// persisted snapshots and the HAKATA-specific code already use. When hosts
+// persisted snapshots and the experiment-specific code already use. When hosts
 // become per-world, the runtime ID scheme must be decided explicitly: a bare key
 // such as "world-001" is not unique across worlds.
 func HostFromDescriptor(d hostcatalog.HostDescriptor) Host {

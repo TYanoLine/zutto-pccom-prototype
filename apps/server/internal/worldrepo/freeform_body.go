@@ -12,7 +12,6 @@ import (
 // supplied to the prose worker. The original accepted Situation, article details
 // and persona remain untouched in canonical persistence. It is a process-wide
 // switch combined with the per-host generation.freeform_body flag. (The
-// HAKATA-specific name is historical.)
 func (r *Repository) SetFreeformBody(enabled bool) {
     if r != nil { r.freeformBody = enabled }
 }
@@ -84,4 +83,3 @@ func freeformPersonaSummary(p world.Persona) string {
     }
     return strings.Join(fields, "; ")
 }
-
