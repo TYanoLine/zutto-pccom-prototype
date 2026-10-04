@@ -54,8 +54,8 @@ Capture and polling start automatically for an opted-in evaluation host.
 `GET /api/debug/bbs/generation-trace` is a **public, unauthenticated**, read-only,
 no-store endpoint while `DEBUG_GENERATION_TRACE` is enabled (default `1`, set
 `0` to disable and return HTTP 403). No other host's generation is captured.
-The previous HAKATA-prefixed environment names remain readable as deprecated
-aliases when the new names are unset.
+The former HAKATA-prefixed environment names (such as `DEBUG_HAKATA_LLM_TRACE`)
+are no longer read; a deployment that still sets one of them gets the default.
 It never starts generation or exposes a new Lab API. The existing
 `DEBUG_RESET_TOKEN` still protects destructive BBS resets and article sample
 inspection; it does not control this trace endpoint.
