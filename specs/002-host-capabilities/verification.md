@@ -1,64 +1,53 @@
 # Verification: host capabilities
 
-## Automated Tests
+実行日: 2026-10-04。結果は実際に実行して観測したもの。
+
+## 自動テスト
 
 | コマンド | 結果 | 備考 |
 |---|---|---|
-| `go -C apps/server build ./...` | 未実施 | ネットワーク環境の制限により、ローカル実行環境でコンパイルおよびテスト実行不可 |
-| `go -C apps/server test ./internal/ws/...` | 未実施 | 同上 |
-| `npm --prefix apps/web test` | 未実施 | 同上 |
-| `npm --prefix apps/web run build` | 未実施 | 同上 |
+| `go -C apps/server build ./...` | 成功 | 下の「実行環境の注記」を参照 |
+| `go -C apps/server test ./internal/ws/...` | 成功 | `capabilities_test.go` の 3 テストを含む |
+| `go -C apps/server test ./...` | **一部失敗** | `internal/worldrepo` の `TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders` のみ失敗。他のパッケージはすべて成功。下の「既存の失敗」を参照 |
+| `npm --prefix apps/web test` | 成功 | 18 ファイル / 82 テスト |
+| `npm --prefix apps/web run build` | 成功 | `vite build`（vercel.json チェック込み）。型エラーなし |
+
+## 実行環境の注記
+
+- 実行環境では `proxy.golang.org` と `golang.org` に接続できないため、Go の依存
+  （`golang.org/x/*`、`gopkg.in/yaml.v3`）は GitHub のミラー
+  （`github.com/golang/*`、`github.com/go-yaml/yaml/v3`）に一時的に差し替えて取得した。
+  差し替えは `-modfile` で指定した一時ファイル（リポジトリ外）で行い、`go.mod` / `go.sum` は変更していない。
+- Go は 1.24.13 を使用（`go.mod` の指定は 1.23.0）。
+
+## 既存の失敗（この変更とは無関係）
+
+- `internal/worldrepo` の `TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders`
+  （`bbs_content_log_test.go:87`: `audit leaked to another host`）。
+- この変更を入れる前の `main` でも、同じテストを単独で実行して同じ失敗を再現した
+  （この変更を入れた状態で 3 回連続、変更を退避した `main` で 1 回、いずれも失敗）。
+  Go のコードは `ws` 以外を変更していないため、この spec の挙動変更とは関係しない。
+  spec のルールに従い、このテストには触れていない。別途調査が必要。
 
 ## 手動確認
 
-実行環境の制限により、以下のテストは実施していません。
+実行環境にブラウザと PC-98 端末の実機がないため、次は未実施。
 
 - HAKATA（`ATDT0920000196`）で「生成ログ」ボタンが出る: 未実施
 - フラグなしの局（`ATDT0459999999`、AUTO REDIAL で 5 回目に接続）でボタンが出ない: 未実施
 - 切断後にボタンが消える: 未実施
 
-## 実装状況
+挙動は `VirtualModem.test.ts` の 3 テスト（flag あり・なし・再発信で持ち越さない）と
+`HostCapabilities.test.ts` で自動的に検証している。
 
-以下のタスクは完了しました（コミット済み）：
+## 残った HAKATA / 0920000196 の参照（grep 結果）
 
-- **T001**: `apps/server/internal/ws/session.go` に `capabilities` と `capabilitiesFor` を追加
-- **T002**: `apps/server/internal/ws/capabilities_test.go` を新規作成（3 つのテスト）
-- **T004**: `apps/web/src/modem/HostCapabilities.ts` を新規作成
-- **T005**: `apps/web/src/modem/HostCapabilities.test.ts` を新規作成（複数のテスト）
-- **T006**: `apps/web/src/modem/VirtualModem.ts` を更新（import、型、セットアップロジック）
-- **T007**: `apps/web/src/modem/VirtualModem.test.ts` を更新（既存テストの期待値、新規テスト 3 つ）
-- **T012**: `packages/protocol/README.md` に `capabilities` の説明を追加
+`grep -rn "0920000196\|HAKATA\|hakata" apps/web/src` の結果は次のとおり。すべてスコープ外。
 
-以下のタスクは実装が不完全です：
+- `apps/web/src/App.tsx:57` — `VITE_TELEHODAI_NUMBERS` の既定値（スコープ外）
+- `apps/web/src/App.tsx:212` — ターミナル・モードの案内文 `ATDT0920000196`（スコープ外・例示番号）
+- `apps/web/src/modem/CenterDirectory.ts:14-16` — `DEFAULT_CENTERS`（スコープ外）
+- `apps/web/src/billing/PseudoTariffService.test.ts`、`apps/web/src/billing/CallerLocation.test.ts` — テスト用の番号
+- `apps/web/src/modem/VirtualModem.test.ts`、`VirtualModem.telemetry.test.ts` — テスト用のダイヤル番号とホスト名
 
-- **T009**: `apps/web/src/App.tsx` を変更（import 追加、型変更、onCallState コールバック変更、変数名変更、aria-label 変更）
-- **T010**: `apps/web/src/debug/GenerationInspector.tsx` のテキスト修正（実装未了）
-
-## 残った HAKATA / 0920000196 の参照
-
-スコープ外として以下に残すべき参照：
-
-1. **`apps/web/src/App.tsx`**
-   - `VITE_TELEHODAI_NUMBERS` の既定値 `'0920000196'`（スコープ外）
-   - ターミナル・モードの案内文 `ATDT0920000196`（スコープ外、例示番号）
-
-2. **`apps/web/src/modem/CenterDirectory.ts`**
-   - `DEFAULT_CENTERS` に HAKATA が含まれている（スコープ外）
-
-3. **`apps/web/src/billing/PseudoTariffService.test.ts`**
-   - テスト用の番号（スコープ外）
-
-## 実装上の課題
-
-1. **ネットワーク制限**: ローカル環境でリポジトリをクローンおよびテスト実行できないため、自動テストの検証が不可能。
-2. **App.tsx の修正**: ファイルサイズが大きく、複数箇所の修正が必要なため、手動で完成させる必要があります。
-3. **GenerationInspector.tsx の修正**: テキスト修正のみですが、ファイルの確認と修正が必要です。
-
-## 次のステップ
-
-本番環境では、以下の手順でテストを実施してください：
-
-1. `go -C apps/server test ./internal/ws/...` でサーバ側テストを実行
-2. `npm --prefix apps/web test` で Web 側テストを実行
-3. `npm --prefix apps/web run build` でビルドエラーがないことを確認
-4. ローカルで HAKATA と別局に接続し、ボタンの表示/非表示を確認
+`App.tsx` に電話番号による生成ログの表示判定は残っていない。
