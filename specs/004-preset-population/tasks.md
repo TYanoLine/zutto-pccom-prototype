@@ -402,7 +402,7 @@
      add("population", err)
      ```
 
-     （`err` が既に宣言されている場合は、`:=` を `=` に直すか、別の変数名を使う。）
+     （`err` が既に同じスコープで宣言されていてコンパイルエラーになる場合は、`:=` を `=` に直すか、別の変数名を使う。）
 
   4. `ParsePreset` の最後の `Preset{...}` に `Population: population,` を追加する。
   5. `Descriptor()` は変更しない（住民の定義は `HostDescriptor` に入れない）。
@@ -737,7 +737,7 @@ T009〜T013 は 1 つのコミットにまとめる（途中でビルドが通�
   - `host_role_test.go`:
     - `TestPresetsAllowAtMostOneExperimentHost` を削除する。
     - `TestOnlyExperimentHostsGetTheResidentPopulation` を、次のテストに置き換える
-      （import に `hostcatalog` が既にある）。
+      （`hostcatalog` と `strings` は、このファイルで既に import されている）。
 
       ```go
       func TestResidentsFollowThePopulationDefinitionNotTheRole(t *testing.T) {
@@ -754,6 +754,9 @@ T009〜T013 は 1 つのコミットにまとめる（途中でビルドが通�
       	if added := s.EnsurePopulation("0910000001"); added != 0 {
       		t.Fatalf("a role-only host got %d residents", added)
       	}
+      	if n := len(s.ListHostPersonas("exp-no-population")); n != 0 {
+      		t.Fatalf("a role-only host has %d residents", n)
+      	}
 
       	// A population definition alone creates residents, without any role.
       	s.populations["pop-only"] = hostcatalog.Population{
@@ -765,9 +768,15 @@ T009〜T013 は 1 つのコミットにまとめる（途中でビルドが通�
       		t.Fatalf("added = %d, want 30", added)
       	}
       	residents := s.ListHostPersonas("pop-only")
-      	if len(residents) != 30 || residents[0].ID != "pop-only-alpha" || residents[1].ID != "pop-only-member-002" {
-      		t.Fatalf("unexpected residents: %d, first ids %q %q", len(residents), residents[0].ID, residents[1].ID)
+      	if len(residents) != 30 {
+      		t.Fatalf("residents = %d, want 30", len(residents))
       	}
+      	if residents[0].ID != "pop-only-alpha" || residents[1].ID != "pop-only-member-002" {
+      		t.Fatalf("unexpected IDs: %q, %q", residents[0].ID, residents[1].ID)
+      	}
+
+      	// Handles are unique within the host, and persona IDs never collide with
+      	// another host's (each host's IDs start with its own id_prefix).
       	handles := map[string]bool{}
       	for _, r := range residents {
       		key := strings.ToLower(r.Handle)
@@ -775,22 +784,17 @@ T009〜T013 は 1 つのコミットにまとめる（途中でビルドが通�
       			t.Fatalf("duplicate handle %q", r.Handle)
       		}
       		handles[key] = true
+      		if !strings.HasPrefix(r.ID, "pop-only-") {
+      			t.Fatalf("persona ID %q does not use the host's id_prefix", r.ID)
+      		}
       	}
+
       	// A second call adds nobody.
       	if added := s.EnsurePopulation("0990000002"); added != 0 {
       		t.Fatalf("second call added %d", added)
       	}
-      	// Two hosts never share persona IDs.
-      	for _, r := range residents {
-      		if _, clash := s.personas["hakata-"+strings.TrimPrefix(r.ID, "pop-only-")]; clash && r.ID == "hakata-"+strings.TrimPrefix(r.ID, "pop-only-") {
-      			t.Fatalf("persona ID %q is shared", r.ID)
-      		}
-      	}
       }
       ```
-
-      （最後の「Two hosts never share persona IDs」の検査は、意図が伝わるよう簡単に書き直してよい。
-      例えば、`pop-only` の全住民の ID が `hakata-` で始まらないことを確かめる。）
 
 - [ ] **T013** 金型テストの呼び出しを新しい API に合わせる
 
