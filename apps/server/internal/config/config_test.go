@@ -56,7 +56,6 @@ func TestDebugLogBBSArticleDetailsCanBeEnabled(t *testing.T) {
 
 func TestGeneratedContentLoggingDefaultsOn(t *testing.T) {
 	t.Setenv("DEBUG_LOG_GENERATED_CONTENT", "")
-	t.Setenv("DEBUG_LOG_HAKATA_GENERATED", "")
 	if !Load().DebugLogGeneratedContent {
 		t.Fatal("generated content should log by default")
 	}
@@ -71,7 +70,6 @@ func TestGeneratedContentLoggingCanBeDisabled(t *testing.T) {
 
 func TestGenerationTraceFlagDefaultsOnAndCanBeDisabled(t *testing.T) {
 	t.Setenv("DEBUG_GENERATION_TRACE", "")
-	t.Setenv("DEBUG_HAKATA_LLM_TRACE", "")
 	if !Load().DebugGenerationTrace {
 		t.Fatal("generation trace should be enabled by default")
 	}
@@ -83,7 +81,6 @@ func TestGenerationTraceFlagDefaultsOnAndCanBeDisabled(t *testing.T) {
 
 func TestGenerationFreeformBodyDefaultAndOptOut(t *testing.T) {
 	t.Setenv("GENERATION_FREEFORM_BODY", "")
-	t.Setenv("HAKATA_FREEFORM_BODY", "")
 	if !Load().GenerationFreeformBody {
 		t.Fatal("freeform body generation should default on")
 	}
@@ -93,45 +90,23 @@ func TestGenerationFreeformBodyDefaultAndOptOut(t *testing.T) {
 	}
 }
 
-func TestLegacyGenerationEnvironmentAliases(t *testing.T) {
-	tests := []struct {
-		name       string
-		current    string
-		legacy     string
-		field      func(Config) bool
+// The HAKATA-prefixed names were renamed and are no longer read. A deployment
+// that still sets one of them (for example to 0) silently gets the default (on)
+// until it moves to the new name, so this records that they have no effect.
+func TestFormerHAKATAEnvironmentNamesAreIgnored(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		former string
+		field  func(Config) bool
 	}{
-		{"generated content", "DEBUG_LOG_GENERATED_CONTENT", "DEBUG_LOG_HAKATA_GENERATED", func(cfg Config) bool {
-			return cfg.DebugLogGeneratedContent
-		}},
-		{"generation trace", "DEBUG_GENERATION_TRACE", "DEBUG_HAKATA_LLM_TRACE", func(cfg Config) bool {
-			return cfg.DebugGenerationTrace
-		}},
-		{"freeform body", "GENERATION_FREEFORM_BODY", "HAKATA_FREEFORM_BODY", func(cfg Config) bool {
-			return cfg.GenerationFreeformBody
-		}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for _, tc := range []struct {
-				name       string
-				current    string
-				legacy     string
-				want       bool
-			}{
-				{"new only enabled", "1", "", true},
-				{"new only disabled", "0", "", false},
-				{"legacy only disabled", "", "0", false},
-				{"new takes precedence enabled", "1", "0", true},
-				{"new takes precedence disabled", "0", "1", false},
-				{"both unset uses default", "", "", true},
-			} {
-				t.Run(tc.name, func(t *testing.T) {
-					t.Setenv(tt.current, tc.current)
-					t.Setenv(tt.legacy, tc.legacy)
-					if got := tt.field(Load()); got != tc.want {
-						t.Fatalf("current=%q legacy=%q got=%v want=%v", tc.current, tc.legacy, got, tc.want)
-					}
-				})
+		{"generated content", "DEBUG_LOG_HAKATA_GENERATED", func(cfg Config) bool { return cfg.DebugLogGeneratedContent }},
+		{"generation trace", "DEBUG_HAKATA_LLM_TRACE", func(cfg Config) bool { return cfg.DebugGenerationTrace }},
+		{"freeform body", "HAKATA_FREEFORM_BODY", func(cfg Config) bool { return cfg.GenerationFreeformBody }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.former, "0")
+			if !tc.field(Load()) {
+				t.Fatalf("%s=0 changed the configuration; the former names must no longer be read", tc.former)
 			}
 		})
 	}
