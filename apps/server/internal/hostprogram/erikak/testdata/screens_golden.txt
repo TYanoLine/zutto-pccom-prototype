@@ -1,0 +1,778 @@
+===== welcome =====
+<ESC>[2J<ESC>[H＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊<CRLF>
+                 HAKATA CANAL NET<CRLF>
+        福岡県福岡市 / 3回線 / MAX 14400bps<CRLF>
+＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊＊<CRLF>
+◎ 会員以外の方は ID:GUEST でご利用下さい<CRLF>
+<CRLF>
+YOUR ID:
+===== input "GUEST" disconnect=false =====
+<CRLF>
+前回アクセス --/--/-- --:--<CRLF>
+<CRLF>
+######################### WELCOME TO HAKATA CANAL NET ##########################<CRLF>
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■<CRLF>
+■  博多から、夜更かしネットワーカーのみなさんへ。                            ■<CRLF>
+■  23:00以降は混み合います。長時間の席取りはほどほどに(^^;                   ■<CRLF>
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■<CRLF>
+################################### ERIKA-K ####################################<CRLF>
+<CRLF>
+深夜のアクセスご苦労様！ GUESTさん、いらっしゃいませ。<CRLF>
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "1" disconnect=false =====
+<CRLF>
+〖ボード／フォーラムメニュー〗 BM   ★☆＝未読   GUEST:一部利用可<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+★[1] 事務局からのお知らせ 0            [2] 自己紹介・新人歓迎 0<CRLF>
+ [3] Ｑ＆Ａ（質問ボード） 0            ★[4] ふり～と～く 0<CRLF>
+ [5] オフライントピックス 0             [6] 街角情報スポット 0<CRLF>
+ [7] ＣＡＮＡＬ市場 0                   [8] 夢工房はかた 0<CRLF>
+ <10><HAKATA> 博多・天神広場            <20><AMUSE> アミューズメントフォーラム<CRLF>
+ <60><COMP> コンピュータワールド        <68><X68> ＣＡＮＡＬ Ｘ村<CRLF>
+ <70><DOSV> ９８ VS ＡＴ互換機          <80><OTHER> その他のコンピュータ<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 1" disconnect=false =====
+<CRLF>
+★BD# 01 事務局からのお知らせ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 2" disconnect=false =====
+<CRLF>
+☆BD# 02 自己紹介・新人歓迎<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\2) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 3" disconnect=false =====
+<CRLF>
+☆BD# 03 Ｑ＆Ａ（質問ボード）<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\3) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 4" disconnect=false =====
+<CRLF>
+★BD# 04 ふり～と～く<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\4) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 5" disconnect=false =====
+<CRLF>
+☆BD# 05 オフライントピックス<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\5) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 6" disconnect=false =====
+<CRLF>
+☆BD# 06 街角情報スポット<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\6) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 7" disconnect=false =====
+<CRLF>
+☆BD# 07 ＣＡＮＡＬ市場<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\7) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 8" disconnect=false =====
+<CRLF>
+☆BD# 08 夢工房はかた<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\8) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 10" disconnect=false =====
+<CRLF>
+      〖博多・天神広場〗        ★☆＝未読   〖Forum.OP〗SYSOP<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+ [1] 博多・天神ローカル 0              ★[2] オフ会連絡 0<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ\10) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 20" disconnect=false =====
+<CRLF>
+      〖アミューズメントフォーラム〗        ★☆＝未読   〖Forum.OP〗SYSOP<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+ [1] ＧＡＭＥ 0                         [2] ＡＮＩＭＥ／ＭＡＮＧＡ 0<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ\20) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 60" disconnect=false =====
+<CRLF>
+      〖コンピュータワールド〗        ★☆＝未読   〖Forum.OP〗SYSOP<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+★[1] ＰＣ－９８／ＭＯＤＥＭ 0          [2] Ｗｉｎｄｏｗｓ／ＤＯＳ 0<CRLF>
+★[3] ＳＯＦＴＷＡＲＥ／ＤＡＴＡ 0     <CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ\60) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 68" disconnect=false =====
+<CRLF>
+      〖ＣＡＮＡＬ Ｘ村〗        ★☆＝未読   〖Forum.OP〗SYSOP<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+ [1] 深夜雑談 0                        <CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ\68) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 70" disconnect=false =====
+<CRLF>
+      〖９８ VS ＡＴ互換機〗        ★☆＝未読   〖Forum.OP〗SYSOP<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+ [1] ＰＣ－９８ 0                       [2] ＤＯＳ／Ｖ 0<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ\70) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 80" disconnect=false =====
+<CRLF>
+      〖その他のコンピュータ〗        ★☆＝未読   〖Forum.OP〗SYSOP<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+ [1] ＦＭ－ＴＯＷＮＳ 0                 [2] Forever with MSX 0<CRLF>
+ [3] ワープロ 0                         [4] その他(PC88,FMR,etc) 0<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[T/00/0]新MSG [ﾘﾀｰﾝ] 前の階へ [/] ﾒｲﾝﾒﾆｭｰへ [H] ｺﾏﾝﾄﾞ一覧 [?] 説明<CRLF>
+(BJ\80) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 99" disconnect=false =====
+<CRLF>
+☆BD# 99 夜更かし部屋<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\99) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 10/1" disconnect=false =====
+<CRLF>
+☆BD# 01 博多・天神ローカル<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\10\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 10/2" disconnect=false =====
+<CRLF>
+★BD# 02 オフ会連絡<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\10\2) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 20/1" disconnect=false =====
+<CRLF>
+☆BD# 01 ＧＡＭＥ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\20\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 20/2" disconnect=false =====
+<CRLF>
+☆BD# 02 ＡＮＩＭＥ／ＭＡＮＧＡ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\20\2) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 60/1" disconnect=false =====
+<CRLF>
+★BD# 01 ＰＣ－９８／ＭＯＤＥＭ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\60\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 60/2" disconnect=false =====
+<CRLF>
+☆BD# 02 Ｗｉｎｄｏｗｓ／ＤＯＳ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\60\2) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 60/3" disconnect=false =====
+<CRLF>
+★BD# 03 ＳＯＦＴＷＡＲＥ／ＤＡＴＡ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\60\3) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 68/1" disconnect=false =====
+<CRLF>
+☆BD# 01 深夜雑談<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\68\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 70/1" disconnect=false =====
+<CRLF>
+☆BD# 01 ＰＣ－９８<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\70\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 70/2" disconnect=false =====
+<CRLF>
+☆BD# 02 ＤＯＳ／Ｖ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\70\2) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 80/1" disconnect=false =====
+<CRLF>
+☆BD# 01 ＦＭ－ＴＯＷＮＳ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\80\1) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 80/2" disconnect=false =====
+<CRLF>
+☆BD# 02 Forever with MSX<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\80\2) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 80/3" disconnect=false =====
+<CRLF>
+☆BD# 03 ワープロ<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\80\3) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "BJ 80/4" disconnect=false =====
+<CRLF>
+☆BD# 04 その他(PC88,FMR,etc)<CRLF>
+# 最新10インデックス表示<CRLF>
+___No. __date__ time_ _author_  ap/ref___________i n d e x_______________<CRLF>
+              --- MSG はありません ---<CRLF>
+――――――――――――――――――――――――――――――――――――――<CRLF>
+[BX]一覧 [BR n]読む [BW/W]書く [A]アペ [0/T]未読 [ﾘﾀｰﾝ]前の階へ [/]MAIN [H]HELP<CRLF>
+(BJ\80\4) BOARD [M]=MENU [?]=HELP --> 
+===== input "/" disconnect=false =====
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     [0] 入会登録<CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 
+===== input "MA" disconnect=false =====
+<CRLF>
+〖ボードマップ〗 MA<CRLF>
+1      事務局からのお知らせ<CRLF>
+2      自己紹介・新人歓迎<CRLF>
+3      Ｑ＆Ａ（質問ボード）<CRLF>
+4      ふり～と～く<CRLF>
+5      オフライントピックス<CRLF>
+6      街角情報スポット<CRLF>
+7      ＣＡＮＡＬ市場<CRLF>
+8      夢工房はかた<CRLF>
+10     博多・天神広場<CRLF>
+20     アミューズメントフォーラム<CRLF>
+60     コンピュータワールド<CRLF>
+68     ＣＡＮＡＬ Ｘ村<CRLF>
+70     ９８ VS ＡＴ互換機<CRLF>
+80     その他のコンピュータ<CRLF>
+  10\1   博多・天神ローカル<CRLF>
+  10\2   オフ会連絡<CRLF>
+  20\1   ＧＡＭＥ<CRLF>
+  20\2   ＡＮＩＭＥ／ＭＡＮＧＡ<CRLF>
+  60\1   ＰＣ－９８／ＭＯＤＥＭ<CRLF>
+  60\2   Ｗｉｎｄｏｗｓ／ＤＯＳ<CRLF>
+  60\3   ＳＯＦＴＷＡＲＥ／ＤＡＴＡ<CRLF>
+  68\1   深夜雑談<CRLF>
+  70\1   ＰＣ－９８<CRLF>
+  70\2   ＤＯＳ／Ｖ<CRLF>
+  80\1   ＦＭ－ＴＯＷＮＳ<CRLF>
+  80\2   Forever with MSX<CRLF>
+  80\3   ワープロ<CRLF>
+  80\4   その他(PC88,FMR,etc)<CRLF>
+<CRLF>
+MAIN MENU --> 
+===== input "T" disconnect=false =====
+<CRLF>
+〖未読検索〗 T<CRLF>
+★ 1      事務局からのお知らせ  0 MSG<CRLF>
+★ 4      ふり～と～く  0 MSG<CRLF>
+★ 10\2   オフ会連絡  0 MSG<CRLF>
+★ 60\1   ＰＣ－９８／ＭＯＤＥＭ  0 MSG<CRLF>
+★ 60\3   ＳＯＦＴＷＡＲＥ／ＤＡＴＡ  0 MSG<CRLF>
+<CRLF>
+MAIN MENU --> 
+===== input "H" disconnect=false =====
+<CRLF>
+《コマンド・モード》<CRLF>
+GUIDE と入力すると、メニュー方式に戻ります。<CRLF>
+HELP と入力すると コマンド の簡単な説明が出てきます。<CRLF>
+==== 次のコマンドが使用出来ます ====<CRLF>
+1. ボード<CRLF>
+   メニュー [BM] インデックス [BX | BXS] 読む [BR]<CRLF>
+   書く [BW | BWX] 階層移動 [BJ]<CRLF>
+2. ファイル<CRLF>
+   メニュー [FM] インデックス [FX | FXS] 読む [FR]<CRLF>
+   書く [FW | FWX] 階層移動 [FJ]<CRLF>
+3. メール  インデックス [MX] 読む [MR] 書く [MW]<CRLF>
+4. チャット 入る [CHAT] 呼ぶ [CALL]<CRLF>
+5. 使用状態表示 [WHO]<CRLF>
+6. メンバーリスト [MEMB]<CRLF>
+7. パスワード変更 [PASS] 8. 設定変更 [MODE]<CRLF>
+9. メニューモード [GUIDE] 10. 終了 [BYE]<CRLF>
+<CRLF>
+MAIN MENU --> 
+===== input "MEMB" disconnect=false =====
+<CRLF>
+〖メンバーリスト〗<CRLF>
+SYSOP  MARI  KAZU  YUKI  TAKU  NORI  MIDNIGHT ...<CRLF>
+<CRLF>
+MAIN MENU --> 
+===== input "V" disconnect=false =====
+<CRLF>
+〖アクセス記録〗<CRLF>
+96/08/26 00:20 NORI<CRLF>
+96/08/26 00:42 MARI<CRLF>
+96/08/26 01:07 SYSOP<CRLF>
+NOW             GUEST<CRLF>
+<CRLF>
+MAIN MENU --> 
+===== input "WHO" disconnect=false =====
+<CRLF>
+〖使用状態表示〗<CRLF>
+LINE 1  SYSOP     14400<CRLF>
+LINE 2  MARI       9600<CRLF>
+LINE 3  GUEST      ONLINE<CRLF>
+<CRLF>
+MAIN MENU --> 
+===== input "9" disconnect=true =====
+<CRLF>
+ご利用ありがとうございました。<CRLF>
+また HAKATA CANAL NET でお会いしましょう。<CRLF>
+
+===== input "MIKI" disconnect=false =====
+PASSWORD:
+===== input "dummy" disconnect=false =====
+<CRLF>
+前回アクセス 96/08/25 23:41<CRLF>
+<CRLF>
+######################### WELCOME TO HAKATA CANAL NET ##########################<CRLF>
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■<CRLF>
+■  博多から、夜更かしネットワーカーのみなさんへ。                            ■<CRLF>
+■  23:00以降は混み合います。長時間の席取りはほどほどに(^^;                   ■<CRLF>
+■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■<CRLF>
+################################### ERIKA-K ####################################<CRLF>
+<CRLF>
+深夜のアクセスご苦労様！ MIKIさん、いらっしゃいませ。<CRLF>
+<CRLF>
+-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+[1] ボード(BM)        [2] ファイル(FM)      [3] メール(MAIL)<CRLF>
+[4] 電報･チャット(C)  [5] ジャンク(JUNK)    [6] 各種設定(MODE)<CRLF>
+[7] SYSOP宛メール     [9] 接続終了(BYE)     <CRLF>
+[A] 自動運転          [ASET] 自動運転登録   [MA] ボードマップ<CRLF>
+[BAT] バッチダウン                          <CRLF>
+[T] 未読検索          [V] アクセス記録      [H] その他のコマンド<CRLF>
+――――――――――――――――――――――――――――――――――――――――<CRLF>
+MAIN MENU [?]=HELP --> 

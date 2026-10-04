@@ -11,6 +11,7 @@ import (
 
 	"zutto-pccom/apps/server/internal/config"
 	"zutto-pccom/apps/server/internal/historicalkb"
+	"zutto-pccom/apps/server/internal/hostcatalog"
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/telephone"
@@ -225,7 +226,13 @@ func main() {
 		// the shared World BoardStore. Ask the host program for the canonical
 		// board path instead of duplicating one debug-only GAME special case.
 		if board.ID == "" && host.SoftwareID == "erika-k" {
-			if resolved, ok := erikak.BoardByPath(boardID); ok {
+			var detail *hostcatalog.ErikaKDetail
+			if details, ok := store.(world.HostDetailStore); ok {
+				if d, found := details.HostDetail(host.ID); found {
+					detail = d.ErikaK
+				}
+			}
+			if resolved, ok := erikak.BoardByPath(detail, boardID); ok {
 				board = resolved
 			}
 		}

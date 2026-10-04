@@ -9,6 +9,7 @@ import (
 
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
+	"zutto-pccom/apps/server/internal/hostcatalog"
 	"zutto-pccom/apps/server/internal/hostprogram"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
@@ -43,17 +44,17 @@ type BoardMaterializationRequest struct {
 }
 
 type Repository struct {
-	Base                 world.Store
-	Engine               EvidenceResolver
-	Materializer         Materializer
-	ArticleDetailPlanner llm.BBSTitleArticleDetailPlanner
-	WorldDate            string
-	worldNow             func() time.Time
-	bbsArticles          *bbsengine.Engine
-	debugLogBBSArticleDetails                  bool
-	debugLogGeneratedContent                    bool
-	freeformBody                        bool
-	generationTrace                           *generationTraceStore
+	Base                      world.Store
+	Engine                    EvidenceResolver
+	Materializer              Materializer
+	ArticleDetailPlanner      llm.BBSTitleArticleDetailPlanner
+	WorldDate                 string
+	worldNow                  func() time.Time
+	bbsArticles               *bbsengine.Engine
+	debugLogBBSArticleDetails bool
+	debugLogGeneratedContent  bool
+	freeformBody              bool
+	generationTrace           *generationTraceStore
 
 	mu                     sync.Mutex
 	materialized           map[string]bool
@@ -159,11 +160,19 @@ func (r *Repository) HostByPhone(phone string) (world.Host, error) {
 	if err != nil {
 		return h, err
 	}
+
 	r.mu.Lock()
 	r.hosts[h.ID] = h
 	r.mu.Unlock()
 
 	return h, nil
+}
+
+func (r *Repository) HostDetail(hostID string) (hostcatalog.PresetDetail, bool) {
+	if details, ok := r.Base.(world.HostDetailStore); ok {
+		return details.HostDetail(hostID)
+	}
+	return hostcatalog.PresetDetail{}, false
 }
 
 func (r *Repository) PopulationWasMaterialized(hostID string) bool {

@@ -6,8 +6,7 @@ The canonical description of a BBS host, plus the preset hosts defined as YAML.
 `world.HostFromDescriptor`, which also carries the preset `role` and the
 `debug` / `generation` flags into `world.Host`; the hosts are no longer
 hard-coded there. Not driven by these files yet: the directory the web client
-shows (`CenterDirectory.ts`), the dial behaviors in `telephone`, and what the
-Erika-K runtime says (welcome text, boards, SYSOP), which is still HAKATA's.
+shows (`CenterDirectory.ts`) and the dial behaviors in `telephone`.
 
 `hostcatalog` must not import `world` (the store imports it), so the
 descriptor -> `world.Host` conversion lives in `world`.
@@ -89,15 +88,32 @@ debug:                     # optional; every flag is opt-in and off when omitted
 generation:                # optional; experimental generation behavior, off when omitted
   freeform_body: true      # title-led article body, skipping Article Detail and evidence
 
-detail:                    # optional; only `welcome` is accepted for now
-  welcome: |
-    ...
+detail:
+  erika_k:                  # only valid when host.program is erika-k
+    login:
+      station_message: ["局からの案内", "二行目の案内"]
+      member_greeting: "いらっしゃいませ、{handle}さん。"
+    boards:
+      - path: "1"            # numeric path; parents must also be listed
+        name: "お知らせ"
+        scope: "board meaning for world generation"
+        root_author_policy: "sysop_only"
+        activity_weight: 0.10
+        reply_rate: 0.20
+        retained_root_cap: 24
+        verified_referent_rate: 0.10
+        unread: true
 ```
 
 Decoding is strict: unknown keys (a typo in a flag name included), a second YAML
 document, a missing `listed`, or any out-of-range value fail the load, and
 loading is all-or-nothing, so a broken definition stops startup instead of
 making a host quietly disappear. All problems in a file are reported together.
+Erika-K paths must contain digits separated by `/`, must be unique, and every
+parent path must exist. Board names and station-message lines cannot be blank;
+numeric tuning values cannot be negative, and only `{handle}` is accepted in
+the member greeting. Station-message lines are additionally checked by the
+Erika-K runtime to fit within 74 display cells.
 
 Fields under `host` other than `name` and `program` may be omitted. A preset
 with omitted fields parses (`Preset.Missing()` lists them) but cannot become a

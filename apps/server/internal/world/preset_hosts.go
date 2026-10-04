@@ -38,6 +38,7 @@ func HostFromDescriptor(d hostcatalog.HostDescriptor) Host {
 type presetData struct {
 	hosts       []Host
 	populations map[string]hostcatalog.Population
+	details     map[string]hostcatalog.PresetDetail
 }
 
 var (
@@ -63,6 +64,15 @@ func presetPopulations() map[string]hostcatalog.Population {
 	return out
 }
 
+func presetDetails() map[string]hostcatalog.PresetDetail {
+	src := loadPresetData().details
+	out := make(map[string]hostcatalog.PresetDetail, len(src))
+	for key, detail := range src {
+		out[key] = detail
+	}
+	return out
+}
+
 func loadPresetData() presetData {
 	presetDataOnce.Do(func() {
 		presets, err := hostcatalog.LoadPresets(hostcatalog.Options{})
@@ -80,8 +90,14 @@ func loadPresetData() presetData {
 			presetDataErr = err
 			return
 		}
+		presetDataVal.details = make(map[string]hostcatalog.PresetDetail)
 		for _, d := range descriptors {
 			presetDataVal.hosts = append(presetDataVal.hosts, HostFromDescriptor(d))
+		}
+		for _, p := range presets {
+			if p.Detail.ErikaK != nil {
+				presetDataVal.details[p.Key] = p.Detail
+			}
 		}
 		presetDataVal.populations = populations
 	})
