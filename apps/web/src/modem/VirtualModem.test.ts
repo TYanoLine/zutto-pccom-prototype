@@ -184,7 +184,7 @@ describe('VirtualModem standalone lifecycle', () => {
     });
 
     sockets[0].disconnect();
-    expect(calls).toEqual([{ phone: '0450000001', baud: 28800 }]);
+    expect(calls).toEqual([{ phone: '0450000001', baud: 28800, capabilities: { generationTrace: false } }]);
     expect(statuses.at(-1)).toBe('LINE INTERRUPTED / RECONNECTING');
 
     vi.advanceTimersByTime(10);
@@ -201,7 +201,7 @@ describe('VirtualModem standalone lifecycle', () => {
       session_id: 'session-123',
       host: { name: 'TEST', phone: '0450000001' },
     });
-    expect(calls).toEqual([{ phone: '0450000001', baud: 28800 }]);
+    expect(calls).toEqual([{ phone: '0450000001', baud: 28800, capabilities: { generationTrace: false } }]);
     expect(statuses.at(-1)).toBe('ONLINE 28800 / RESUMED');
     modem.dispose();
   });
@@ -236,7 +236,7 @@ describe('VirtualModem standalone lifecycle', () => {
     sockets[1].open();
     sockets[1].receive({ type: 'resume_result', result: 'expired', session_id: 'session-expired' });
 
-    expect(calls).toEqual([{ phone: '0450000001', baud: 14400 }, null]);
+    expect(calls).toEqual([{ phone: '0450000001', baud: 14400, capabilities: { generationTrace: false } }, null]);
     modem.dispose();
   });
 
@@ -261,7 +261,7 @@ describe('VirtualModem standalone lifecycle', () => {
     });
     socket.disconnect();
 
-    expect(calls).toEqual([{ phone: '0450000001', baud: 28800 }, null]);
+    expect(calls).toEqual([{ phone: '0450000001', baud: 28800, capabilities: { generationTrace: false } }, null]);
     modem.dispose();
   });
 
@@ -289,7 +289,112 @@ describe('VirtualModem standalone lifecycle', () => {
     ]);
 
     socket.receive({ type: 'dial_result', result: 'connect', baud: 28800 });
-    expect(calls).toEqual([{ phone: '0450000001', baud: 28800 }]);
+    expect(calls).toEqual([{ phone: '0450000001', baud: 28800, capabilities: { generationTrace: false } }]);
+    modem.dispose();
+  });
+
+  it('passes generation_trace true in capabilities when dial_result includes it', () => {
+    const socket = new FakeSocket();
+    const calls: unknown[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => socket,
+      audio: silentAudio,
+      dialDelayMs: 0,
+    });
+    modem.onCallState = call => calls.push(call);
+
+    modem.submitLine('ATDT0920000196');
+    socket.open();
+    vi.runOnlyPendingTimers();
+    socket.receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 14400,
+      session_id: 'session-with-trace',
+      host: { name: 'HAKATA', phone: '0920000196' },
+      capabilities: { generation_trace: true },
+    });
+
+    expect(calls).toEqual([{ phone: '0920000196', baud: 14400, capabilities: { generationTrace: true } }]);
+    modem.dispose();
+  });
+
+  it('passes generation_trace false in capabilities when dial_result does not include it', () => {
+    const socket = new FakeSocket();
+    const calls: unknown[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => socket,
+      audio: silentAudio,
+      dialDelayMs: 0,
+    });
+    modem.onCallState = call => calls.push(call);
+
+    modem.submitLine('ATDT0459999999');
+    socket.open();
+    vi.runOnlyPendingTimers();
+    socket.receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 9600,
+      session_id: 'session-no-trace',
+      host: { name: 'TEST', phone: '0459999999' },
+    });
+
+    expect(calls).toEqual([{ phone: '0459999999', baud: 9600, capabilities: { generationTrace: false } }]);
+    modem.dispose();
+  });
+
+  it('resets capabilities to false after hangup even if previous call had generation_trace true', () => {
+    const sockets: FakeSocket[] = [];
+    const calls: unknown[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+      dialDelayMs: 0,
+    });
+    modem.onCallState = call => calls.push(call);
+
+    // First call with generation_trace: true
+    modem.submitLine('ATDT0920000196');
+    sockets[0].open();
+    vi.runOnlyPendingTimers();
+    sockets[0].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 14400,
+      session_id: 'session-1',
+      host: { name: 'HAKATA', phone: '0920000196' },
+      capabilities: { generation_trace: true },
+    });
+
+    expect(calls).toEqual([{ phone: '0920000196', baud: 14400, capabilities: { generationTrace: true } }]);
+
+    // Hangup
+    modem.hangup();
+    expect(calls).toEqual([{ phone: '0920000196', baud: 14400, capabilities: { generationTrace: true } }, null]);
+
+    // Second call without generation_trace
+    modem.submitLine('ATDT0459999999');
+    sockets[1].open();
+    vi.runOnlyPendingTimers();
+    sockets[1].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 9600,
+      session_id: 'session-2',
+      host: { name: 'TEST', phone: '0459999999' },
+    });
+
+    expect(calls).toEqual([
+      { phone: '0920000196', baud: 14400, capabilities: { generationTrace: true } },
+      null,
+      { phone: '0459999999', baud: 9600, capabilities: { generationTrace: false } },
+    ]);
+
     modem.dispose();
   });
 });

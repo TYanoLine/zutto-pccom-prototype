@@ -13,11 +13,17 @@ Client -> server:
 Server -> client:
 
 ```json
-{"type":"dial_result","result":"connect","baud":14400,"line":2,"host":{...}}
+{"type":"dial_result","result":"connect","baud":14400,"line":2,"host":{...},"capabilities":{"generation_trace":false}}
 {"type":"dial_result","result":"busy"}
 {"type":"terminal","text":"..."}
 {"type":"carrier","result":"off"}
 ```
+
+`capabilities` is sent with every successful `dial_result` (`connect`) and `resume_result`
+(`ok`). It lists the optional, host-specific features the client may offer for this call; every
+key is `false` unless the host definition turns it on. A client must treat a missing
+`capabilities` (an older server) as all features off. New features add keys; existing keys keep
+their meaning. `generation_trace` mirrors the host's `debug.generation_trace` flag.
 
 ## Intended V1 boundary
 

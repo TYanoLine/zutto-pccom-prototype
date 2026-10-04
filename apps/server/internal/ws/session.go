@@ -32,13 +32,25 @@ type clientMessage struct {
 }
 
 type serverMessage struct {
-	Type      string      `json:"type"`
-	Result    string      `json:"result,omitempty"`
-	Baud      int         `json:"baud,omitempty"`
-	Line      int         `json:"line,omitempty"`
-	SessionID string      `json:"session_id,omitempty"`
-	Host      *world.Host `json:"host,omitempty"`
-	Text      string      `json:"text,omitempty"`
+	Type         string             `json:"type"`
+	Result       string             `json:"result,omitempty"`
+	Baud         int                `json:"baud,omitempty"`
+	Line         int                `json:"line,omitempty"`
+	SessionID    string             `json:"session_id,omitempty"`
+	Host         *world.Host        `json:"host,omitempty"`
+	Text         string             `json:"text,omitempty"`
+	Capabilities *hostCapabilities  `json:"capabilities,omitempty"`
+}
+
+// hostCapabilities tells the client which optional, host-specific features it
+// may offer for this call. It is derived from the host definition's flags, so
+// the client never needs to know a phone number or a host ID.
+type hostCapabilities struct {
+	GenerationTrace bool `json:"generation_trace"`
+}
+
+func capabilitiesFor(host world.Host) *hostCapabilities {
+	return &hostCapabilities{GenerationTrace: host.Debug.GenerationTrace}
 }
 
 type debugBBSConnectionPreparer interface {
@@ -142,6 +154,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				active = session
 				attachment = token
 				sm.Host = &active.Host
+				sm.Capabilities = capabilitiesFor(active.Host)
 				sm.SessionID = active.ID
 			}
 			if err := writeJSON(ctx, conn, sm); err != nil {
@@ -176,12 +189,13 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			active = session
 			attachment = token
 			if err := writeJSON(ctx, conn, serverMessage{
-				Type:      "resume_result",
-				Result:    "ok",
-				SessionID: active.ID,
-				Baud:      active.Baud,
-				Line:      active.Line,
-				Host:      &active.Host,
+				Type:         "resume_result",
+				Result:       "ok",
+				SessionID:    active.ID,
+				Baud:         active.Baud,
+				Line:         active.Line,
+				Host:         &active.Host,
+				Capabilities: capabilitiesFor(active.Host),
 			}); err != nil {
 				return
 			}

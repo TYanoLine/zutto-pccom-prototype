@@ -4,6 +4,8 @@ import type { DialMode } from '../audio/dialLineAudio';
 import type { TerminalCore } from '../terminal/TerminalCore';
 import { DEFAULT_COMM_SETTINGS } from './CommSettings';
 import type { CommSettings } from './CommSettings';
+import { noCapabilities, parseHostCapabilities } from './HostCapabilities';
+import type { HostCapabilities } from './HostCapabilities';
 import { protocolStateForSettings } from './ModemTelemetry';
 import type { ModemPhase, ModemTelemetry } from './ModemTelemetry';
 
@@ -15,6 +17,7 @@ type ServerMessage = {
   session_id?: string;
   text?: string;
   host?: { name: string; phone: string };
+  capabilities?: unknown;
 };
 
 type ModemSocket = {
@@ -56,7 +59,7 @@ type VirtualModemOptions = {
   audio?: VirtualModemAudio;
 };
 
-export type CallState = { phone: string; baud: number } | null;
+export type CallState = { phone: string; baud: number; capabilities: HostCapabilities } | null;
 
 const SOCKET_OPEN = 1;
 
@@ -78,6 +81,7 @@ export class VirtualModem {
   private lastDialMode: DialMode = 'tone';
   private attempt = 0;
   private sessionID = '';
+  private capabilities: HostCapabilities = noCapabilities();
   private pendingDial?: PendingDial;
   private pendingLines: string[] = [];
   private preConnectRx = '';
@@ -206,6 +210,7 @@ export class VirtualModem {
     this.negotiating = false;
     this.recoveringCarrier = false;
     this.sessionID = '';
+    this.capabilities = noCapabilities();
     if (hadCarrier) this.onCallState?.(null);
     this.releaseSocket('hangup');
     this.terminal.write(wasCalling ? '\r\nNO CARRIER\r\n' : '\r\nOK\r\n');
@@ -228,6 +233,7 @@ export class VirtualModem {
     this.negotiating = false;
     this.recoveringCarrier = false;
     this.sessionID = '';
+    this.capabilities = noCapabilities();
     this.clearActivityTimers();
     this.releaseSocket('terminal disposed');
   }
@@ -329,6 +335,7 @@ export class VirtualModem {
     this.clearConnectTimer();
     this.clearOfflineBusyTimer();
     this.sessionID = '';
+    this.capabilities = noCapabilities();
     this.recoveringCarrier = false;
     this.ringing = false;
     this.negotiating = false;
@@ -484,6 +491,7 @@ export class VirtualModem {
       this.negotiating = true;
       this.recoveringCarrier = false;
       this.sessionID = msg.session_id ?? '';
+      this.capabilities = parseHostCapabilities(msg.capabilities);
       const baud = msg.baud ?? 9600;
       const phone = msg.host?.phone ?? this.lastPhone;
       this.currentBaud = Math.max(300, baud);
@@ -537,7 +545,7 @@ export class VirtualModem {
     this.terminal.write(`\r\nCONNECT ${baud}\r\n`);
     this.pulseActivity('rx');
     this.onStatus?.(`ONLINE ${baud}`);
-    this.onCallState?.({ phone, baud });
+    this.onCallState?.({ phone, baud, capabilities: this.capabilities });
 
     const buffered = this.preConnectRx;
     this.preConnectRx = '';
@@ -554,6 +562,7 @@ export class VirtualModem {
     this.negotiating = false;
     this.recoveringCarrier = false;
     this.sessionID = '';
+    this.capabilities = noCapabilities();
     this.pendingDial = undefined;
     this.pendingLines = [];
     this.preConnectRx = '';
