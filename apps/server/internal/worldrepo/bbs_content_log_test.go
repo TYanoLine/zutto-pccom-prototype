@@ -42,7 +42,7 @@ func TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
 	}
 	board := world.Board{ID: "20/1", Name: "GAME"}
 	repo := New(base, nil, nil, "1996-08-26")
-	repo.SetDebugLogHAKATAGenerated(true)
+	repo.SetDebugLogGeneratedContent(true)
 	at := time.Date(1996, 8, 26, 21, 0, 0, 0, time.Local)
 	old := base.AddPost(host.ID, world.Post{BoardID: board.ID, Author: "OLDER",
 		Subject: "previous", CreatedAt: at, Intent: world.PostIntent{Action: bbsengine.ActionWorldCatchup}})
@@ -75,11 +75,11 @@ func TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
 		t.Fatalf("header audit should not include unmaterialized body: %+v", got)
 	}
 
-	repo.SetDebugLogHAKATAGenerated(false)
+	repo.SetDebugLogGeneratedContent(false)
 	if got := captureGeneratedContentRecords(t, func() { repo.logBBSGeneratedContent("header_committed", host, board, newPost) }); len(got) != 0 {
 		t.Fatalf("disabled audit emitted content: %+v", got)
 	}
-	repo.SetDebugLogHAKATAGenerated(true)
+	repo.SetDebugLogGeneratedContent(true)
 	other := host
 	other.ID = "some-other-host"
 	other.Role = "" // a different, non-experiment host
@@ -98,7 +98,7 @@ func TestHAKATAAuditLogsBodyAfterSaveOnlyOnce(t *testing.T) {
 	repo := New(base, observationTestEvidence{}, &blockingObservationMaterializer{
 		body: "１回目の記録\n２行目も残す",
 	}, "1996-08-26")
-	repo.SetDebugLogHAKATAGenerated(true)
+	repo.SetDebugLogGeneratedContent(true)
 	p := base.AddPost(host.ID, world.Post{BoardID: board.ID, Author: "NPC", Subject: "固定された件名",
 		CreatedAt: time.Date(1996, 8, 26, 21, 0, 0, 0, time.Local),
 		Intent: world.PostIntent{Action: bbsengine.ActionWorldCatchup, ArticleDetailsMaterialized: true},
@@ -130,7 +130,7 @@ func TestHAKATAAuditNeverLogsHumanBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := New(base, nil, nil, "1996-08-26")
-	repo.SetDebugLogHAKATAGenerated(true)
+	repo.SetDebugLogGeneratedContent(true)
 	board := world.Board{ID: "20/1"}
 	human := world.Post{ID: 42, Subject: "human", Body: "private", Intent: world.PostIntent{Action: "user-post"}}
 	records := captureGeneratedContentRecords(t, func() {

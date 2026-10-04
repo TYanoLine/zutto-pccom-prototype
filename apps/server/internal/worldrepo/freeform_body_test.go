@@ -42,7 +42,7 @@ func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testin
     renderer := &freeformBodyRenderer{}
     research := &freeformResearchSpy{}
     repo := New(base, research, LLMMaterializer{Renderer:renderer, ProductionMinimalHistoricalPrompt:true, ModelHistoricalMemory:true}, "1996-02-17")
-    repo.SetHAKATAFreeformBody(true)
+    repo.SetFreeformBody(true)
     originalFacts := []string{"occurrence=プリンセスメーカー2の月末結果を見比べた", "scope_boundary=今回の結果の比較"}
     post := base.AddPost(host.ID, world.Post{
         BoardID:board.ID,
@@ -83,13 +83,13 @@ func TestHAKATAFreeformReadDoesNotCallOptionalLLMOrChangeAcceptedFacts(t *testin
 
 func TestHAKATAFreeformDoesNotApplyToOtherHosts(t *testing.T) {
     repo := New(world.NewMemoryStore(),nil,nil,"1996-02-17")
-    repo.SetHAKATAFreeformBody(true)
-    if !repo.useHAKATAFreeformBody(experimentTestHost()) ||
-        repo.useHAKATAFreeformBody(world.Host{ID:"another-host"}) {
+    repo.SetFreeformBody(true)
+    if !repo.useFreeformBody(experimentTestHost()) ||
+        repo.useFreeformBody(world.Host{ID:"another-host"}) {
         t.Fatal("HAKATA mode leaked to other hosts")
     }
-    repo.SetHAKATAFreeformBody(false)
-    if repo.useHAKATAFreeformBody(experimentTestHost()) {
+    repo.SetFreeformBody(false)
+    if repo.useFreeformBody(experimentTestHost()) {
         t.Fatal("HAKATA mode not reversible")
     }
 }

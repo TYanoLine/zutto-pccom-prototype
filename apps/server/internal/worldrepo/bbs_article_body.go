@@ -85,7 +85,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		}
 		traceDone(fmt.Errorf("article body was not committed"))
 	}()
-	freeform := r.useHAKATAFreeformBody(host)
+	freeform := r.useFreeformBody(host)
 	detailDiagnostic := ""
 	if !freeform {
 		// Detail generation is not needed for the HAKATA title-led experiment.

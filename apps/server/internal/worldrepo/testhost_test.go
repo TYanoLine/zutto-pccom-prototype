@@ -46,16 +46,16 @@ func newTestStore() *world.MemoryStore {
 // experiment) follow the explicit per-host flags. Neither the real station's
 // ID nor the experiment role alone enables them.
 func TestEvaluationBehaviorsFollowTheFlagsNotTheRoleOrID(t *testing.T) {
-	r := &Repository{hakataFreeformBody: true, debugLogHAKATAGenerated: true}
-	if !r.useHAKATAFreeformBody(experimentTestHost()) || !r.shouldLogHAKATAGenerated(experimentTestHost()) {
+	r := &Repository{freeformBody: true, debugLogGeneratedContent: true}
+	if !r.useFreeformBody(experimentTestHost()) || !r.shouldLogGeneratedContent(experimentTestHost()) {
 		t.Fatal("a host with the flags on did not get the evaluation behavior")
 	}
 	lookalike := world.Host{ID: "hakata-canal-net", Phone: "0920000196"}
-	if r.useHAKATAFreeformBody(lookalike) || r.shouldLogHAKATAGenerated(lookalike) {
+	if r.useFreeformBody(lookalike) || r.shouldLogGeneratedContent(lookalike) {
 		t.Fatal("the station's ID without the flags must not enable evaluation behavior")
 	}
 	roleOnly := world.Host{ID: "role-only", Role: hostcatalog.RoleExperiment}
-	if r.useHAKATAFreeformBody(roleOnly) || r.shouldLogHAKATAGenerated(roleOnly) {
+	if r.useFreeformBody(roleOnly) || r.shouldLogGeneratedContent(roleOnly) {
 		t.Fatal("the experiment role alone must not enable evaluation behavior")
 	}
 }
@@ -64,7 +64,7 @@ func TestEvaluationBehaviorsFollowTheFlagsNotTheRoleOrID(t *testing.T) {
 // while the global switch is off.
 func TestEvaluationBehaviorsNeedTheProcessWideSwitch(t *testing.T) {
 	r := &Repository{}
-	if r.useHAKATAFreeformBody(experimentTestHost()) || r.shouldLogHAKATAGenerated(experimentTestHost()) {
+	if r.useFreeformBody(experimentTestHost()) || r.shouldLogGeneratedContent(experimentTestHost()) {
 		t.Fatal("host flags must not enable evaluation behavior while the global switches are off")
 	}
 }

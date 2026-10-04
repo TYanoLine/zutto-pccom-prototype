@@ -13,12 +13,12 @@ import (
 // and persona remain untouched in canonical persistence. It is a process-wide
 // switch combined with the per-host generation.freeform_body flag. (The
 // HAKATA-specific name is historical.)
-func (r *Repository) SetHAKATAFreeformBody(enabled bool) {
-    if r != nil { r.hakataFreeformBody = enabled }
+func (r *Repository) SetFreeformBody(enabled bool) {
+    if r != nil { r.freeformBody = enabled }
 }
 
-func (r *Repository) useHAKATAFreeformBody(host world.Host) bool {
-    return r != nil && r.hakataFreeformBody && host.Generation.FreeformBody
+func (r *Repository) useFreeformBody(host world.Host) bool {
+    return r != nil && r.freeformBody && host.Generation.FreeformBody
 }
 
 func freeformIntentSummary(i world.PostIntent) string {

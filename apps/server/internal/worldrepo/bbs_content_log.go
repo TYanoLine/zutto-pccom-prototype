@@ -28,24 +28,24 @@ type generatedContentLog struct {
 	Body             string   `json:"body,omitempty"`
 }
 
-// SetDebugLogHAKATAGenerated is the process-wide switch for the generated
+// SetDebugLogGeneratedContent is the process-wide switch for the generated
 // content log. A host is logged only when this is on and the host opted in with
 // debug.content_log. (The HAKATA-specific name is historical.)
-func (r *Repository) SetDebugLogHAKATAGenerated(enabled bool) {
+func (r *Repository) SetDebugLogGeneratedContent(enabled bool) {
 	if r != nil {
-		r.debugLogHAKATAGenerated = enabled
+		r.debugLogGeneratedContent = enabled
 	}
 }
 
-func (r *Repository) shouldLogHAKATAGenerated(host world.Host) bool {
-	return r != nil && r.debugLogHAKATAGenerated && host.Debug.ContentLog
+func (r *Repository) shouldLogGeneratedContent(host world.Host) bool {
+	return r != nil && r.debugLogGeneratedContent && host.Debug.ContentLog
 }
 
 // Called only after an observation has returned. Read the store again instead
 // of logging provisional LLM drafts; also capture any posts actually saved
 // before a later event in the batch failed.
 func (r *Repository) logNewBBSHeaders(host world.Host, board world.Board, before []world.Post) {
-	if !r.shouldLogHAKATAGenerated(host) {
+	if !r.shouldLogGeneratedContent(host) {
 		return
 	}
 	seen := make(map[int64]bool, len(before))
@@ -60,7 +60,7 @@ func (r *Repository) logNewBBSHeaders(host world.Host, board world.Board, before
 }
 
 func (r *Repository) logBBSGeneratedContent(stage string, host world.Host, board world.Board, post world.Post) {
-	if !r.shouldLogHAKATAGenerated(host) || post.Intent.Action != bbsengine.ActionWorldCatchup {
+	if !r.shouldLogGeneratedContent(host) || post.Intent.Action != bbsengine.ActionWorldCatchup {
 		return // Never log human posts or content from hosts that did not opt in.
 	}
 	entry := generatedContentLog{
