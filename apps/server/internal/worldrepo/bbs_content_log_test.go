@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"zutto-pccom/apps/server/internal/bbsengine"
+	"zutto-pccom/apps/server/internal/hostcatalog"
 	"zutto-pccom/apps/server/internal/world"
 )
 
@@ -83,6 +84,7 @@ func TestHAKATAAuditLogsOnlyNewCommittedWorldHeaders(t *testing.T) {
 	other := host
 	other.ID = "some-other-host"
 	other.Role = "" // a different, non-experiment host
+	other.Debug = hostcatalog.DebugFlags{}
 	if got := captureGeneratedContentRecords(t, func() { repo.logBBSGeneratedContent("header_committed", other, board, newPost) }); len(got) != 0 {
 		t.Fatalf("audit leaked to another host: %+v", got)
 	}
