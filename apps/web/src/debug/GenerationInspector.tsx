@@ -50,7 +50,7 @@ export async function fetchGenerationTrace(
     cache: 'no-store',
     signal,
   });
-  if (response.status === 403) throw new Error('サーバー側でHAKATA生成ログが無効になっています。');
+  if (response.status === 403) throw new Error('サーバー側で生成ログが無効になっています。');
   if (!response.ok) throw new Error(`生成ログ取得失敗: HTTP ${response.status}`);
   const result: unknown = await response.json();
   if (!result || typeof result !== 'object' || !Array.isArray((result as GenerationTraceSnapshot).runs)) {
@@ -67,7 +67,7 @@ type Props = {
   onRunningChange: (running: boolean) => void;
 };
 
-// This is a modern HAKATA evaluation overlay. It never writes to the PC-98
+// This is a modern evaluation overlay. It never writes to the PC-98
 // terminal, changes host-program navigation or starts LLM generation.
 export function GenerationInspector({ wsURL, active, open, onClose, onRunningChange }: Props) {
   const [snapshot, setSnapshot] = useState<GenerationTraceSnapshot>({ runs: [], running: false });
@@ -108,9 +108,9 @@ export function GenerationInspector({ wsURL, active, open, onClose, onRunningCha
 
   if (!open) return null;
   return <div className="generation-inspector-backdrop">
-    <section className="generation-inspector" role="dialog" aria-modal="true" aria-label="HAKATA 生成デバッグ">
+    <section className="generation-inspector" role="dialog" aria-modal="true" aria-label="生成デバッグ">
       <header className="generation-inspector__header">
-        <div><strong>HAKATA 生成デバッグ</strong><small>Situation → 件名 → 記事本文 / 2.5秒ごとに更新</small></div>
+        <div><strong>生成デバッグ</strong><small>Situation → 件名 → 記事本文 / 2.5秒ごとに更新</small></div>
         <button type="button" onClick={onClose} aria-label="生成デバッグを閉じる">閉じる ×</button>
       </header>
         <div className="generation-inspector__toolbar">
@@ -119,7 +119,7 @@ export function GenerationInspector({ wsURL, active, open, onClose, onRunningCha
         </div>
         {error && <p className="generation-inspector__error" role="alert">{error}</p>}
         <div className="generation-inspector__history">
-          {snapshot.runs.length === 0 && !error && <p>まだ生成履歴はありません。HAKATAの板を開くか記事を読むと、ここに処理が表示されます。</p>}
+          {snapshot.runs.length === 0 && !error && <p>まだ生成履歴はありません。対象局の板を開くか記事を読むと、ここに処理が表示されます。</p>}
           {snapshot.runs.map(run => <details key={run.id} className="generation-inspector__run" open={run.status === 'running' ? true : undefined}>
             <summary>
               <strong>{run.board} / {run.kind === 'headers' ? '件名生成' : '本文生成'}</strong>

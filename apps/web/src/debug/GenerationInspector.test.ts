@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fetchGenerationTrace, generationTraceEndpoint } from './GenerationInspector';
 
-describe('HAKATA generation trace API', () => {
+describe('generation trace API', () => {
   it('maps the configured WebSocket server to a read-only trace endpoint', () => {
     expect(generationTraceEndpoint('wss://bbs.example/ws')).toBe('https://bbs.example/api/debug/bbs/generation-trace');
     expect(generationTraceEndpoint('ws://localhost:8080/ws')).toBe('http://localhost:8080/api/debug/bbs/generation-trace');
