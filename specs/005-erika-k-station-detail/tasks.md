@@ -178,8 +178,8 @@
   // A sanity check that does not depend on the golden files.
   func TestGoldenBoardTableShape(t *testing.T) {
   	boards := goldenBoardTable(t)
-  	if len(boards) != 26 {
-  		t.Fatalf("board table has %d entries, want 26", len(boards))
+  	if len(boards) != 29 {
+  		t.Fatalf("board table has %d entries, want 29", len(boards))
   	}
   	if boards[0].Path != "1" || boards[len(boards)-1].Path != "80/4" {
   		t.Fatalf("unexpected order: first=%q last=%q", boards[0].Path, boards[len(boards)-1].Path)
@@ -199,14 +199,14 @@
   }
   ```
 
-- [ ] **T002** 生成の前に、金型が決定的であることを確認する
+- [ ] **T002** 生成の前に、確認用のテストが現在のコードで通ることを確認する
 
   ```bash
   go -C apps/server test ./internal/hostprogram/erikak -run 'TestGoldenBoardTableShape' -count=1
   ```
 
   通らなければ、T001 のコードを直す（既存のコードは直さない）。
-  `TestGoldenBoardTableShape` の「26 件」「5 件」が、現在のコードと合わない場合も、既存のコードではなく
+  件数（29 件、未読 5 件）が現在の `boardTree` と合わない場合は、既存のコードではなく
   テストの数を実際の値に直し、その旨を報告する。
 
 - [ ] **T003** 金型を生成してコミットする（**変更前のコードで**）
@@ -226,7 +226,7 @@
     ```
 
   - 画面の金型を目で確認する。`WELCOME TO HAKATA CANAL NET`、メインメニューの見出し
-    （全角の `ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ`）、全 26 板（隠し板を含む）の画面、終了時のあいさつが含まれていること。
+    （全角の `ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ`）、全 29 板（隠し板を含む）の画面、終了時のあいさつが含まれていること。
 
 **Checkpoint**: 変更前のコードに対する金型がコミットされ、通っている。ここから先、金型ファイルは変更しない。
 
@@ -414,7 +414,7 @@
      `detail:` ブロックを追加する。`detail:` が既にあれば、その下に `erika_k:` を追加する。
   3. `login.station_message`、`login.member_greeting` を、`erikak/runtime.go` の `finishLogin` の文字列から
      **そのまま**写す（`%s` は `{handle}` にする）。
-  4. `boards` に、`boardTree` の**全 26 件を現在の順序のまま**写す。
+  4. `boards` に、`boardTree` の**全 29 件（トップレベル 15 件、子 14 件）を現在の順序のまま**写す。
      - 文字列は、すべて二重引用符で囲む。
      - ゼロ値の項目（`0`、空、`false`）は書かない。`Key` と `Parent` は書かない。
      - `unreadBoard` の対象（`1`、`4`、`10/2`、`60/1`、`60/3`）に `unread: true` を付ける。
@@ -499,7 +499,7 @@
 
   - `repository.go` が `hostcatalog` を import していなければ追加する。
   - テスト（`worldrepo` の既存のテストファイルの形式に合わせて、新しいテストファイルに書く）:
-    `world.NewMemoryStore()` を `Base` にした `Repository` が、HAKATA の詳細（`ErikaK != nil`、板が 26 件）を返すこと。
+    `world.NewMemoryStore()` を `Base` にした `Repository` が、HAKATA の詳細（`ErikaK != nil`、板が 29 件）を返すこと。
     詳細を持たないストア（`world.Store` だけを満たす最小の型）を `Base` にすると、`ok == false` になること。
   - `world` 側にも、`MemoryStore.HostDetail` のテスト（`world/host_detail_test.go`、新規）を書く:
     HAKATA は詳細を持ち、`busy-test` は持たない（`ok == false`）。
