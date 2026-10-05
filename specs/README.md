@@ -11,6 +11,7 @@
 | 004 | preset-population（住民の定義の外部化） |
 | 005 | erika-k-station-detail（Erika-K の板構成と画面の文字列の外部化） |
 | 006 | host-directory（電話帳の一覧をサーバが返す） |
+| 007 | regenerate-hosts（生成ホストの再生成と電話帳の堅牢化） |
 
 ## フォルダの構成
 
