@@ -124,7 +124,7 @@ type MemoryStore struct {
 	details       map[string]hostcatalog.PresetDetail
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
-	next          int64
+	next      int64
 }
 
 func NewMemoryStore() *MemoryStore {

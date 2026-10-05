@@ -40,6 +40,10 @@ host when it is created, so changing the default never affects existing worlds.
 Presets must state `listed` explicitly so a debug host cannot be published by
 omission.
 
+`listed: true` hosts appear in the dialing directory (`GET /api/directory`,
+`world.HostDirectoryStore`). A `listed: false` host is omitted from the
+directory but can still be reached by dialing its number directly.
+
 ## Preset files
 
 One file per host in `presets/`, embedded into the binary. The file name must be

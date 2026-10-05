@@ -10,6 +10,7 @@
 | 003 | generic-debug-names（HAKATA を含む名前の除去） |
 | 004 | preset-population（住民の定義の外部化） |
 | 005 | erika-k-station-detail（Erika-K の板構成と画面の文字列の外部化） |
+| 006 | host-directory（電話帳の一覧をサーバが返す） |
 
 ## フォルダの構成
 
