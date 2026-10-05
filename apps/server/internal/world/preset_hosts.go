@@ -39,6 +39,7 @@ type presetData struct {
 	hosts       []Host
 	populations map[string]hostcatalog.Population
 	details     map[string]hostcatalog.PresetDetail
+	directory   []DirectoryEntry
 }
 
 var (
@@ -73,6 +74,10 @@ func presetDetails() map[string]hostcatalog.PresetDetail {
 	return out
 }
 
+func presetDirectory() []DirectoryEntry {
+	return append([]DirectoryEntry(nil), loadPresetData().directory...)
+}
+
 func loadPresetData() presetData {
 	presetDataOnce.Do(func() {
 		presets, err := hostcatalog.LoadPresets(hostcatalog.Options{})
@@ -96,6 +101,18 @@ func loadPresetData() presetData {
 		}
 		for _, d := range descriptors {
 			presetDataVal.hosts = append(presetDataVal.hosts, HostFromDescriptor(d))
+		}
+		// The dialing directory lists the hosts whose preset says listed: true, in
+		// the order the presets are loaded (by key). Hosts that are not listed can
+		// still be dialed; they are just not shown.
+		for _, d := range descriptors {
+			if !d.Listed {
+				continue
+			}
+			presetDataVal.directory = append(presetDataVal.directory, DirectoryEntry{
+				ID: d.Key, Name: d.Name, Software: d.SoftwareLabel,
+				Phone: d.Phone, DialMode: d.DialMode, MaxBaud: d.MaxBaud,
+			})
 		}
 		presetDataVal.populations = populations
 	})
