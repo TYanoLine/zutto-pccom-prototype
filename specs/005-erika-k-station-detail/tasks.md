@@ -1,22 +1,29 @@
 # Tasks: Erika-K station detail
 
-**Input**: `specs/005-erika-k-station-detail/` の `spec.md`、`plan.md`
-**Prerequisites**: `AGENTS.md`、`plan.md`（特に「金型」と「局名から導出する文字列」）
+**Input**: `specs/005-erika-k-station-detail/` の `spec.md`、`plan.md`（改訂 2）
+**Prerequisites**: `AGENTS.md`、`plan.md`（特に「`texts` の部品と、ホストの出力」と「金型」）
 
 ## この作業のルール（必読）
 
 - 作業ブランチから `main` への PR を 1 本作る。`main` に直接コミットしない。
+- **成果物は Go と YAML のコードの変更（実装）。** spec のファイルを作る・変更することは、この作業の仕事ではない。
 - **HAKATA の画面は 1 バイトも変えない**。これが合格条件。金型テストが通ることで確認する。
+- **金型は、変更前のコード（`boardTree` がまだある状態）で生成し、T003 で、実装より前にコミットする。**
+  実装の後で金型を生成してはならない（同義反復になり、根拠にならない）。コミットの順序が、そのまま証拠になる:
+  T001〜T003 のコミットが、T004 以降のコミットより前にあること。
 - **T003 で金型ファイルをコミットしたあと、`-update-erikak-golden` を二度と使わない。**
   金型ファイル（`erikak/testdata/boards_golden.json`、`erikak/testdata/screens_golden.txt`）を書き換えない。
   金型テストが失敗したら、実装の誤り。金型ではなく実装を直す。
   2 回直して通らなければ、そこで止めて、金型のどの行が違うかを報告する。
+- **局の文字列は、局の定義（`texts`）に書き、ホストは加工せずに出力する。** 罫線を描く、見出しを組み立てる、
+  局名を差し込む、全角に変換する、といった処理を、ホストに書かない。**省略したキーは、何も出力しない**
+  （プログラムは既定の文面を持たない）。
 - 画面の文字列（空白、改行、全角・半角）を、整えるために変えない。
 - スコープ外（`spec.md` 末尾）に手を出さない。特に、`V`、`WHO`、`MEMB`、メール一覧、ファイル一覧、
-  `JUNK`、前回アクセスの日時、`Config` は変更しない。
+  `JUNK`、前回アクセスの行と日時、「ご利用ありがとうございました。」の行、`Config` は変更しない。
 - 既存ファイルに整形だけの差分を作らない。`gofmt -w` を既存ファイル全体にかけない。
 - 1 タスク = 1 コミット（メッセージは `T0XX: 内容`）。ただし T011〜T017 は途中でビルドが通らないため、
-  1 つのコミットにまとめる（メッセージは `T011-T017: Erika-K の板構成とログイン文言を局の定義で駆動する`）。
+  1 つのコミットにまとめる（メッセージは `T011-T017: Erika-K の板構成と画面の文字列を局の定義で駆動する`）。
 - 実行していないコマンドを「成功した」と書かない。実行できなかったものは「未実施」と理由を書く。
 - この作業で `.github/` 配下のファイルは変更しない。
 
@@ -209,7 +216,7 @@
   件数（29 件、未読 5 件）が現在の `boardTree` と合わない場合は、既存のコードではなく
   テストの数を実際の値に直し、その旨を報告する。
 
-- [ ] **T003** 金型を生成してコミットする（**変更前のコードで**）
+- [ ] **T003** 金型を生成してコミットする（**変更前のコードで。実装より前に**）
 
   ```bash
   go -C apps/server test ./internal/hostprogram/erikak -run 'TestScreensAndBoardsMatchGolden' -update-erikak-golden -count=1
@@ -218,6 +225,7 @@
   ```
 
   - 生成された `testdata/boards_golden.json` と `testdata/screens_golden.txt` を、T001 のテストと一緒にコミットする。
+    **このコミットが、T004 以降のどのコミットよりも前になること。**
   - 続けて、フラグなしで次を 3 回実行し、3 回とも通ること（出力が決定的であること）を確認する。
     通らなければ止めて報告する。
 
@@ -225,8 +233,9 @@
     go -C apps/server test ./internal/hostprogram/erikak -run 'TestScreensAndBoardsMatchGolden' -count=3
     ```
 
-  - 画面の金型を目で確認する。`WELCOME TO HAKATA CANAL NET`、メインメニューの見出し
-    （全角の `ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ`）、全 29 板（隠し板を含む）の画面、終了時のあいさつが含まれていること。
+  - 画面の金型を目で確認する。ゲストのログインの出力に、`WELCOME TO HAKATA CANAL NET` の見出し、`■` の罫線、
+    局のメッセージ 2 行、`ERIKA-K` の見出しが含まれ、メインメニューの見出し（全角の `ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ`）、
+    全 29 板（隠し板を含む）の画面、終了時のあいさつが含まれていること。
 
 **Checkpoint**: 変更前のコードに対する金型がコミットされ、通っている。ここから先、金型ファイルは変更しない。
 
@@ -250,21 +259,30 @@
   const erikaKProgramID = "erika-k"
 
   // ErikaKDetail is the station-specific data of a host that runs the Erika-K host
-  // program: what the station's boards are and what it says at login. The program
-  // itself (screens, commands, state machine) lives in the erikak package. The
+  // program: the station's own texts and its boards. The program itself (the state
+  // machine, the commands and the screen layout) lives in the erikak package. The
   // slices are read-only: callers must not modify them.
   type ErikaKDetail struct {
-  	Login  ErikaKLogin   `yaml:"login"`
+  	Texts  ErikaKTexts   `yaml:"texts"`
   	Boards []ErikaKBoard `yaml:"boards"`
   }
 
-  // ErikaKLogin is what the station says after login.
-  type ErikaKLogin struct {
-  	// StationMessage lines are shown boxed in the banner. Empty means no box.
-  	StationMessage []string `yaml:"station_message"`
-  	// MemberGreeting follows the banner; "{handle}" is replaced by the user's
-  	// handle. Empty means no greeting.
-  	MemberGreeting string `yaml:"member_greeting"`
+  // ErikaKTexts are named parts of Erika-K's screens that the station writes
+  // itself. The host program prints them as written, without building, padding or
+  // converting anything, and prints nothing for a part that is left out: the
+  // program has no default wording. The only substitution is "{handle}", the
+  // handle of the user who logged in. New parts (for example menus) are added as
+  // new keys.
+  type ErikaKTexts struct {
+  	// LoginBanner lines follow the "last access" line after login. One element is
+  	// one line, rules and headings included.
+  	LoginBanner []string `yaml:"login_banner"`
+  	// LoginGreeting follows the banner, between blank lines.
+  	LoginGreeting string `yaml:"login_greeting"`
+  	// MainMenuTitle is the first line of the main menu.
+  	MainMenuTitle string `yaml:"main_menu_title"`
+  	// Goodbye is the line after the standard thanks when the user ends the call.
+  	Goodbye string `yaml:"goodbye"`
   }
 
   // ErikaKBoard is one entry of the station's board tree. The tree is given in
@@ -304,16 +322,25 @@
   		}
   	}
 
-  	for i, line := range d.Login.StationMessage {
-  		if strings.TrimSpace(line) == "" {
-  			add(fmt.Sprintf("login.station_message[%d]", i), errors.New("must not be empty"))
+  	checkText := func(field, text string) {
+  		for _, r := range text {
+  			if r < 0x20 || r == 0x7f {
+  				add(field, fmt.Errorf("must not contain the control character %q", r))
+  				break
+  			}
+  		}
+  		for _, found := range placeholderPattern.FindAllString(text, -1) {
+  			if found != "{handle}" {
+  				add(field, fmt.Errorf("unknown placeholder %s (only {handle} is supported)", found))
+  			}
   		}
   	}
-  	for _, found := range placeholderPattern.FindAllString(d.Login.MemberGreeting, -1) {
-  		if found != "{handle}" {
-  			add("login.member_greeting", fmt.Errorf("unknown placeholder %s (only {handle} is supported)", found))
-  		}
+  	for i, line := range d.Texts.LoginBanner {
+  		checkText(fmt.Sprintf("texts.login_banner[%d]", i), line)
   	}
+  	checkText("texts.login_greeting", d.Texts.LoginGreeting)
+  	checkText("texts.main_menu_title", d.Texts.MainMenuTitle)
+  	checkText("texts.goodbye", d.Texts.Goodbye)
 
   	defined := make(map[string]bool, len(d.Boards))
   	for _, b := range d.Boards {
@@ -395,32 +422,39 @@
 
   | テスト | 内容 |
   |---|---|
-  | 正常系 | 有効な `detail.erika_k` が `Preset.Detail.ErikaK` に入る。板の `path`、`unread`、`hidden`、数値が読める |
-  | 省略 | `detail.erika_k` が無ければ `Preset.Detail.ErikaK == nil` |
+  | 正常系 | 有効な `detail.erika_k` が `Preset.Detail.ErikaK` に入る。`texts` の 4 つの部品、板の `path`、`unread`、`hidden`、数値が読める |
+  | 省略 | `detail.erika_k` が無ければ `Preset.Detail.ErikaK == nil`。`texts` を省略すると、すべて空（空のスライス、空文字列） |
   | プログラム | `host.program` が `erika-k` 以外の preset に `detail.erika_k` があるとエラー |
   | `path` | 空、不正な形式（`"a"`、`"1//2"`、`"1/"`）、重複、親が無い（`"10/1"` だけ）でエラー |
   | `name` | 空でエラー |
   | 方針 | `root_author_policy: other` でエラー。`sysop_only` と省略は有効 |
   | 数値 | 負の `activity_weight`、`reply_rate`、`retained_root_cap`、範囲外の `verified_referent_rate` でエラー |
-  | ログイン | `station_message` に空の行、`member_greeting` に `{name}` のような未知の置換でエラー。`{handle}` は有効 |
+  | `texts` の制御文字 | 文字列に `\t` や `\n`、ESC を含むとエラー（YAML の `"a\tb"` など）。`login_banner` の空文字列の要素は有効 |
+  | `texts` の置換 | `{name}` のような未知の置換でエラー。`{handle}` は有効（`login_banner`、`login_greeting`、`main_menu_title`、`goodbye` のどれでも） |
   | 複数のエラー | 複数の違反が、1 回のエラーにまとまって報告される |
-  | キーの typo | `detail.erika_k.boards[]` の下の未知のキー（例 `activity_wieght`）がエラー |
+  | キーの typo | `detail.erika_k.texts` の下の未知のキー（例 `login_baner`）と、`boards[]` の下の未知のキー（例 `activity_wieght`）がエラー |
   | 親が後ろにある | 子が親より前に書かれていても、親が存在すれば有効 |
+  | 行末の空白 | `login_banner` の要素の行末の空白が、読み込み後も保たれる（`"abc   "` が 6 文字のまま） |
 
 - [ ] **T007** `apps/server/internal/hostcatalog/presets/hakata-canal-net.yaml` に `detail.erika_k` を追加する
 
   1. `revision: 3` を `revision: 4` にする。
   2. `plan.md` の「スキーマ」と「板の項目と、現在の Go の項目の対応」に従い、ファイルの末尾に
      `detail:` ブロックを追加する。`detail:` が既にあれば、その下に `erika_k:` を追加する。
-  3. `login.station_message`、`login.member_greeting` を、`erikak/runtime.go` の `finishLogin` の文字列から
-     **そのまま**写す（`%s` は `{handle}` にする）。
+  3. `texts` の 4 つの値を、**T003 で生成した金型 `screens_golden.txt`（変更前のコードから作られたもの）から、
+     `plan.md` の「`texts` の値の写し方」の表のとおりに、そのまま写す。**
+     - `login_banner` は 6 行（`WELCOME TO …` の見出し、罫線、メッセージ 2 行、罫線、`ERIKA-K` の見出し）。
+       行末の空白と、右端の `■` までの空白を、1 文字も変えない。
+     - 金型の `<CRLF>` の記号は、写さない。
+     - `login_greeting` は、`GUEST` を `{handle}` に置き換える。
+     - すべて二重引用符で囲む。
   4. `boards` に、`boardTree` の**全 29 件（トップレベル 15 件、子 14 件）を現在の順序のまま**写す。
      - 文字列は、すべて二重引用符で囲む。
      - ゼロ値の項目（`0`、空、`false`）は書かない。`Key` と `Parent` は書かない。
      - `unreadBoard` の対象（`1`、`4`、`10/2`、`60/1`、`60/3`）に `unread: true` を付ける。
      - 数値は、値が変わらないように写す（`.10` → `0.10`、`1.25` → `1.25`）。
      - `boardTree` の上の 2 つのコメントを、YAML のコメントとして、対応する板の近くに移す。
-  5. 冒頭のコメントに、「Erika-K の板構成とログイン文言は `detail.erika_k` にある」と 1 行追記する。
+  5. 冒頭のコメントに、「Erika-K の板構成と画面の文字列は `detail.erika_k` にある」と 1 行追記する。
 
 - [ ] **T008** 確認
 
@@ -428,7 +462,7 @@
   go -C apps/server build ./... && go -C apps/server test ./internal/hostcatalog/... ./internal/hostprogram/erikak/... -count=1
   ```
 
-  この時点では、`erikak` はまだ古い板の表を使っているので、**金型テストは通る**はず。
+  この時点では、`erikak` はまだ古い板の表と文字列を使っているので、**金型テストは通る**はず。
   通らなければ、T004〜T007 のどこかが `erikak` の挙動に影響している。止めて報告する。
 
 **Checkpoint**: preset が Erika-K の局の定義を読める。`erikak` の挙動は変わっていない。
@@ -444,10 +478,10 @@
 
      ```go
      // HostDetailStore exposes the immutable, preset-defined detail of a host:
-     // program-specific data such as an Erika-K station's boards and login
-     // messages. The detail is part of the host definition, so it is never
-     // changed at runtime and is not stored in snapshots. The returned value is
-     // shared and read-only; callers copy what they keep.
+     // program-specific data such as an Erika-K station's boards and texts. The
+     // detail is part of the host definition, so it is never changed at runtime and
+     // is not stored in snapshots. The returned value is shared and read-only;
+     // callers copy what they keep.
      type HostDetailStore interface {
      	HostDetail(hostID string) (hostcatalog.PresetDetail, bool)
      }
@@ -499,14 +533,15 @@
 
   - `repository.go` が `hostcatalog` を import していなければ追加する。
   - テスト（`worldrepo` の既存のテストファイルの形式に合わせて、新しいテストファイルに書く）:
-    `world.NewMemoryStore()` を `Base` にした `Repository` が、HAKATA の詳細（`ErikaK != nil`、板が 29 件）を返すこと。
-    詳細を持たないストア（`world.Store` だけを満たす最小の型）を `Base` にすると、`ok == false` になること。
+    `world.NewMemoryStore()` を `Base` にした `Repository` が、HAKATA の詳細（`ErikaK != nil`、板が 29 件、
+    `Texts.MainMenuTitle` が空でない）を返すこと。詳細を持たないストア（`world.Store` だけを満たす最小の型）を
+    `Base` にすると、`ok == false` になること。
   - `world` 側にも、`MemoryStore.HostDetail` のテスト（`world/host_detail_test.go`、新規）を書く:
     HAKATA は詳細を持ち、`busy-test` は持たない（`ok == false`）。
 
 ---
 
-## Phase 3: erikak（板のカタログと局名の導出）
+## Phase 3: erikak（板のカタログと、文字列の出力）
 
 T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通らないため）。
 
@@ -608,8 +643,8 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
   )
 
   // detailFor returns the Erika-K detail of host from store, or an empty detail
-  // when the store has none: the runtime then has no boards and says nothing
-  // station-specific at login.
+  // when the store has none: the runtime then has no boards and prints none of the
+  // station texts.
   func detailFor(host world.Host, store world.Store) hostcatalog.ErikaKDetail {
   	if p, ok := store.(world.HostDetailStore); ok {
   		if d, ok := p.HostDetail(host.ID); ok && d.ErikaK != nil {
@@ -619,41 +654,43 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
   	return hostcatalog.ErikaKDetail{}
   }
 
-  // fullWidthASCII converts ASCII 0x21-0x7E to the full-width forms used in
-  // Erika-K's menu title. Other characters, including spaces, are unchanged.
-  func fullWidthASCII(s string) string {
-  	var b strings.Builder
-  	for _, r := range s {
-  		if r >= 0x21 && r <= 0x7E {
-  			r += 0xFEE0
-  		}
-  		b.WriteRune(r)
-  	}
-  	return b.String()
+  // expandText substitutes the one run-time value a station text may contain.
+  // Everything else in a text is printed exactly as the station wrote it.
+  func (r *Runtime) expandText(text string) string {
+  	return strings.ReplaceAll(text, "{handle}", r.handle)
   }
 
+  const maxTextWidth = 80
+
   // ValidateDetail checks the parts of a station's detail that depend on how this
-  // program lays out its screens. hostcatalog validates the structure; the width of
-  // a boxed line cannot be checked there because it needs the program's metrics.
+  // program lays out its screens: every text line must fit the 80-cell screen.
+  // hostcatalog validates the structure; the width cannot be checked there because
+  // it needs this program's width metrics. "{handle}" counts as 8 cells.
   func ValidateDetail(d hostcatalog.ErikaKDetail) error {
-  	inner := boxedInnerWidth(80)
-  	var errs []string
-  	for i, line := range d.Login.StationMessage {
-  		if w := displayCellWidth(line); w > inner {
-  			errs = append(errs, fmt.Sprintf("login.station_message[%d] is %d cells wide, the box holds %d", i, w, inner))
+  	var problems []string
+  	check := func(field, text string) {
+  		text = strings.ReplaceAll(text, "{handle}", "XXXXXXXX")
+  		if w := displayCellWidth(text); w > maxTextWidth {
+  			problems = append(problems, fmt.Sprintf("%s is %d cells wide, the screen holds %d", field, w, maxTextWidth))
   		}
   	}
-  	if len(errs) > 0 {
-  		return fmt.Errorf("erika-k detail: %s", strings.Join(errs, "; "))
+  	for i, line := range d.Texts.LoginBanner {
+  		check(fmt.Sprintf("texts.login_banner[%d]", i), line)
+  	}
+  	check("texts.login_greeting", d.Texts.LoginGreeting)
+  	check("texts.main_menu_title", d.Texts.MainMenuTitle)
+  	check("texts.goodbye", d.Texts.Goodbye)
+  	if len(problems) > 0 {
+  		return fmt.Errorf("erika-k detail: %s", strings.Join(problems, "; "))
   	}
   	return nil
   }
   ```
 
-  - 空白の扱い（`fullWidthASCII`）は、**金型と一致するかで決める**。T003 の画面の金型で、現在の見出しの区切りが
-    半角空白か全角空白かを確認し、全角空白（U+3000）なら、空白も U+3000 に変換する。金型は変更しない。
+  - 幅の計算は、既存の `displayCellWidth` を使う。独自の幅計算を作らない。
+  - 全角化の関数（`fullWidthASCII`）は作らない。
 
-- [ ] **T013** `erikak/runtime.go` を変更する
+- [ ] **T013** `erikak/runtime.go` の、板の表を使っている箇所を直す
 
   1. `boardNode` の定義と、`boardTree`、`unreadBoard` の変数を削除する（`boardNode` は T011 で移した）。
      `boardTree` の上のコメントも削除する（YAML に移した）。
@@ -702,60 +739,52 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
      }
      ```
 
-  6. `boxedLine` の `prefix`、`suffix` の定数を、パッケージレベルに出し、内側の幅を返す関数を作る
-     （`ValidateDetail` が使う。値は変えない）。
+- [ ] **T014** `erikak/runtime.go` の、局の文字列を、`texts` から出力する形にする
 
-     ```go
-     const (
-     	boxedLinePrefix = "■  "
-     	boxedLineSuffix = "■"
-     )
+  ホストは、`texts` の値を**加工せずに**出力する。罫線、見出し、局名の差し込み、全角化をしない。
 
-     func boxedInnerWidth(width int) int {
-     	return width - displayCellWidth(boxedLinePrefix) - displayCellWidth(boxedLineSuffix)
-     }
-     ```
-
-     `boxedLine` は、これらを使うように直す（出力は同じ）。
-
-- [ ] **T014** `erikak/runtime.go` の局名とログイン文言を、局の定義と `Host` から作る
-
-  1. `finishLogin` の、ログイン後のバナーを次の形にする（出力は、HAKATA では現在と**同一**）。
+  1. `finishLogin` を、次の形にする（出力は、HAKATA では現在と**同一**になる）。
 
      ```go
      	var b strings.Builder
      	fmt.Fprintf(&b, "\r\n前回アクセス %s\r\n\r\n", last)
-     	b.WriteString(decorativeLine("WELCOME TO "+strings.ToUpper(r.Host.Name), "#", 80) + "\r\n")
-     	if len(r.detail.Login.StationMessage) > 0 {
-     		b.WriteString(doubleCellRule("■", 80) + "\r\n")
-     		for _, line := range r.detail.Login.StationMessage {
-     			b.WriteString(boxedLine(line, 80) + "\r\n")
-     		}
-     		b.WriteString(doubleCellRule("■", 80) + "\r\n")
+     	for _, line := range r.detail.Texts.LoginBanner {
+     		b.WriteString(r.expandText(line) + "\r\n")
      	}
-     	b.WriteString(decorativeLine("ERIKA-K", "#", 80) + "\r\n")
-     	if greeting := r.detail.Login.MemberGreeting; greeting != "" {
-     		b.WriteString("\r\n" + strings.ReplaceAll(greeting, "{handle}", r.handle) + "\r\n")
+     	if greeting := r.detail.Texts.LoginGreeting; greeting != "" {
+     		b.WriteString("\r\n" + r.expandText(greeting) + "\r\n")
      	}
      	b.WriteString(r.renderMainMenu())
      	return b.String()
      ```
 
-     `last` の決め方（`96/08/25 23:41` を含む）は変更しない。
-  2. `renderMainMenu` の見出しの行を、次のとおりに導出する。
+     `last` の決め方（`96/08/25 23:41` を含む）と、「前回アクセス」の行は変更しない。
+     `decorativeLine`、`doubleCellRule`、`boxedLine` を、ここで使わない。
+  2. `renderMainMenu` の 1 行目を、`texts.main_menu_title` から出す。見出しの行は、`MainMenuTitle` が空でないときだけ出す。
 
      ```go
-     "\r\n-" + fullWidthASCII(r.Host.Name) + "-  〖Ｍain Ｍenu〗  " + fullWidthASCII(r.Host.Software) + "\r\n"
+     	head := "\r\n"
+     	if title := r.detail.Texts.MainMenuTitle; title != "" {
+     		head += r.expandText(title) + "\r\n"
+     	}
      ```
 
-     見出しより下の行は変更しない。
-  3. `handleMain` の `case "9", "BYE", "QUIT", "GOODBYE":` の戻り値を、次にする。
+     この `head` を、現在の見出しの行（`"\r\n-ＨＡＫＡＴＡ … 絵理香Ｋ版\r\n"`）の代わりに、
+     区切り線（`separator`）の前に置く。見出しより下の行は変更しない。
+  3. `handleMain` の `case "9", "BYE", "QUIT", "GOODBYE":` の戻り値を、次の形にする。
 
      ```go
-     "\r\nご利用ありがとうございました。\r\nまた " + r.Host.Name + " でお会いしましょう。\r\n"
+     	out := "\r\nご利用ありがとうございました。\r\n"
+     	if bye := r.detail.Texts.Goodbye; bye != "" {
+     		out += r.expandText(bye) + "\r\n"
+     	}
+     	return out, true
      ```
 
-  4. 修正後、`runtime.go` に `HAKATA` や `ＨＡＫＡＴＡ` が残っていないこと。
+     （元の `return` の形（2 つ目の戻り値の扱い）は、既存のコードに合わせる。）
+  4. `doubleCellRule`、`boxedLine`、`decorativeLine` が、`runtime.go` の他の場所からも、テストからも使われなくなったら、
+     削除する。テストが使っている場合は、削除せず、その旨を報告する。
+  5. 修正後、`runtime.go` に `HAKATA`、`ＨＡＫＡＴＡ`、`WELCOME TO`、`ERIKA-K` が残っていないこと。
 
 - [ ] **T015** `apps/server/cmd/server/main.go` の `BoardByPath` の呼び出しを直す
 
@@ -771,7 +800,7 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
   		}
   ```
 
-- [ ] **T016** `erikak` の既存テストを更新する
+- [ ] **T016** `erikak` の既存テストを更新し、新しいテストを書く
 
   1. `runtime_test.go` に、テスト用ヘルパーを追加する。
 
@@ -794,7 +823,7 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
      テストの検査内容は変えない。テスト名の `Hakata` は、局に依存しない名前にする
      （`TestNoticeBoardIsReadOnly…`、`TestBoardPurposesDoNotLeakHistoricalUncertainty`）。
   3. `width_test.go` の `TestLoginBannerUsesExactDisplayCells` は、`&Runtime{handle: "GUEST"}` では
-     局の定義が無いので、`sampleRuntime(t)` で作った `Runtime` の `handle` を `"GUEST"` にして、
+     局の定義が無く、バナーが出ないので、`sampleRuntime(t)` で作った `Runtime` の `handle` を `"GUEST"` にして、
      `finishLogin()` を呼ぶ形に直す。検査内容は変えない。
   4. `golden_test.go` の `goldenBoardTable` の本体**だけ**を、新しいカタログから作る形に直す。
      **このファイルの他の部分と、`testdata/*` は変更しない。**
@@ -821,13 +850,13 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
 
      | テスト | 内容 |
      |---|---|
-     | 別の局 | `*world.MemoryStore` を埋め込み、`HostDetail` を上書きして別の板構成を返すテスト用ストアで `Runtime` を作ると、その板だけがメニューに出る。HAKATA の板（例 `博多・天神広場`）は出ない |
-     | 詳細なし | `HostDetail` が `ok == false` を返すストアで `Runtime` を作っても panic せず、ログインでき、`BM` で板が 0 件。局のメッセージとあいさつが出ない |
-     | ゼロ値 | `&Runtime{}` で `renderMainMenu()`、`renderBoardMap()`、`renderUnreadSummary()` が panic しない |
-     | 局名の導出 | `Host{Name: "SAMPLE BBS", Software: "テストＫ版"}` の `Runtime` で、ログインの出力に `WELCOME TO SAMPLE BBS`、メインメニューに `ＳＡＭＰＬＥ ＢＢＳ`（区切りの空白は金型と同じ扱い）、`9` の出力に `また SAMPLE BBS でお会いしましょう。` が含まれる |
-     | 局のメッセージ | `station_message` を 1 行にすると枠の行が 1 行になる。空にすると枠（`■` の罫線）が出ない。`member_greeting` の `{handle}` がハンドルに置き換わる。空にするとあいさつの行が出ない |
-     | `fullWidthASCII` | `"ABC xyz-09"` → 全角化（空白は金型と同じ扱い）、日本語は変わらない、空文字列は空 |
-     | `ValidateDetail` | 幅が 74 セル以下の行は有効。75 セル以上の行はエラー（全角 38 文字の行など） |
+     | 別の局 | `*world.MemoryStore` を埋め込み、`HostDetail` を上書きして、別の板構成と別の `texts` を返すテスト用ストアで `Runtime` を作ると、その板と文字列だけが出る。HAKATA の板（例 `博多・天神広場`）と文言は出ない |
+     | 詳細なし | `HostDetail` が `ok == false` を返すストアで `Runtime` を作っても panic せず、ログインでき、`BM` で板が 0 件。`texts` の部品が何も出ない（「前回アクセス」の行とメインメニューの区切り線以降は出る） |
+     | ゼロ値 | `&Runtime{}` で `renderMainMenu()`、`renderBoardMap()`、`renderUnreadSummary()`、`finishLogin()` が panic しない |
+     | 省略したキーは何も出さない | `texts` の各キーを 1 つずつ省略した局で、そのキーに対応する出力だけが消え、他は変わらない。`login_banner` が空なら、ログインの出力に罫線も見出しも出ない。`main_menu_title` が空なら、メインメニューの最初の行が区切り線になる。`goodbye` が空なら、「ご利用ありがとうございました。」の行だけが出る |
+     | そのまま出力する | `login_banner` の行が、順に、そのまま（行末の空白を含めて）出る。`Host.Name` や `Host.Software` を変えても、出力が変わらない（局名を差し込む処理がない） |
+     | `{handle}` | `login_greeting`、`login_banner`、`main_menu_title`、`goodbye` の `{handle}` が、ログインしたハンドルに置き換わる |
+     | `ValidateDetail` | 幅が 80 セル以下の行は有効。81 セル以上の行はエラー（全角 41 文字の行など）。`{handle}` を含む行は 8 セルとして数える。エラーに、どの部品かが含まれる |
      | 埋め込み preset | `hostcatalog.LoadPresets` で読んだ、`detail.erika_k` を持つすべての preset が、`ValidateDetail` を通る |
      | `BoardByPath` | 隠し板（`99`）と存在しない板は `false`。`70/1` は解決できる |
 
@@ -839,12 +868,14 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
   go -C apps/server test ./internal/hostprogram/... ./internal/hostcatalog/... ./internal/world/... ./internal/worldrepo/... -count=1
   git diff --stat <T003 のコミット>..HEAD -- apps/server/internal/hostprogram/erikak/testdata
   grep -rniE "hakata" apps/server/internal/hostprogram --include=*.go | grep -v _test.go
+  git log --oneline -- apps/server/internal/hostprogram/erikak/testdata
   ```
 
   - **`TestScreensAndBoardsMatchGolden` が通ること。** 通らなければ、`firstDiff` の出力を手がかりに、
-    実装（特に `fullWidthASCII` の空白の扱い、YAML への移し間違い、板の順序）を直す。金型は変えない。
+    実装（`texts` の値の写し間違い、行末の空白、YAML への移し間違い、板の順序）を直す。金型は変えない。
   - 金型ファイルの `git diff --stat` が空であること。
-  - 最後の `grep` の結果が空であること。
+  - `grep` の結果が空であること。
+  - 最後の `git log` で、金型ファイルのコミットが 1 つだけであること。
   - T011〜T017 をまとめた 1 つのコミットを作る。
 
 ---
@@ -853,16 +884,16 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
 
 - [ ] **T018** `apps/server/internal/hostcatalog/README.md` を更新する
 
-  1. 「Preset files」のスキーマの例に、`detail.erika_k`（`login` と `boards` の一部）を追加する。
+  1. 「Preset files」のスキーマの例に、`detail.erika_k`（`texts` と `boards` の一部）を追加する。
   2. 「Erika-K detail」の節を新設し、次を説明する: `host.program: erika-k` の局だけが書けること、
-     板は表示順に並べて `path` で階層を表すこと（`key` と `parent` は導出）、
-     `login.station_message` と `member_greeting`（`{handle}`）、局名・ソフト名から導出される画面の文字列
-     （メインメニューの見出し、ログイン見出し、終了のあいさつ）は書かなくてよいこと、
-     検証規則の要約（`plan.md` の表）、プロトタイプ用の固定画面はまだコードにあること。
-  3. 「Changing presets safely」に、「`detail.erika_k` の板の順序と `path` を変えると、局の画面が変わる」
+     `texts` は局が書いた文字列を、ホストがそのまま出力する部品の表であること（部品の一覧と、置換できるのは `{handle}` だけであること）、
+     **省略した部品は何も出力され、プログラムが既定の文面を持たないこと**、将来メニューなどの部品を足すときはキーを足すこと、
+     板は表示順に並べて `path` で階層を表すこと（`key` と `parent` は導出）、検証規則の要約（`plan.md` の表）、
+     プロトタイプ用の固定画面と、「前回アクセス」「ご利用ありがとうございました。」の行は、まだコードにあること。
+  3. 「Changing presets safely」に、「`detail.erika_k` の板の順序・`path`・`texts` を変えると、局の画面が変わる」
      という注意を追記する。
   4. 冒頭の「Status」の、「Not driven by these files yet」の記述から、
-     Erika-K の板構成とログイン文言を除く（残りの項目は変えない）。
+     Erika-K の板構成と画面の文字列を除く（残りの項目は変えない）。
 
 - [ ] **T019** 全体の確認と記録
 
@@ -886,6 +917,9 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
   | `go -C apps/server test ./...` | 〃 | |
   | 金型テスト（3 回連続） | 〃 | 板の表と画面の出力 |
 
+  ## 金型が、変更前のコードで生成されたこと
+  （金型ファイルのコミットの SHA と、実装のコミットの SHA。金型が先であること。`git log --oneline -- .../testdata` の結果）
+
   ## 金型ファイルが変わっていないこと
   （`git diff <T003 のコミット>..HEAD -- apps/server/internal/hostprogram/erikak/testdata` の結果。空であること）
 
@@ -893,16 +927,17 @@ T011〜T017 は 1 つのコミットにまとめる（途中でビルドが通�
   （grep の結果。空であること）
 
   ## 手動確認
-  - サーバを起動して HAKATA に接続し、ログイン画面、メインメニュー、板の一覧が従来どおり表示される: 確認済み / 未実施
+  - サーバを起動して HAKATA に接続し、ログイン画面、メインメニュー、板の一覧、終了のあいさつが従来どおり表示される: 確認済み / 未実施
   ```
 
 - [ ] **T020** PR を作る
 
   - `main` への PR。**draft** で作成する。
-  - タイトル: `Erika-K の板構成とログイン文言を局の定義に外部化する（HAKATA の画面は不変）`
-  - 説明に含める: 目的、変更の要約、**HAKATA の画面が変わっていないことの根拠（板の表と画面出力の金型。
-    金型は変更前に生成し、以降変更していない）**、`verification.md` の結果（未実施を含めて正直に）、
-    スコープ外の項目（プロトタイプ用の固定画面、`Config`、前回アクセスの日時）。
+  - タイトル: `Erika-K の板構成と画面の文字列を局の定義に外部化する（HAKATA の画面は不変）`
+  - 説明に含める: 目的、変更の要約（板 29 件、`texts` の 4 つの部品）、**HAKATA の画面が変わっていないことの根拠
+    （板の表と画面出力の金型。金型は変更前に生成して実装より前にコミットし、以降変更していない）**、
+    `verification.md` の結果（未実施を含めて正直に）、スコープ外の項目
+    （プロトタイプ用の固定画面、`Config`、前回アクセスの行と日時、メニューの上書き）。
 
 ---
 
@@ -919,5 +954,5 @@ Phase 0 (T001 → T002 → T003)
 ## 完了の定義
 
 - `spec.md` の FR-001〜FR-010 と SC-001〜SC-004 を満たす（手動確認が未実施なら、その旨を明記する）。
-- 金型テストが、変更前に生成した金型ファイルを変更せずに通る。
+- 金型テストが、変更前に生成した金型ファイルを変更せずに通る。金型は、実装より前のコミットにある。
 - 変更が `plan.md` の「変更するファイル」の表の範囲に収まっている。
