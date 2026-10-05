@@ -40,14 +40,23 @@ type goldenBoard struct {
 // the refactor changes exactly this function.
 func goldenBoardTable(t *testing.T) []goldenBoard {
 	t.Helper()
-	out := make([]goldenBoard, 0, len(boardTree))
-	for _, n := range boardTree {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone(goldenHostPhone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail, ok := store.HostDetail(host.ID)
+	if !ok || detail.ErikaK == nil {
+		t.Fatal("golden host has no Erika-K detail")
+	}
+	out := make([]goldenBoard, 0, len(detail.ErikaK.Boards))
+	for _, n := range boardCatalogFromDetail(detail.ErikaK).Boards {
 		out = append(out, goldenBoard{
 			Path: n.Path, Key: n.Key, Alias: n.Alias, Parent: n.Parent, Name: n.Name,
 			Hidden: n.Hidden, Scope: n.SemanticScope, RootAuthorPolicy: n.RootAuthorPolicy,
 			ActivityWeight: n.ActivityWeight, ReplyRate: n.ReplyRate,
 			RetainedRootCap: n.RetainedRootCap, VerifiedReferentRate: n.VerifiedReferentRate,
-			Unread: unreadBoard[n.Path],
+			Unread: n.Unread,
 		})
 	}
 	return out
@@ -149,6 +158,7 @@ func TestGoldenBoardTableShape(t *testing.T) {
 	if len(boards) != 29 {
 		t.Fatalf("board table has %d entries, want 29", len(boards))
 	}
+
 	if boards[0].Path != "1" || boards[len(boards)-1].Path != "80/4" {
 		t.Fatalf("unexpected order: first=%q last=%q", boards[0].Path, boards[len(boards)-1].Path)
 	}
@@ -161,7 +171,23 @@ func TestGoldenBoardTableShape(t *testing.T) {
 			t.Fatalf("10/1 key/parent = %q/%q, want 1/10", b.Key, b.Parent)
 		}
 	}
+
 	if unread != 5 {
 		t.Fatalf("%d boards are marked unread, want 5", unread)
+	}
+}
+
+func TestEmbeddedErikaKDetailFitsScreen(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone(goldenHostPhone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	detail, ok := store.HostDetail(host.ID)
+	if !ok || detail.ErikaK == nil {
+		t.Fatal("golden host has no Erika-K detail")
+	}
+	if err := ValidateDetail(*detail.ErikaK); err != nil {
+		t.Fatal(err)
 	}
 }

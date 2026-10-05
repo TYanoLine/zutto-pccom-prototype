@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
 	"time"
+	"zutto-pccom/apps/server/internal/hostcatalog"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -77,6 +79,13 @@ func loginGuest(t *testing.T, runtime *Runtime) string {
 		t.Fatal("guest login disconnected")
 	}
 	return out
+}
+
+func sampleDetail() *hostcatalog.ErikaKDetail {
+	store := world.NewMemoryStore()
+	host, _ := store.HostByPhone("0920000196")
+	detail, _ := store.HostDetail(host.ID)
+	return detail.ErikaK
 }
 
 func TestLoginLooksLikeErikaKAndSupportsPasswordStep(t *testing.T) {
@@ -429,17 +438,17 @@ func TestBare99IsNotAResetCommand(t *testing.T) {
 }
 
 func TestBoardByPathResolvesCanonicalLeaf(t *testing.T) {
-	board, ok := BoardByPath("70/1")
+	board, ok := BoardByPath(sampleDetail().Boards, "70/1")
 	if !ok {
 		t.Fatal("70/1 was not resolved")
 	}
 	if board.ID != "70/1" || board.Name != "ＰＣ－９８" {
 		t.Fatalf("board=%+v", board)
 	}
-	if _, ok := BoardByPath("99"); ok {
+	if _, ok := BoardByPath(sampleDetail().Boards, "99"); ok {
 		t.Fatal("hidden board must not be exposed through debug lookup")
 	}
-	if _, ok := BoardByPath("missing"); ok {
+	if _, ok := BoardByPath(sampleDetail().Boards, "missing"); ok {
 		t.Fatal("unknown board unexpectedly resolved")
 	}
 }
@@ -532,7 +541,7 @@ func TestExistingPC98HeadersDoNotLaunchMoreGenerationOnIndexReturn(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	board, ok := BoardByPath("70/1")
+	board, ok := BoardByPath(sampleDetail().Boards, "70/1")
 	if !ok {
 		t.Fatal("PC-98 board missing")
 	}
@@ -554,7 +563,7 @@ func TestExistingPC98HeadersDoNotLaunchMoreGenerationOnIndexReturn(t *testing.T)
 
 func TestHakataNoticeBoardIsReadOnlyUntilAuthenticatedAdminPostingExists(t *testing.T) {
 	runtime, store := sampleRuntime(t)
-	if board, ok := BoardByPath("1"); !ok || board.RootAuthorPolicy != "sysop_only" {
+	if board, ok := BoardByPath(sampleDetail().Boards, "1"); !ok || board.RootAuthorPolicy != "sysop_only" {
 		t.Fatalf("station staff notice policy not exported: board=%+v ok=%v", board, ok)
 	}
 	loginGuest(t, runtime)
@@ -579,14 +588,14 @@ func TestHakataNoticeBoardIsReadOnlyUntilAuthenticatedAdminPostingExists(t *test
 }
 
 func TestHakataBoardPurposesDoNotLeakHistoricalUncertainty(t *testing.T) {
-	dream, ok := BoardByPath("8")
+	dream, ok := BoardByPath(sampleDetail().Boards, "8")
 	if !ok || strings.Contains(dream.SemanticScope, "史料") ||
 		strings.Contains(dream.SemanticScope, "未確認") ||
 		dream.SemanticScope == "" {
 		t.Fatalf("fictional Dream board scope leaks research guidance: %+v ok=%v", dream, ok)
 	}
-	office, _ := BoardByPath("5")
-	contact, _ := BoardByPath("10/2")
+	office, _ := BoardByPath(sampleDetail().Boards, "5")
+	contact, _ := BoardByPath(sampleDetail().Boards, "10/2")
 	if office.SemanticScope == "" || contact.SemanticScope == "" ||
 		office.SemanticScope == contact.SemanticScope {
 		t.Fatalf("different offline station boards lost their purposes: %q / %q", office.SemanticScope, contact.SemanticScope)
