@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"strings"
 )
@@ -38,9 +37,9 @@ func Load() Config {
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
-		DebugLogGeneratedContent:                envBoolWithLegacy("DEBUG_LOG_GENERATED_CONTENT", "DEBUG_LOG_HAKATA_GENERATED", true),
-		DebugGenerationTrace:                    envBoolWithLegacy("DEBUG_GENERATION_TRACE", "DEBUG_HAKATA_LLM_TRACE", true),
-		GenerationFreeformBody:                 envBoolWithLegacy("GENERATION_FREEFORM_BODY", "HAKATA_FREEFORM_BODY", true),
+		DebugLogGeneratedContent:                envBool("DEBUG_LOG_GENERATED_CONTENT", true),
+		DebugGenerationTrace:                    envBool("DEBUG_GENERATION_TRACE", true),
+		GenerationFreeformBody:                 envBool("GENERATION_FREEFORM_BODY", true),
 		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
 	}
@@ -64,17 +63,4 @@ func envBool(key string, fallback bool) bool {
 	default:
 		return fallback
 	}
-}
-
-// envBoolWithLegacy reads name; if it is unset (or empty) it falls back to the
-// deprecated legacy name, and finally to def. Using the legacy name is logged once.
-func envBoolWithLegacy(name, legacy string, def bool) bool {
-	if os.Getenv(name) != "" {
-		return envBool(name, def)
-	}
-	if os.Getenv(legacy) != "" {
-		log.Printf("config: %s is deprecated; use %s", legacy, name)
-		return envBool(legacy, def)
-	}
-	return def
 }

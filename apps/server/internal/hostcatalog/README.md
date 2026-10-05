@@ -130,7 +130,10 @@ flags, never by a phone number, an ID or the role. The role is only a label.
 | `debug.snapshot` | Stores the host's world state (boards, posts, memberships, personas, persona facts) as one JSON snapshot in Postgres so it survives a restart. A development stopgap until the world is stored in normalized tables. It never stores or restores the host definition. | `DATABASE_URL` |
 | `generation.freeform_body` | Title-led prose experiment for article bodies. | `GENERATION_FREEFORM_BODY` (process-wide) |
 
-The previous HAKATA-prefixed names are still read as deprecated aliases.
+The three process-wide switches were renamed from `DEBUG_LOG_HAKATA_GENERATED`,
+`DEBUG_HAKATA_LLM_TRACE` and `HAKATA_FREEFORM_BODY`. The former names are no
+longer read: a deployment that still sets one of them gets the default (on) until
+it moves to the new name.
 
 There is no flag for clearing articles at startup: the snapshot keeps the
 articles, and `debug.reset_articles_on_connect` (or the debug reset endpoint)
