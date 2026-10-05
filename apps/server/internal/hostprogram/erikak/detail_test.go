@@ -79,7 +79,9 @@ func TestAnotherStationShowsOnlyItsOwnDefinition(t *testing.T) {
 	if strings.Contains(boards, "博多・天神広場") || strings.Contains(boards, "事務局からのお知らせ") {
 		t.Fatalf("the board menu shows the sample station's boards:\n%s", boards)
 	}
-	forum, _ := r.HandleLine("10")
+
+	r.HandleLine("/")
+	forum, _ := r.HandleLine("BJ 10")
 	if !strings.Contains(forum, "THE FORUM") || !strings.Contains(forum, "CHILD BOARD") {
 		t.Fatalf("the forum menu is wrong:\n%s", forum)
 	}
