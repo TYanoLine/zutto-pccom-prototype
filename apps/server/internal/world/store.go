@@ -15,6 +15,10 @@ type Store interface {
 	AddPost(hostID string, p Post) Post
 }
 
+type HostDetailStore interface {
+	HostDetail(hostID string) (hostcatalog.PresetDetail, bool)
+}
+
 // BoardPostStore is an optional capability used by host runtimes after they have
 // already established that the historical host-program board exists. Keeping it
 // optional preserves simple stores while allowing a repository layer to lazily
@@ -117,6 +121,7 @@ type MemoryStore struct {
 	personaFacts  map[string][]PersonaFact
 	memberships   map[string][]string
 	populations   map[string]hostcatalog.Population
+	details       map[string]hostcatalog.PresetDetail
 	next          int64
 }
 
@@ -130,11 +135,15 @@ func NewMemoryStore() *MemoryStore {
 		personaFacts:  map[string][]PersonaFact{},
 		memberships:   map[string][]string{},
 		populations:   map[string]hostcatalog.Population{},
+		details:       map[string]hostcatalog.PresetDetail{},
 		next:          1000,
 	}
 
 	// Host definitions and resident populations come from the embedded YAML presets.
 	populations := presetPopulations()
+	for key, detail := range presetDetails() {
+		s.details[key] = detail
+	}
 	for _, h := range presetHosts() {
 		s.hosts[h.Phone] = h
 		if h.IsExperiment() {
@@ -147,6 +156,13 @@ func NewMemoryStore() *MemoryStore {
 	}
 
 	return s
+}
+
+func (s *MemoryStore) HostDetail(hostID string) (hostcatalog.PresetDetail, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	d, ok := s.details[hostID]
+	return d, ok
 }
 
 func (s *MemoryStore) HostByPhone(phone string) (Host, error) {

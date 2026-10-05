@@ -225,8 +225,10 @@ func main() {
 		// the shared World BoardStore. Ask the host program for the canonical
 		// board path instead of duplicating one debug-only GAME special case.
 		if board.ID == "" && host.SoftwareID == "erika-k" {
-			if resolved, ok := erikak.BoardByPath(boardID); ok {
-				board = resolved
+			if detail, ok := runtimeStore.HostDetail(host.ID); ok && detail.ErikaK != nil {
+				if resolved, ok := erikak.BoardByPath(detail.ErikaK.Boards, boardID); ok {
+					board = resolved
+				}
 			}
 		}
 		if board.ID == "" {

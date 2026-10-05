@@ -6,8 +6,7 @@ The canonical description of a BBS host, plus the preset hosts defined as YAML.
 `world.HostFromDescriptor`, which also carries the preset `role` and the
 `debug` / `generation` flags into `world.Host`; the hosts are no longer
 hard-coded there. Not driven by these files yet: the directory the web client
-shows (`CenterDirectory.ts`), the dial behaviors in `telephone`, and what the
-Erika-K runtime says (welcome text, boards, SYSOP), which is still HAKATA's.
+shows (`CenterDirectory.ts`) and the dial behaviors in `telephone`.
 
 `hostcatalog` must not import `world` (the store imports it), so the
 descriptor -> `world.Host` conversion lives in `world`.
@@ -89,10 +88,25 @@ debug:                     # optional; every flag is opt-in and off when omitted
 generation:                # optional; experimental generation behavior, off when omitted
   freeform_body: true      # title-led article body, skipping Article Detail and evidence
 
-detail:                    # optional; only `welcome` is accepted for now
-  welcome: |
-    ...
+detail:
+  erika_k:
+    texts:
+      login_banner: ["..."]
+      login_greeting: "..."
+      main_menu_title: "..."
+      goodbye: "..."
+    boards:
+      - path: "1"
+        name: "掲示板"
+        unread: true
 ```
+
+`detail.erika_k` is valid only for `host.program: erika-k`. Board paths are
+numeric paths whose parents must also be listed; duplicate paths and negative
+activity values are rejected. Text values may contain only the `{handle}`
+placeholder, must not contain control characters, and omitted text keys produce
+no output. Each text line is checked by the Erika-K runtime to fit 80 display
+cells.
 
 Decoding is strict: unknown keys (a typo in a flag name included), a second YAML
 document, a missing `listed`, or any out-of-range value fail the load, and

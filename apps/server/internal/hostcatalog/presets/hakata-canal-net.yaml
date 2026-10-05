@@ -5,7 +5,7 @@
 # Its resident definition is in the `population:` block.
 schema: 1
 key: hakata-canal-net
-revision: 3
+revision: 4
 listed: true
 role: experiment
 
@@ -39,3 +39,183 @@ population:
   core_handles: ["MARI", "YUKI", "NORI", "KAZU", "TAKU", "NEKO", "KEN", "MAKO", "TOMO", "AKI", "RYO", "HIRO", "SACHI", "JUN", "MIDNIGHT"]
   handle_bases: ["AKI", "AYA", "EMI", "HIDE", "HIRO", "JUN", "KAZU", "KEN", "KOJI", "MAKO", "MARI", "MASA", "MIKI", "NAO", "NORI", "REI", "RYO", "SHIN", "TAKA", "TOMO", "YUKI", "YUJI", "SATOSHI", "TAKESHI", "KENTA", "MEG", "MAYU", "RINA", "ERI", "MINT", "WOLF", "RABBIT", "JOKER", "NOVA", "LUNA", "MARU", "KERO", "N88", "V30", "X68", "PC98", "COM", "MODEM"]
   handle_prefixes: ["N88", "V30", "X68", "98", "COM"]
+
+detail:
+  erika_k:
+    texts:
+      login_banner:
+        - "######################### WELCOME TO HAKATA CANAL NET ##########################"
+        - "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■"
+        - "■  博多から、夜更かしネットワーカーのみなさんへ。                            ■"
+        - "■  23:00以降は混み合います。長時間の席取りはほどほどに(^^;                   ■"
+        - "■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■"
+        - "################################### ERIKA-K ####################################"
+      login_greeting: "深夜のアクセスご苦労様！ {handle}さん、いらっしゃいませ。"
+      main_menu_title: "-ＨＡＫＡＴＡ ＣＡＮＡＬ ＮＥＴ-  〖Ｍain Ｍenu〗  絵理香Ｋ版"
+      goodbye: "また HAKATA CANAL NET でお会いしましょう。"
+    boards:
+      - path: "1"
+        name: "事務局からのお知らせ"
+        scope: "HAKATA局のSYSOPによる運営案内、局内のお知らせ、メンテナンスや利用案内。"
+        root_author_policy: "sysop_only"
+        activity_weight: 0.10
+        reply_rate: 0.20
+        retained_root_cap: 24
+        unread: true
+      - path: "2"
+        name: "自己紹介・新人歓迎"
+        scope: "新規会員の自己紹介と入局の挨拶、常連からの歓迎、久しぶりに来た人の再訪の挨拶。各投稿の本文は名乗りや挨拶が中心で、呼び名や短い近況は添える程度にとどめる。局の外での出来事や趣味の話題は、ほかの板で扱う。"
+        activity_weight: 0.34
+        reply_rate: 1.30
+        retained_root_cap: 36
+      - path: "3"
+        name: "Ｑ＆Ａ（質問ボード）"
+        scope: "会員が日常の具体的な疑問や困りごとを尋ねる一般質問板。地域生活、仕事・学校、買い物、交通、食事、趣味、局の使い方など分野は幅広い。"
+        activity_weight: 0.58
+        reply_rate: 2.10
+        retained_root_cap: 48
+      - path: "4"
+        name: "ふり～と～く"
+        scope: "会員の日常雑談。仕事・学校・家族・食事・天気・街・趣味・最近あった小さな出来事など何でもあり。専門板の話題だけに偏らない。"
+        activity_weight: 1.25
+        reply_rate: 2.00
+        retained_root_cap: 60
+        unread: true
+      - path: "5"
+        name: "オフライントピックス"
+        scope: "局外で会員が交流することについての雑談や、新しい集まりの提案、過去に実際に参加した集まりの感想。具体的な開催連絡や参加確認はオフ会連絡板で扱う。"
+        activity_weight: 0.48
+        reply_rate: 1.70
+        retained_root_cap: 42
+      - path: "6"
+        name: "街角情報スポット"
+        scope: "福岡市内とその周辺で見聞きした店、交通、暮らしの小さな発見や役立つ街の情報。博多・天神の局地的な話題は博多・天神ローカル板にも集まる。"
+        activity_weight: 0.72
+        reply_rate: 1.30
+        retained_root_cap: 48
+        verified_referent_rate: 0.10
+      - path: "7"
+        name: "ＣＡＮＡＬ市場"
+        scope: "会員が自分で譲れる品物の状態や希望条件を知らせたり、欲しい品物や交換相手を募ったりする売買・交換連絡。具体的な取引の成立は当事者同士の確認による。"
+        activity_weight: 0.30
+        reply_rate: 0.75
+        retained_root_cap: 30
+      # "夢工房はかた" の史実上の用途は未確認。架空の交流板として扱う。
+      - path: "8"
+        name: "夢工房はかた"
+        scope: "局内の会員が近況や日々の話題を気軽に持ち寄る自由交流板。"
+        activity_weight: 0.42
+        reply_rate: 1.10
+        retained_root_cap: 36
+      - path: "10"
+        alias: "HAKATA"
+        name: "博多・天神広場"
+      - path: "20"
+        alias: "AMUSE"
+        name: "アミューズメントフォーラム"
+      - path: "60"
+        alias: "COMP"
+        name: "コンピュータワールド"
+      - path: "68"
+        alias: "X68"
+        name: "ＣＡＮＡＬ Ｘ村"
+      - path: "70"
+        alias: "DOSV"
+        name: "９８ VS ＡＴ互換機"
+      - path: "80"
+        alias: "OTHER"
+        name: "その他のコンピュータ"
+      - path: "99"
+        name: "夜更かし部屋"
+        hidden: true
+        activity_weight: 0.34
+        reply_rate: 2.30
+        retained_root_cap: 36
+      - path: "10/1"
+        name: "博多・天神ローカル"
+        scope: "博多・天神の現地で見聞きした店、交通、街の変化、待ち合わせの場所や地元の小さな出来事。"
+        activity_weight: 1.00
+        reply_rate: 1.45
+        retained_root_cap: 54
+      - path: "10/2"
+        name: "オフ会連絡"
+        scope: "この局の会員によるオフ会の開催提案と、局内で既に共有された集まりの日時・集合場所・参加可否・当日連絡・終了後の忘れ物。"
+        activity_weight: 0.48
+        reply_rate: 1.75
+        retained_root_cap: 36
+        unread: true
+      - path: "20/1"
+        name: "ＧＡＭＥ"
+        scope: "家庭用・PC等のゲームについての感想、攻略上の詰まり、対戦、貸し借り、購入相談など。ゲーム以外のPC一般話題を持ち込まない。"
+        activity_weight: 0.92
+        reply_rate: 1.65
+        retained_root_cap: 52
+        verified_referent_rate: 0.10
+      - path: "20/2"
+        name: "ＡＮＩＭＥ／ＭＡＮＧＡ"
+        scope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。"
+        activity_weight: 0.64
+        reply_rate: 1.55
+        retained_root_cap: 44
+      - path: "60/1"
+        name: "ＰＣ－９８／ＭＯＤＥＭ"
+        scope: "PC-98系機種を使ったモデム接続、通信ソフト設定、回線や接続中の問題に関する具体的な相談と経験。"
+        activity_weight: 0.84
+        reply_rate: 1.95
+        retained_root_cap: 50
+        unread: true
+      - path: "60/2"
+        name: "Ｗｉｎｄｏｗｓ／ＤＯＳ"
+        scope: "WindowsとDOSの起動、操作、環境設定、互換性やOS上の作業についての相談と経験。"
+        activity_weight: 0.74
+        reply_rate: 1.85
+        retained_root_cap: 48
+      - path: "60/3"
+        name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ"
+        scope: "各種アプリケーションやツールの用途・使い方、ファイル形式、データの管理・交換についての情報交流。"
+        activity_weight: 0.70
+        reply_rate: 1.70
+        retained_root_cap: 46
+        unread: true
+      - path: "68/1"
+        name: "深夜雑談"
+        scope: "深夜に接続している会員のゆるい雑談。日常、眠気、仕事・学校、食事、テレビ、音楽、趣味など幅広く、PC/ゲーム専用ではない。"
+        activity_weight: 0.62
+        reply_rate: 2.20
+        retained_root_cap: 44
+      - path: "70/1"
+        name: "ＰＣ－９８"
+        scope: "PC-98系機種の利用、設定、周辺機器、ソフト利用など。"
+        activity_weight: 0.67
+        reply_rate: 1.85
+        retained_root_cap: 46
+      - path: "70/2"
+        name: "ＤＯＳ／Ｖ"
+        scope: "DOS/V・AT互換機側の利用、設定、周辺機器、ソフト利用など。"
+        activity_weight: 0.48
+        reply_rate: 1.55
+        retained_root_cap: 38
+      - path: "80/1"
+        name: "ＦＭ－ＴＯＷＮＳ"
+        scope: "FM TOWNS利用者の機種・ソフト・周辺機器等の情報交換。"
+        activity_weight: 0.31
+        reply_rate: 1.35
+        retained_root_cap: 30
+      - path: "80/2"
+        name: "Forever with MSX"
+        scope: "MSX利用者の機種・ソフト・周辺機器等の情報交換。"
+        activity_weight: 0.28
+        reply_rate: 1.40
+        retained_root_cap: 28
+      - path: "80/3"
+        name: "ワープロ"
+        scope: "ワープロ専用機や文書作成・印刷等の利用情報。"
+        activity_weight: 0.30
+        reply_rate: 1.20
+        retained_root_cap: 30
+      - path: "80/4"
+        name: "その他(PC88,FMR,etc)"
+        scope: "PC-88、FMR等、他の専用板に当てはまらないコンピュータ機種の情報交換。"
+        activity_weight: 0.26
+        reply_rate: 1.25
+        retained_root_cap: 26

@@ -65,7 +65,8 @@ type presetDial struct {
 // generated on first access. Only the keys below are accepted until the
 // per-program detail schemas exist.
 type PresetDetail struct {
-	Welcome string `yaml:"welcome"`
+	Welcome string        `yaml:"welcome"`
+	ErikaK  *ErikaKDetail `yaml:"erika_k"`
 }
 
 // Preset is a validated preset file. Unspecified optional values stay nil/empty
@@ -195,6 +196,12 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 	population, err := parsePopulation(f.Population)
 	if err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", file, err))
+	}
+	if f.Detail.ErikaK != nil {
+		if h.Program != erikaKProgramID {
+			add("detail.erika_k", fmt.Errorf("is only valid for host.program %q", erikaKProgramID))
+		}
+		add("detail.erika_k", validateErikaKDetail(f.Detail.ErikaK))
 	}
 
 	if len(errs) > 0 {
