@@ -4,7 +4,7 @@ import { TerminalCanvas, type TerminalCanvasHandle, type TerminalScreenMode } fr
 import { VirtualModem } from './modem/VirtualModem';
 import type { HostCapabilities } from './modem/HostCapabilities';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
-import { clearLegacyDirectoryStorage, fetchDirectory } from './modem/CenterDirectory';
+import { clearLegacyDirectoryStorage, fetchDirectory, fetchWorldCenters, mergeCenters } from './modem/CenterDirectory';
 import type { RegisteredCenter } from './modem/CenterDirectory';
 import { TerminalCenterDirectory } from './modem/TerminalCenterDirectory';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
@@ -151,17 +151,30 @@ export default function App() {
   }, [commSettings]);
   useEffect(() => {
     clearLegacyDirectoryStorage();
-    fetchDirectory(wsURL).then(centers => {
-      if (!centers.length) throw new Error('empty center directory');
-      centersRef.current = centers;
+    // The stations the world generated come from a slower request: the first visit
+    // waits for the naming model. Start it now, in parallel, but never wait for it.
+    // The preset stations are listed as soon as they arrive, the generated ones
+    // follow them when they are ready, and a failure here only means the directory
+    // keeps the preset stations.
+    const generatedCenters = fetchWorldCenters(wsURL).catch((): RegisteredCenter[] => []);
+    fetchDirectory(wsURL).then(presetCenters => {
+      if (!presetCenters.length) throw new Error('empty center directory');
+      centersRef.current = presetCenters;
       directoryLoadStateRef.current = 'ready';
-      setDirectoryCount(centers.length);
-      setDirectoryStatus(`センター情報読込完了 (${centers.length}局)`);
+      setDirectoryCount(presetCenters.length);
+      setDirectoryStatus(`センター情報読込完了 (${presetCenters.length}局)`);
       if (openDirectoryWhenReadyRef.current) {
         openDirectoryWhenReadyRef.current = false;
         directoryRef.current?.show();
         setDirectoryOpen(true);
       }
+      void generatedCenters.then(generated => {
+        if (!generated.length) return;
+        const merged = mergeCenters(presetCenters, generated);
+        centersRef.current = merged;
+        setDirectoryCount(merged.length);
+        setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
+      });
     }).catch(error => {
       directoryLoadStateRef.current = 'error';
       openDirectoryWhenReadyRef.current = false;
