@@ -163,17 +163,21 @@ export default function App() {
       directoryLoadStateRef.current = 'ready';
       setDirectoryCount(presetCenters.length);
       setDirectoryStatus(`センター情報読込完了 (${presetCenters.length}局)`);
+      // The list can be opened before the generated stations arrive: say so under
+      // the list, and redraw it when they do.
+      directoryRef.current?.setNotice('ほかのセンターを読み込み中...');
       if (openDirectoryWhenReadyRef.current) {
         openDirectoryWhenReadyRef.current = false;
         directoryRef.current?.show();
         setDirectoryOpen(true);
       }
       void generatedCenters.then(generated => {
-        if (!generated.length) return;
-        const merged = mergeCenters(presetCenters, generated);
+        const merged = generated.length ? mergeCenters(presetCenters, generated) : presetCenters;
         centersRef.current = merged;
         setDirectoryCount(merged.length);
         setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
+        directoryRef.current?.setNotice('');
+        directoryRef.current?.refresh();
       });
     }).catch(error => {
       directoryLoadStateRef.current = 'error';
