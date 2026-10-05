@@ -1,14 +1,35 @@
-# Erika-K station detail verification
+# Verification: Erika-K station detail
 
-The golden fixtures were generated from the pre-refactor implementation and
-committed before the implementation changes.
+## 実装時の記録（PR #316、Copilot）
 
-```text
-go -C apps/server test ./internal/hostprogram/erikak -run 'TestScreensAndBoardsMatchGolden' -count=3
-go -C apps/server test ./...
-go -C apps/server vet ./...
-```
+PR #316 の `verification.md` は、実行したコマンドの一覧だけで、結果（成功・失敗・未実施）を含んでいなかった。
+PR #316 は、`go-test` が実行されないまま、作成の 17 秒後にマージされた。
+したがって、実装時の `go build`・`go vet`・`go test ./...` の結果は、**記録が無く、確認できていない**。
 
-The golden test compares all 29 boards and the complete scripted terminal
-transcript byte-for-byte. The preset supplies Erika-K board and text detail;
-the runtime has no station-specific board tree or station wording.
+確認できること（コミットの履歴から）:
+
+| 項目 | 結果 | 根拠 |
+|---|---|---|
+| 金型が、変更前のコードで生成され、実装より前にコミットされた | 確認済み | `357b9a9`（`T003: add pre-refactor Erika-K golden fixtures`、10:51）が、`07569fa`（`T011-T017`、10:58）より前 |
+| 金型ファイルが、実装のコミットで変更されていない | 確認済み | 実装のコミットは、`testdata/*` を新規追加ではなく変更していない（PR の差分では、追加は金型のコミットだけ） |
+
+## 追補のレビューと修正（PR: test/erika-k-detail-coverage）
+
+PR #316 のレビューで見つかった不足を、別の PR で補った。
+
+| 不足 | 対応 |
+|---|---|
+| 新しい検証のテストが無い | `hostcatalog/program_detail_test.go`、`erikak/detail_test.go`、`world/host_detail_test.go`、`worldrepo/host_detail_test.go` を追加 |
+| `TestLoginBannerUsesExactDisplayCells` が、バナーが無くても通る | HAKATA の定義から `Runtime` を作り、バナーの 6 行が揃っていることも検査するように修正 |
+| `{handle}` を、検証は全部品で許可するが、実行時の置換は 2 つの部品だけ | 検証を、置換される `login_banner` と `login_greeting` だけで許可する形に修正（他の部品に書くとエラー） |
+| `verification.md` に結果が無い | この記録 |
+
+## 実行結果
+
+| コマンド | 結果 | 備考 |
+|---|---|---|
+| `go -C apps/server build ./...` | 未確認 | 追補の PR の `go-test`（`go test ./...` を実行する）の結果で確認する |
+| `go -C apps/server test ./...` | 未確認 | 同上。PR の CI は、`main` と合成した状態で実行されるので、PR #316 の内容も含まれる |
+| 金型テスト（`TestScreensAndBoardsMatchGolden`） | 未確認 | 同上 |
+
+この表は、追補の PR の CI の結果が出たあと、結果で更新する。**CI の結果が無い間は、成功と書かない。**
