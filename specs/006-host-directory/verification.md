@@ -29,9 +29,9 @@ Only the server-side Part 1 changes are included. `/api/world/bootstrap` and
 
 | Command | Result | Notes |
 |---|---|---|
-| `npm --prefix apps/web test` | Not run | Pending implementation validation |
-| `npm --prefix apps/web run build` | Not run | Pending implementation validation |
-| grep（旧コードの残り） | Not run | Pending implementation validation |
+| `npm --prefix apps/web test` | Passed | 19 files, 95 tests |
+| `npm --prefix apps/web run build` | Passed | `tsc -b` and Vite build completed |
+| grep（旧コードの残り） | Empty | Only the two allowed `0920000196` occurrences remain in `App.tsx` |
 
 The Part 1 protocol documentation already describes the Web client's use of
 `/api/directory`.
