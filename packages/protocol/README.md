@@ -19,6 +19,18 @@ Server -> client:
 {"type":"carrier","result":"off"}
 ```
 
+## HTTP directory
+
+`GET /api/directory` returns the dialing directory derived from presets:
+
+```json
+{"centers":[{"id":"hakata-canal-net","name":"HAKATA CANAL NET","software":"絵理香K版","phone":"0920000196","dialMode":"tone","maxBaud":14400}]}
+```
+
+Only hosts with `listed: true` are included. A host with `listed: false` is
+omitted from the directory but can still be reached by dialing its number
+directly.
+
 `capabilities` is sent with every successful `dial_result` (`connect`) and `resume_result`
 (`ok`). It lists the optional, host-specific features the client may offer for this call; every
 key is `false` unless the host definition turns it on. A client must treat a missing

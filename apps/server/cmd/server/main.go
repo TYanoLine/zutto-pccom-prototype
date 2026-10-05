@@ -462,6 +462,7 @@ func main() {
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
+	mux.HandleFunc("/api/directory", newDirectoryHandler(runtimeStore))
 	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
 	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
 	mux.HandleFunc("/api/debug/bbs/generation-trace", newGenerationTraceHandler(cfg.DebugGenerationTrace, runtimeStore))

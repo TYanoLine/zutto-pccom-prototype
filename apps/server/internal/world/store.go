@@ -122,7 +122,9 @@ type MemoryStore struct {
 	memberships   map[string][]string
 	populations   map[string]hostcatalog.Population
 	details       map[string]hostcatalog.PresetDetail
-	next          int64
+	// directory is the dialing directory: the listed hosts, from the presets.
+	directory []DirectoryEntry
+	next      int64
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -154,6 +156,7 @@ func NewMemoryStore() *MemoryStore {
 			ensurePopulationLocked(s, h, spec)
 		}
 	}
+	s.directory = presetDirectory()
 
 	return s
 }
