@@ -36,6 +36,12 @@ Share lower layers such as world data, persistence, sessions, transports, access
 
 Do not create a historically nonexistent common UI merely to reduce code duplication.
 
+### Station-specific content lives in the station definition
+
+A station's own content is data, not host-program code. Station names, banners, headings, greetings, board layouts, and resident members are defined in the station's preset (`apps/server/internal/hostcatalog/presets/*.yaml`). The host program implements behavior and prints what the definition gives it; it does not build, pad, translate, or default station wording, and it does not name any particular station. Behavior that only an evaluation station needs is switched on by that station's explicit `debug` / `generation` flags, never by a phone number, a host ID, or the role.
+
+The host definition is immutable at runtime. Changes to a running station are recorded as separate, dated differences, not as edits to the definition. See `apps/server/internal/hostcatalog/README.md`.
+
 ## Historical evidence policy
 
 Never invent exact historical behavior and present it as fact.
@@ -59,6 +65,18 @@ Record important research and source URLs in `docs/host-programs/` or `docs/rese
 - Do not claim tests or CI passed unless you actually observed them.
 - Keep AI integration optional. The service must remain capable of deterministic/non-AI operation while host runtimes and world mechanics are developed.
 - Avoid premature abstractions. If two historical programs only look superficially similar, duplication is preferable to an abstraction that destroys their semantics.
+
+## Implementing a spec
+
+Larger changes are written down first in `specs/NNN-name/` (`spec.md`, `plan.md`, `tasks.md`; see `specs/README.md`). When you are asked to implement one:
+
+- **The deliverable is code.** Go, YAML and tests, opened as a pull request. The spec files already exist on `main`: do not create or edit them. The only spec-folder file you add is the `verification.md` that the tasks name. "The spec files already exist" or "the working tree is clean" is not completion.
+- **Read in order and follow the tasks in numeric order.** `spec.md`, then `plan.md`, then `tasks.md`, including the rules at the top of `tasks.md`. The last task (open a draft pull request) defines "done".
+- **Evidence comes first.** When a task asks for a golden file or baseline recorded from the unchanged code, generate and commit it *before* the implementation commits, and never regenerate it afterwards to make a test pass. A failing golden test means the implementation is wrong. Evidence produced by the new code proves nothing.
+- **Stay in scope.** Do not touch anything listed under "Out of scope". Do not create formatting-only diffs (do not run `gofmt -w` over existing files you are not otherwise changing). Do not edit `.github/` unless the task says so.
+- **Do not guess.** If the spec and the code disagree, or an instruction cannot be followed as written, stop and say so in the pull request description instead of choosing a different design.
+- **Stop after repeated failure.** If the same test failure survives two fixes, stop and report which assertion or line differs.
+- **Report honestly.** The pull request description and `verification.md` list the exact commands you ran and their results. Write "not run" with the reason for anything you could not run. Workflows may not run automatically on an agent's pull request; that is not a pass.
 
 ## In-world writing
 
