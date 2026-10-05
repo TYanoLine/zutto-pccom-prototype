@@ -44,10 +44,20 @@ func TestPadRunesPadsDisplayCellsNotRuneCount(t *testing.T) {
 	}
 }
 
-
+// The sample station's login banner is its own text (detail.erika_k.texts), so
+// the runtime has to be built from that station's definition for there to be a
+// banner at all. Every banner line must fill the 80-cell screen exactly.
 func TestLoginBannerUsesExactDisplayCells(t *testing.T) {
-	r := &Runtime{handle: "GUEST"}
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := New(host, store)
+	r.handle = "GUEST"
 	output := r.finishLogin()
+
+	checked := 0
 	for _, line := range strings.Split(output, "\r\n") {
 		switch {
 		case strings.Contains(line, "WELCOME TO HAKATA CANAL NET"),
@@ -55,10 +65,15 @@ func TestLoginBannerUsesExactDisplayCells(t *testing.T) {
 			strings.Contains(line, "23:00以降"),
 			strings.Contains(line, "ERIKA-K"),
 			strings.HasPrefix(line, "■■"):
+			checked++
 			if got := displayCellWidth(line); got != 80 {
 				t.Fatalf("banner line width = %d, want 80: %q", got, line)
 			}
 		}
+	}
+	// Heading, two rules, two message lines and the software heading.
+	if checked != 6 {
+		t.Fatalf("checked %d banner lines, want 6; the banner is missing or incomplete:\n%s", checked, output)
 	}
 }
 
