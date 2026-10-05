@@ -5,8 +5,9 @@ The canonical description of a BBS host, plus the preset hosts defined as YAML.
 **Status.** `world.NewMemoryStore` builds its hosts and resident definitions from these presets through
 `world.HostFromDescriptor`, which also carries the preset `role` and the
 `debug` / `generation` flags into `world.Host`; the hosts are no longer
-hard-coded there. Not driven by these files yet: the directory the web client
-shows (`CenterDirectory.ts`) and the dial behaviors in `telephone`.
+hard-coded there. The Erika-K host program reads its station's boards and texts
+from `detail.erika_k` (see below). Not driven by these files yet: the directory the
+web client shows (`CenterDirectory.ts`) and the dial behaviors in `telephone`.
 
 `hostcatalog` must not import `world` (the store imports it), so the
 descriptor -> `world.Host` conversion lives in `world`.
@@ -47,7 +48,7 @@ One file per host in `presets/`, embedded into the binary. The file name must be
 ```yaml
 schema: 1                  # required, must be 1
 key: hakata-canal-net      # required, stable, lower-case words joined by "-"
-revision: 3                # required, raise when the content changes
+revision: 4                # required, raise when the content changes
 listed: true               # required, no default
 role: experiment           # optional label: debug | test | experiment | event
 
@@ -89,10 +90,10 @@ generation:                # optional; experimental generation behavior, off whe
   freeform_body: true      # title-led article body, skipping Article Detail and evidence
 
 detail:
-  erika_k:
-    texts:
-      login_banner: ["..."]
-      login_greeting: "..."
+  erika_k:                 # only valid when host.program is erika-k
+    texts:                 # printed exactly as written; a key left out prints nothing
+      login_banner: ["...", "..."]
+      login_greeting: "... {handle} ..."
       main_menu_title: "..."
       goodbye: "..."
     boards:
@@ -100,13 +101,6 @@ detail:
         name: "掲示板"
         unread: true
 ```
-
-`detail.erika_k` is valid only for `host.program: erika-k`. Board paths are
-numeric paths whose parents must also be listed; duplicate paths and negative
-activity values are rejected. Text values may contain only the `{handle}`
-placeholder, must not contain control characters, and omitted text keys produce
-no output. Each text line is checked by the Erika-K runtime to fit 80 display
-cells.
 
 Decoding is strict: unknown keys (a typo in a flag name included), a second YAML
 document, a missing `listed`, or any out-of-range value fail the load, and
@@ -118,6 +112,41 @@ with omitted fields parses (`Preset.Missing()` lists them) but cannot become a
 `HostDescriptor` yet: `Preset.Descriptor()` returns `*IncompleteError`, and the
 store refuses to start with such a preset. Filling them deterministically from
 the world seed is the generator's job and is not implemented.
+
+## Erika-K detail
+
+A station's own content is data in its preset, not code in the host program.
+`detail.erika_k` is valid only for `host.program: erika-k`; it is read through
+`world.HostDetailStore` and is part of the immutable host definition.
+
+**`texts`** are named parts of Erika-K's screens that the station writes itself.
+The host program prints them exactly as written: it does not draw rules, build
+headings, insert the station name, pad lines or convert characters, and it has no
+default wording. **A key that is left out prints nothing.**
+
+| Key | Printed |
+|---|---|
+| `login_banner` (list of lines) | after the "last access" line at login, one element per line, rules and headings included |
+| `login_greeting` | after the banner, between blank lines |
+| `main_menu_title` | the first line of the main menu |
+| `goodbye` | after the standard thanks when the user ends the call |
+
+The only substitution is `{handle}` (the handle of the user who logged in), and
+only in `login_banner` and `login_greeting`; in the other texts it would be
+printed literally, so it is rejected. Texts must not contain control characters.
+Each line must fit the 80-cell screen (checked by `erikak.ValidateDetail`, and by
+a test over every embedded preset). New screen parts, such as the menus, are
+added later as new keys.
+
+**`boards`** is the board tree in display order. A board's key and parent come
+from its `path` (`"10/1"` is board 1 under forum 10), so every parent must be
+listed; paths are numeric and unique. Names are required, `root_author_policy` is
+empty or `sysop_only`, and the tuning values must not be negative
+(`verified_referent_rate` is 0 to 1). `unread: true` marks a board in the fixed
+prototype display.
+
+Still in the host program: the standard "last access" line and the thanks line,
+and the prototype screens (`V`, `WHO`, `MEMB`, mail, files, `JUNK`).
 
 ## Population
 
@@ -159,6 +188,9 @@ clears them when wanted.
   and posts are keyed by the host.
 - Changing `population.seed`, `population.id_prefix`, or any array order changes
   existing residents and can diverge from persisted data.
+- Changing the order or `path` of `detail.erika_k.boards`, or any of its `texts`,
+  changes what the station's screens show. The golden screens in
+  `hostprogram/erikak/testdata` record the sample station's output byte for byte.
 - Raise `revision` whenever the content changes, flags included. Existing worlds
   keep the content they were created with (only `listed` is meant to follow the
   file).
@@ -170,6 +202,7 @@ clears them when wanted.
 
 `HostProgram` registry (`knownPrograms` / `RuntimeSoftwareID` are stopgaps),
 the web client's built-in center list, database migration (`origin`, `listed`,
-`host_key`, `host_details`), generated region/traits, per-program detail
-schemas, moving the hard-coded dial fixtures in `telephone` to
-`dial.behavior`, and the dated host-change records mentioned above.
+`host_key`, `host_details`), generated region/traits, detail schemas for the
+other host programs, moving the hard-coded dial fixtures in `telephone` to
+`dial.behavior`, customizing the Erika-K menus from the station definition, and
+the dated host-change records mentioned above.
