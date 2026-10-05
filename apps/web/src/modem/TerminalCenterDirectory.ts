@@ -7,6 +7,8 @@ const PAGE_SIZE = 15;
 export class TerminalCenterDirectory {
   private open = false;
   private selected = 0;
+  // A standing note under the list, for example while more stations are loading.
+  private notice = '';
 
   constructor(
     private readonly terminal: TerminalCore,
@@ -21,6 +23,18 @@ export class TerminalCenterDirectory {
     this.open = true;
     this.selected = Math.min(this.selected, Math.max(0, this.centers().length - 1));
     this.render();
+  }
+
+  // setNotice sets the standing note shown under the list; an empty string clears
+  // it. It does not redraw: call refresh() to show the change on an open list.
+  setNotice(message: string) {
+    this.notice = message;
+  }
+
+  // refresh redraws an open list, for example after more stations arrived. The
+  // selected row stays selected. It does nothing while the list is closed.
+  refresh() {
+    if (this.open) this.render();
   }
 
   close() {
@@ -107,7 +121,8 @@ export class TerminalCenterDirectory {
       this.terminal.write(absolute === this.selected ? `\x1b[30;46m${padCells(row, 78)}\x1b[0m\r\n` : `${row}\r\n`);
     }
 
-    if (message) this.terminal.write(`\x1b[33m  ${fit(message, 76)}\x1b[0m\r\n`);
+    const note = message || this.notice;
+    if (note) this.terminal.write(`\x1b[33m  ${fit(note, 76)}\x1b[0m\r\n`);
     else this.terminal.write('\r\n');
     this.terminal.write('\x1b[36m  ↑↓:選択  ROLL:頁移動  RETURN:呼出  S:リスト保存  ESC:メニュー\x1b[0m');
   }
