@@ -1,5 +1,9 @@
 # Spec: センターディレクトリ（電話帳）の一覧を、サーバが返す
 
+> **改訂 2（2026-10-05）**: 方針が変わり、**生成局（LLM が作った局）も電話帳に出す**（プリセット局の後ろ。繋がらなくてよい）。
+> このファイルの「生成局を出さない」前提の記述（質問 2 の回答、FR-006・FR-007、SC-003、スコープ外の 1 項目め）は、
+> `revision-2.md` で置き換わる。Part 1（サーバの `GET /api/directory`）は、改訂の影響を受けない。
+
 **Spec ID**: 006-host-directory
 **Status**: Draft
 **Depends on**: PR #294（局の定義の不変化）、spec 002（Web の capabilities）、spec 004・005（局の定義の外部化）。いずれもマージ済み
@@ -38,7 +42,7 @@ Web は、返された一覧を表示するだけにする。局を追加する�
 
 運営者として、Web のコードに、局の名前、電話番号、ダイヤル方式、最大速度が書かれていない状態にしたい。
 
-**Independent Test**: `apps/web/src` に、`DEFAULT_CENTERS`、`loadCenters`、`saveCenters`、`fetchWorldCenters` が残っていない。
+**Independent Test**: `apps/web/src` に、`DEFAULT_CENTERS`、`loadCenters`、`saveCenters` が残っていない。
 HAKATA は、サーバの応答から、従来と同じ表示（`HAKATA CANAL NET [絵理香K版]`、`0920000196`、トーン、14400bps）で出る。
 
 ## 要件
@@ -62,9 +66,9 @@ HAKATA は、サーバの応答から、従来と同じ表示（`HAKATA CANAL NE
   （`hostcatalog` の「`Listed` はダイヤルに影響しない」を保つ）。
 - **FR-005（Web: 取得と表示）**: Web は `/api/directory` から一覧を取得し、表示する。局の表示名は、`software` があれば
   `<name> [<software>]`、無ければ `<name>`。HAKATA は、従来と同じ `HAKATA CANAL NET [絵理香K版]` になる。
-- **FR-006（Web: 削除）**: Web から、次を削除する: `DEFAULT_CENTERS`、`loadCenters`、`saveCenters`、`fetchWorldCenters`、
+- **FR-006（Web: 削除）** *（改訂 2 で置き換え）*: Web から、次を削除する: `DEFAULT_CENTERS`、`loadCenters`、`saveCenters`、`fetchWorldCenters`、
   `getOrCreateWorldKey`、`RegisteredCenter.builtIn`、`CenterDirectoryPanel.tsx`。Web は、`/api/world/bootstrap` を呼ばない。
-- **FR-007（旧データの掃除）**: Web は、起動時に 1 回、`localStorage` の旧キー（`zutto.centers.v1`、`zutto.worldKey.v1`）を削除する。
+- **FR-007（旧データの掃除）** *（改訂 2 で置き換え）*: Web は、起動時に 1 回、`localStorage` の旧キー（`zutto.centers.v1`、`zutto.worldKey.v1`）を削除する。
   `localStorage` が使えなくても、エラーにしない。
 - **FR-008（失敗時の動作）**: 取得に失敗したとき、一覧が空のとき、応答の形が不正なときの動作は、従来のまま
   （`CENTER API ERROR: …` の表示、ESC でメインメニューに戻る）。
@@ -77,14 +81,14 @@ HAKATA は、サーバの応答から、従来と同じ表示（`HAKATA CANAL NE
 - **SC-001**: `go -C apps/server test ./...`、`npm --prefix apps/web test`、`npm --prefix apps/web run build` が通る。
 - **SC-002**: サーバの契約テストが、HAKATA の要素を、**従来の `DEFAULT_CENTERS` の値と完全に一致する値**で検査している
   （`id` `hakata-canal-net`、`name` `HAKATA CANAL NET`、`software` `絵理香K版`、`phone` `0920000196`、`dialMode` `tone`、`maxBaud` `14400`）。
-- **SC-003**: `apps/web/src`（テストを除く）で、`DEFAULT_CENTERS|loadCenters|saveCenters|fetchWorldCenters|getOrCreateWorldKey|builtIn|bootstrap` が、
+- **SC-003** *（改訂 2 で置き換え）*: `apps/web/src`（テストを除く）で、`DEFAULT_CENTERS|loadCenters|saveCenters|fetchWorldCenters|getOrCreateWorldKey|builtIn|bootstrap` が、
   1 件も見つからない。
 - **SC-004**: `apps/web/src`（テストを除く）に残る `0920000196` は、「ターミナル・モードの案内文の例」と
   「`VITE_TELEHODAI_NUMBERS` の既定値」の 2 か所だけ（スコープ外）。
 
 ## スコープ外（変更しない）
 
-- 繋がらない生成局を、電話帳に出すこと。今回は出さない。
+- 繋がらない生成局を、電話帳に出すこと。今回は出さない。 *（改訂 2 で置き換え: 出す）*
 - `/api/world/bootstrap`、`worldcatalog`、生成局の仕組み（サーバ側に残す。削除するかは別途判断する）。
 - **テレホーダイ登録番号**（`VITE_TELEHODAI_NUMBERS` の既定値 `0920000196`）。利用者が選ぶ設定であり、局の性質ではないため、別 spec で扱う。
 - ターミナル・モードの案内文の例示番号（`ATDT0920000196`）。
