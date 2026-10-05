@@ -10,18 +10,36 @@ import (
 
 const erikaKProgramID = "erika-k"
 
+// ErikaKDetail is the station-specific data of a host that runs the Erika-K host
+// program: the station's own texts and its boards. The program itself (the state
+// machine, the commands and the screen layout) lives in the erikak package. The
+// slices are read-only: callers must not modify them.
 type ErikaKDetail struct {
 	Texts  ErikaKTexts   `yaml:"texts"`
 	Boards []ErikaKBoard `yaml:"boards"`
 }
 
+// ErikaKTexts are named parts of Erika-K's screens that the station writes
+// itself. The host program prints them as written, without building, padding or
+// converting anything, and prints nothing for a part that is left out: the
+// program has no default wording. The only substitution is "{handle}", the handle
+// of the user who logged in, and it is replaced in LoginBanner and LoginGreeting
+// only. New parts (for example menus) are added as new keys.
 type ErikaKTexts struct {
-	LoginBanner   []string `yaml:"login_banner"`
-	LoginGreeting string   `yaml:"login_greeting"`
-	MainMenuTitle string   `yaml:"main_menu_title"`
-	Goodbye       string   `yaml:"goodbye"`
+	// LoginBanner lines follow the "last access" line after login. One element is
+	// one line, rules and headings included.
+	LoginBanner []string `yaml:"login_banner"`
+	// LoginGreeting follows the banner, between blank lines.
+	LoginGreeting string `yaml:"login_greeting"`
+	// MainMenuTitle is the first line of the main menu.
+	MainMenuTitle string `yaml:"main_menu_title"`
+	// Goodbye is the line after the standard thanks when the user ends the call.
+	Goodbye string `yaml:"goodbye"`
 }
 
+// ErikaKBoard is one entry of the station's board tree. The tree is given in
+// display order. Key and parent are derived from Path ("10/1" is board 1 under
+// forum 10).
 type ErikaKBoard struct {
 	Path                 string  `yaml:"path"`
 	Alias                string  `yaml:"alias"`
@@ -33,7 +51,9 @@ type ErikaKBoard struct {
 	ReplyRate            float64 `yaml:"reply_rate"`
 	RetainedRootCap      int     `yaml:"retained_root_cap"`
 	VerifiedReferentRate float64 `yaml:"verified_referent_rate"`
-	Unread               bool    `yaml:"unread"`
+	// Unread marks the board as having unread messages in the station's fixed
+	// prototype display, until real read state exists.
+	Unread bool `yaml:"unread"`
 }
 
 var (
@@ -41,6 +61,8 @@ var (
 	placeholderPattern = regexp.MustCompile(`\{[^}]*\}`)
 )
 
+// validateErikaKDetail checks the structure of an Erika-K detail. How wide a
+// line may be on screen is checked by the erikak package (ValidateDetail).
 func validateErikaKDetail(d *ErikaKDetail) error {
 	if d == nil {
 		return nil
@@ -51,7 +73,10 @@ func validateErikaKDetail(d *ErikaKDetail) error {
 			errs = append(errs, fmt.Errorf("%s: %w", field, err))
 		}
 	}
-	checkText := func(field, text string) {
+	// checkText rejects control characters and placeholders. "{handle}" is only
+	// accepted where the host program replaces it; anywhere else it would be
+	// printed literally, so it is an error.
+	checkText := func(field, text string, handleReplaced bool) {
 		for _, r := range text {
 			if r < 0x20 || r == 0x7f {
 				add(field, fmt.Errorf("must not contain the control character %q", r))
@@ -59,17 +84,21 @@ func validateErikaKDetail(d *ErikaKDetail) error {
 			}
 		}
 		for _, found := range placeholderPattern.FindAllString(text, -1) {
-			if found != "{handle}" {
+			switch {
+			case found == "{handle}" && handleReplaced:
+			case found == "{handle}":
+				add(field, errors.New("{handle} is not replaced in this text; it is only supported in login_banner and login_greeting"))
+			default:
 				add(field, fmt.Errorf("unknown placeholder %s (only {handle} is supported)", found))
 			}
 		}
 	}
 	for i, line := range d.Texts.LoginBanner {
-		checkText(fmt.Sprintf("texts.login_banner[%d]", i), line)
+		checkText(fmt.Sprintf("texts.login_banner[%d]", i), line, true)
 	}
-	checkText("texts.login_greeting", d.Texts.LoginGreeting)
-	checkText("texts.main_menu_title", d.Texts.MainMenuTitle)
-	checkText("texts.goodbye", d.Texts.Goodbye)
+	checkText("texts.login_greeting", d.Texts.LoginGreeting, true)
+	checkText("texts.main_menu_title", d.Texts.MainMenuTitle, false)
+	checkText("texts.goodbye", d.Texts.Goodbye, false)
 
 	defined := make(map[string]bool, len(d.Boards))
 	for _, b := range d.Boards {
