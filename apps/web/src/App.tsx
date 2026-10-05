@@ -4,7 +4,7 @@ import { TerminalCanvas, type TerminalCanvasHandle, type TerminalScreenMode } fr
 import { VirtualModem } from './modem/VirtualModem';
 import type { HostCapabilities } from './modem/HostCapabilities';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
-import { fetchWorldCenters, loadCenters } from './modem/CenterDirectory';
+import { clearLegacyDirectoryStorage, fetchDirectory } from './modem/CenterDirectory';
 import type { RegisteredCenter } from './modem/CenterDirectory';
 import { TerminalCenterDirectory } from './modem/TerminalCenterDirectory';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
@@ -86,7 +86,7 @@ export default function App() {
   const modemRef = useRef<VirtualModem | null>(null);
   const localStationRef = useRef<LocalTestStation | null>(null);
   const directoryRef = useRef<TerminalCenterDirectory | null>(null);
-  const centersRef = useRef<RegisteredCenter[]>(loadCenters());
+  const centersRef = useRef<RegisteredCenter[]>([]);
   const directoryLoadStateRef = useRef<DirectoryLoadState>('loading');
   const openDirectoryWhenReadyRef = useRef(false);
   const screenModeRef = useRef<ScreenMode>('main');
@@ -150,7 +150,8 @@ export default function App() {
     localStationRef.current?.setCommunicationSettings(commSettings);
   }, [commSettings]);
   useEffect(() => {
-    fetchWorldCenters(wsURL).then(centers => {
+    clearLegacyDirectoryStorage();
+    fetchDirectory(wsURL).then(centers => {
       if (!centers.length) throw new Error('empty center directory');
       centersRef.current = centers;
       directoryLoadStateRef.current = 'ready';

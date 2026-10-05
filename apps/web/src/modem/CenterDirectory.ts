@@ -1,126 +1,91 @@
 import type { DialMode } from '../audio/dialLineAudio';
 
+// One entry of the dialing directory. `name` is the display name: the station's
+// name, followed by its software in brackets when it has one.
 export type RegisteredCenter = {
   id: string;
   name: string;
   phone: string;
   dialMode: DialMode;
   maxBaud?: number;
-  builtIn?: boolean;
 };
 
-export const DEFAULT_CENTERS: RegisteredCenter[] = [
-  {
-    id: 'hakata-canal-net',
-    name: 'HAKATA CANAL NET [絵理香K版]',
-    phone: '0920000196',
-    dialMode: 'tone',
-    maxBaud: 14400,
-    builtIn: true,
-  },
-];
-
-export const CENTER_STORAGE_KEY = 'zutto.centers.v1';
-export const WORLD_KEY_STORAGE_KEY = 'zutto.worldKey.v1';
-const PRODUCTION_API_FALLBACK = 'https://zutto-pccom-prototype.onrender.com/api/world/bootstrap';
-const CENTER_FETCH_TIMEOUT_MS = 120_000;
+const PRODUCTION_API_ORIGIN = 'https://zutto-pccom-prototype.onrender.com';
+const DIRECTORY_PATH = '/api/directory';
+// A first visit may wake the server (a free Render instance sleeps).
+const DIRECTORY_FETCH_TIMEOUT_MS = 120_000;
+// Keys of the browser-local directory that no longer exists.
+const LEGACY_STORAGE_KEYS = ['zutto.centers.v1', 'zutto.worldKey.v1'];
 
 function digitsOnly(value: unknown): string {
   return typeof value === 'string' ? value.replace(/\D/g, '').slice(0, 20) : '';
 }
 
-function normalizeCenter(value: Partial<RegisteredCenter>, index: number): RegisteredCenter | null {
-  const phone = digitsOnly(value.phone);
+function normalizeCenter(value: unknown, index: number): RegisteredCenter | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  const phone = digitsOnly(raw.phone);
   if (!phone) return null;
-  const name = typeof value.name === 'string' && value.name.trim()
-    ? value.name.trim().slice(0, 64)
-    : `CENTER ${index + 1}`;
-  const dialMode: DialMode = value.dialMode === 'pulse' ? 'pulse' : 'tone';
-  const id = typeof value.id === 'string' && value.id.trim()
-    ? value.id.trim()
-    : `center-${phone}-${index}`;
-  const maxBaud = typeof value.maxBaud === 'number' ? value.maxBaud : undefined;
-  return { id, name, phone, dialMode, maxBaud, builtIn: value.builtIn === true };
+  const baseName = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : `CENTER ${index + 1}`;
+  const software = typeof raw.software === 'string' ? raw.software.trim() : '';
+  const name = (software ? `${baseName} [${software}]` : baseName).slice(0, 64);
+  const dialMode: DialMode = raw.dialMode === 'pulse' ? 'pulse' : 'tone';
+  const id = typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : `center-${phone}`;
+  const maxBaud = typeof raw.maxBaud === 'number' && Number.isFinite(raw.maxBaud) ? raw.maxBaud : undefined;
+  return { id, name, phone, dialMode, maxBaud };
 }
 
-export function getOrCreateWorldKey(): string {
-  if (typeof window === 'undefined') return '';
-  try {
-    const existing = window.localStorage.getItem(WORLD_KEY_STORAGE_KEY);
-    if (existing && /^[0-9a-f]{32}$/.test(existing)) return existing;
-  } catch {
-    // Continue with an in-memory key for this page load if storage is blocked.
-  }
-
-  const bytes = new Uint8Array(16);
-  window.crypto.getRandomValues(bytes);
-  const key = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-  try { window.localStorage.setItem(WORLD_KEY_STORAGE_KEY, key); } catch { /* optional */ }
-  return key;
+// parseDirectory turns the server's response into directory entries. Entries
+// without a phone number are dropped, and the first entry wins when a number
+// appears twice.
+export function parseDirectory(payload: unknown): RegisteredCenter[] {
+  const centers = (payload as { centers?: unknown } | null)?.centers;
+  if (!Array.isArray(centers)) throw new Error('center directory: invalid response');
+  const seen = new Set<string>();
+  const out: RegisteredCenter[] = [];
+  centers.forEach((value, index) => {
+    const center = normalizeCenter(value, index);
+    if (!center || seen.has(center.phone)) return;
+    seen.add(center.phone);
+    out.push(center);
+  });
+  return out;
 }
 
-export function loadCenters(): RegisteredCenter[] {
-  const defaults = DEFAULT_CENTERS.map(center => ({ ...center }));
-  if (typeof window === 'undefined') return defaults;
-  try {
-    const raw = window.localStorage.getItem(CENTER_STORAGE_KEY);
-    if (!raw) return defaults;
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return defaults;
-    const custom = parsed
-      .map((value, index) => normalizeCenter(value as Partial<RegisteredCenter>, index))
-      .filter((value): value is RegisteredCenter => value !== null && !value.builtIn);
-    const seen = new Set(defaults.map(center => center.phone));
-    return defaults.concat(custom.filter(center => {
-      if (seen.has(center.phone)) return false;
-      seen.add(center.phone);
-      return true;
-    }));
-  } catch {
-    return defaults;
-  }
-}
-
-export function saveCenters(centers: RegisteredCenter[]): void {
-  if (typeof window === 'undefined') return;
-  const custom = centers.filter(center => !center.builtIn);
-  try {
-    window.localStorage.setItem(CENTER_STORAGE_KEY, JSON.stringify(custom));
-  } catch {
-    // Persistence is optional.
-  }
-}
-
-export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]> {
-  const worldKey = getOrCreateWorldKey();
-  let endpoint = isLocalPage() ? '/api/world/bootstrap' : PRODUCTION_API_FALLBACK;
+// directoryEndpoint is the URL of the directory API: on the origin of the
+// WebSocket server when there is one, otherwise on this page (local
+// development) or on the production server.
+export function directoryEndpoint(wsURL: string, pageURL: string, localPage: boolean): string {
   if (wsURL) {
-    const url = new URL(wsURL, window.location.href);
+    const url = new URL(wsURL, pageURL);
     url.protocol = url.protocol === 'wss:' ? 'https:' : 'http:';
-    url.pathname = '/api/world/bootstrap';
+    url.pathname = DIRECTORY_PATH;
     url.search = '';
-    endpoint = url.toString();
+    return url.toString();
   }
-  const url = new URL(endpoint, window.location.href);
-  url.searchParams.set('key', worldKey);
+  return localPage ? DIRECTORY_PATH : `${PRODUCTION_API_ORIGIN}${DIRECTORY_PATH}`;
+}
 
-  // A first visit may wake Render, create the world, call the naming model and
-  // commit 100 hosts. Later visits to the same browser key should be DB reads.
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), CENTER_FETCH_TIMEOUT_MS);
+// clearLegacyDirectoryStorage removes the keys of the old browser-local
+// directory. Cleanup is optional: blocked storage must not break the directory.
+export function clearLegacyDirectoryStorage(storage?: Pick<Storage, 'removeItem'>): void {
   try {
-    const response = await fetch(url.toString(), { signal: controller.signal });
-    if (!response.ok) {
-      let detail = '';
-      try { detail = ((await response.json()) as { error?: string }).error ?? ''; } catch { /* ignore */ }
-      throw new Error(detail || `center directory: ${response.status}`);
-    }
-    const payload = await response.json() as { centers?: Partial<RegisteredCenter>[] };
-    if (!Array.isArray(payload.centers)) throw new Error('center directory: invalid response');
-    const generated = payload.centers
-      .map((value, index) => normalizeCenter({ ...value, builtIn: true }, index))
-      .filter((value): value is RegisteredCenter => value !== null);
-    return generated;
+    const target = storage ?? (typeof window === 'undefined' ? undefined : window.localStorage);
+    if (!target) return;
+    for (const key of LEGACY_STORAGE_KEYS) target.removeItem(key);
+  } catch {
+    // Ignore.
+  }
+}
+
+export async function fetchDirectory(wsURL = ''): Promise<RegisteredCenter[]> {
+  const endpoint = directoryEndpoint(wsURL, window.location.href, isLocalPage());
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), DIRECTORY_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(new URL(endpoint, window.location.href).toString(), { signal: controller.signal });
+    if (!response.ok) throw new Error(`center directory: ${response.status}`);
+    return parseDirectory(await response.json());
   } finally {
     window.clearTimeout(timeout);
   }

@@ -24,3 +24,19 @@ PR to be deployed.
 
 Only the server-side Part 1 changes are included. `/api/world/bootstrap` and
 `/api/centers` were left unchanged; `/api/directory` was added.
+
+## Part 2（Web）
+
+| Command | Result | Notes |
+|---|---|---|
+| `npm --prefix apps/web test` | Not run | Pending implementation validation |
+| `npm --prefix apps/web run build` | Not run | Pending implementation validation |
+| grep（旧コードの残り） | Not run | Pending implementation validation |
+
+The Part 1 protocol documentation already describes the Web client's use of
+`/api/directory`.
+
+## 手動確認
+
+- 電話帳に HAKATA が表示され、発信できる: 未実施（ブラウザ確認が必要）
+- `/api/world/bootstrap` が呼ばれない: 未実施（ブラウザ確認が必要）
