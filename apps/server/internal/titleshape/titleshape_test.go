@@ -3,7 +3,10 @@ package titleshape
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -118,5 +121,70 @@ func TestBaselineRanges(t *testing.T) {
 	}
 	if d := Measure(b["3"], nil).ExactDuplicateTitles; d != 1 {
 		t.Errorf("board 3 exact duplicates = %d, want 1", d)
+	}
+}
+
+func TestPickVariantPrefersDissimilar(t *testing.T) {
+	covered := []string{"マリオカート貸せます", "ヨッシー貸せます"}
+	variants := []string{"ゼルダ貸せます", "庭の話から始めます", "マリオカート対戦しませんか"}
+	if got := PickVariant("s", variants, covered); got != 1 {
+		t.Fatalf("PickVariant = %d, want 1", got)
+	}
+}
+
+func TestPickVariantDeterministicAndSingle(t *testing.T) {
+	v := []string{"あ1", "い2", "う3"}
+	a := PickVariant("seed", v, nil)
+	if a != PickVariant("seed", v, nil) {
+		t.Fatal("not deterministic")
+	}
+	varies := false
+	for i := 0; i < 30 && !varies; i++ {
+		varies = PickVariant(fmt.Sprint("x", i), v, nil) != a
+	}
+	if !varies {
+		t.Fatal("tie-break never varies with seed")
+	}
+	if PickVariant("s", []string{"だけ"}, []string{"だけ"}) != 0 {
+		t.Fatal("single variant must be picked")
+	}
+	if PickVariant("s", nil, nil) != -1 {
+		t.Fatal("no variants must return -1")
+	}
+}
+
+func TestShuffleSeeded(t *testing.T) {
+	in := []string{"a", "b", "c", "d", "e", "f"}
+	a := ShuffleSeeded("x", in)
+	if !reflect.DeepEqual(a, ShuffleSeeded("x", []string{"f", "e", "d", "c", "b", "a"})) {
+		t.Fatal("order must not depend on input order")
+	}
+	if reflect.DeepEqual(a, ShuffleSeeded("y", in)) {
+		t.Fatal("different seeds should reorder")
+	}
+	if in[0] != "a" {
+		t.Fatal("input mutated")
+	}
+}
+
+func TestFormFacts(t *testing.T) {
+	biased := []string{"天神で集合", "天神の店", "天神の駅", "庭の花", "茶の話", "本の話", "旅の話", "夢の話", "山登り", "川遊び"}
+	facts := FormFacts(biased)
+	if len(facts) == 0 || !strings.Contains(facts[0], "「天神」") || !strings.Contains(facts[0], "3件") {
+		t.Fatalf("facts = %v", facts)
+	}
+	for _, f := range facts {
+		for _, bad := range []string{"しない", "禁止", "避け", "べき", "ください"} {
+			if strings.Contains(f, bad) {
+				t.Errorf("fact %q is an instruction", f)
+			}
+		}
+	}
+	varied := []string{"あいう", "えおか", "きくけ", "こさし", "すせそ", "たちつ", "てとな", "にぬね", "のはひ"}
+	if f := FormFacts(varied); len(f) != 0 {
+		t.Fatalf("no bias must yield no facts: %v", f)
+	}
+	if f := FormFacts(biased[:4]); len(f) != 0 {
+		t.Fatalf("too few titles: %v", f)
 	}
 }

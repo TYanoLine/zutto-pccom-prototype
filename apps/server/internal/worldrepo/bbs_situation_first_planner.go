@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/llm"
+	"zutto-pccom/apps/server/internal/titleshape"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
 )
@@ -334,45 +336,19 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		})
 	}
 
-	titleByEvent := make(map[string]string, len(titleSeeds))
-	recentSubjects := append([]string(nil), rootSubjects(req.RecentPosts)...)
-	for chunkStart := 0; chunkStart < len(titleSeeds); chunkStart += productionTitleChunkSize {
-		chunkEnd := chunkStart + productionTitleChunkSize
-		if chunkEnd > len(titleSeeds) {
-			chunkEnd = len(titleSeeds)
+	titleByEvent, diag, err := p.wordRootTitles(ctx, titlePlanner, req, worldDate, titleSeeds, rootSubjects(req.RecentPosts))
+	if err != nil {
+		return nil, err
+	}
+	if p.repo.shouldLogGeneratedContent(req.Host) {
+		items := make([]titleshape.Item, 0, len(seeds))
+		for _, seed := range seeds {
+			items = append(items, titleshape.Item{Subject: titleByEvent[seed.eventID], Summary: states[seed.eventID].summary})
 		}
-		titleDraft, err := titlePlanner.GenerateBBSSituationTitles(ctx, llm.BBSSituationTitleRequest{
-			HostName:       req.Host.Name,
-			HostRegion:     req.Host.Region,
-			BoardID:        req.Board.ID,
-			BoardName:      req.Board.Name,
-			BoardScope:     req.Board.SemanticScope,
-			WorldDate:      worldDate,
-			RecentSubjects: append([]string(nil), recentSubjects...),
-			Articles:       titleSeeds[chunkStart:chunkEnd],
-		})
-		if err != nil {
-			return nil, fmt.Errorf("word BBS Situation titles chunk %d..%d: %w", chunkStart, chunkEnd, err)
-		}
-		storeDevelopmentPlanningUsage(p.repo, req.Host.ID, "bbs-situation-title", GenerationUsage{
-			InputTokens: titleDraft.Usage.InputTokens, CachedInputTokens: titleDraft.Usage.CachedInputTokens,
-			OutputTokens: titleDraft.Usage.OutputTokens, ReasoningTokens: titleDraft.Usage.ReasoningTokens,
-			TotalTokens: titleDraft.Usage.TotalTokens, Model: titleDraft.Usage.Model,
-		})
-		if len(titleDraft.Titles) != chunkEnd-chunkStart {
-			return nil, fmt.Errorf("title chunk %d..%d returned %d titles, want %d", chunkStart, chunkEnd, len(titleDraft.Titles), chunkEnd-chunkStart)
-		}
-		for _, title := range titleDraft.Titles {
-			eventID := strings.TrimSpace(title.EventID)
-			subject := strings.TrimSpace(title.Subject)
-			if eventID == "" || subject == "" {
-				return nil, fmt.Errorf("title chunk %d..%d returned empty event or subject", chunkStart, chunkEnd)
-			}
-			if _, exists := titleByEvent[eventID]; exists {
-				return nil, fmt.Errorf("title planner duplicated event %s", eventID)
-			}
-			titleByEvent[eventID] = subject
-			recentSubjects = append(recentSubjects, subject)
+		diag.Report = titleshape.Measure(items, nil)
+		diag.Host, diag.Board = req.Host.ID, req.Board.ID
+		if encoded, err := json.Marshal(diag); err == nil {
+			log.Printf("BBS title shape: %s", encoded)
 		}
 	}
 

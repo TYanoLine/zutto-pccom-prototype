@@ -89,6 +89,7 @@ func main() {
 	runtimeStore.SetDebugLogGeneratedContent(cfg.DebugLogGeneratedContent)
 	runtimeStore.SetGenerationTraceEnabled(cfg.DebugGenerationTrace)
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
+	runtimeStore.SetTitleVariants(cfg.GenerationTitleVariants)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 
