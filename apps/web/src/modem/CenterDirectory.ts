@@ -16,6 +16,7 @@ const DIRECTORY_PATH = '/api/directory';
 // The stations the world generated for this browser: slow on the first visit (the
 // naming model runs and the hosts are stored), and not callable yet.
 const WORLD_CENTERS_PATH = '/api/world/bootstrap';
+const WORLD_RESET_HOSTS_PATH = '/api/world/reset-hosts';
 const WORLD_KEY_STORAGE_KEY = 'zutto.worldKey.v1';
 // A first visit may wake the server (a free Render instance sleeps), and the
 // first world visit also waits for the naming model.
@@ -99,6 +100,10 @@ export function worldCentersEndpoint(wsURL: string, pageURL: string, localPage: 
   return apiEndpoint(WORLD_CENTERS_PATH, wsURL, pageURL, localPage);
 }
 
+export function worldResetHostsEndpoint(wsURL: string, pageURL: string, localPage: boolean): string {
+  return apiEndpoint(WORLD_RESET_HOSTS_PATH, wsURL, pageURL, localPage);
+}
+
 // clearLegacyDirectoryStorage removes the keys of the old browser-local custom
 // directory. Cleanup is optional: blocked storage must not break the directory.
 export function clearLegacyDirectoryStorage(storage?: Pick<Storage, 'removeItem'>): void {
@@ -164,6 +169,25 @@ export async function fetchWorldCenters(wsURL = ''): Promise<RegisteredCenter[]>
   const url = new URL(endpoint, window.location.href);
   url.searchParams.set('key', getOrCreateWorldKey());
   return fetchCenters(url);
+}
+
+export async function resetWorldHosts(wsURL = ''): Promise<RegisteredCenter[]> {
+  const endpoint = worldResetHostsEndpoint(wsURL, window.location.href, isLocalPage());
+  const url = new URL(endpoint, window.location.href);
+  url.searchParams.set('key', getOrCreateWorldKey());
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url.toString(), { method: 'POST', signal: controller.signal });
+    if (!response.ok) {
+      let detail = '';
+      try { detail = ((await response.json()) as { error?: string }).error ?? ''; } catch { /* ignore */ }
+      throw new Error(detail || `reset hosts: ${response.status}`);
+    }
+    return parseDirectory(await response.json());
+  } finally {
+    window.clearTimeout(timeout);
+  }
 }
 
 function isLocalPage(): boolean {
