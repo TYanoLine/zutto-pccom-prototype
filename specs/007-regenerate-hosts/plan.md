@@ -34,7 +34,7 @@ Client Request ──▶ r.Context() (切断されてもキャンセルされな
 Response 200 OK (クライアント接続中なら返信、切断済なら破棄)
 
 【Web側: 自動再試行と 1r フロー】
-メインメニュー ──[ 1r ]──▶ 再生成画面 (showRegeneratingHosts)
+メインメニュー ──[ 1r ]──▶ 読み込み画面 (showDirectoryLoading)
                              │
                              ├─▶ POST /api/world/reset-hosts?key=...
                              │     │
@@ -166,11 +166,11 @@ fetchDirectory(wsURL).then(presetCenters => {
 
 #### (c) メインメニュー `1r` コマンド
 - `submitInput()` で `command.toLowerCase() === '1r'` を処理：
-  - 画面を `showRegeneratingHosts()` に切り替え。
+  - 初回アクセス時と同様に画面を `showDirectoryLoading()` に切り替え。
   - `resetWorldHosts(wsURL)` を実行。
   - 完了時:
-    - 成功: `centersRef.current` を更新、局数更新、画面が再生成画面ならセンター・リスト（電話帳）を開く。
-    - 失敗: 画面に「ホスト情報の再生成に失敗しました。\r\nESCキーでメイン・メニューに戻ってください。」を表示。
+    - 成功: `centersRef.current` を更新、局数更新、画面が読み込み画面ならセンター・リスト（電話帳）を開く。
+    - 失敗: 画面が読み込み画面なら、初回アクセス時と同様に `showDirectoryError()` を表示。
 
 ## 2 つの PR に分ける（デプロイ順序）
 

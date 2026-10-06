@@ -283,23 +283,12 @@
   - 失敗時: `ほかのセンターの読み込みに失敗しました（再試行中...）`
   - 成功時: notice を空文字にしてクリアし、`mergeCenters` で一覧を更新して `directoryRef.current?.refresh()` を呼ぶ。
 
-- [ ] **T015** メインメニューでの `1r` 入力と再生成画面を実装する
+- [ ] **T015** メインメニューでの `1r` 入力と再生成処理を実装する
 
-  1. `showRegeneratingHosts()` 関数を追加：
-     ```typescript
-     function showRegeneratingHosts() {
-       screenModeRef.current = 'regenerating';
-       terminal.clear();
-       terminal.write(`\x1b[37;44m ずっとパソコン通信　ホスト情報再生成                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
-       terminal.write('                     \x1b[30;46m　ホスト情報の再生成　\x1b[0m\r\n\r\n');
-       terminal.write(' 生成ホスト情報を再生成しています。\r\n');
-       terminal.write(' しばらくお待ちください...\r\n\r\n');
-       terminal.write(' ※ 完了すると、自動的にセンター・リストを表示します。\r\n');
-       terminal.write('    ESCキーでメイン・メニューに戻ることができます（再生成は継続します）。');
-     }
-     ```
+  1. `startHostRegeneration()` で初回アクセス時と同様に `showDirectoryLoading()` を呼び出し。
   2. `submitInput()` で `command.toLowerCase() === '1r'` の分岐を追加し、再生成処理を実行する。
-  3. `keyDown` で ESC キー入力時、再生成画面であればメインメニューへ戻れるようにする。
+  3. 完了時はセンター・リストを開き、失敗時は初回アクセス時と同様に `showDirectoryError()` を表示する。
+  4. `keyDown` で ESC キー入力時、メインメニューへ戻れるようにする。
 
 - [ ] **T016** ビルドとテストの確認
 

@@ -277,26 +277,18 @@ export default function App() {
     terminal.write(' センター情報をディスクから読み込んでいます。\r\n');
     terminal.write(' しばらくお待ちください...\r\n\r\n');
     terminal.write(' ※ 読み込みが終わると、自動的にセンター・リストを表示します。');
+    resetInput();
   }
   function showDirectoryError() {
     terminal.clear();
     terminal.write(`\x1b[37;44m ずっとパソコン通信　センター情報読み込み                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
     terminal.write('\r\n センター情報を読み込むことができませんでした。\r\n');
     terminal.write(' ESCキーでメイン・メニューに戻ってください。');
-  }
-  function showRegeneratingHosts() {
-    screenModeRef.current = 'regenerating';
-    terminal.clear();
-    terminal.write(`\x1b[37;44m ずっとパソコン通信　ホスト情報再生成                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
-    terminal.write('                     \x1b[30;46m　ホスト情報の再生成　\x1b[0m\r\n\r\n');
-    terminal.write(' 生成ホスト情報を再生成しています。\r\n');
-    terminal.write(' しばらくお待ちください...\r\n\r\n');
-    terminal.write(' ※ 完了すると、自動的にセンター・リストを表示します。\r\n');
-    terminal.write('    ESCキーでメイン・メニューに戻ることができます（再生成は継続します）。');
     resetInput();
   }
   function startHostRegeneration() {
-    showRegeneratingHosts();
+    screenModeRef.current = 'regenerating';
+    showDirectoryLoading();
     resetWorldHosts(wsURL).then(generated => {
       const merged = mergeCenters(presetCentersRef.current, generated);
       centersRef.current = merged;
@@ -304,6 +296,7 @@ export default function App() {
       setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
       directoryRef.current?.setNotice('');
       if (screenModeRef.current === 'regenerating') {
+        screenModeRef.current = 'main';
         directoryRef.current?.show();
         setDirectoryOpen(true);
       } else {
@@ -311,10 +304,8 @@ export default function App() {
       }
     }).catch(() => {
       if (screenModeRef.current === 'regenerating') {
-        terminal.clear();
-        terminal.write(`\x1b[37;44m ずっとパソコン通信　ホスト情報再生成                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
-        terminal.write('\r\n ホスト情報の再生成に失敗しました。\r\n');
-        terminal.write(' ESCキーでメイン・メニューに戻ってください。');
+        screenModeRef.current = 'main';
+        showDirectoryError();
       }
     });
   }
