@@ -1,8 +1,8 @@
 :root { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif; background: #080808; color: #e4e1db; }
 * { box-sizing: border-box; }
-html, body, #root { width: 100%; min-width: 320px; height: 100%; margin: 0; }
-body { min-height: 100vh; overflow: hidden; background: #080808; }
-.shell { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; min-height: 0; margin: 0; padding: 0; overflow: hidden; background: #090909; }
+html, body, #root { width: 100%; min-width: 320px; height: 100%; margin: 0; touch-action: manipulation; }
+body { min-height: 100vh; overflow: hidden; background: #080808; touch-action: manipulation; }
+.shell { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; min-height: 0; margin: 0; padding: 0; overflow: hidden; background: #090909; touch-action: manipulation; }
 .titlebar, .statusbar { display: none; }
 .desktop-topbar { position: relative; z-index: 8; display: flex; flex: 0 0 60px; min-width: 0; align-items: center; gap: 18px; padding: 0 24px 0 32px; border-bottom: 1px solid #363636; color: #e4e1db; background: #111; }
 .desktop-host-name { flex: 0 1 230px; min-width: 130px; overflow: hidden; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
@@ -64,15 +64,15 @@ body { min-height: 100vh; overflow: hidden; background: #080808; }
   .mobile-statusbar__activity span { animation: none !important; }
   .mobile-statusbar__activity span { opacity: 0.72; transform: none; }
 }
-.screen-wrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; align-items: stretch; justify-content: stretch; padding: 12px 24px; background: #090909; }
+.screen-wrap { position: relative; display: flex; flex: 1 1 auto; min-height: 0; min-width: 0; align-items: stretch; justify-content: stretch; padding: 12px 24px; background: #090909; touch-action: manipulation; }
 .terminal-display { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; max-width: none; flex-direction: column; }
 .terminal-viewport-shell { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; }
 .terminal-viewport { position: relative; display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; background: #000; }
-.terminal-canvas { display: block; width: 100%; height: auto; max-width: 100%; max-height: 100%; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: pinch-zoom; }
+.terminal-canvas { display: block; width: 100%; height: auto; max-width: 100%; max-height: 100%; image-rendering: auto; background: #000; box-shadow: 0 0 0 1px #222; touch-action: manipulation; }
 .terminal-display--rows-fixed25 .terminal-viewport { align-items: center; }
 .terminal-display--rows-fixed25 .terminal-canvas { width: 100%; height: auto; max-width: 100%; max-height: 100%; }
 .terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu { display: none; }
-.terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: pinch-zoom; }
+.terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .terminal-input-proxy::selection { color: transparent; background: transparent; }
 .desktop-statusbar { display: flex; flex: 0 0 44px; min-width: 0; align-items: center; justify-content: flex-end; padding: 0 32px; border-top: 1px solid #383838; color: #d7d4cf; background: #111; font: 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .desktop-statusbar__separator { flex: 0 0 1px; height: 24px; margin-right: 20px; background: #555; }
@@ -92,8 +92,8 @@ code { color: #ddd; }
 .audition-btn { font-family: inherit; font-size: 12px; padding: 5px 10px; background: #2a2a2a; color: #bbb; border: 1px solid #555; cursor: pointer; }
 .audition-meta { margin-top: 7px; padding: 4px 7px; width: fit-content; max-width: 100%; color: #8f8; background: #101810; border: 1px solid #294229; font-size: 11px; }
 @media (max-width: 680px), (pointer: coarse) {
-  body { overflow: hidden; background: #000; }
-  .shell { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; }
+  body { overflow: hidden; background: #000; touch-action: manipulation; }
+  .shell { display: flex; flex-direction: column; width: 100%; height: 100dvh; min-height: 100svh; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); overflow: hidden; background: #000; touch-action: manipulation; }
   .desktop-topbar, .desktop-statusbar, .titlebar, .statusbar, .quick-help, .dev-shortcuts { display: none !important; }
   .mobile-statusbar { display: flex; flex: 0 0 24px; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 0 6px; border-bottom: 1px solid #354535; font: 11px/24px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #cfc; background: #111811; white-space: nowrap; }
   .mobile-statusbar__connection { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; }
@@ -228,12 +228,12 @@ code { color: #ddd; }
     font-weight: 700;
     letter-spacing: -0.02em;
   }
-  .screen-wrap { display: block; flex: 1 1 auto; min-height: 0; width: 100%; height: auto; padding: 0; border: 0; background: #000; }
-  .terminal-display, .terminal-viewport-shell, .terminal-viewport { width: 100%; height: 100%; max-width: none; }
-  .terminal-canvas { max-height: none; }
+  .screen-wrap { display: block; flex: 1 1 auto; min-height: 0; width: 100%; height: auto; padding: 0; border: 0; background: #000; touch-action: manipulation; }
+  .terminal-display, .terminal-viewport-shell, .terminal-viewport { width: 100%; height: 100%; max-width: none; touch-action: manipulation; }
+  .terminal-canvas { max-height: none; touch-action: manipulation; }
   .terminal-display--fit .terminal-canvas { width: 92%; height: auto; max-width: none; margin-inline: auto; }
   .terminal-display--readable .terminal-canvas { width: max(100%, 640px); height: auto; max-width: none; }
-  .terminal-input-proxy { inset: 0; width: 100%; height: 100%; min-width: 0; min-height: 0; pointer-events: auto; opacity: 0; }
+  .terminal-input-proxy { inset: 0; width: 100%; height: 100%; min-width: 0; min-height: 0; pointer-events: auto; opacity: 0; touch-action: manipulation; }
   .terminal-function-toggle { display: block; position: absolute; top: 8px; right: 8px; z-index: 6; min-width: 48px; min-height: 44px; padding: 6px 9px; border: 1px solid #666; border-radius: 0; font: 700 12px ui-monospace, monospace; color: #ddd; background: rgba(32, 32, 32, 0.92); touch-action: manipulation; }
   .terminal-function-toggle[aria-expanded="true"] { color: #cfc; background: #163616; border-color: #7a7; }
   .terminal-function-menu { position: absolute; top: 58px; right: 8px; z-index: 7; width: min(260px, calc(100% - 16px)); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px; border: 1px solid #666; background: rgba(16, 16, 16, 0.96); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55); }

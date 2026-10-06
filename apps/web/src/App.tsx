@@ -246,6 +246,22 @@ export default function App() {
   }, [clock, tariff, terminal]);
   useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
   useEffect(() => { const id = window.setInterval(() => setWorldNow(clock.now()), 1000); return () => window.clearInterval(id); }, [clock]);
+  useEffect(() => {
+    const resetScroll = () => {
+      if (typeof window !== 'undefined' && (window.scrollY !== 0 || window.scrollX !== 0)) {
+        window.scrollTo(0, 0);
+      }
+    };
+    resetScroll();
+    window.addEventListener('scroll', resetScroll, { passive: true });
+    window.addEventListener('resize', resetScroll, { passive: true });
+    window.addEventListener('orientationchange', resetScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', resetScroll);
+      window.removeEventListener('resize', resetScroll);
+      window.removeEventListener('orientationchange', resetScroll);
+    };
+  }, []);
 
   function resetInput() { setInput(''); echoedInputRef.current = ''; }
   function showMainMenu() {
