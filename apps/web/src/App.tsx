@@ -291,7 +291,7 @@ export default function App() {
     terminal.write('                     \x1b[30;46m　ホスト情報の再生成　\x1b[0m\r\n\r\n');
     terminal.write(' 生成ホスト情報を再生成しています。\r\n');
     terminal.write(' しばらくお待ちください...\r\n\r\n');
-    terminal.write(' ※ 完了すると、自動的にメイン・メニューへ戻ります。\r\n');
+    terminal.write(' ※ 完了すると、自動的にセンター・リストを表示します。\r\n');
     terminal.write('    ESCキーでメイン・メニューに戻ることができます（再生成は継続します）。');
     resetInput();
   }
@@ -303,9 +303,11 @@ export default function App() {
       setDirectoryCount(merged.length);
       setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
       directoryRef.current?.setNotice('');
-      directoryRef.current?.refresh();
       if (screenModeRef.current === 'regenerating') {
-        showMainMenu();
+        directoryRef.current?.show();
+        setDirectoryOpen(true);
+      } else {
+        directoryRef.current?.refresh();
       }
     }).catch(() => {
       if (screenModeRef.current === 'regenerating') {
