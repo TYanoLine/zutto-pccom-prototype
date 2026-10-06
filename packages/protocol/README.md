@@ -31,6 +31,26 @@ Only hosts with `listed: true` are included. A host with `listed: false` is
 omitted from the directory but can still be reached by dialing its number
 directly.
 
+## World host regeneration
+
+`POST /api/world/reset-hosts?key=<worldKey>` regenerates the generated hosts of a
+world while preserving its row, seed, and phone numbers:
+
+```http
+POST /api/world/reset-hosts?key=0123456789abcdef0123456789abcdef
+```
+
+Response:
+
+```json
+{"worldId":"...","centers":[{"id":"world-001","name":"...","phone":"...","dialMode":"tone","maxBaud":14400,...}],"source":"azure_openai","model":"..."}
+```
+
+The endpoint requires a valid 32-hex character world key in the `key` query
+parameter. It advances the generation counter and replaces the generated hosts in
+a single transaction.
+
+
 `capabilities` is sent with every successful `dial_result` (`connect`) and `resume_result`
 (`ok`). It lists the optional, host-specific features the client may offer for this call; every
 key is `false` unless the host definition turns it on. A client must treat a missing

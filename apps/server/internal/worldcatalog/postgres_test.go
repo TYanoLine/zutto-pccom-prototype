@@ -24,3 +24,22 @@ func TestWorldKeyValidation(t *testing.T) {
 		if ValidWorldKey(key) { t.Fatalf("invalid world key accepted: %q", key) }
 	}
 }
+
+func TestMakeCenterMaintainsPhoneAcrossGenerations(t *testing.T) {
+	seed := int64(987654321)
+	for index := 0; index < 10; index++ {
+		c0 := makeCenter("GEN0", seed, index, 0)
+		c1 := makeCenter("GEN1", seed, index, 1)
+		c2 := makeCenter("GEN2", seed, index, 2)
+		if c0.Phone != c1.Phone || c1.Phone != c2.Phone {
+			t.Fatalf("index %d phone changed across generations: %s, %s, %s", index, c0.Phone, c1.Phone, c2.Phone)
+		}
+		if c0.ID != c1.ID || c1.ID != c2.ID {
+			t.Fatalf("index %d id changed across generations: %s, %s, %s", index, c0.ID, c1.ID, c2.ID)
+		}
+		if c0.Name == c1.Name || c1.Name == c2.Name {
+			t.Fatalf("index %d name unexpectedly identical: %s", index, c0.Name)
+		}
+	}
+}
+
