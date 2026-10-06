@@ -236,6 +236,77 @@ func (s *Store) ResetHost(ctx context.Context, worldKey, directoryID string, gen
 	return center, nil
 }
 
+// ResetHosts regenerates all directory entries for a world while preserving
+// the world, its seed, and the phone numbers. A fresh generation number gives
+// the skeletons new entropy.
+func (s *Store) ResetHosts(ctx context.Context, worldKey string, count int, generateNames func(context.Context, int) ([]string, error)) (Catalog, error) {
+	if !ValidWorldKey(worldKey) {
+		return Catalog{}, errors.New("invalid world key")
+	}
+	if count <= 0 {
+		return Catalog{}, errors.New("center count must be positive")
+	}
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return Catalog{}, fmt.Errorf("acquire postgres connection: %w", err)
+	}
+	defer conn.Release()
+	if err := lockWorld(ctx, conn, worldKey); err != nil {
+		return Catalog{}, err
+	}
+	defer unlockWorld(conn, worldKey)
+
+	var worldID string
+	var seed int64
+	err = conn.QueryRow(ctx, `SELECT id::text,seed FROM worlds WHERE world_key=$1`, worldKey).Scan(&worldID, &seed)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Catalog{}, errors.New("world not found")
+	}
+	if err != nil {
+		return Catalog{}, fmt.Errorf("load world: %w", err)
+	}
+
+	var currentGen int
+	err = conn.QueryRow(ctx, `SELECT COALESCE(MAX(generation), 0) FROM hosts WHERE world_id=$1::uuid`, worldID).Scan(&currentGen)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return Catalog{}, fmt.Errorf("query max generation: %w", err)
+	}
+	newGen := currentGen + 1
+
+	names, err := generateNames(ctx, count)
+	if err != nil {
+		return Catalog{}, err
+	}
+	if len(names) != count {
+		return Catalog{}, fmt.Errorf("expected %d generated names, got %d", count, len(names))
+	}
+
+	centers := make([]Center, count)
+	for i, name := range names {
+		centers[i] = makeCenter(name, seed, i, newGen)
+	}
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return Catalog{}, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+
+	if _, err := tx.Exec(ctx, `DELETE FROM hosts WHERE world_id=$1::uuid`, worldID); err != nil {
+		return Catalog{}, fmt.Errorf("delete old hosts: %w", err)
+	}
+	for i, center := range centers {
+		if err := insertCenter(ctx, tx, worldID, i, newGen, center); err != nil {
+			return Catalog{}, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Catalog{}, fmt.Errorf("commit hosts: %w", err)
+	}
+
+	return Catalog{WorldID: worldID, Seed: seed, Centers: centers, Created: false}, nil
+}
+
 func lockWorld(ctx context.Context, conn *pgxpool.Conn, key string) error {
 	_, err := conn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1,0))`, key)
 	if err != nil {

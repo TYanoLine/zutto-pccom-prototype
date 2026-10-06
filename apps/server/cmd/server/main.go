@@ -115,7 +115,7 @@ func main() {
 			http.Error(w, `{"error":"invalid world key"}`, http.StatusBadRequest)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 75*time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 75*time.Second)
 		defer cancel()
 		catalog, err := catalogStore.GetOrCreate(ctx, worldKey, generatedCenterCount, generateNames)
 		if err != nil {
@@ -130,6 +130,40 @@ func main() {
 			}
 			return "postgres"
 		}(), "model": cfg.AzureOpenAIModel})
+	}
+
+	resetHosts := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST only"})
+			return
+		}
+		if catalogStore == nil {
+			http.Error(w, `{"error":"persistent world database is not configured"}`, http.StatusServiceUnavailable)
+			return
+		}
+		worldKey := r.URL.Query().Get("key")
+		if !worldcatalog.ValidWorldKey(worldKey) {
+			http.Error(w, `{"error":"invalid world key"}`, http.StatusBadRequest)
+			return
+		}
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 75*time.Second)
+		defer cancel()
+		catalog, err := catalogStore.ResetHosts(ctx, worldKey, generatedCenterCount, generateNames)
+		if err != nil {
+			log.Printf("world reset hosts failed: %v", err)
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"worldId": catalog.WorldID,
+			"centers": catalog.Centers,
+			"source":  "azure_openai",
+			"model":   cfg.AzureOpenAIModel,
+		})
 	}
 
 	adminGuard := func(w http.ResponseWriter, _ *http.Request) bool {
@@ -462,6 +496,7 @@ func main() {
 	mux.Handle("/ws", wsserver.Handler{Network: network, Store: runtimeStore, Sessions: sessions})
 	mux.HandleFunc("/api/world/bootstrap", bootstrapWorld)
 	mux.HandleFunc("/api/centers", bootstrapWorld)
+	mux.HandleFunc("/api/world/reset-hosts", resetHosts)
 	mux.HandleFunc("/api/directory", newDirectoryHandler(runtimeStore))
 	mux.HandleFunc("/api/debug/bbs/reset", resetBBSArticles)
 	mux.HandleFunc("/api/debug/bbs/sample", bbsSample)
