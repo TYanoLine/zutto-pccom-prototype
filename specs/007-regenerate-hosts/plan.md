@@ -40,7 +40,7 @@ Response 200 OK (クライアント接続中なら返信、切断済なら破棄
                              │     │
                              │     ▼ 成功
                              ├─▶ centersRef 更新 (プリセット + 新生成局)
-                             │   メインメニューへ復帰 (局数更新)
+                             │   センター・リストを自動表示 (局数更新)
                              │
                              ▼ 失敗
                            エラー表示 (ESC で戻る)
@@ -169,7 +169,7 @@ fetchDirectory(wsURL).then(presetCenters => {
   - 画面を `showRegeneratingHosts()` に切り替え。
   - `resetWorldHosts(wsURL)` を実行。
   - 完了時:
-    - 成功: `centersRef.current` を更新、局数更新、画面が再生成画面ならメインメニューへ戻す。
+    - 成功: `centersRef.current` を更新、局数更新、画面が再生成画面ならセンター・リスト（電話帳）を開く。
     - 失敗: 画面に「ホスト情報の再生成に失敗しました。\r\nESCキーでメイン・メニューに戻ってください。」を表示。
 
 ## 2 つの PR に分ける（デプロイ順序）
