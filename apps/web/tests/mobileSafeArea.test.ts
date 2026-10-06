@@ -22,4 +22,17 @@ describe('mobile safe-area layout', () => {
     expect(statusRule).not.toContain('safe-area-inset-top');
     expect(styles).not.toContain('--mobile-safe-area-top');
   });
+
+  it('disables double-tap to zoom using touch-action manipulation', () => {
+    const mobileStyles = styles.slice(styles.indexOf('@media (max-width: 680px), (pointer: coarse)'));
+    const shellRule = mobileStyles.match(/\.shell \{([^}]*)\}/)?.[1];
+    const canvasRule = styles.match(/\.terminal-canvas \{([^}]*)\}/)?.[1];
+    const inputRule = styles.match(/\.terminal-input-proxy \{([^}]*)\}/)?.[1];
+
+    expect(shellRule).toContain('touch-action: manipulation');
+    expect(canvasRule).toContain('touch-action: manipulation');
+    expect(inputRule).toContain('touch-action: manipulation');
+    expect(canvasRule).not.toContain('touch-action: pinch-zoom');
+    expect(inputRule).not.toContain('touch-action: pinch-zoom');
+  });
 });
