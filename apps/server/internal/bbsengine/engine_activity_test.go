@@ -8,7 +8,7 @@ import (
 	"zutto-pccom/apps/server/internal/world"
 )
 
-func TestCatchUpInitialBoardActivityGeneratesAtMostTenRootHeaders(t *testing.T) {
+func TestCatchUpInitialBoardActivityGeneratesAtMostTenRootHeadersWithReplies(t *testing.T) {
 	store := world.NewMemoryStore()
 	host, err := store.HostByPhone("0920000196")
 	if err != nil {
@@ -31,8 +31,8 @@ func TestCatchUpInitialBoardActivityGeneratesAtMostTenRootHeaders(t *testing.T) 
 	if planner.calls != 1 {
 		t.Fatalf("planner calls=%d, want 1", planner.calls)
 	}
-	if got := len(planner.requests[0].Slots); got != InteractiveInitialRootLimit {
-		t.Fatalf("activity slots=%d, want %d", got, InteractiveInitialRootLimit)
+	if got := len(planner.requests[0].Slots); got != InteractiveInitialRootLimit+InteractiveInitialReplyLimit {
+		t.Fatalf("activity slots=%d, want %d", got, InteractiveInitialRootLimit+InteractiveInitialReplyLimit)
 	}
 
 	posts := filterBoard(store.ListPosts(host.ID), board.ID)
@@ -44,15 +44,15 @@ func TestCatchUpInitialBoardActivityGeneratesAtMostTenRootHeaders(t *testing.T) 
 			replies++
 		}
 	}
-	if roots != InteractiveInitialRootLimit || replies != 0 {
-		t.Fatalf("realized roots/replies=%d/%d, want %d/0", roots, replies, InteractiveInitialRootLimit)
+	if roots != InteractiveInitialRootLimit || replies != InteractiveInitialReplyLimit {
+		t.Fatalf("realized roots/replies=%d/%d, want %d/%d", roots, replies, InteractiveInitialRootLimit, InteractiveInitialReplyLimit)
 	}
 	if planner.requests[0].Since != state.RetainedSince {
 		t.Fatalf("history since=%s, want %s", planner.requests[0].Since, state.RetainedSince)
 	}
 }
 
-func TestCatchUpInitialBoardActivityPreservesSmallerRootCount(t *testing.T) {
+func TestCatchUpInitialBoardActivityPreservesSmallerRootCountAndAddsReplies(t *testing.T) {
 	store := world.NewMemoryStore()
 	host, err := store.HostByPhone("0920000196")
 	if err != nil {
@@ -72,13 +72,17 @@ func TestCatchUpInitialBoardActivityPreservesSmallerRootCount(t *testing.T) {
 	if got := len(planner.requests); got != 1 {
 		t.Fatalf("planner requests=%d, want 1", got)
 	}
-	if got := len(planner.requests[0].Slots); got != 3 {
-		t.Fatalf("initial slots=%d, want 3", got)
+	if got := len(planner.requests[0].Slots); got != 3+InteractiveInitialReplyLimit {
+		t.Fatalf("initial slots=%d, want %d", got, 3+InteractiveInitialReplyLimit)
 	}
+	replies := 0
 	for _, slot := range planner.requests[0].Slots {
 		if slot.ReplyToPostID != 0 || slot.ReplyToSlotIndex != 0 {
-			t.Fatalf("speculative reply materialized in lightweight index: %+v", slot)
+			replies++
 		}
+	}
+	if replies != InteractiveInitialReplyLimit {
+		t.Fatalf("reply slots=%d, want %d", replies, InteractiveInitialReplyLimit)
 	}
 	// This is a projection limit, not a rewrite of the coarse canonical counts.
 	if state.RetainedRoots != 3 || state.RetainedReplies != 10 {
