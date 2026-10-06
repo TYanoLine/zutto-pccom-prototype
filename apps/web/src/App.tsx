@@ -4,7 +4,7 @@ import { TerminalCanvas, type TerminalCanvasHandle, type TerminalScreenMode } fr
 import { VirtualModem } from './modem/VirtualModem';
 import type { HostCapabilities } from './modem/HostCapabilities';
 import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
-import { clearLegacyDirectoryStorage, fetchDirectory, fetchWorldCenters, mergeCenters } from './modem/CenterDirectory';
+import { clearLegacyDirectoryStorage, fetchDirectory, fetchWorldCenters, mergeCenters, resetWorldHosts } from './modem/CenterDirectory';
 import type { RegisteredCenter } from './modem/CenterDirectory';
 import { TerminalCenterDirectory } from './modem/TerminalCenterDirectory';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
@@ -61,7 +61,7 @@ type ActiveCall = { phone: string; connectedAt: Date; capabilities: HostCapabili
 type BootWindow = Window & { __zuttoBootOk?: () => void };
 type HandshakeRun = ReturnType<typeof playHandshake>;
 type DirectoryLoadState = 'loading' | 'ready' | 'error';
-type ScreenMode = 'main' | 'terminal';
+type ScreenMode = 'main' | 'terminal' | 'regenerating';
 
 function loadCommSettings(): CommSettings {
   if (typeof window === 'undefined') return { ...DEFAULT_COMM_SETTINGS };
@@ -87,6 +87,7 @@ export default function App() {
   const localStationRef = useRef<LocalTestStation | null>(null);
   const directoryRef = useRef<TerminalCenterDirectory | null>(null);
   const centersRef = useRef<RegisteredCenter[]>([]);
+  const presetCentersRef = useRef<RegisteredCenter[]>([]);
   const directoryLoadStateRef = useRef<DirectoryLoadState>('loading');
   const openDirectoryWhenReadyRef = useRef(false);
   const screenModeRef = useRef<ScreenMode>('main');
@@ -151,40 +152,75 @@ export default function App() {
   }, [commSettings]);
   useEffect(() => {
     clearLegacyDirectoryStorage();
-    // The stations the world generated come from a slower request: the first visit
-    // waits for the naming model. Start it now, in parallel, but never wait for it.
-    // The preset stations are listed as soon as they arrive, the generated ones
-    // follow them when they are ready, and a failure here only means the directory
-    // keeps the preset stations.
-    const generatedCenters = fetchWorldCenters(wsURL).catch((): RegisteredCenter[] => []);
-    fetchDirectory(wsURL).then(presetCenters => {
-      if (!presetCenters.length) throw new Error('empty center directory');
-      centersRef.current = presetCenters;
-      directoryLoadStateRef.current = 'ready';
-      setDirectoryCount(presetCenters.length);
-      setDirectoryStatus(`センター情報読込完了 (${presetCenters.length}局)`);
-      // The list can be opened before the generated stations arrive: say so under
-      // the list, and redraw it when they do.
+    let cancelled = false;
+    let retryTimer: number | undefined;
+    let attempt = 0;
+    const RETRY_DELAYS = [2000, 10000, 30000];
+
+    function scheduleRetry() {
+      if (cancelled) return;
+      directoryRef.current?.setNotice('ほかのセンターの読み込みに失敗しました（再試行中...）');
+      directoryRef.current?.refresh();
+      const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
+      attempt++;
+      window.clearTimeout(retryTimer);
+      retryTimer = window.setTimeout(fetchGenerated, delay);
+    }
+
+    function fetchGenerated() {
+      if (cancelled) return;
       directoryRef.current?.setNotice('ほかのセンターを読み込み中...');
-      if (openDirectoryWhenReadyRef.current) {
-        openDirectoryWhenReadyRef.current = false;
-        directoryRef.current?.show();
-        setDirectoryOpen(true);
-      }
-      void generatedCenters.then(generated => {
-        const merged = generated.length ? mergeCenters(presetCenters, generated) : presetCenters;
+      directoryRef.current?.refresh();
+      fetchWorldCenters(wsURL).then(generated => {
+        if (cancelled) return;
+        const merged = mergeCenters(presetCentersRef.current, generated);
         centersRef.current = merged;
         setDirectoryCount(merged.length);
         setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
         directoryRef.current?.setNotice('');
         directoryRef.current?.refresh();
+      }).catch(() => {
+        scheduleRetry();
       });
+    }
+
+    const onOnline = () => {
+      if (cancelled) return;
+      window.clearTimeout(retryTimer);
+      fetchGenerated();
+    };
+    window.addEventListener('online', onOnline);
+
+    fetchDirectory(wsURL).then(presetCenters => {
+      if (cancelled) return;
+      if (!presetCenters.length) throw new Error('empty center directory');
+      presetCentersRef.current = presetCenters;
+      centersRef.current = presetCenters;
+      directoryLoadStateRef.current = 'ready';
+      setDirectoryCount(presetCenters.length);
+      setDirectoryStatus(`センター情報読込完了 (${presetCenters.length}局)`);
+      if (openDirectoryWhenReadyRef.current) {
+        openDirectoryWhenReadyRef.current = false;
+        directoryRef.current?.show();
+        setDirectoryOpen(true);
+      }
+      fetchGenerated();
     }).catch(error => {
+      if (cancelled) return;
       directoryLoadStateRef.current = 'error';
-      openDirectoryWhenReadyRef.current = false;
       const message = error instanceof Error ? error.message : String(error);
       setDirectoryStatus(`CENTER API ERROR: ${message}`);
+      if (openDirectoryWhenReadyRef.current) {
+        openDirectoryWhenReadyRef.current = false;
+        showDirectoryError();
+      }
     });
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener('online', onOnline);
+    };
   }, []);
 
   useEffect(() => {
@@ -248,6 +284,38 @@ export default function App() {
     terminal.write('\r\n センター情報を読み込むことができませんでした。\r\n');
     terminal.write(' ESCキーでメイン・メニューに戻ってください。');
   }
+  function showRegeneratingHosts() {
+    screenModeRef.current = 'regenerating';
+    terminal.clear();
+    terminal.write(`\x1b[37;44m ずっとパソコン通信　ホスト情報再生成                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
+    terminal.write('                     \x1b[30;46m　ホスト情報の再生成　\x1b[0m\r\n\r\n');
+    terminal.write(' 生成ホスト情報を再生成しています。\r\n');
+    terminal.write(' しばらくお待ちください...\r\n\r\n');
+    terminal.write(' ※ 完了すると、自動的にメイン・メニューへ戻ります。\r\n');
+    terminal.write('    ESCキーでメイン・メニューに戻ることができます（再生成は継続します）。');
+    resetInput();
+  }
+  function startHostRegeneration() {
+    showRegeneratingHosts();
+    resetWorldHosts(wsURL).then(generated => {
+      const merged = mergeCenters(presetCentersRef.current, generated);
+      centersRef.current = merged;
+      setDirectoryCount(merged.length);
+      setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
+      directoryRef.current?.setNotice('');
+      directoryRef.current?.refresh();
+      if (screenModeRef.current === 'regenerating') {
+        showMainMenu();
+      }
+    }).catch(() => {
+      if (screenModeRef.current === 'regenerating') {
+        terminal.clear();
+        terminal.write(`\x1b[37;44m ずっとパソコン通信　ホスト情報再生成                         Ver ${APP_VERSION} \x1b[0m\r\n\r\n`);
+        terminal.write('\r\n ホスト情報の再生成に失敗しました。\r\n');
+        terminal.write(' ESCキーでメイン・メニューに戻ってください。');
+      }
+    });
+  }
   function syncTerminalInput(next: string) { const p = Array.from(echoedInputRef.current), n = Array.from(next); let c = 0; while (c < p.length && c < n.length && p[c] === n[c]) c++; for (let i = p.length; i > c; i--) terminal.backspace(); if (c < n.length) terminal.write(n.slice(c).join('')); echoedInputRef.current = next; }
   function followLiveInput() { terminalCanvasRef.current?.returnToLive(); }
   function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
@@ -259,7 +327,7 @@ export default function App() {
     const native = e.nativeEvent as KeyboardEvent;
     if (e.key === 'Escape' && !activeCall && !localTestConnected) {
       if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
-      if (screenModeRef.current === 'terminal' || openDirectoryWhenReadyRef.current === false) showMainMenu();
+      if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating' || openDirectoryWhenReadyRef.current === false) showMainMenu();
       e.preventDefault(); return;
     }
     if (e.key !== 'Enter') return;
@@ -277,10 +345,13 @@ export default function App() {
     const command = raw.trim();
     resetInput();
     if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
-      if (command === '1') {
+      const lower = command.toLowerCase();
+      if (lower === '1') {
         if (directoryLoadStateRef.current === 'ready') { directoryRef.current?.show(); setDirectoryOpen(true); }
         else if (directoryLoadStateRef.current === 'loading') { openDirectoryWhenReadyRef.current = true; showDirectoryLoading(); }
         else showDirectoryError();
+      } else if (lower === '1r') {
+        startHostRegeneration();
       } else if (command === '3') {
         showTerminalMode();
       } else if (command !== '') {

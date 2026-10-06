@@ -6,6 +6,7 @@ import {
   mergeCenters,
   parseDirectory,
   worldCentersEndpoint,
+  worldResetHostsEndpoint,
 } from './CenterDirectory';
 import type { RegisteredCenter } from './CenterDirectory';
 
@@ -129,6 +130,10 @@ describe('endpoints', () => {
       .toBe('http://localhost:8080/api/world/bootstrap');
     expect(worldCentersEndpoint('wss://api.example.com/ws', 'http://localhost:5173/', false))
       .toBe('https://api.example.com/api/world/bootstrap');
+    expect(worldResetHostsEndpoint('ws://localhost:8080/ws?query=1', 'http://localhost:5173/', true))
+      .toBe('http://localhost:8080/api/world/reset-hosts');
+    expect(worldResetHostsEndpoint('wss://api.example.com/ws', 'http://localhost:5173/', false))
+      .toBe('https://api.example.com/api/world/reset-hosts');
   });
 
   it('uses the local or production endpoint without a WebSocket URL', () => {
@@ -138,6 +143,9 @@ describe('endpoints', () => {
     expect(worldCentersEndpoint('', 'http://localhost:5173/', true)).toBe('/api/world/bootstrap');
     expect(worldCentersEndpoint('', 'https://zutto.example/', false))
       .toBe('https://zutto-pccom-prototype.onrender.com/api/world/bootstrap');
+    expect(worldResetHostsEndpoint('', 'http://localhost:5173/', true)).toBe('/api/world/reset-hosts');
+    expect(worldResetHostsEndpoint('', 'https://zutto.example/', false))
+      .toBe('https://zutto-pccom-prototype.onrender.com/api/world/reset-hosts');
   });
 });
 
