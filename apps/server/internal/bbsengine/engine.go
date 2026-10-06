@@ -190,9 +190,15 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 // describes the complete retained history; unseen articles are not fabricated.
 const InteractiveInitialRootLimit = 10
 
-// CatchUpInitialBoardActivity materializes only enough independent root
-// headers for the current 10-line board index. This lightweight path does not
-// pre-generate append/reply headers or the rest of the retained archive.
+// InteractiveInitialReplyLimit bounds the reply headers added to a first
+// board-index observation, on top of InteractiveInitialRootLimit roots.
+const InteractiveInitialReplyLimit = 10
+
+// CatchUpInitialBoardActivity materializes only enough headers for the current
+// 10-line board index: at most InteractiveInitialRootLimit independent roots
+// plus the replies those roots would have drawn at the board's canonical
+// retained reply/root ratio (bounded by InteractiveInitialReplyLimit). Without
+// the replies a freshly observed board would show threads that nobody answered.
 // The coarse World-selected activity state remains unchanged.
 func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Host, board world.Board, state world.BoardActivityState) error {
 	if state.RetainedRoots <= 0 {
@@ -202,12 +208,19 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	if roots > InteractiveInitialRootLimit {
 		roots = InteractiveInitialRootLimit
 	}
+	replies := 0
+	if state.RetainedReplies > 0 {
+		replies = int(math.Round(float64(roots) * float64(state.RetainedReplies) / float64(state.RetainedRoots)))
+		if replies > InteractiveInitialReplyLimit {
+			replies = InteractiveInitialReplyLimit
+		}
+	}
 	lookback := time.Duration(0)
 	now := e.currentTime()
 	if !state.RetainedSince.IsZero() && state.RetainedSince.Before(now) {
 		lookback = now.Sub(state.RetainedSince)
 	}
-	return e.catchUpInitial(ctx, host, board, roots, lookback, 0)
+	return e.catchUpInitial(ctx, host, board, roots+replies, lookback, replies)
 }
 
 func slotCountForRootTarget(rootCount int) int {
