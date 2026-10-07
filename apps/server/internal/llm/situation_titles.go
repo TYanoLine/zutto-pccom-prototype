@@ -67,7 +67,7 @@ func buildSituationTitlePrompt(req BBSSituationTitleRequest) (string, error) {
 	var b strings.Builder
 	b.WriteString(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、すでに正本化されたSituationからBBSの記事一覧に表示するroot件名を作ります。
 各人物が、確定済みSituationの話題をBBS一覧で伝える短い件名を、自分の投稿として付ける題名の形で書いてください。
-題名は、一覧を眺める人がこの投稿を開くか決める短い言葉です。何の話かを題名だけで伝える必要があるとき（複数の対象が混在する板など）は、対象の名前を、題名の好きな位置に入れてください。
+題名は、一覧を眺める人がこの投稿を開くか決める短い言葉です。何の話かが題名だけで分かるよう、対象の名前（作品名・機種名・場所など）を、先頭でなくてよいので題名のどこかに入れてください。
 
 局: `)
 	b.WriteString(req.HostName)
@@ -84,6 +84,7 @@ func buildSituationTitlePrompt(req BBSSituationTitleRequest) (string, error) {
 	b.WriteString("\n上の例は、題名の形に幅があることを示すだけです。選ぶものでも真似るものでもなく、言葉の運びや長さを写す必要はありません。この記事の話にいちばん合う運びを、記事ごとに自分で考えてください。\n")
 	if req.MultiVariant {
 		fmt.Fprintf(&b, "\n出力は、記事ごとに構成の異なる案を最大%d案、配列で返します。各案は36文字以内・1行・Re:なしです。", maxTitleVariants)
+		b.WriteString("案のうち少なくとも2案は対象の名前を入れ、そのうち1案以上は名前で始めない形にしてください。")
 	} else {
 		b.WriteString("\n出力する件名は36文字以内・1行・Re:なしです。")
 	}
