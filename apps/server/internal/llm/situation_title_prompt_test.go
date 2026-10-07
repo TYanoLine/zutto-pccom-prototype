@@ -112,6 +112,26 @@ func TestTitleFormNotesSelection(t *testing.T) {
 	}
 }
 
+func TestSituationTitlePromptAsksForNameSomewhere(t *testing.T) {
+	req := titlePromptRequest()
+	single, err := buildSituationTitlePrompt(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.MultiVariant = true
+	multi, err := buildSituationTitlePrompt(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "題名のどこかに入れてください"
+	if !strings.Contains(single, want) || !strings.Contains(multi, want) {
+		t.Errorf("prompt must ask for the target name somewhere in the title")
+	}
+	if strings.Contains(single, "少なくとも2案") || !strings.Contains(multi, "少なくとも2案") {
+		t.Errorf("the 2-of-3 rule belongs to the multi-variant output only")
+	}
+}
+
 func TestSituationTitlePromptAddsNoProhibitions(t *testing.T) {
 	req := titlePromptRequest()
 	req.RecentFormFacts = []string{"直近20件のうち、対象名から始まるものが13件"}
