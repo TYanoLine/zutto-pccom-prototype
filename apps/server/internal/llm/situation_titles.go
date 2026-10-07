@@ -81,6 +81,7 @@ func buildSituationTitlePrompt(req BBSSituationTitleRequest) (string, error) {
 		}
 	}
 	fmt.Fprintf(&b, "\n題名の書き方の幅を示す例（別の分野の題名で、話題の手本ではありません）:\n%s\n", forms)
+	b.WriteString("\n上の例は、題名の形に幅があることを示すだけです。選ぶものでも真似るものでもなく、言葉の運びや長さを写す必要はありません。この記事の話にいちばん合う運びを、記事ごとに自分で考えてください。\n")
 	if req.MultiVariant {
 		fmt.Fprintf(&b, "\n出力は、記事ごとに構成の異なる案を最大%d案、配列で返します。各案は36文字以内・1行・Re:なしです。", maxTitleVariants)
 	} else {
