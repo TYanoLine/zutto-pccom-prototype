@@ -52,6 +52,7 @@ type Repository struct {
 	bbsArticles          *bbsengine.Engine
 	debugLogBBSArticleDetails                  bool
 	debugLogGeneratedContent                    bool
+	titleVariants                               bool
 	freeformBody                        bool
 	generationTrace                           *generationTraceStore
 

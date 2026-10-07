@@ -89,9 +89,8 @@ func planBoardActivity(host world.Host, board world.Board, now time.Time) (world
 		totalRoots = 1
 	}
 
-	replyVariation := .88 + float64(boardActivityHash(host.ID+"|"+board.ID+"|reply")%25)/100.0
-	totalReplies := int(math.Round(float64(totalRoots) * replyRate * replyVariation))
-
+	// Replies belong to threads: each root drew its own (often zero) reply
+	// count, so the retained replies are those of the newest retained roots.
 	capRoots := board.RetainedRootCap
 	if capRoots <= 0 {
 		capRoots = 60
@@ -100,9 +99,13 @@ func planBoardActivity(host world.Host, board world.Board, now time.Time) (world
 	if retainedRoots > capRoots {
 		retainedRoots = capRoots
 	}
-	retainedReplies := totalReplies
-	if totalRoots > 0 && retainedRoots < totalRoots {
-		retainedReplies = int(math.Round(float64(totalReplies) * float64(retainedRoots) / float64(totalRoots)))
+	totalReplies, retainedReplies := 0, 0
+	for ordinal := 1; ordinal <= totalRoots; ordinal++ {
+		replies := world.ThreadReplyCount(host.ID, board.ID, ordinal, replyRate)
+		totalReplies += replies
+		if ordinal > totalRoots-retainedRoots {
+			retainedReplies += replies
+		}
 	}
 
 	retainedSince := opened

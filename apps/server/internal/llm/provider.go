@@ -228,11 +228,22 @@ type BBSSituationTitleRequest struct {
 	WorldDate      string
 	RecentSubjects []string
 	Articles       []BBSSituationTitleSeed
+	// FormSeed selects the form notes (examples of title shapes) for this call.
+	FormSeed string
+	// RecentFormFacts are measured facts about recent titles, stated as
+	// context. Empty when recent titles show no notable bias.
+	RecentFormFacts []string
+	// MultiVariant asks for up to three differently built titles per article.
+	// The world side then picks one deterministically.
+	MultiVariant bool
 }
 
 type BBSSituationTitle struct {
 	EventID  string `json:"event_id"`
 	Subject  string `json:"subject"`
+	// Candidates holds every valid variant (Subject first) when MultiVariant
+	// was requested; otherwise it is empty.
+	Candidates []string `json:"-"`
 }
 
 type BBSSituationTitleDraft struct {

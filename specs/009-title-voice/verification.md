@@ -1,0 +1,91 @@
+# Verification: 009-title-voice
+
+実行したコマンドと結果。実行していないものは「未実施」と理由を書く。
+
+## 実行したコマンド
+
+| コマンド | 結果 |
+|---|---|
+| `wc -l specs/009-title-voice/baseline/root-titles-2026-10-02_06.jsonl` | 179（期待どおり） |
+| `go -C apps/server test ./internal/... -count=1`（実装前） | 全パッケージ ok。既存の失敗なし |
+| `go -C apps/server test ./internal/titleshape -count=1` | ok |
+| `go -C apps/server test ./internal/llm -count=1` | ok |
+| `go -C apps/server test ./internal/worldrepo -count=1` | ok（下記「既存テストの変更」を参照） |
+| `go -C apps/server vet ./...` | 指摘なし |
+| `go -C apps/server test ./... -count=1`（最終） | 全パッケージ ok |
+| `go -C apps/server run ./cmd/titlestats -- <baseline>` | 下記のとおり |
+| `go -C apps/server run ./cmd/titlereplay -- <baseline>`（キーなし） | 「AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_API_KEY are required」で終了（意図どおり） |
+| GitHub Actions（`go-test`） | 未確認。エージェントの PR ではワークフローが自動で動かないことがある |
+
+## T000: 実装時に確認すること（plan 末尾）
+
+1. **`persona_profile` は本番で入るか**: コード上は `personaTitleContext`（`bbs_article_planner.go`）が、`AuthorPersonaID` があれば `personaSummary` を返し、`planSituationFirstRoots` が seed に入れる。ペルソナ ID が無いスロットでは空になる。本番のログでの実測は **未実施**（ベースラインのログには出ていない）。
+2. **地名の語を板の範囲から機械的に取れるか**: 取れない（板の範囲は文章で、地名の語としては構造化されていない）。`titlestats` は `--places` で与える。本番の診断ログ（`BBS title shape`）は、地名を渡さないので `place` を数えない。
+3. **スキーマが文字列と配列の併用を許すか**: 併用はせず、スキーマを 2 つ持つ（無効時は従来と同一の文字列スキーマ、有効時は `array<string>`）。`maxItems` は strict スキーマで確実でないため付けず、3 を超える案は読み取り時に先頭 3 案だけ使う。**実 API での strict スキーマの受理は未確認**（キーなし）。
+4. **`rootSubjects(req.RecentPosts)` の件数と順序**: `bbsengine` が、板の投稿を時系列に並べ、末尾の `recentLimit()` 件を渡す。そこから root の題名だけを時系列で取り出す。以前は全件がそのままプロンプトに入り、今は最新 20 件を入れ替えて渡す（重複検査は全件に対して行う）。
+
+## ベースラインの指標（T013）
+
+`titlestats --places 天神,地下街,博多駅` の出力（変更前コードが生成した 179 件）:
+
+```
+board     n referent   place  handle   other   sfx-max   dup  near len(min/med/max) retention  top suffixes
+1        10       0%      0%      0%    100%       10%     0     0    11/17/22    33%(3)  
+10/1     10       0%     60%      0%     40%       10%     0     0    13/15/18     0%(10)  
+10/2     10       0%     40%      0%     60%       10%     0     0    14/16/19     0%(10)  
+2        30      20%      7%      7%     67%       10%     0     0    10/16/21    78%(9)  いします×3 みました×2 めまして×2
+20/1     39      56%      0%      3%     41%       10%     0     0    11/16/22    79%(33)  貸せます×4 ませんか×3 うですか×2 りました×2
+20/2     10      70%      0%      0%     30%       20%     0     0    13/17/21   100%(7)  物の印象×2
+3        20      15%     30%     15%     40%       10%     1     1    12/14/23    75%(4)  保存方法×2
+60/1     10       0%      0%     10%     90%       20%     0     0    13/16/19     0%(2)  について×2
+60/2     10      30%      0%     20%     50%       10%     0     0    15/18/22    30%(10)  
+60/3     10       0%      0%     40%     60%       10%     0     0    13/16/17     0%(2)  
+70/1     20      20%      0%     30%     50%       10%     0     0    10/17/26    22%(18)  から起動×2 しません×2 モリ不足×2
+```
+
+- 地域板 `10/1` の「天神」「地下街」先頭は 6/10、`10/2` は 4/10。spec の目視どおり。
+- 板 `3` の完全一致の重複は 1 組。spec どおり。
+- 末尾 4 文字の最大シェアは、どの板も 10〜20%（`20/1` は「貸せます」4 件など）。
+
+### 目視の概数と違った点
+
+`20/1` の「対象名先頭」の率と「対象名の保持率」が、spec の概数（約 87%、ほぼ 100%）より、ツールでは低い。
+
+| 指標（`20/1`、39 件） | spec の概数 | ツールの値 |
+|---|---|---|
+| 対象名先頭の率 | 約 87%（約 34 件） | 56% |
+| 対象名の保持率 | ほぼ 100% | 79%（対象名を抽出できた 33 件中） |
+
+原因は、題名が略称で書かれていること（「ドラクエVI」と「ドラゴンクエストVI」、「VF2」と「バーチャファイター2」、「真サム」、「神トラ」、「ポケモン赤緑」など）。辞書なしでは機械的に同定できない。ツールは、(a) 対象名そのもの、(b) 対象名の空白区切りの語、(c) 先頭のカタカナ・英数字の連続（3 文字以上）が対象名の部分文字列であるもの（「マリオカート」と「スーパーマリオカート」）を、一致とみなす。それでも残る略称は不一致になる。**この差のため、`titleshape` のテストの `20/1` の範囲は、spec の範囲（先頭 0.75〜0.95、保持率 0.9 以上）ではなく、先頭 0.5〜0.95、保持率 0.7 以上にした**（テストのコメントにも書いた）。実装後の出力から範囲を作ってはいない。ベースラインの目視の数え直し（先頭が作品名・略称であるもの 33〜34/39）は spec の概数と合っているので、ツールの値は「機械が確実に同定できる下限」と読む。リプレイとの比較は、**ベースラインと同じツールの値どうし**で行うこと。SC-004 の「90% 以上」は、この指標の絶対値では判定できず、ベースライン（79%）との相対で見る。
+
+また、地域板・ほかの板では、要約に『』が無く、先頭のカタカナ・英数字の連続を対象名とみなす補完が働くので、保持率は意味のない値になる（`10/1` は 0%、n=10）。保持率は、ゲーム板（`20/1`、`20/2`）以外では参考にしない。
+
+## 既存テストの変更
+
+spec の T033-5 は「既存の `worldrepo` のテストが変更なしで通る」とする。しかし、既存の偽の題名プロバイダ（`openTopicTitlePlanner`）は、同じバッチの全記事に同じ題名「最近気づいたこと」を返す。これは、FR-006 が再生成を求める「同一バッチの完全一致の重複」そのもので、新しい実装は 1 回再生成するため、題名の呼び出し回数を数える `TestAllBoardsShareOpenTopicSituationGeneration` と、題名数を確かめる `TestSituationPlannerSplitsTruncatedAnimeChunkAndAcceptsAllHeaders` が失敗した。spec の 2 つの要求は、このテストの偽の応答に対しては両立しない。FR-006 を優先し、偽の応答を、記事ごとに異なる題名（「最近気づいたこと（slot-1）」）に変え、`TestAllBoardsShareOpenTopicSituationGeneration` の題名の一致を、前方一致にした（`bbs_situation_open_topics_test.go` のみ。ほかの既存テストは無変更）。
+
+## リプレイ（T051）: 未実施
+
+実 LLM のキー（`AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY`）が、この環境に無いため、**SC-001〜SC-007 は評価していない**。偽の応答の結果を成功とはみなさない。`titlereplay --fake` のテスト（`cmd/titlereplay`）は、179 件が板ごと・チャンクごとに処理されることだけを確かめる。
+
+キーのある環境での実行:
+
+```bash
+go -C apps/server run ./cmd/titlereplay -- --runs 3 ../../specs/009-title-voice/baseline/root-titles-2026-10-02_06.jsonl > /tmp/replay.jsonl
+go -C apps/server run ./cmd/titlestats -- --places 天神,地下街,博多駅 /tmp/replay.jsonl
+# 複数案: --variants を足して比較する
+```
+
+### リプレイと本番の入力の違い
+
+- `persona_profile` なし（ベースラインに無い）。
+- 板の名前・範囲なし（ベースラインには板 ID だけがあり、`BoardName` に ID を入れる）。
+- 「すでに扱った題材」は、リプレイの中で積み上げた題名で代替し、板の実際の履歴ではない。
+- 重複の再生成と、ログは、リプレイでは動かさない（`worldrepo` の経路を通らない）。
+
+## 未検証・注意
+
+- **複数案（`GENERATION_TITLE_VARIANTS`）と、直近の形の事実の、有効・無効の推奨は、実測がないため出せない。** 複数案は既定で無効のまま。直近の形の事実は、しきい値（`titleshape/select.go` の調整値）を超えたときだけ渡す（無効化の設定は無い）。
+- 直近の形の事実は、直近の題名しか見えない（要約が無い）ので、plan の例にあった「対象名から始まる件数」ではなく、**先頭 2 文字の反復**と**末尾 4 文字の反復**を事実にした。
+- コスト（SC-007）は未測定。実運用では、既存の `storeDevelopmentPlanningUsage`（`bbs-situation-title`）で比較する。重複の再生成と複数案の呼び出しも、同じ名前で記録される。
+- tasks のコードは、コンパイルして確認していなかった。直した点: `BBSSituationTitle` に `Candidates` を足して複数案の候補を worldrepo に渡す（PickVariant は世界側の情報が要るため）。診断のログ（`BBS title shape`）は `worldrepo/bbs_title_words.go` に置いた。

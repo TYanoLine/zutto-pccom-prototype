@@ -65,6 +65,24 @@ The resulting state records:
 This is enough to inspect why a board has a particular amount of history without
 materializing any prose.
 
+## Replies belong to threads
+
+`reply_rate` is the board's mean replies per root, not a fixed ratio. Each root
+(by its 1-based ordinal on the board) draws its own reply count with
+`world.ThreadReplyCount`: a root is unanswered with probability
+`exp(-0.55 * reply_rate)`, and an answered root draws a geometric count whose
+mean keeps the board average near `reply_rate`. Many threads therefore get no
+reply and a few run long (bounded by `MaxThreadReplies`). "No reply is normal"
+(`docs/WORLD_SIMULATION.md`) is decided here, by the world, never by the language
+model. The retained reply total is the sum over the newest retained roots.
+
+When a board is first observed, the newest retained roots (at most 10) are
+materialized together with exactly the replies their own threads drew (at most
+`InteractiveInitialReplyLimit` in total). Replies follow their root with a
+heavy-tailed delay, never outrun the present, and the thread starter sometimes
+returns. These numbers are a fictional reconstruction heuristic, not historical
+statistics.
+
 ## Observation/materialization boundary
 
 Before article materialization:

@@ -43,7 +43,8 @@ func (s *openTopicTitlePlanner) GenerateBBSSituationTitles(_ context.Context, re
     for _, article := range req.Articles {
         out.Titles = append(out.Titles, llm.BBSSituationTitle{
             EventID: article.EventID,
-            Subject: "最近気づいたこと",
+            // Distinct per event: identical titles in one batch are now regenerated.
+            Subject: "最近気づいたこと（" + article.EventID + "）",
         })
     }
     return out, nil
@@ -152,7 +153,7 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
                 if post.SituationKind != "open_topic" ||
                     post.AnchorKey != tc.board.ID ||
                     post.DiscourseMode != "" ||
-                    post.Subject != "最近気づいたこと" ||
+                    !strings.HasPrefix(post.Subject, "最近気づいたこと") ||
                     !strings.Contains(post.SituationSummary, tc.board.Name) ||
                     !post.ArticleDetailsMaterialized {
                     t.Fatalf("invalid committed world header: %+v", post)
