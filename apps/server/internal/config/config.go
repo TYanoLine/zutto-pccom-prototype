@@ -18,7 +18,6 @@ type Config struct {
 	DebugLogGeneratedContent                   bool
 	DebugGenerationTrace                       bool
 	GenerationFreeformBody                    bool
-	GenerationTitleVariants                   bool
 	DatabaseURL                                  string
 	DebugResetToken             string
 }
@@ -41,7 +40,6 @@ func Load() Config {
 		DebugLogGeneratedContent:                envBool("DEBUG_LOG_GENERATED_CONTENT", true),
 		DebugGenerationTrace:                    envBool("DEBUG_GENERATION_TRACE", true),
 		GenerationFreeformBody:                 envBool("GENERATION_FREEFORM_BODY", true),
-		GenerationTitleVariants:                envBool("GENERATION_TITLE_VARIANTS", false),
 		DatabaseURL:                                 os.Getenv("DATABASE_URL"),
 		DebugResetToken:             os.Getenv("DEBUG_RESET_TOKEN"),
 	}

@@ -152,3 +152,7 @@ go -C apps/server run ./cmd/titlereplay -- --runs 3 [--variants] ../../specs/009
 先頭の偏りは `20/1` で下がったが、対象名の保持率はさらに下がった。`10/1` の地名先頭は1回の測定では旧結果より高く、ばらつきの範囲か注意文の効果かは分からない。1回の結果なので、改善とは言えない。
 
 別モデルの確認: `DeepSeek-V4-Flash` と `Kimi-K2.6` は JSON スキーマ指定を守らず現行の仕組みでは使えない。`grok-4.7` は使えたが、先頭の偏りは現行モデルとほぼ同じだった（`20/1` 対象名先頭 56% → 51%、`10/1` 地名先頭 50% → 70%）。
+
+## 複数案を既定で有効にした（T055）
+
+環境変数 `GENERATION_TITLE_VARIANTS` を廃止し、`cmd/server/main.go` の内部定数 `titleVariantsEnabled = true` に置き換えた。上の「複数案あり（`GENERATION_TITLE_VARIANTS=true`）」は、この定数が true の状態を指す。
