@@ -111,14 +111,3 @@ func TestFormerHAKATAEnvironmentNamesAreIgnored(t *testing.T) {
 		})
 	}
 }
-
-func TestTitleVariantsDefaultOff(t *testing.T) {
-	t.Setenv("GENERATION_TITLE_VARIANTS", "")
-	if Load().GenerationTitleVariants {
-		t.Fatal("title variants must be off by default")
-	}
-	t.Setenv("GENERATION_TITLE_VARIANTS", "true")
-	if !Load().GenerationTitleVariants {
-		t.Fatal("GENERATION_TITLE_VARIANTS=true must enable title variants")
-	}
-}

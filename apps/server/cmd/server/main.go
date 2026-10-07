@@ -24,6 +24,10 @@ import (
 
 const generatedCenterCount = 100
 
+// titleVariantsEnabled has the title call return up to three differently built
+// titles per article (spec 009). It is a fixed choice, not an environment setting.
+const titleVariantsEnabled = true
+
 func main() {
 	startedAt := time.Now()
 	cfg := config.Load()
@@ -89,7 +93,7 @@ func main() {
 	runtimeStore.SetDebugLogGeneratedContent(cfg.DebugLogGeneratedContent)
 	runtimeStore.SetGenerationTraceEnabled(cfg.DebugGenerationTrace)
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
-	runtimeStore.SetTitleVariants(cfg.GenerationTitleVariants)
+	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 
