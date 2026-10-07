@@ -33,7 +33,7 @@ func TestSituationTitlePromptCarriesMaterials(t *testing.T) {
 	for _, want := range []string{
 		`"persona_profile":"30代の会社員。文体は丁寧"`, `"handle":"YUKI"`,
 		`"summary":"サクラ大戦を進めていて迷った"`, "最近気づいたこと", "庭の話",
-		"36文字以内・1行・Re:なし",
+		"36文字以内・1行・Re:なし", "選ぶものでも真似るものでもなく",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("prompt missing %q", want)
