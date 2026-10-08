@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type {
   ChangeEventHandler,
   CompositionEventHandler,
@@ -8,12 +8,24 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from 'react';
-import { isFullWidth, type TerminalCore } from './TerminalCore';
+import { isFullWidth, type Cell, type TerminalCore } from './TerminalCore';
 import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
 import { BuildInfoPanel } from '../build/BuildInfoPanel';
 import type { BuildInfoPanelProps } from '../build/BuildInfoPanel';
 import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 import './terminalFit.css';
+
+/**
+ * PC-98 text GDC (NEC uPD7220 Master GDC) cursor blink interval in milliseconds.
+ * In historical PC-9801 standard text mode (24.83 kHz horizontal / ~56.42 Hz vertical refresh),
+ * the default blink rate (BR = 16, resulting in 2 * BR = 32 video frames on / 32 frames off)
+ * yields 32 frames / 56.422 Hz ~= 567 ms on and 567 ms off (~1.134 s full cycle, ~0.88 Hz).
+ */
+export const PC98_CURSOR_BLINK_INTERVAL_MS = 567;
+
+export function terminalCursorWidth(cell?: Pick<Cell, 'ch'>): number {
+  return cell && isFullWidth(cell.ch) ? 16 : 8;
+}
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
@@ -86,6 +98,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     typeof window === 'undefined' ? 1 : terminalBackingScale(window.devicePixelRatio),
   );
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
+  const [cursorVisible, setCursorVisible] = useState(true);
+  const cursorBlinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const layoutRowsRef = useRef(terminal.height);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
@@ -95,7 +109,60 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const pointerRemainderRef = useRef(0);
   const pointerTravelRef = useRef(0);
 
+  const clearCursorBlinkTimer = useCallback(() => {
+    if (cursorBlinkTimerRef.current !== null) {
+      clearTimeout(cursorBlinkTimerRef.current);
+      cursorBlinkTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleCursorBlink = useCallback((nextVisible: boolean) => {
+    clearCursorBlinkTimer();
+
+    // Respect reduced-motion preferences: keep cursor steadily visible without blinking.
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setCursorVisible(true);
+      return;
+    }
+
+    // Pause blinking when page is hidden to conserve power and CPU cycles.
+    if (typeof document !== 'undefined' && document.hidden) {
+      setCursorVisible(true);
+      return;
+    }
+
+    cursorBlinkTimerRef.current = setTimeout(() => {
+      setCursorVisible(nextVisible);
+      scheduleCursorBlink(!nextVisible);
+    }, PC98_CURSOR_BLINK_INTERVAL_MS);
+  }, [clearCursorBlinkTimer]);
+
+  const resetCursorBlink = useCallback(() => {
+    setCursorVisible(true);
+    scheduleCursorBlink(false);
+  }, [scheduleCursorBlink]);
+
+  useEffect(() => {
+    resetCursorBlink();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearCursorBlinkTimer();
+        setCursorVisible(true);
+      } else {
+        resetCursorBlink();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearCursorBlinkTimer();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [resetCursorBlink, clearCursorBlinkTimer]);
+
   useEffect(() => terminal.subscribe(() => {
+    resetCursorBlink();
     const previousLength = previousScrollbackLengthRef.current;
     const nextLength = terminal.scrollbackLength;
     const added = Math.max(0, nextLength - previousLength);
@@ -113,7 +180,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     setHistoryOffset(scrollOffsetRef.current);
     draw();
     if (keyboardActive) window.requestAnimationFrame(ensureCursorVisible);
-  }), [terminal, keyboardActive]);
+  }), [terminal, keyboardActive, resetCursorBlink]);
   useEffect(() => { draw(); });
 
   useEffect(() => {
@@ -385,11 +452,13 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     }
 
     // The live cursor has no meaning while looking back through history.
-    if (scrollOffsetRef.current === 0) {
+    if (scrollOffsetRef.current === 0 && cursorVisible) {
       ctx.globalAlpha = 0.65;
       ctx.fillStyle = '#aaaaaa';
       const cursorY = terminal.viewportCursorY(displayedRows);
-      ctx.fillRect(terminal.cursorX * 8, cursorY * 16 + 14, 8, 2);
+      const currentCell = terminal.cells[terminal.cursorY]?.[terminal.cursorX];
+      const cursorWidth = terminalCursorWidth(currentCell);
+      ctx.fillRect(terminal.cursorX * 8, cursorY * 16 + 14, cursorWidth, 2);
       ctx.globalAlpha = 1;
     }
     positionKeyboardProxy();
@@ -492,10 +561,22 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           type="text"
           value={keyboardInput.value}
           readOnly={keyboardInput.readOnly}
-          onChange={keyboardInput.onChange}
-          onKeyDown={keyboardInput.onKeyDown}
-          onCompositionStart={keyboardInput.onCompositionStart}
-          onCompositionEnd={keyboardInput.onCompositionEnd}
+          onChange={e => {
+            resetCursorBlink();
+            keyboardInput.onChange(e);
+          }}
+          onKeyDown={e => {
+            resetCursorBlink();
+            keyboardInput.onKeyDown(e);
+          }}
+          onCompositionStart={e => {
+            resetCursorBlink();
+            keyboardInput.onCompositionStart(e);
+          }}
+          onCompositionEnd={e => {
+            resetCursorBlink();
+            keyboardInput.onCompositionEnd(e);
+          }}
           onFocus={event => { setFunctionMenuOpen(false); keyboardInput.onFocus(event); }}
           onBlur={keyboardInput.onBlur}
           onPointerDown={pointerDown}
