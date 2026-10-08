@@ -29,6 +29,9 @@ type OpenAIProvider struct {
 	// SchemaCompat strips JSON-schema bounds (maxItems, numeric limits) that
 	// some backends reject before a structured request is sent.
 	SchemaCompat bool
+	// API selects the wire protocol: empty for the OpenAI Responses API, or
+	// APIAnthropic for the Anthropic Messages API (Claude on Azure Foundry).
+	API    string
 	Client *http.Client
 }
 
@@ -226,6 +229,9 @@ func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbo
 	}
 	if maxOutputTokens <= 0 {
 		maxOutputTokens = 1200
+	}
+	if p.useAnthropic() {
+		return p.anthropicMessages(ctx, prompt, maxOutputTokens, "", nil)
 	}
 	payload := map[string]any{"model": p.Model, "input": prompt, "text": map[string]any{"verbosity": p.effectiveVerbosity(verbosity)}, "max_output_tokens": maxOutputTokens}
 	body, _ := json.Marshal(payload)

@@ -281,6 +281,12 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.
 	if maxOutputTokens <= 0 {
 		maxOutputTokens = 1200
 	}
+	if p.useAnthropic() {
+		if strings.TrimSpace(webSearchToolChoice) != "" {
+			return responseTextResult{}, errors.New("web search is not supported with the Anthropic messages API")
+		}
+		return p.anthropicMessages(ctx, prompt, maxOutputTokens, schemaName, schema)
+	}
 	if p.SchemaCompat {
 		schema, _ = stripUnsupportedSchemaConstraints(schema).(map[string]any)
 	}
