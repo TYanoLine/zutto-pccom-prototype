@@ -133,3 +133,14 @@ func TestAzureOpenAIReasoningEffortDefaultsEmpty(t *testing.T) {
 		t.Fatalf("override = %q, want medium", got)
 	}
 }
+
+func TestAzureOpenAISchemaCompatDefaultsOff(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_SCHEMA_COMPAT", "")
+	if Load().AzureOpenAISchemaCompat {
+		t.Fatal("schema compat must default off")
+	}
+	t.Setenv("AZURE_OPENAI_SCHEMA_COMPAT", "1")
+	if !Load().AzureOpenAISchemaCompat {
+		t.Fatal("schema compat should be enabled by 1")
+	}
+}

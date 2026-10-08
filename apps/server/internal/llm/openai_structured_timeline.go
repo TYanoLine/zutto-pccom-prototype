@@ -281,6 +281,9 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.
 	if maxOutputTokens <= 0 {
 		maxOutputTokens = 1200
 	}
+	if p.SchemaCompat {
+		schema, _ = stripUnsupportedSchemaConstraints(schema).(map[string]any)
+	}
 	payload := map[string]any{
 		"model": p.Model,
 		"input": prompt,
