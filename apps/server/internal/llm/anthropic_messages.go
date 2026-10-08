@@ -52,6 +52,7 @@ func (p OpenAIProvider) anthropicMessages(ctx context.Context, prompt string, ma
 	if maxOutputTokens <= 0 {
 		maxOutputTokens = 1200
 	}
+	maxOutputTokens = anthropicTokenCeiling(maxOutputTokens)
 	payload := map[string]any{
 		"model":      p.Model,
 		"max_tokens": maxOutputTokens,
@@ -123,5 +124,38 @@ func (p OpenAIProvider) anthropicMessages(ctx context.Context, prompt string, ma
 	if strings.TrimSpace(text.String()) == "" {
 		return responseTextResult{}, errors.New("no text in Anthropic messages response")
 	}
-	return responseTextResult{Text: text.String(), Usage: usage}, nil
+	out := text.String()
+	if schema == nil {
+		out = stripCodeFence(out)
+	}
+	return responseTextResult{Text: out, Usage: usage}, nil
+}
+
+// anthropicTokenCeiling widens call-site output budgets, which were sized for
+// the OpenAI tokenizer. Claude spends noticeably more tokens per Japanese
+// character, so an unchanged ceiling truncates bodies that fit the requested
+// character range. It is only a ceiling; the model stops on its own.
+func anthropicTokenCeiling(n int) int {
+	const hardMax = 16000
+	n *= 2
+	if n > hardMax {
+		return hardMax
+	}
+	return n
+}
+
+// stripCodeFence removes a surrounding Markdown code fence (```json ... ```)
+// that Claude often adds when asked for JSON without a schema constraint.
+func stripCodeFence(s string) string {
+	t := strings.TrimSpace(s)
+	if !strings.HasPrefix(t, "```") {
+		return s
+	}
+	nl := strings.Index(t, "\n")
+	if nl < 0 {
+		return s
+	}
+	body := strings.TrimSpace(t[nl+1:])
+	body = strings.TrimSuffix(body, "```")
+	return strings.TrimSpace(body)
 }
