@@ -20,7 +20,31 @@ type OpenAIProvider struct {
 	Endpoint string
 	APIKey string
 	Model  string
+	// Verbosity, when set, replaces the per-call text.verbosity ("low" in
+	// every current call site). Some deployments accept only "medium".
+	Verbosity string
+	// ReasoningEffort, when set, replaces reasoning.effort on calls that already
+	// request one. Calls that send no reasoning block are left unchanged.
+	ReasoningEffort string
 	Client *http.Client
+}
+
+func (p OpenAIProvider) effectiveReasoningEffort(callSite string) string {
+	callSite = strings.TrimSpace(callSite)
+	if callSite == "" {
+		return ""
+	}
+	if v := strings.TrimSpace(p.ReasoningEffort); v != "" {
+		return v
+	}
+	return callSite
+}
+
+func (p OpenAIProvider) effectiveVerbosity(callSite string) string {
+	if v := strings.TrimSpace(p.Verbosity); v != "" {
+		return v
+	}
+	return callSite
 }
 
 func (p OpenAIProvider) GenerateReply(ctx context.Context, req ReplyRequest) (string, error) {
@@ -200,7 +224,7 @@ func (p OpenAIProvider) responseTextWithLimit(ctx context.Context, prompt, verbo
 	if maxOutputTokens <= 0 {
 		maxOutputTokens = 1200
 	}
-	payload := map[string]any{"model": p.Model, "input": prompt, "text": map[string]any{"verbosity": verbosity}, "max_output_tokens": maxOutputTokens}
+	payload := map[string]any{"model": p.Model, "input": prompt, "text": map[string]any{"verbosity": p.effectiveVerbosity(verbosity)}, "max_output_tokens": maxOutputTokens}
 	body, _ := json.Marshal(payload)
 	endpoint, err := azureopenai.URL(p.Endpoint, "responses")
 	if err != nil { return responseTextResult{}, err }
