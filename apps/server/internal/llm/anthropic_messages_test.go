@@ -61,7 +61,7 @@ func TestAnthropicStructuredRequestAndUsage(t *testing.T) {
 	if req.Header.Get("x-api-key") != "secret" || req.Header.Get("anthropic-version") != "2023-06-01" || req.Header.Get("api-key") != "" {
 		t.Fatalf("headers = %v", req.Header)
 	}
-	if body["model"] != "claude-test" || body["max_tokens"] != float64(321) {
+	if body["model"] != "claude-test" || body["max_tokens"] != float64(642) {
 		t.Fatalf("payload = %v", body)
 	}
 	if _, has := body["input"]; has {
@@ -91,7 +91,7 @@ func TestAnthropicPlainTextOmitsOutputConfig(t *testing.T) {
 	if err != nil || res.Text != "こんにちは" {
 		t.Fatalf("res=%+v err=%v", res, err)
 	}
-	if _, has := body["output_config"]; has || body["max_tokens"] != float64(1200) {
+	if _, has := body["output_config"]; has || body["max_tokens"] != float64(2400) {
 		t.Fatalf("payload = %v", body)
 	}
 }
@@ -132,3 +132,41 @@ func TestResponsesAPIRemainsDefault(t *testing.T) {
 }
 
 func mustJSON(v any) string { b, _ := json.Marshal(v); return string(b) }
+
+var testFence = strings.Repeat("`", 3)
+
+func TestAnthropicTokenCeilingAndFenceStripping(t *testing.T) {
+	if got := anthropicTokenCeiling(1200); got != 2400 {
+		t.Fatalf("ceiling(1200) = %d", got)
+	}
+	if got := anthropicTokenCeiling(9000); got != 16000 {
+		t.Fatalf("ceiling(9000) = %d, want capped 16000", got)
+	}
+	cases := []struct{ in, want string }{
+		{testFence + "json\n{\"a\":1}\n" + testFence, `{"a":1}`},
+		{testFence + "\n{\"a\":1}\n" + testFence + "\n", `{"a":1}`},
+		{"  " + testFence + "json\n{\"a\":\"x\"}" + testFence, `{"a":"x"}`},
+		{`{"a":1}`, `{"a":1}`},
+	}
+	for _, c := range cases {
+		if got := stripCodeFence(c.in); got != c.want {
+			t.Fatalf("stripCodeFence(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestAnthropicPlainTextStripsFenceButSchemaReplyIsUntouched(t *testing.T) {
+	var req http.Request
+	var body map[string]any
+	text, _ := json.Marshal(testFence + "json\n{\"body\":\"x\"}\n" + testFence)
+	reply := `{"content":[{"type":"text","text":` + string(text) + `}],"stop_reason":"end_turn","usage":{}}`
+	p := anthropicTestProvider(t, 200, reply, &req, &body)
+	res, err := p.OpenAIProvider.responseTextWithLimit(context.Background(), "p", "low", 100)
+	if err != nil || res.Text != `{"body":"x"}` {
+		t.Fatalf("plain: %q %v", res.Text, err)
+	}
+	res, err = p.responseTextWithJSONSchema(context.Background(), "p", "low", 100, "s", map[string]any{"type": "object"})
+	if err != nil || !strings.HasPrefix(res.Text, testFence) {
+		t.Fatalf("schema reply was altered: %q %v", res.Text, err)
+	}
+}
