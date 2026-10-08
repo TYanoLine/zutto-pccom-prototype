@@ -125,3 +125,37 @@ func TestGenerateBoardPostIncludesDiegeticPresentAndBaselineRules(t *testing.T) 
 		}
 	}
 }
+
+func TestVerbosityOverrideReplacesCallSiteValue(t *testing.T) {
+	cases := map[string]string{"": "low", "medium": "medium", " medium ": "medium"}
+	for override, want := range cases {
+		var got string
+		provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+			Endpoint:  "https://test.openai.azure.com",
+			APIKey:    "test-key",
+			Model:     "gpt-test",
+			Verbosity: override,
+			Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				raw, _ := io.ReadAll(req.Body)
+				var payload struct {
+					Text struct {
+						Verbosity string `json:"verbosity"`
+					} `json:"text"`
+				}
+				if err := json.Unmarshal(raw, &payload); err != nil {
+					t.Fatalf("payload: %v", err)
+				}
+				got = payload.Text.Verbosity
+				return &http.Response{StatusCode: 200, Status: "200 OK", Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"output":[{"content":[{"type":"output_text","text":"{}"}]}]}`))}, nil
+			})},
+		}}
+		_, _ = provider.responseTextWithJSONSchema(context.Background(), "p", "low", 100, "s", map[string]any{"type": "object"})
+		if got != want {
+			t.Fatalf("override %q: verbosity = %q, want %q", override, got, want)
+		}
+		_, _ = provider.OpenAIProvider.responseTextWithLimit(context.Background(), "p", "low", 100)
+		if got != want {
+			t.Fatalf("override %q (plain): verbosity = %q, want %q", override, got, want)
+		}
+	}
+}

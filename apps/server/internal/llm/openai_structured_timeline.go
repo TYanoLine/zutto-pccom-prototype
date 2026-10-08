@@ -285,7 +285,7 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.
 		"model": p.Model,
 		"input": prompt,
 		"text": map[string]any{
-			"verbosity": verbosity,
+			"verbosity": p.effectiveVerbosity(verbosity),
 			"format": map[string]any{
 				"type":   "json_schema",
 				"name":   schemaName,

@@ -81,3 +81,14 @@ func TestHAKATAFreeformBodyDefaultAndOptOut(t *testing.T) {
 	t.Setenv("HAKATA_FREEFORM_BODY", "0")
 	if Load().HakataFreeformBody { t.Fatal("title-led body experiment should be reversible") }
 }
+
+func TestAzureOpenAIVerbosityDefaultsEmpty(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_VERBOSITY", "")
+	if got := Load().AzureOpenAIVerbosity; got != "" {
+		t.Fatalf("default verbosity override = %q, want empty", got)
+	}
+	t.Setenv("AZURE_OPENAI_VERBOSITY", "medium")
+	if got := Load().AzureOpenAIVerbosity; got != "medium" {
+		t.Fatalf("verbosity override = %q, want medium", got)
+	}
+}
