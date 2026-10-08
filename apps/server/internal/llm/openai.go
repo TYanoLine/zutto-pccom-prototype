@@ -23,7 +23,21 @@ type OpenAIProvider struct {
 	// Verbosity, when set, replaces the per-call text.verbosity ("low" in
 	// every current call site). Some deployments accept only "medium".
 	Verbosity string
+	// ReasoningEffort, when set, replaces reasoning.effort on calls that already
+	// request one. Calls that send no reasoning block are left unchanged.
+	ReasoningEffort string
 	Client *http.Client
+}
+
+func (p OpenAIProvider) effectiveReasoningEffort(callSite string) string {
+	callSite = strings.TrimSpace(callSite)
+	if callSite == "" {
+		return ""
+	}
+	if v := strings.TrimSpace(p.ReasoningEffort); v != "" {
+		return v
+	}
+	return callSite
 }
 
 func (p OpenAIProvider) effectiveVerbosity(callSite string) string {

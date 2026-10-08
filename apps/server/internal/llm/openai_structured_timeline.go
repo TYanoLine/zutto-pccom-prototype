@@ -295,7 +295,7 @@ func (p StructuredOpenAIProvider) responseTextWithJSONSchemaOptions(ctx context.
 		},
 		"max_output_tokens": maxOutputTokens,
 	}
-	if reasoningEffort = strings.TrimSpace(reasoningEffort); reasoningEffort != "" {
+	if reasoningEffort = p.effectiveReasoningEffort(reasoningEffort); reasoningEffort != "" {
 		payload["reasoning"] = map[string]any{"effort": reasoningEffort}
 	}
 	if webSearchToolChoice = strings.TrimSpace(webSearchToolChoice); webSearchToolChoice != "" {

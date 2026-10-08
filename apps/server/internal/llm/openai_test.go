@@ -159,3 +159,36 @@ func TestVerbosityOverrideReplacesCallSiteValue(t *testing.T) {
 		}
 	}
 }
+
+func TestReasoningEffortOverrideOnlyAffectsCallsThatRequestOne(t *testing.T) {
+	cases := []struct{ override, callSite, want string }{
+		{"", "low", "low"},
+		{"medium", "low", "medium"},
+		{"medium", "", ""},
+		{"", "", ""},
+	}
+	for _, c := range cases {
+		var got string
+		var present bool
+		provider := StructuredOpenAIProvider{OpenAIProvider: OpenAIProvider{
+			Endpoint: "https://test.openai.azure.com", APIKey: "k", Model: "m", ReasoningEffort: c.override,
+			Client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				raw, _ := io.ReadAll(req.Body)
+				var payload struct {
+					Reasoning *struct {
+						Effort string `json:"effort"`
+					} `json:"reasoning"`
+				}
+				_ = json.Unmarshal(raw, &payload)
+				if payload.Reasoning != nil {
+					present, got = true, payload.Reasoning.Effort
+				}
+				return &http.Response{StatusCode: 200, Status: "200 OK", Header: http.Header{}, Body: io.NopCloser(strings.NewReader(`{"output":[{"content":[{"type":"output_text","text":"{}"}]}]}`))}, nil
+			})},
+		}}
+		_, _ = provider.responseTextWithJSONSchemaReasoning(context.Background(), "p", "low", c.callSite, 100, "s", map[string]any{"type": "object"})
+		if got != c.want || present != (c.want != "") {
+			t.Fatalf("%+v: effort=%q present=%v", c, got, present)
+		}
+	}
+}
