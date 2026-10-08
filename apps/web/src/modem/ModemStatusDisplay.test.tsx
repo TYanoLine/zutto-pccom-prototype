@@ -24,7 +24,9 @@ describe('PV-AF-style digital modem display', () => {
     expect(html).toContain('DSR');
     expect(html).toContain('RTS');
     expect(html).toContain('CTS');
-    expect(html).toContain('AI');
+    expect(html).toContain('modem-lcd__ai');
+    expect(html).toContain('>A<');
+    expect(html).toContain('>I<');
     expect(html).not.toContain('>AA<');
     expect(html).toContain('DCD');
   });

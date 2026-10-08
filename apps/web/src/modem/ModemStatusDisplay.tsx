@@ -257,7 +257,10 @@ export function ModemStatusDisplay({ mode, telemetry, dteBaud, generating = fals
         <span data-on={telemetry.dsr ? 'true' : 'false'}>DSR</span>
         <span data-on="false">RTS</span>
         <span data-on={telemetry.cts ? 'true' : 'false'}>CTS</span>
-        <span data-on={aiLit ? 'true' : 'false'}>AI</span>
+        <span className="modem-lcd__ai" data-on={aiLit ? 'true' : 'false'} aria-label="AI">
+          <span aria-hidden="true">A</span>
+          <span aria-hidden="true">I</span>
+        </span>
         <span data-on={telemetry.cd ? 'true' : 'false'}>DCD</span>
       </div>
     </div>
