@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { createIdleModemTelemetry } from './ModemTelemetry';
 import { DEFAULT_COMM_SETTINGS } from './CommSettings';
-import { ModemStatusDisplay } from './ModemStatusDisplay';
+import { ModemStatusDisplay, nextFlickerStep } from './ModemStatusDisplay';
 
 describe('PV-AF-style digital modem display', () => {
   it('renders the variable speed as seven-segment digits while keeping indicator legends as fixed text', () => {
@@ -24,7 +24,8 @@ describe('PV-AF-style digital modem display', () => {
     expect(html).toContain('DSR');
     expect(html).toContain('RTS');
     expect(html).toContain('CTS');
-    expect(html).toContain('AA');
+    expect(html).toContain('AI');
+    expect(html).not.toContain('>AA<');
     expect(html).toContain('DCD');
   });
 
@@ -79,5 +80,45 @@ describe('PV-AF-style digital modem display', () => {
 
     expect(html).toContain('modem-lcd__unit-glyph');
     expect(html.match(/modem-lcd__glyph/g)).toHaveLength(3);
+  });
+
+  it('shows the AI lamp in the lamp row in place of AA', () => {
+    const html = renderToStaticMarkup(
+      <ModemStatusDisplay
+        mode="lamps"
+        telemetry={createIdleModemTelemetry(DEFAULT_COMM_SETTINGS)}
+        dteBaud={38400}
+        generating
+      />,
+    );
+
+    expect(html).toContain('<span class="modem-lamp__label">AI</span>');
+    expect(html).not.toContain('AA');
+    // Static markup runs no effects, so the flicker starts dark and only
+    // the timer in the browser lights it.
+    expect(html).toContain('aria-label="AI 消灯"');
+  });
+});
+
+describe('nextFlickerStep', () => {
+  it('keeps lit phases longer than dark ones', () => {
+    const samples = Array.from({ length: 200 }, (_, index) => {
+      const random = (() => { let seed = index + 1; return () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }; })();
+      return nextFlickerStep(random);
+    });
+    const lit = samples.filter(step => step.on);
+    const dark = samples.filter(step => !step.on);
+    const average = (steps: { delayMs: number }[]) => steps.reduce((sum, step) => sum + step.delayMs, 0) / steps.length;
+
+    expect(lit.length).toBeGreaterThan(dark.length);
+    expect(average(lit)).toBeGreaterThan(average(dark));
+  });
+
+  it('keeps delays within the flicker range', () => {
+    for (let index = 0; index < 50; index += 1) {
+      const step = nextFlickerStep(() => index / 50);
+      expect(step.delayMs).toBeGreaterThanOrEqual(40);
+      expect(step.delayMs).toBeLessThanOrEqual(400);
+    }
   });
 });

@@ -161,9 +161,15 @@ Handshake audio should be based on modem protocol behavior rather than arbitrary
 
 Mobile modem indicators are driven by structured modem telemetry rather than by
 parsing human-readable status strings. Lamp activity is state/data-driven:
-MR/TR readiness, SD/RD activity pulses, OH off-hook, CD carrier detect, AA
-auto-answer (currently off because incoming calls are not implemented), and HS
-for an established 9600-bps-or-faster carrier.
+MR/TR readiness, SD/RD activity pulses, OH off-hook, CD carrier detect, AI
+(see below), and HS for an established 9600-bps-or-faster carrier.
+
+The AI lamp is not a modem signal. It replaces the former AA (auto-answer) lamp,
+which could never light because incoming calls are not implemented. While the
+server reports world-data generation in progress (the `generating` prop, fed from
+the generation-trace `running` state), AI flickers at random: lit phases are
+longer and more frequent than dark ones. The state is only available where the
+station enables the `generation_trace` debug flag; elsewhere AI stays dark.
 
 For the reconstructed digital display, OFH means Off Hook. Protocol capability
 and negotiated protocol are stored separately: during dialing/ringing/training,
@@ -173,9 +179,9 @@ MNP4 displays MNP without the class-5 digit. The variable speed field is rendere
 as explicit seven-segment digits, while V.42bis / MNP / OFH and the serial-signal
 labels remain fixed LCD legends. The right-side signal matrix follows the
 photographed PV-AF-family order DTR/DSR, RTS/CTS, AA/DCD. DTR currently follows
-the modeled terminal-ready state, DCD follows carrier detect, AA follows the
-auto-answer state, and RTS remains intentionally unlit until an independent RTS
-state exists. The circle above OFH is an outline indicator rather than a filled
+the modeled terminal-ready state, DCD follows carrier detect, AI follows the
+generation-in-progress flicker described above, and RTS remains intentionally
+unlit until an independent RTS state exists. The circle above OFH is an outline indicator rather than a filled
 dot. The speed-unit K is also a fixed legend. The amber illumination keeps the
 Ver 0.21 center brightness but darkens only toward the LCD edges, avoiding the
 raised bevel appearance of the first implementation. This display-state mapping is kept

@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { ModemTelemetry } from './ModemTelemetry';
 import { formatModemBaud, protocolIndicators } from './ModemTelemetry';
 import './ModemStatusDisplay.css';
@@ -42,18 +43,35 @@ type ModemStatusDisplayProps = {
   mode: ModemStatusDisplayMode;
   telemetry: ModemTelemetry;
   dteBaud: number;
+  // True while the server is generating world data. Drives the AI indicator,
+  // which replaces the never-lit AA (auto-answer) indicator.
+  generating?: boolean;
 };
 
-const lampEntries = [
-  ['MR', 'mr'],
-  ['TR', 'tr'],
-  ['SD', 'sd'],
-  ['RD', 'rd'],
-  ['OH', 'oh'],
-  ['CD', 'cd'],
-  ['AA', 'aa'],
-  ['HS', 'hs'],
-] as const;
+// Random flicker for the AI indicator. A single lamp that stays lit looks like
+// a stuck status, so each step picks a fresh state: lit phases are longer and
+// more frequent than dark ones, so it reads as activity rather than a blink.
+export function nextFlickerStep(random: () => number): { on: boolean; delayMs: number } {
+  const on = random() < 0.7;
+  const delayMs = on ? 80 + random() * 320 : 40 + random() * 140;
+  return { on, delayMs: Math.round(delayMs) };
+}
+
+export function useGenerationFlicker(active: boolean): boolean {
+  const [lit, setLit] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    let timer = 0;
+    const tick = () => {
+      const step = nextFlickerStep(Math.random);
+      setLit(step.on);
+      timer = window.setTimeout(tick, step.delayMs);
+    };
+    tick();
+    return () => window.clearTimeout(timer);
+  }, [active]);
+  return active && lit;
+}
 
 // ---------------------------------------------------------------------------
 // Seven-segment glyph geometry.
@@ -186,19 +204,30 @@ function SegmentedSpeed({ value }: { value: string }) {
   );
 }
 
-export function ModemStatusDisplay({ mode, telemetry, dteBaud }: ModemStatusDisplayProps) {
+export function ModemStatusDisplay({ mode, telemetry, dteBaud, generating = false }: ModemStatusDisplayProps) {
+  const aiLit = useGenerationFlicker(generating);
   if (mode === 'off') return null;
 
   if (mode === 'lamps') {
+    const lamps: ReadonlyArray<readonly [string, boolean]> = [
+      ['MR', telemetry.mr],
+      ['TR', telemetry.tr],
+      ['SD', telemetry.sd],
+      ['RD', telemetry.rd],
+      ['OH', telemetry.oh],
+      ['CD', telemetry.cd],
+      ['AI', aiLit],
+      ['HS', telemetry.hs],
+    ];
     return (
       <div className="mobile-modem-status mobile-modem-status--lamps" aria-label="モデム状態 ランプ表示">
-        {lampEntries.map(([label, key]) => (
+        {lamps.map(([label, lit]) => (
           <span className="modem-lamp" key={label}>
             <span className="modem-lamp__label">{label}</span>
             <span
               className="modem-lamp__led"
-              data-on={telemetry[key] ? 'true' : 'false'}
-              aria-label={`${label} ${telemetry[key] ? '点灯' : '消灯'}`}
+              data-on={lit ? 'true' : 'false'}
+              aria-label={`${label} ${lit ? '点灯' : '消灯'}`}
             />
           </span>
         ))}
@@ -228,7 +257,7 @@ export function ModemStatusDisplay({ mode, telemetry, dteBaud }: ModemStatusDisp
         <span data-on={telemetry.dsr ? 'true' : 'false'}>DSR</span>
         <span data-on="false">RTS</span>
         <span data-on={telemetry.cts ? 'true' : 'false'}>CTS</span>
-        <span data-on={telemetry.aa ? 'true' : 'false'}>AA</span>
+        <span data-on={aiLit ? 'true' : 'false'}>AI</span>
         <span data-on={telemetry.cd ? 'true' : 'false'}>DCD</span>
       </div>
     </div>
