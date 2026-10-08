@@ -26,6 +26,9 @@ type OpenAIProvider struct {
 	// ReasoningEffort, when set, replaces reasoning.effort on calls that already
 	// request one. Calls that send no reasoning block are left unchanged.
 	ReasoningEffort string
+	// SchemaCompat strips JSON-schema bounds (maxItems, numeric limits) that
+	// some backends reject before a structured request is sent.
+	SchemaCompat bool
 	Client *http.Client
 }
 

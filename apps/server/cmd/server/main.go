@@ -84,7 +84,7 @@ func main() {
 	// Candidate wording, article details, final prose, and bounded historical research
 	// use Azure OpenAI. Jev remains an independent bounded semantic advisor for the
 	// existing title/action/persona routes.
-	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Verbosity: cfg.AzureOpenAIVerbosity, ReasoningEffort: cfg.AzureOpenAIReasoningEffort, Client: &http.Client{Timeout: 90 * time.Second}}}
+	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Verbosity: cfg.AzureOpenAIVerbosity, ReasoningEffort: cfg.AzureOpenAIReasoningEffort, SchemaCompat: cfg.AzureOpenAISchemaCompat, Client: &http.Client{Timeout: 90 * time.Second}}}
 	postRenderer := azureOpenAIRenderer
 	postMaterializer := newProductionMaterializer(postRenderer)
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
