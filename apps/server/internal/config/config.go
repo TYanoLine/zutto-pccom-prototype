@@ -13,6 +13,7 @@ type Config struct {
 	AzureOpenAIVerbosity        string
 	AzureOpenAIReasoningEffort  string
 	AzureOpenAISchemaCompat     bool
+	AzureOpenAIAPI              string
 	JevKey                      string
 	JevModel                    string
 	WorldDate                   string
@@ -38,6 +39,7 @@ func Load() Config {
 		AzureOpenAIVerbosity:        os.Getenv("AZURE_OPENAI_VERBOSITY"),
 		AzureOpenAIReasoningEffort:  os.Getenv("AZURE_OPENAI_REASONING_EFFORT"),
 		AzureOpenAISchemaCompat:     envBool("AZURE_OPENAI_SCHEMA_COMPAT", false),
+		AzureOpenAIAPI:              os.Getenv("AZURE_OPENAI_API"),
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
 		WorldDate:                   env("WORLD_DATE", "1996-08-26"),

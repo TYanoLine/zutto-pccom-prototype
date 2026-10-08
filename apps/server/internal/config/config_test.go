@@ -144,3 +144,14 @@ func TestAzureOpenAISchemaCompatDefaultsOff(t *testing.T) {
 		t.Fatal("schema compat should be enabled by 1")
 	}
 }
+
+func TestAzureOpenAIAPIDefaultsEmpty(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_API", "")
+	if got := Load().AzureOpenAIAPI; got != "" {
+		t.Fatalf("default API = %q, want empty", got)
+	}
+	t.Setenv("AZURE_OPENAI_API", "anthropic")
+	if got := Load().AzureOpenAIAPI; got != "anthropic" {
+		t.Fatalf("API = %q, want anthropic", got)
+	}
+}
