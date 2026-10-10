@@ -278,6 +278,36 @@ func (s *Store) ClearPersonaFacts(personaIDs []string) int {
 	return count
 }
 
+var (
+	_ world.InteractionLedgerStore = (*Store)(nil)
+	_ world.RelationshipStore      = (*Store)(nil)
+)
+
+func (s *Store) AppendInteractionEvent(event world.InteractionEvent) error {
+	return s.MemoryStore.AppendInteractionEvent(event)
+}
+
+func (s *Store) ListInteractionEvents(hostID string, limit int) []world.InteractionEvent {
+	return s.MemoryStore.ListInteractionEvents(hostID, limit)
+}
+
+func (s *Store) GetInteractionEvent(eventID string) (world.InteractionEvent, bool) {
+	return s.MemoryStore.GetInteractionEvent(eventID)
+}
+
+func (s *Store) GetRelationship(hostID string, from, to world.ActorRef) (world.RelationshipEdge, bool) {
+	return s.MemoryStore.GetRelationship(hostID, from, to)
+}
+
+func (s *Store) UpdateRelationship(edge world.RelationshipEdge) error {
+	return s.MemoryStore.UpdateRelationship(edge)
+}
+
+func (s *Store) ListRelationshipsFrom(hostID string, from world.ActorRef) []world.RelationshipEdge {
+	return s.MemoryStore.ListRelationshipsFrom(hostID, from)
+}
+
+
 func (s *Store) targetsForPersonaIDs(personaIDs []string) []persistedHost {
 	if len(personaIDs) == 0 {
 		return nil
