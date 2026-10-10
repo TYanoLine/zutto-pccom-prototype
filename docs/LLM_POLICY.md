@@ -112,6 +112,7 @@ In dynamic multi-turn interactions (such as synchronous chat or referencing comp
 - **World decides actions, LLM retrieves memory:** The decision to speak, remain silent, or leave a chat is fixed by World before any LLM call. The agent uses tools solely to recall relevant facts (such as what the speaker wrote on a board yesterday) during wording.
 - **Strict observation boundary:** Tools MUST reject or filter out any event the calling actor did not plausibly observe. A resident cannot search another resident's private mail, unseen hidden boards, or chat sessions they did not attend.
 - **Read-only invariant:** Tools cannot alter world state, register new facts, or mutate relationship metrics. New world facts emerge only when the generated utterance is committed by World.
+- **Responsiveness limit (max 1 round-trip):** To keep chat and generation latency bounded and predictable, tool invocation is capped at at most one round-trip per turn (`MaxToolCallsPerTurn = 1`). A second model invocation receives the tool result and MUST produce the final text. Unbounded autonomous loops are prohibited in interactive host paths.
 
 ## Historical ceiling and diegetic present
 
