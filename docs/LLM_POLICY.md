@@ -70,6 +70,8 @@ Persist opinions/interests/relationships independently of prose. Interests descr
 
 If a human praises Windows 95, a persona with `windows95=-0.65` should not flip position unless a separate world event explicitly changes that opinion.
 
+That separate event is an evidenced, versioned `opinion_shift` selected by World (SDD-005 §2.4): it requires a source interaction or canonical experience (for example repeated persuasion from a high-trust correspondent, or the persona's own committed experience), has a bounded magnitude, depends on persona traits, and follows identical rules for human and NPC speakers. Prose that happens to agree with an interlocutor is never evidence of an opinion change.
+
 ### Everyday baseline is not an interest
 
 Ordinary already-established conditions belong in baseline/world context, not automatically in `Interests`.
@@ -92,6 +94,24 @@ A persisted persona fact is a contradiction guard / durable identity fact, not a
 For example, `offline_meeting.preference=positive` constrains future characterization but does not make an offline-meeting post more likely by itself. Likewise an ordinary computing-environment fact does not justify repeatedly starting threads about the equipment category.
 
 Before an LLM can realize a new post, the world layer must independently select a current causal action. Background facts may be supplied to the LLM only for consistency with that already-selected cause.
+
+### Interactions are not background facts
+
+A concrete interaction addressed to or involving the actor — being replied to or quoted, receiving a question or mail, the actor's own question being answered, a commitment the actor made, an ongoing dispute, a chat topic — is a different category from a persona fact. World may hold it as an **open loop** (SDD-005 §2.3) and offer it, weighted by persona traits and age, as a candidate cause (`cause_kind=interaction_followup` with a `source_event_id`, or a reply/mail-reply target). Open loops expire; most are never acted on.
+
+The LLM still never decides that an interaction deserves a response, never chooses which open loop to resolve and never converts the loop's existence into a new development. `interaction_followup` roots obey the continuation rule below: the World-selected cause must supply a materially new development.
+
+### Actor-knowledge context
+
+Context for an in-world generation (post, mail, chat utterance) is a small projection of interactions that happened before the action, that the actor observed, and whose visibility scope is compatible with the output channel (SDD-005 §3.6). Private mail/chat content must not appear in material for a public post unless World selected a disclosure action. Relationship state is supplied as a short factual summary of prior exchanges, not as numeric scores or tone instructions.
+
+### Agentic on-demand memory retrieval tools
+
+In dynamic multi-turn interactions (such as synchronous chat or referencing complex past discussions), pre-stuffing entire interaction histories into static prompt context is both wasteful and brittle. Where enabled, generation workers may be equipped with **actor-scoped read-only memory tools** (e.g., `get_my_recent_posts`, `search_my_observed_events`, `get_interaction_history_with`; see SDD-005 §3.7).
+
+- **World decides actions, LLM retrieves memory:** The decision to speak, remain silent, or leave a chat is fixed by World before any LLM call. The agent uses tools solely to recall relevant facts (such as what the speaker wrote on a board yesterday) during wording.
+- **Strict observation boundary:** Tools MUST reject or filter out any event the calling actor did not plausibly observe. A resident cannot search another resident's private mail, unseen hidden boards, or chat sessions they did not attend.
+- **Read-only invariant:** Tools cannot alter world state, register new facts, or mutate relationship metrics. New world facts emerge only when the generated utterance is committed by World.
 
 ## Historical ceiling and diegetic present
 

@@ -51,6 +51,12 @@ A <-> B:
 
 A 300-member BBS therefore remains a sparse graph rather than a 90,000-edge full matrix.
 
+## Cross-channel extension (SDD-005)
+
+Strong observations also include: sending or (once read) receiving mail/telegram, participating in a chat session during the utterance, and being selected by World as the reader/responder of a post. Observation is scoped: private and chat-session content is never observed by non-participants.
+
+Relationship edges are directional and are fed by every channel. SDD-005 §2.2 defines the bounded fields (`affinity`, `trust`, `tension`, `familiarity`, per-channel counts) and requires decay to be computed at read time rather than by rewriting stored values. Edges are derived state over the interaction ledger, not static `Persona` fields.
+
 ## Retrieval at reply time
 
 Query by:

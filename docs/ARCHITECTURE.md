@@ -255,6 +255,8 @@ World engine owns:
 - whether an event occurs
 - which stale scopes require catch-up
 - coarse-vs-detailed materialization policy
+- the interaction ledger and its derived state: observations, relationship edges, open loops, opinion versions, topic salience (SDD-005)
+- which open loop, if any, becomes the cause of a later action, and whether a mail/chat turn is answered
 
 LLM owns:
 
@@ -264,6 +266,10 @@ LLM owns:
 - generating prose for already-selected world events
 
 LLM output must be validated. Prefer structured outputs for fact-producing calls.
+
+### Interaction ledger boundary
+
+All channels (board roots/replies, mail, chat utterances, telegrams, SYSOP actions) append to one shared interaction ledger with actor, visibility scope, addressees, response link and world time. The ledger, its derived state and a channel-neutral private-message/chat-line store are shared lower layers. Mailbox commands, read/unread presentation, chat room/telegram etiquette and board append display remain inside each host program; a host without historical mail or chat simply never emits those events. See `docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md`.
 
 ## Context assembly
 
@@ -278,6 +284,12 @@ Recommended order for prompt-cache friendliness:
 7. immediate selected action
 
 Do not send all historical logs. Retrieve only relevant facts and summarize old history.
+
+Items 5 and 6 come from the SDD-005 actor-knowledge projection: only events before the action, observed by the actor, and with a visibility scope compatible with the output channel.
+
+### Agentic memory retrieval boundary
+
+For multi-turn dialogue (chat) or complex interaction follow-ups, the LLM provider interface may execute agentic function calling / tool use against the World storage. Tools are strictly scoped to the speaking actor's observed history (`get_my_recent_posts`, `search_my_observed_events`, `get_interaction_history_with`). The tool adapter resides between the LLM provider and WorldStore, enforcing observation and visibility filters so unobserved facts can never leak across channels. All memory retrieval tools are read-only; state changes occur exclusively through committed world events. See `docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md` §3.7.
 
 ## Temporary HAKATA generator evaluation mode
 
@@ -329,5 +341,8 @@ Current code intentionally still has shortcuts, including:
 - simplified terminal/ANSI behavior
 - atmospheric rather than fully historical telephone tariffs
 - Azure OpenAI provider boundary present but AI not yet part of normal host posting behavior
+- human posts stored with a handle string only (no member ID, no annotated intent), so they cannot yet be the subject of observations or relationships
+- mail and chat/telegram menus are fixed placeholder text with no persistence; no interaction ledger, relationship edges or open loops exist yet
+- body-render context passes same-board "related posts" without an actor-observation filter (duplicate-topic hint only; to be replaced by the SDD-005 projection)
 
 These shortcuts are adapter/prototype boundaries and must not become domain rules.

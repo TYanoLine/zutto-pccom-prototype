@@ -58,7 +58,7 @@ The BBS database remains canonical history. Provider-side chat/session history i
 
 For lazy body rendering the development PoC reconstructs a bounded chat-like context from BBS records. Earlier materialized bodies are supplied as body text; still-lazy messages contribute their committed free-form semantic envelopes. A small related-post retrieval is also supplied as a duplicate-topic hint.
 
-Retrieved related posts are not automatically treated as the actor's personal memory. Production should additionally constrain context by the persona's read/unread/observation state where appropriate.
+Retrieved related posts are not automatically treated as the actor's personal memory. Production should additionally constrain context by the persona's read/unread/observation state where appropriate; SDD-005 §3.6 (`docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md`) defines that actor-knowledge projection, including visibility-scope filtering for mail and chat.
 
 ## Causal body materialization
 

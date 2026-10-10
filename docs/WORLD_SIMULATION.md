@@ -110,6 +110,8 @@ Personas should have persistent traits and state such as:
 - current goals / ongoing conversations
 - public profile vs private facts
 
+`relationships` and `current goals / ongoing conversations` are **derived state over the interaction ledger**, not static persona fields filled at creation. See "Interaction feedback across channels" below and `docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md`. The current `world.Persona` model has neither yet.
+
 A large proportion of accounts should read rarely, lurk, or be inactive. Online population must not equal active posters.
 
 Treat membership scale and activity scale as different layers:
@@ -206,6 +208,26 @@ batch if generation cannot supply valid subjects; a generic board-name fallback
 must not be committed. Once a subject is shown in a board index, body rendering
 cannot replace it with the body's generated subject. Host-specific append
 semantics remain intact.
+
+## Interaction feedback across channels
+
+Every dynamic interaction — board roots and replies/appends, mail, chat utterances, telegrams, SYSOP actions — is recorded once in an append-only **interaction ledger** with an actor (persona or human member), a visibility scope, addressees, an explicit response link and world time. Board posts are not special; mail and chat are not side channels outside the world.
+
+World derives sparse state from that ledger deterministically and idempotently:
+
+- **observations** — who could know which event (scoped: private mail and chat sessions are visible only to participants);
+- **relationship edges** — directional, bounded affinity/trust/tension/familiarity, decayed at read time;
+- **open loops** — concrete pending matters owned by an actor: a question addressed to them, an unanswered mail, their own question that got answered, a commitment, an ongoing dispute, a chat topic not yet carried to a board;
+- **opinion versions** — opinions change only through an evidenced, bounded `opinion_shift` event, never because an LLM agreed with someone;
+- **topic salience** — a probability modifier, never a cause by itself.
+
+These feed the *next* action selection: responder weights (spec 008's relationship term), the choice between an open-topic root cause and an `interaction_followup` cause tied to a source event, mail reply/ignore decisions at the recipient's next simulated login, and per-turn chat behaviour. The same rules apply to human and NPC interactions; ignoring is normal.
+
+This does not contradict "Baseline, interest, and current salience are different": background facts, interests and accumulated history still never trigger posts. An interaction addressed to or involving the actor is a concrete *interaction* salience and may become a candidate cause.
+
+Unobservable channels (NPC-to-NPC mail or chat) are simulated only as coarse prose-free events when their consequences are needed; their prose is never materialized.
+
+Prose context is an **actor-knowledge projection**: a few items filtered by time (before the action), observation and scope compatibility (no private content in a public post unless World selected disclosure). See `docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md` for the data model, phased implementation plan and acceptance criteria.
 
 ## Diegetic present
 

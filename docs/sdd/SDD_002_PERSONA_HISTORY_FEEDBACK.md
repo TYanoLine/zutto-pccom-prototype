@@ -86,8 +86,12 @@ Concurrent attempts require a DB/lease/CAS boundary before production rollout.
 ## Non-goals
 
 - deciding whether another resident knows the fact (SDD-003/004);
-- making accumulated history a reason to post;
+- making accumulated history a reason to post (an addressed/involving *interaction* may still become an open loop under SDD-005 §2.3; the history item itself never does);
 - filling missing biography for color.
+
+## Cross-channel extension (SDD-005)
+
+History candidates may also come from mail, chat and telegram events, not only board posts. Provenance therefore generalizes from `source post id` to the SDD-005 `event_id`, and every history item carries the event's visibility scope. A fact disclosed only in private mail or a chat session is known only to that scope's participants until World selects a disclosure action (SDD-005 §3.5).
 
 ## Acceptance criteria
 
