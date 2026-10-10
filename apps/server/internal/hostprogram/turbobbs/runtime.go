@@ -537,11 +537,12 @@ func (r *Runtime) storeEntry(preformatted bool) string {
 		return "Message is empty.\r\n" + r.renderEditMenu()
 	}
 	p := r.Store.AddPost(r.Host.ID, world.Post{
-		BoardID:   r.enterSection,
-		Author:    r.caller,
-		Subject:   r.enterSubject,
-		Body:      body,
-		CreatedAt: time.Now(),
+		BoardID:        r.enterSection,
+		Author:         r.caller,
+		AuthorMemberID: r.caller,
+		Subject:        r.enterSubject,
+		Body:           body,
+		CreatedAt:      time.Now(),
 	})
 	r.clearEntry()
 	r.state = "main"
