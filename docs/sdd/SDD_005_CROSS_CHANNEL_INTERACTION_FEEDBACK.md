@@ -372,6 +372,34 @@ Round 2 (最終出力生成):
   - LLM の呼び出し回数は **最大2回**（ツール不使用時は1回）に確実に抑えられ、予測可能なレイテンシ（数秒以内）を保証する。
   - ツール実行自体はインメモリまたは高速インデックス検索（ローカルDB）のため、ミリ秒単位で完了する。
 
+#### ツールの内部実装アーキテクチャ（生成LLMを使わない超高速化）
+
+ツールの実行処理（Tool Execution）自体には**生成LLMを一切使わず**、インメモリ直接参照およびEmbeddingベクトル検索（`text-embedding-3-small`）を採用する。これによりツール実行処理時間を 0.1ms〜20ms 未満に抑え、ツールの内部処理による遅延を実質ゼロ化する。
+
+```text
+1. インメモリ直接参照（実行時間: < 0.1ms）:
+   - 対象: get_my_recent_posts, get_thread_context, get_interaction_history_with,
+           get_my_open_loops, get_my_profile_facts
+   - アクターが観測した直近データは局あたり高々数十〜数百件のため、メモリ上のマップ/スライスから
+     直接O(1)で切り出して返す。
+
+2. Embedding ベクトル検索（実行時間: 5〜20ms）:
+   - 対象: search_my_observed_events(query)
+   - 生成タイミング（非同期マイクロバッチ原則）:
+     - 記事保存やチャット発言のたびに直列で API を呼ぶとレイテンシ悪化や障害巻き込みのリスクがあるため、
+       保存処理自体は即座に応答を返し、直後に非同期キュー（Go channel）へ投入する。
+     - バックグラウンドの軽量ワーカが「10件溜まる」または「200ms経過」でマイクロバッチ化し、
+       デプロイ済みの「text-embedding-3-small」へ一括送信してベクトルを保存する。
+     - なお、BBSの初期ヘッダ計画（Situation-First）のように元から最大10件が配列で存在する処理は、
+       ヘッダ確定時に1リクエストのバッチでまとめて埋め込む。
+   - ツール呼び出し時:
+     - 検索クエリをEmbedding化（約10ms）し、観測済みベクトルの内積計算（コサイン類似度）を一瞬（<1ms）で実行。
+     - 観測境界（Scope Filter）でフィルタし、本人が観測可能な上位を抽出して返す。
+     - 生成LLMと違ってトークンを逐次生成しないため、超高速かつ表記揺れに強い話題想起を実現する。
+```
+
+
+
 
 #### 代表的なシナリオの流れ
 
@@ -406,15 +434,28 @@ Round 2 (最終出力生成):
 - 人間のメールに対する NPC の返信率は、NPC どうしの（粗い）メール返信率と同じ規則から出る。
 - 人間に関係する派生状態の更新回数に、人間専用の上限・下限を設けない。
 
-## 6. 実装の段階
+## 6. 実装の段階と Spec の分離
+ 
+ 本設計書（SDD-005）は全体の青写真・アーキテクチャ境界を定義するものであり、実装は肥大化を防ぐため、
+ 本リポジトリの運用ルール（`AGENTS.md` / `specs/README.md`）に従って**独立した Spec（`specs/NNN-name/`）に切り出して段階的に実装**する。
 
-各段階は独立した spec（`specs/NNN-*/`）として書き、順に実装する。各段階で AI なし（決定論のみ）でも動くこと。
+### 実装フェーズと推奨 Spec 構成
+
+1. **`specs/010-interaction-ledger`（基盤台帳・関係エッジ）**:
+   - P1: 会員 ID の保持、`ActorRef`、`InteractionEvent` の追記。
+   - P2: 観測境界と `RelationshipEdge` の決定論的計算。
+2. **`specs/011-actor-memory-tools`（記憶想起ツール・非同期埋め込み）**:
+   - P3 相当: 6 つのエージェントツール（`StandardActorTools`）のバックエンド実装。
+   - 非同期マイクロバッチ埋め込みワーカ（`text-embedding-3-small`）とコサイン類似度検索の実装。
+   - 各作成要求に対する最大 1 往復（`MaxToolCallsPerTurn = 1`）のオーケストレーション。
+3. **後続 Spec（P4〜P7）**:
+   - メールの保存層と自律返信、チャットセッション、局間伝播。
 
 | 段階 | 内容 | 主な変更先 |
 |---|---|---|
 | P1 | 主体の識別: 人間の投稿に会員 ID、`ActorRef` の導入。`InteractionEvent` の追記（板のルート・返信のみ、NPC と人間）。 | `world`、`worldpersist`、各 host-program の投稿保存箇所 |
 | P2 | 観測・関係の派生（SDD-004 の中核）。spec 008 の関係の項を実装。 | `world`／新しい共有パッケージ（例 `interaction`）、`bbsengine` |
-| P3 | 未決事項（板由来の `addressed_question`、`own_question_answered`、`dispute`）。返信重みとルート原因 `interaction_followup` への接続。3.6 の射影で `bbs_render_context` の「関連投稿」を置き換える。 | `bbsengine`、`worldrepo` |
+| P3 | 未決事項（板由来の `addressed_question`、`own_question_answered`、`dispute`）。返信重みとルート原因 `interaction_followup` への接続。3.6 の射影で `bbs_render_context` の「関連投稿」を置き換える。記憶参照ツール・非同期埋め込みの統合。 | `bbsengine`、`worldrepo`、`llm` |
 | P4 | メールの保存層と、ホストごとのメール操作（歴史資料のあるホストから）。NPC の受信・返事の計画、観測駆動の実体化。 | 共有保存層、`hostprogram/<host>/` |
 | P5 | チャット・電報: 在席判定、発言ごとの行動選択、セッション終了時の派生。 | `telephone`（回線占有）、共有保存層、`hostprogram/<host>/` |
 | P6 | SDD-002/003 のチャネル横断化（`event_id`・`scope`）、意見の版（`opinion_shift`）、開示の規則。 | `world`、`worldengine` |

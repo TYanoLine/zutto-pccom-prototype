@@ -11,6 +11,15 @@ func TestAzureOpenAIDefaultModelUsesDeploymentName(t *testing.T) {
 	}
 }
 
+func TestAzureOpenAIEmbeddingModelDefault(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_EMBEDDING_MODEL", "")
+
+	cfg := Load()
+	if cfg.AzureOpenAIEmbeddingModel != "text-embedding-3-small" {
+		t.Fatalf("AzureOpenAIEmbeddingModel=%q want deployment name %q", cfg.AzureOpenAIEmbeddingModel, "text-embedding-3-small")
+	}
+}
+
 func TestHistoricalReferencesDefaultOff(t *testing.T) {
 	t.Setenv("HISTORICAL_REFERENCES_ENABLED", "")
 	if Load().HistoricalReferencesEnabled {
