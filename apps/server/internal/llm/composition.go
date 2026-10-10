@@ -42,13 +42,17 @@ func ensureExactQuote(body, quote string) (string, error) {
 		return body, nil
 	}
 	expected := ">" + quote
-	for _, line := range strings.Split(body, "\n") {
+	lines := strings.Split(body, "\n")
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, ">") {
-			if trimmed != expected {
+			// Spaces between ">" and the quoted text are a Markdown habit of some
+			// models, not an alteration of the quote; rewrite to the canonical form.
+			if strings.TrimSpace(strings.TrimPrefix(trimmed, ">")) != quote {
 				return "", errors.New("quote was altered")
 			}
-			return normalizeCRLF(body), nil
+			lines[i] = expected
+			return normalizeCRLF(strings.Join(lines, "\n")), nil
 		}
 	}
 	if body == "" {

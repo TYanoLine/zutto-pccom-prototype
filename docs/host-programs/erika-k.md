@@ -24,7 +24,11 @@ Surviving late-1990s connection logs show an Erika K 1.93 station using a flow i
   - `BD# <2-digit> <Board Name>` header and `# 最新10インデックス表示`
   - column structure: `___No. __date__ time_ _author_  ap/ref___________i n d e x_______________`
   - explicit append count under `ap/ref` column for parent articles with appends
-  - commands at index prompt including `0/00/T` (unread), `W` (write), `A` / `A <n>` (append), `.` / RETURN (up), `/` (main)
+  - commands at index prompt:
+    - compact syntax (K&K): `%BX>`cr`番号[0|00|T][N|B][W][A][J][=][+-][F][S|L][R][K|KA][X|WX][.|/][H|?]`
+    - guided Japanese syntax (Garakuta): `[Ret/番号]読む [U]読まない [A]ｱﾍﾟ [W]書く [.]戻る [0/00/T/+/-/N/B] [?]その他`
+    - delete commands (Garakuta): `[K]書き込みを消す` (delete post), `[KA]ｱﾍﾟﾝﾄﾞを消す` (delete append)
+    - confirming `cr` / `Ret` / `リターン` = Carriage Return (Enter key), paging with `+` / `-`, and `0/00/T` unread modes.
 
 Older surviving logs show a command-oriented vocabulary including families such as:
 

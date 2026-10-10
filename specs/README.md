@@ -12,6 +12,8 @@
 | 005 | erika-k-station-detail（Erika-K の板構成と画面の文字列の外部化） |
 | 006 | host-directory（電話帳の一覧をサーバが返す） |
 | 007 | regenerate-hosts（生成ホストの再生成と電話帳の堅牢化） |
+| 008 | persona-reactions（ペルソナ特性にもとづくレス・反応の選択、人間の投稿への反応を含む） |
+| 009 | title-voice（題名の書き方の改善と、題名の形の診断） |
 
 ## フォルダの構成
 

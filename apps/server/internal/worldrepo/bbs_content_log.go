@@ -37,6 +37,14 @@ func (r *Repository) SetDebugLogGeneratedContent(enabled bool) {
 	}
 }
 
+// SetTitleVariants asks the title call for up to three differently built
+// titles per article; the world side then picks one deterministically.
+func (r *Repository) SetTitleVariants(enabled bool) {
+	if r != nil {
+		r.titleVariants = enabled
+	}
+}
+
 func (r *Repository) shouldLogGeneratedContent(host world.Host) bool {
 	return r != nil && r.debugLogGeneratedContent && host.Debug.ContentLog
 }

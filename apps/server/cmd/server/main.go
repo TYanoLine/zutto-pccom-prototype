@@ -24,6 +24,10 @@ import (
 
 const generatedCenterCount = 100
 
+// titleVariantsEnabled has the title call return up to three differently built
+// titles per article (spec 009). It is a fixed choice, not an environment setting.
+const titleVariantsEnabled = true
+
 func main() {
 	startedAt := time.Now()
 	cfg := config.Load()
@@ -80,7 +84,7 @@ func main() {
 	// Candidate wording, article details, final prose, and bounded historical research
 	// use Azure OpenAI. Jev remains an independent bounded semantic advisor for the
 	// existing title/action/persona routes.
-	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Client: &http.Client{Timeout: 90 * time.Second}}}
+	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Verbosity: cfg.AzureOpenAIVerbosity, ReasoningEffort: cfg.AzureOpenAIReasoningEffort, SchemaCompat: cfg.AzureOpenAISchemaCompat, API: cfg.AzureOpenAIAPI, Client: &http.Client{Timeout: 90 * time.Second}}}
 	postRenderer := azureOpenAIRenderer
 	postMaterializer := newProductionMaterializer(postRenderer)
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
@@ -89,6 +93,7 @@ func main() {
 	runtimeStore.SetDebugLogGeneratedContent(cfg.DebugLogGeneratedContent)
 	runtimeStore.SetGenerationTraceEnabled(cfg.DebugGenerationTrace)
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
+	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
 	network := telephone.New(runtimeStore, clock)
 

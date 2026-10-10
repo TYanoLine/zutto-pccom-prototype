@@ -400,7 +400,7 @@ export default function App() {
       {desktopHostName && <span className="desktop-host-name">{desktopHostName}</span>}
       <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
-        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
+        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning} />
       </span>
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--desktop${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)}>{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
@@ -439,7 +439,7 @@ export default function App() {
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
-    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} />
+    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning} />
     <section className="screen-wrap"><TerminalCanvas
       ref={terminalCanvasRef}
       terminal={terminal}

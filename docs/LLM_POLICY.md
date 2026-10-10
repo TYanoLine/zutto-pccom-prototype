@@ -39,6 +39,17 @@ proper-noun quotas or content templates.
 
 For production root Situations, pass the World-selected actor, time, **board purpose**, posting purpose, persona context, and previously established canonical facts as materials; no board receives a preset activity focus. If a board's meaning is historically unknown, any generation purpose is explicitly an identified *fictional station configuration*, not a guessed historical fact. Live production **does not automatically inject curated period-referent lists or external historical evidence** into Situation, title, or article prompts. It provides the world date and a short positive period-context frame; the model may use its period knowledge naturally within the 1996 ceiling. Historical claims require appropriate verification separately when enabled. The Situation model fills still-undecided details before canonical acceptance; title and body models then express that accepted state. Keep diagnostic sample incidents and wording controls in isolated test fixtures rather than production inputs. Preserve canonical and historical invariants through the existing generation boundary and validators, without turning them into per-topic prompt restrictions.
 
+## Reference without limiting
+
+Past facts, period tendencies and existing posts are **material** the model may use. They are never a ceiling on how a post is worded or what it is about.
+
+- Variety comes from the quality of the materials (the writer's voice and persona, the context, facts that were actually observed about recent output) and from deterministic selection among the model's own alternatives. It does not come from prohibitions, quotas or content templates.
+- The world side prepares materials, validates machine-checkable invariants, selects among alternatives deterministically, and observes. A diagnostic measure (for example how many recent titles share an opening) may be stated to the model **as a fact about the past**, only when a bias is noticeable; it is never an instruction and never a reason to reject a generated result.
+- Examples placed in a prompt show the breadth of ways a person words something. They come from fields unrelated to the board being written for, are rotated between calls, and never reproduce text that was previously generated.
+- For titles, an object's name is included when it is needed to tell what the post is about, and its position is free (consistent with "Period-native conversational economy").
+
+See `specs/009-title-voice/` for the first application (root subject lines).
+
 ## Persona persistence
 
 Persist opinions/interests/relationships independently of prose. Interests describe things this person actually tends to care or talk about, not every tool/environment they happen to use. Example:

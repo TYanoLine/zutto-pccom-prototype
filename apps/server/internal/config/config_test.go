@@ -111,3 +111,47 @@ func TestFormerHAKATAEnvironmentNamesAreIgnored(t *testing.T) {
 		})
 	}
 }
+
+func TestAzureOpenAIVerbosityDefaultsEmpty(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_VERBOSITY", "")
+	if got := Load().AzureOpenAIVerbosity; got != "" {
+		t.Fatalf("default verbosity override = %q, want empty", got)
+	}
+	t.Setenv("AZURE_OPENAI_VERBOSITY", "medium")
+	if got := Load().AzureOpenAIVerbosity; got != "medium" {
+		t.Fatalf("verbosity override = %q, want medium", got)
+	}
+}
+
+func TestAzureOpenAIReasoningEffortDefaultsEmpty(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_REASONING_EFFORT", "")
+	if got := Load().AzureOpenAIReasoningEffort; got != "" {
+		t.Fatalf("default = %q, want empty", got)
+	}
+	t.Setenv("AZURE_OPENAI_REASONING_EFFORT", "medium")
+	if got := Load().AzureOpenAIReasoningEffort; got != "medium" {
+		t.Fatalf("override = %q, want medium", got)
+	}
+}
+
+func TestAzureOpenAISchemaCompatDefaultsOff(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_SCHEMA_COMPAT", "")
+	if Load().AzureOpenAISchemaCompat {
+		t.Fatal("schema compat must default off")
+	}
+	t.Setenv("AZURE_OPENAI_SCHEMA_COMPAT", "1")
+	if !Load().AzureOpenAISchemaCompat {
+		t.Fatal("schema compat should be enabled by 1")
+	}
+}
+
+func TestAzureOpenAIAPIDefaultsEmpty(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_API", "")
+	if got := Load().AzureOpenAIAPI; got != "" {
+		t.Fatalf("default API = %q, want empty", got)
+	}
+	t.Setenv("AZURE_OPENAI_API", "anthropic")
+	if got := Load().AzureOpenAIAPI; got != "anthropic" {
+		t.Fatalf("API = %q, want anthropic", got)
+	}
+}

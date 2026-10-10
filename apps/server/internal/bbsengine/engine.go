@@ -155,7 +155,7 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUp(ctx, host, board, false, 0, 0, -1)
+	return e.catchUp(ctx, host, board, false, 0, 0, -1, nil)
 }
 
 // CatchUpInitial materializes one batch immediately when this board has no
@@ -163,14 +163,14 @@ func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board
 // reset flows so testers can inspect the current generator without waiting for the
 // normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
 func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUpInitial(ctx, host, board, 0, 0, -1)
+	return e.catchUpInitial(ctx, host, board, 0, 0, -1, nil)
 }
 
 // CatchUpInitialCount is the explicit-development variant of CatchUpInitial.
 // It lets generator-evaluation fixtures request a larger first materialization
 // without changing normal world cadence or MaxBatchSize.
 func (e *Engine) CatchUpInitialCount(ctx context.Context, host world.Host, board world.Board, count int) error {
-	return e.catchUpInitial(ctx, host, board, count, 0, -1)
+	return e.catchUpInitial(ctx, host, board, count, 0, -1, nil)
 }
 
 // CatchUpInitialRootHistoryCount is the explicit-development history variant.
@@ -182,7 +182,7 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 	if rootCount <= 0 {
 		return nil
 	}
-	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback, -1)
+	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback, -1, nil)
 }
 
 // InteractiveInitialRootLimit bounds the title work required by a first
@@ -190,10 +190,17 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 // describes the complete retained history; unseen articles are not fabricated.
 const InteractiveInitialRootLimit = 10
 
-// CatchUpInitialBoardActivity materializes only enough independent root
-// headers for the current 10-line board index. This lightweight path does not
-// pre-generate append/reply headers or the rest of the retained archive.
-// The coarse World-selected activity state remains unchanged.
+// InteractiveInitialReplyLimit bounds the reply headers added to a first
+// board-index observation, on top of InteractiveInitialRootLimit roots.
+const InteractiveInitialReplyLimit = 30
+
+// CatchUpInitialBoardActivity materializes only enough headers for the current
+// 10-line board index: at most InteractiveInitialRootLimit of the newest
+// retained roots, each with the replies its own thread drew
+// (world.ThreadReplyCount). Many threads are unanswered and a few run long, so
+// the board looks like a conversation rather than an even trickle. The total
+// is bounded by InteractiveInitialReplyLimit. The coarse World-selected
+// activity state remains unchanged.
 func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Host, board world.Board, state world.BoardActivityState) error {
 	if state.RetainedRoots <= 0 {
 		return nil
@@ -202,12 +209,29 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	if roots > InteractiveInitialRootLimit {
 		roots = InteractiveInitialRootLimit
 	}
+	totalRoots := state.TotalRoots
+	if totalRoots < state.RetainedRoots {
+		totalRoots = state.RetainedRoots
+	}
+	quotas := make([]int, roots)
+	budget, replies := InteractiveInitialReplyLimit, 0
+	for i := range quotas {
+		// The materialized roots are the newest ones, so they use the newest
+		// root ordinals (the same ones BoardActivityState counted).
+		n := world.ThreadReplyCount(host.ID, board.ID, totalRoots-roots+1+i, state.ReplyRate)
+		if n > budget {
+			n = budget
+		}
+		quotas[i] = n
+		budget -= n
+		replies += n
+	}
 	lookback := time.Duration(0)
 	now := e.currentTime()
 	if !state.RetainedSince.IsZero() && state.RetainedSince.Before(now) {
 		lookback = now.Sub(state.RetainedSince)
 	}
-	return e.catchUpInitial(ctx, host, board, roots, lookback, 0)
+	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas)
 }
 
 func slotCountForRootTarget(rootCount int) int {
@@ -225,20 +249,20 @@ func slotCountForRootTarget(rootCount int) int {
 	return slots
 }
 
-func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int) error {
+func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
 		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
-			return e.catchUp(ctx, host, board, false, 0, 0, -1)
+			return e.catchUp(ctx, host, board, false, 0, 0, -1, nil)
 		}
 	}
-	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies)
+	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas)
 }
 
-func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int) error {
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
 	if e == nil || e.Store == nil || e.Planner == nil {
 		return nil
 	}
@@ -261,6 +285,9 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		initialStart = now.Add(-initialLookback)
 	}
 	slots := e.planSlots(host, board, recent, cursor, now, count, initialStart, desiredReplies)
+	if len(replyQuotas) > 0 {
+		slots = e.addThreadReplies(host, board, slots, replyQuotas, now)
+	}
 	if len(slots) == 0 {
 		return nil
 	}
@@ -759,6 +786,76 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 		}
 	}
 	return slots
+}
+
+// addThreadReplies places each root's replies after it in simulated time.
+// roots must be the root-only slots of planSlots in chronological order and
+// quotas[i] is the number of replies thread i drew. Replies follow their root
+// with a heavy-tailed delay (mostly within hours, sometimes the next day), the
+// thread starter occasionally comes back, and nobody answers their own post
+// twice in a row. The result is re-sorted chronologically and re-indexed.
+func (e *Engine) addThreadReplies(host world.Host, board world.Board, roots []Slot, quotas []int, now time.Time) []Slot {
+	actors := e.actorRoster(host, board, nil, now)
+	out := append([]Slot(nil), roots...)
+	for i, root := range roots {
+		if i >= len(quotas) || quotas[i] <= 0 {
+			continue
+		}
+		key := func(k int, salt string) float64 {
+			return float64(stableHash(fmt.Sprintf("%s|%s|%d|%d|%s", host.ID, board.ID, root.Index, k, salt))%1000000+1) / 1000001.0
+		}
+		at, last := root.CreatedAt, root.Author
+		for k := 0; k < quotas[i]; k++ {
+			// Pareto-like gap: median about half an hour, a tail reaching into the next day.
+			gap := time.Duration(15*math.Pow(key(k, "gap"), -.9)) * time.Minute
+			if gap < time.Minute {
+				gap = time.Minute
+			}
+			at = at.Add(gap)
+			if !at.Before(now) {
+				// A thread cannot outrun the present: squeeze the tail in.
+				at = now.Add(-time.Duration(quotas[i]-k) * time.Minute)
+				if !at.After(root.CreatedAt) {
+					at = root.CreatedAt.Add(time.Minute)
+				}
+			}
+			a := actors[int(stableHash(fmt.Sprintf("%s|%s|%d|%d|author", host.ID, board.ID, root.Index, k))%uint64(len(actors)))]
+			if k > 0 && key(k, "starter") < .3 {
+				a = actor{handle: root.Author, personaID: root.AuthorPersonaID}
+			}
+			if strings.EqualFold(a.handle, last) && len(actors) > 1 {
+				for _, c := range actors {
+					if !strings.EqualFold(c.handle, last) {
+						a = c
+						break
+					}
+				}
+			}
+			last = a.handle
+			out = append(out, Slot{
+				Author:           a.handle,
+				AuthorPersonaID:  a.personaID,
+				CreatedAt:        at,
+				ReplyToSlotIndex: root.Index,
+				ReplyToAuthor:    root.Author,
+			})
+		}
+	}
+	// Keep root slots ahead of their replies when timestamps tie, then re-index.
+	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
+	newIndex := make(map[int]int, len(roots))
+	for i := range out {
+		if out[i].ReplyToSlotIndex == 0 {
+			newIndex[out[i].Index] = i + 1
+		}
+	}
+	for i := range out {
+		if out[i].ReplyToSlotIndex != 0 {
+			out[i].ReplyToSlotIndex = newIndex[out[i].ReplyToSlotIndex]
+		}
+		out[i].Index = i + 1
+	}
+	return out
 }
 
 func stableHash(s string) uint64 {

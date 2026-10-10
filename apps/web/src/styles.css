@@ -27,6 +27,9 @@ body { min-height: 100vh; overflow: hidden; background: #080808; touch-action: m
 .desktop-topbar .modem-lcd__ofh { display: grid; grid-template-rows: 8px auto; place-items: center; gap: 1px; min-width: 20px; font: 700 7px/9px ui-monospace, monospace; }
 .desktop-topbar .modem-lcd__dot { width: 7px; height: 7px; border: 1px solid currentColor; border-radius: 50%; }
 .desktop-topbar .modem-lcd__signals { display: grid; grid-template-columns: repeat(2, auto); grid-template-rows: repeat(3, 8px); align-items: center; column-gap: 4px; min-width: 54px; font: 700 7px/8px ui-monospace, monospace; }
+/* Every signal label occupies the same three-character cell; AI spreads its two letters across it instead of stretching the glyphs. */
+.modem-lcd__signals > span { width: 3ch; text-align: center; }
+.modem-lcd__ai { display: flex; justify-content: space-between; }
 
 .desktop-menu-toggle { display: flex; flex: 0 0 42px; flex-direction: column; align-items: center; justify-content: center; gap: 5px; width: 42px; height: 42px; padding: 8px; border: 1px solid transparent; color: #ddd; background: transparent; cursor: pointer; }
 .desktop-menu-toggle:hover, .desktop-menu-toggle[aria-expanded="true"] { border-color: #484848; background: #1c1c1c; }
