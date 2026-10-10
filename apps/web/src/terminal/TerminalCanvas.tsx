@@ -27,6 +27,12 @@ export function terminalCursorWidth(cell?: Pick<Cell, 'ch'>): number {
   return cell && isFullWidth(cell.ch) ? 16 : 8;
 }
 
+// The cursor covers the whole character cell (100% height). The insert-mode
+// 40% form is not implemented yet, so every cursor is a full cell block.
+export function terminalCursorRect(cursorX: number, cursorY: number, cell?: Pick<Cell, 'ch'>) {
+  return { x: cursorX * 8, y: cursorY * 16, width: terminalCursorWidth(cell), height: 16 };
+}
+
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
 const HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
@@ -457,8 +463,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       ctx.fillStyle = '#aaaaaa';
       const cursorY = terminal.viewportCursorY(displayedRows);
       const currentCell = terminal.cells[terminal.cursorY]?.[terminal.cursorX];
-      const cursorWidth = terminalCursorWidth(currentCell);
-      ctx.fillRect(terminal.cursorX * 8, cursorY * 16 + 14, cursorWidth, 2);
+      const cursor = terminalCursorRect(terminal.cursorX, cursorY, currentCell);
+      ctx.fillRect(cursor.x, cursor.y, cursor.width, cursor.height);
       ctx.globalAlpha = 1;
     }
     positionKeyboardProxy();

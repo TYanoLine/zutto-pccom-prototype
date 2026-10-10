@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PC98_CURSOR_BLINK_INTERVAL_MS, terminalCursorWidth } from './TerminalCanvas';
+import { PC98_CURSOR_BLINK_INTERVAL_MS, terminalCursorRect, terminalCursorWidth } from './TerminalCanvas';
 
 describe('PC-98 cursor blink rate and geometry', () => {
   it('defines the historical PC-98 GDC cursor blink interval (32 frames @ 56.42Hz ~= 567ms)', () => {
@@ -28,5 +28,10 @@ describe('PC-98 cursor blink rate and geometry', () => {
     expect(terminalCursorWidth({ ch: 'あ' })).toBe(16);
     expect(terminalCursorWidth({ ch: '■' })).toBe(16);
     expect(terminalCursorWidth({ ch: '全' })).toBe(16);
+  });
+
+  it('draws the cursor as a full 100% cell block', () => {
+    expect(terminalCursorRect(2, 3, { ch: 'A' })).toEqual({ x: 16, y: 48, width: 8, height: 16 });
+    expect(terminalCursorRect(2, 3, { ch: '福' })).toEqual({ x: 16, y: 48, width: 16, height: 16 });
   });
 });
