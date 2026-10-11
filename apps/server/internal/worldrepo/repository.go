@@ -70,6 +70,11 @@ type Repository struct {
 	prefetchMu      sync.Mutex
 	prefetchQueues  map[string][]world.Board
 	prefetchRunning map[string]bool
+
+	// indexer is optional: when set, every saved post is handed to it after the
+	// canonical write. It must not block (see PostIndexer).
+	indexerMu sync.RWMutex
+	indexer   PostIndexer
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -181,9 +186,29 @@ func (r *Repository) ListPosts(hostID string) []world.Post {
 	return r.Base.ListPosts(hostID)
 }
 
+// PostIndexer receives each saved post so it can be made searchable. Implementations
+// must return quickly and must never fail the save: embedding work belongs in the
+// background, not here.
+type PostIndexer interface {
+	IndexPost(hostID string, p world.Post)
+}
+
+// SetPostIndexer enables (or, with nil, disables) post indexing.
+func (r *Repository) SetPostIndexer(ix PostIndexer) {
+	r.indexerMu.Lock()
+	r.indexer = ix
+	r.indexerMu.Unlock()
+}
+
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
 	saved := r.Base.AddPost(hostID, p)
 	r.recordPostInteraction(hostID, saved)
+	r.indexerMu.RLock()
+	ix := r.indexer
+	r.indexerMu.RUnlock()
+	if ix != nil {
+		ix.IndexPost(hostID, saved)
+	}
 	return saved
 }
 
