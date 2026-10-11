@@ -43,6 +43,9 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
     if len(req.HistoricalFacts) > 0 {
         extra = append(extra, "確定済み時代情報:\n"+strings.Join(req.HistoricalFacts, "\n"))
     }
+    if rel := strings.TrimSpace(req.RelationshipContext); rel != "" {
+        extra = append(extra, "相手との関係性:\n"+rel)
+    }
     context := ""
     if len(extra) > 0 { context = "\n\n"+strings.Join(extra, "\n\n") }
     minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
@@ -58,6 +61,7 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
 %s%s
 
 この記事を書いている本人の自然な文章にしてください。件名、投稿目的と人物の書き方を材料に、会員が自分の言葉で書いた本文にしてください。確定済みの世界事実や返信先の文章と矛盾させず、細部の言い回しや文章の展開は自由です。
+当時の趣味系BBSらしい親しみやすい生きた口語表現（〜ですねー、〜かも等）や、適度な感情表現 (笑)、(^^; などを交え、相手との関係性に応じた自然な距離感で語ってください。
 時代: %s
 本文の目安: %d〜%d文字
 時代背景: %s
