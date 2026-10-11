@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -175,10 +176,22 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	for attempt := 0; attempt < 2; attempt++ {
 		posts = nil
 		usage = GenerationUsage{}
-		if materializer, ok := r.Materializer.(usageAwareMaterializer); ok {
+		mat := r.Materializer
+		if lm, ok := mat.(LLMMaterializer); ok {
+			if lm.ActorMemoryStore == nil {
+				if src, ok := r.Base.(actormemory.Source); ok {
+					lm.ActorMemoryStore = src
+				}
+			}
+			if lm.ActorMemoryIndex == nil {
+				lm.ActorMemoryIndex = r.ActorMemoryIndex()
+			}
+			mat = lm
+		}
+		if materializer, ok := mat.(usageAwareMaterializer); ok {
 			posts, usage, err = materializer.GenerateBoardPostsWithUsage(ctx, req, decision)
 		} else {
-			posts, err = r.Materializer.GenerateBoardPosts(ctx, req, decision)
+			posts, err = mat.GenerateBoardPosts(ctx, req, decision)
 		}
 		if err == nil && len(posts) > 0 && strings.TrimSpace(posts[0].Body) != "" {
 			break
