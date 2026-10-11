@@ -76,7 +76,7 @@ func StandardActorTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        ToolGetMyRecentPosts,
-			Description: "自分が直近に掲示板に書いた投稿（記事番号・板・件名・本文抜粋・日時）を取得します。相手から直前の投稿や設定内容について具体的に質問された時のみ使用してください。通常の返信や雑談では呼ばないでください。",
+			Description: "自分が直近に掲示板に書いた投稿（記事番号・板・件名・本文抜粋・日時）を取得します。直前の投稿や設定内容について参照・確認する必要がある場合に使用します。",
 			Parameters: ToolParameterSchema{
 				Type: "object",
 				Properties: map[string]ToolPropertySchema{
@@ -93,7 +93,7 @@ func StandardActorTools() []ToolDefinition {
 		},
 		{
 			Name:        ToolGetThreadContext,
-			Description: "特定のスレッドにおけるこれまでの投稿の流れ（親記事および直前のレス）を取得します。スレッドの文脈を確認する必要がある場合のみ使用してください。",
+			Description: "特定のスレッドにおけるこれまでの投稿の流れ（親記事および直前のレス）を取得します。スレッドの文脈を確認する必要がある場合に使用します。",
 			Parameters: ToolParameterSchema{
 				Type: "object",
 				Properties: map[string]ToolPropertySchema{
@@ -111,7 +111,7 @@ func StandardActorTools() []ToolDefinition {
 		},
 		{
 			Name:        ToolGetInteractionHistoryWith,
-			Description: "特定の相手（人間会員や他の住民）との直近のやり取り（チャット発言、メール、掲示板での返信）を取得します。相手から以前の会話内容について具体的に言及された時のみ使用してください。聞かれていない過去ログを持ち出すための呼び出しは禁止です。",
+			Description: "特定の相手（人間会員や他の住民）との直近のやり取り（チャット発言、メール、掲示板での返信）を取得します。相手との以前のやり取りや話題の文脈を踏まえて応答する必要がある場合に使用します。",
 			Parameters: ToolParameterSchema{
 				Type: "object",
 				Properties: map[string]ToolPropertySchema{
@@ -133,7 +133,7 @@ func StandardActorTools() []ToolDefinition {
 		},
 		{
 			Name:        ToolSearchMyObservedEvents,
-			Description: "自分が観測した掲示板記事、参加したチャット発言、受信したメールから、キーワードや話題で検索します。相手から特定のゲーム名や話題について以前のやり取りを具体的に尋ねられた時のみ使用してください。",
+			Description: "自分が観測した掲示板記事、参加したチャット発言、受信したメールから、キーワードや話題で検索します。以前見聞きした出来事やゲーム名、機種設定などを思い出す必要がある場合に使用します。",
 			Parameters: ToolParameterSchema{
 				Type: "object",
 				Properties: map[string]ToolPropertySchema{
@@ -155,7 +155,7 @@ func StandardActorTools() []ToolDefinition {
 		},
 		{
 			Name:        ToolGetMyOpenLoops,
-			Description: "自分が現在抱えている未決事項（自分宛ての質問、未返信のメール、約束、継続中の議論など）の一覧を取得します。通常の返信では使用しないでください。",
+			Description: "自分が現在抱えている未決事項（自分宛ての質問、未返信のメール、約束、継続中の議論など）の一覧を取得します。",
 			Parameters: ToolParameterSchema{
 				Type: "object",
 				Properties: map[string]ToolPropertySchema{
@@ -168,7 +168,7 @@ func StandardActorTools() []ToolDefinition {
 		},
 		{
 			Name:        ToolGetMyProfileFacts,
-			Description: "自分の確定した人物事実（PersonaFact：所有しているパソコン機種、OS、居住地域、嗜好など）を取得します。自分の環境について過去の発言と矛盾を防ぐ必要がある場合のみ使用してください。",
+			Description: "自分の確定した人物事実（PersonaFact：所有しているパソコン機種、OS、居住地域、嗜好など）を取得します。自分の環境について過去の発言と矛盾がないか確認する必要がある場合に使用します。",
 			Parameters: ToolParameterSchema{
 				Type: "object",
 				Properties: map[string]ToolPropertySchema{
