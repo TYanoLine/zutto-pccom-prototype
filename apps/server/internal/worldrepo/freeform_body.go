@@ -1,11 +1,12 @@
 package worldrepo
 
 import (
-    "sort"
-    "strconv"
-    "strings"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 
-    "zutto-pccom/apps/server/internal/world"
+	"zutto-pccom/apps/server/internal/world"
 )
 
 // The temporary title-led quality-evaluation mode changes only the *view*
@@ -63,23 +64,45 @@ func freeformIntentSummary(i world.PostIntent) string {
 }
 
 func freeformPersonaSummary(p world.Persona) string {
-    var fields []string
-    if p.Age > 0 { fields = append(fields, "age="+strconv.Itoa(p.Age)) }
-    if p.Gender != "" { fields = append(fields, "gender="+p.Gender) }
-    if p.Occupation != "" { fields = append(fields, "occupation="+p.Occupation) }
-    if p.WritingStyle != "" { fields = append(fields, "writing="+p.WritingStyle) }
-    keys := make([]string, 0, len(p.Interests))
-    for key := range p.Interests { keys = append(keys, key) }
-    sort.Strings(keys)
-    var interests []string
-    for _, key := range keys {
-        if p.Interests[key] >= 0.45 { interests = append(interests, key) }
-    }
-    if len(interests) > 0 {
-        fields = append(fields, "interests=["+strings.Join(interests, ",")+"]")
-    }
-    if len(p.EverydayContext) > 0 {
-        fields = append(fields, "普段の環境="+strings.Join(p.EverydayContext, " / "))
-    }
-    return strings.Join(fields, "; ")
+	var traits []string
+	if p.Age > 0 && p.Gender != "" && p.Occupation != "" {
+		traits = append(traits, fmt.Sprintf("人物像: %d歳・%s・%s", p.Age, p.Gender, p.Occupation))
+	} else if p.Age > 0 {
+		traits = append(traits, fmt.Sprintf("年齢: %d歳", p.Age))
+	}
+	if strings.TrimSpace(p.WritingStyle) != "" {
+		traits = append(traits, fmt.Sprintf("文体・口調: %s", strings.TrimSpace(p.WritingStyle)))
+	}
+	if p.Argumentativeness >= 0.7 {
+		traits = append(traits, "性格・傾向: 自分のこだわりや論理をはっきり述べる傾向がある")
+	} else if p.Argumentativeness > 0 && p.Argumentativeness <= 0.3 {
+		traits = append(traits, "性格・傾向: 穏やかで和やか。相手の意見に共感しやすく角を立てない")
+	}
+	if p.NewcomerOpenness >= 0.7 {
+		traits = append(traits, "態度: 初対面や新参者にも親切で歓迎的")
+	}
+
+	var fields []string
+	if p.Age > 0 { fields = append(fields, "age="+strconv.Itoa(p.Age)) }
+	if p.Gender != "" { fields = append(fields, "gender="+p.Gender) }
+	if p.Occupation != "" { fields = append(fields, "occupation="+p.Occupation) }
+	if p.WritingStyle != "" { fields = append(fields, "writing="+p.WritingStyle) }
+	keys := make([]string, 0, len(p.Interests))
+	for key := range p.Interests { keys = append(keys, key) }
+	sort.Strings(keys)
+	var interests []string
+	for _, key := range keys {
+		if p.Interests[key] >= 0.45 { interests = append(interests, key) }
+	}
+	if len(interests) > 0 {
+		fields = append(fields, "interests=["+strings.Join(interests, ",")+"]")
+	}
+	if len(p.EverydayContext) > 0 {
+		fields = append(fields, "普段の環境="+strings.Join(p.EverydayContext, " / "))
+	}
+	rawMeta := strings.Join(fields, "; ")
+	if len(traits) > 0 {
+		return strings.Join(traits, "\n") + "\n" + rawMeta
+	}
+	return rawMeta
 }
