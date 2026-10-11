@@ -122,6 +122,7 @@ export default function App() {
   const [commandFocused, setCommandFocused] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
   const [traceRunning, setTraceRunning] = useState(false);
+  const [directoryGenerating, setDirectoryGenerating] = useState(true);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => {
@@ -155,73 +156,52 @@ export default function App() {
   useEffect(() => {
     clearLegacyDirectoryStorage();
     let cancelled = false;
-    let retryTimer: number | undefined;
-    let attempt = 0;
-    const RETRY_DELAYS = [2000, 10000, 30000];
+    setDirectoryGenerating(true);
 
-    function scheduleRetry() {
-      if (cancelled) return;
-      directoryRef.current?.setNotice('ほかのセンターの読み込みに失敗しました（再試行中...）');
-      directoryRef.current?.refresh();
-      const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
-      attempt++;
-      window.clearTimeout(retryTimer);
-      retryTimer = window.setTimeout(fetchGenerated, delay);
-    }
-
-    function fetchGenerated() {
-      if (cancelled) return;
-      directoryRef.current?.setNotice('ほかのセンターを読み込み中...');
-      directoryRef.current?.refresh();
-      fetchWorldCenters(wsURL).then(generated => {
+    async function loadDirectory() {
+      try {
+        const [presets, generated] = await Promise.all([
+          fetchDirectory(wsURL),
+          fetchWorldCenters(wsURL).catch(error => {
+            console.warn('Failed to fetch world centers, falling back to presets:', error);
+            return [] as RegisteredCenter[];
+          }),
+        ]);
         if (cancelled) return;
-        const merged = mergeCenters(presetCentersRef.current, generated);
+        if (!presets.length) throw new Error('empty center directory');
+
+        presetCentersRef.current = presets;
+        const merged = mergeCenters(presets, generated);
         centersRef.current = merged;
+        directoryLoadStateRef.current = 'ready';
         setDirectoryCount(merged.length);
         setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
-        directoryRef.current?.setNotice('');
-        directoryRef.current?.refresh();
-      }).catch(() => {
-        scheduleRetry();
-      });
+        setDirectoryGenerating(false);
+
+        if (openDirectoryWhenReadyRef.current) {
+          openDirectoryWhenReadyRef.current = false;
+          directoryRef.current?.show();
+          setDirectoryOpen(true);
+        } else if (screenModeRef.current === 'main') {
+          mainMenuRef.current?.render();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        directoryLoadStateRef.current = 'error';
+        setDirectoryGenerating(false);
+        const message = error instanceof Error ? error.message : String(error);
+        setDirectoryStatus(`CENTER API ERROR: ${message}`);
+        if (openDirectoryWhenReadyRef.current) {
+          openDirectoryWhenReadyRef.current = false;
+          showDirectoryError();
+        }
+      }
     }
 
-    const onOnline = () => {
-      if (cancelled) return;
-      window.clearTimeout(retryTimer);
-      fetchGenerated();
-    };
-    window.addEventListener('online', onOnline);
-
-    fetchDirectory(wsURL).then(presetCenters => {
-      if (cancelled) return;
-      if (!presetCenters.length) throw new Error('empty center directory');
-      presetCentersRef.current = presetCenters;
-      centersRef.current = presetCenters;
-      directoryLoadStateRef.current = 'ready';
-      setDirectoryCount(presetCenters.length);
-      setDirectoryStatus(`センター情報読込完了 (${presetCenters.length}局)`);
-      if (openDirectoryWhenReadyRef.current) {
-        openDirectoryWhenReadyRef.current = false;
-        directoryRef.current?.show();
-        setDirectoryOpen(true);
-      }
-      fetchGenerated();
-    }).catch(error => {
-      if (cancelled) return;
-      directoryLoadStateRef.current = 'error';
-      const message = error instanceof Error ? error.message : String(error);
-      setDirectoryStatus(`CENTER API ERROR: ${message}`);
-      if (openDirectoryWhenReadyRef.current) {
-        openDirectoryWhenReadyRef.current = false;
-        showDirectoryError();
-      }
-    });
+    void loadDirectory();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(retryTimer);
-      window.removeEventListener('online', onOnline);
     };
   }, []);
 
@@ -331,6 +311,7 @@ export default function App() {
   }
   function startHostRegeneration() {
     screenModeRef.current = 'regenerating';
+    setDirectoryGenerating(true);
     showDirectoryLoading();
     resetWorldHosts(wsURL).then(generated => {
       const merged = mergeCenters(presetCentersRef.current, generated);
@@ -338,6 +319,7 @@ export default function App() {
       setDirectoryCount(merged.length);
       setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
       directoryRef.current?.setNotice('');
+      setDirectoryGenerating(false);
       if (screenModeRef.current === 'regenerating') {
         screenModeRef.current = 'main';
         directoryRef.current?.show();
@@ -346,6 +328,7 @@ export default function App() {
         directoryRef.current?.refresh();
       }
     }).catch(() => {
+      setDirectoryGenerating(false);
       if (screenModeRef.current === 'regenerating') {
         screenModeRef.current = 'main';
         showDirectoryError();
@@ -436,7 +419,7 @@ export default function App() {
       {desktopHostName && <span className="desktop-host-name">{desktopHostName}</span>}
       <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
-        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning} />
+        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
       </span>
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--desktop${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)}>{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
@@ -475,7 +458,7 @@ export default function App() {
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
-    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning} />
+    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
     <section className="screen-wrap"><TerminalCanvas
       ref={terminalCanvasRef}
       terminal={terminal}
