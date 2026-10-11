@@ -2,10 +2,13 @@ package worldrepo
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
@@ -30,6 +33,11 @@ type LLMMaterializer struct {
 	PreferConcreteHistoricalNames bool
 	// SearchGroundedHistoricalReferences is a fresh-Lab experiment: real names may enter only through searched canonical Situation evidence.
 	SearchGroundedHistoricalReferences bool
+
+	// ToolModel, ActorMemoryIndex, and ActorMemoryStore wire optional tool-capable generation.
+	ToolModel        llm.ToolTurnModel
+	ActorMemoryIndex *actormemory.Index
+	ActorMemoryStore actormemory.Source
 }
 
 func (m LLMMaterializer) GenerateBoardPosts(ctx context.Context, req BoardMaterializationRequest, decision worldengine.EvidenceDecision) ([]world.Post, error) {
@@ -41,7 +49,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if m.HistoricalReferencesEnabled && decision.Level == historicalkb.EvidenceVerified && !decision.Knowledge.CanUse {
 		return nil, GenerationUsage{}, fmt.Errorf("verified historical knowledge unavailable")
 	}
-	if m.Renderer == nil {
+	if m.Renderer == nil && m.ToolModel == nil {
 		return nil, GenerationUsage{}, fmt.Errorf("LLM board post renderer is not configured")
 	}
 
@@ -60,21 +68,21 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	if req.FreeformFromSubject {
 		intent = freeformIntentSummary(req.Intent)
 	}
-	draft, err := m.Renderer.GenerateBoardPost(ctx, llm.BoardPostRequest{
-		HostName:         req.Host.Name,
-		HostRegion:       req.Host.Region,
-		HostSoftware:     req.Host.Software,
-		BoardID:          req.BoardID,
-		BoardTopic:       req.BoardTopic,
+	boardPostReq := llm.BoardPostRequest{
+		HostName:            req.Host.Name,
+		HostRegion:          req.Host.Region,
+		HostSoftware:        req.Host.Software,
+		BoardID:             req.BoardID,
+		BoardTopic:          req.BoardTopic,
 		FreeformFromSubject: req.FreeformFromSubject,
-		WorldDate:        req.WorldDate,
-		HistoricalFacts:  facts,
-		EraRules:         m.eraRules(),
-		AuthorHandle:     author,
-		PersonaProfile:   personaProfile,
-		PostIntent:       intent,
-		CanonicalSubject: req.CanonicalSubject,
-		Kind:             string(req.Kind),
+		WorldDate:           req.WorldDate,
+		HistoricalFacts:     facts,
+		EraRules:            m.eraRules(),
+		AuthorHandle:        author,
+		PersonaProfile:      personaProfile,
+		PostIntent:          intent,
+		CanonicalSubject:    req.CanonicalSubject,
+		Kind:                string(req.Kind),
 		ParentSubject: func() string {
 			if req.ParentPost != nil {
 				return req.ParentPost.Subject
@@ -88,7 +96,19 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 			return ""
 		}(),
 		QuoteText: req.QuoteText, BodyMinChars: req.BodyMinChars, BodyMaxChars: req.BodyMaxChars,
-	})
+	}
+
+	if m.ToolModel != nil && m.ActorMemoryStore != nil && req.Persona != nil {
+		if posts, usage, err := m.generateWithToolTurn(ctx, req, boardPostReq); err == nil && len(posts) > 0 && strings.TrimSpace(posts[0].Body) != "" {
+			return posts, usage, nil
+		}
+	}
+
+	if m.Renderer == nil {
+		return nil, GenerationUsage{}, fmt.Errorf("LLM board post renderer is not configured")
+	}
+
+	draft, err := m.Renderer.GenerateBoardPost(ctx, boardPostReq)
 	if err != nil {
 		return nil, GenerationUsage{}, fmt.Errorf("board post renderer failed: %w", err)
 	}
@@ -113,6 +133,50 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		ReasoningTokens:   draft.Usage.ReasoningTokens,
 		TotalTokens:       draft.Usage.TotalTokens,
 		Model:             draft.Usage.Model,
+	}
+	return []world.Post{{Author: draft.Author, Subject: draft.Subject, Body: draft.Body, CreatedAt: worldTime(req.WorldDate)}}, usage, nil
+}
+
+func (m LLMMaterializer) generateWithToolTurn(ctx context.Context, req BoardMaterializationRequest, boardPostReq llm.BoardPostRequest) ([]world.Post, GenerationUsage, error) {
+	if m.ToolModel == nil || m.ActorMemoryStore == nil || req.Persona == nil {
+		return nil, GenerationUsage{}, errors.New("tool turn preconditions not met")
+	}
+	actorID := "persona:" + req.Persona.ID
+	executor := actormemory.NewExecutor(req.Host.ID, m.ActorMemoryStore, m.ActorMemoryIndex)
+	tools := llm.StandardActorTools()
+	reg := llm.NewToolRegistry(tools, executor)
+
+	prompt := llm.BuildBoardPostPrompt(boardPostReq)
+	messages := []llm.ToolTurnMessage{
+		{Role: "user", Content: prompt},
+	}
+
+	outcome, err := llm.RunToolTurn(ctx, m.ToolModel, reg, llm.DefaultToolExecutionPolicy(), actorID, messages)
+	if err != nil {
+		return nil, GenerationUsage{}, err
+	}
+	if strings.TrimSpace(outcome.Text) == "" {
+		return nil, GenerationUsage{}, errors.New("tool turn produced empty text")
+	}
+
+	var draft llm.BoardPostDraft
+	if err := json.Unmarshal([]byte(strings.TrimSpace(outcome.Text)), &draft); err != nil {
+		return nil, GenerationUsage{}, fmt.Errorf("decode tool turn board post JSON: %w", err)
+	}
+	if req.QuoteText != "" {
+		draft.Body, err = llm.EnsureExactQuote(draft.Body, req.QuoteText)
+		if err != nil {
+			return nil, GenerationUsage{}, fmt.Errorf("quote validation failed: %w", err)
+		}
+	}
+	if req.Persona != nil && req.Persona.Handle != "" {
+		draft.Author = req.Persona.Handle
+	}
+	if strings.TrimSpace(req.CanonicalSubject) != "" {
+		draft.Subject = req.CanonicalSubject
+	}
+	usage := GenerationUsage{
+		Model: "tool-turn",
 	}
 	return []world.Post{{Author: draft.Author, Subject: draft.Subject, Body: draft.Body, CreatedAt: worldTime(req.WorldDate)}}, usage, nil
 }

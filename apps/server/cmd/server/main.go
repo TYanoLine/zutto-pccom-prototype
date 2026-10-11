@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/config"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
@@ -87,7 +88,32 @@ func main() {
 	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Verbosity: cfg.AzureOpenAIVerbosity, ReasoningEffort: cfg.AzureOpenAIReasoningEffort, SchemaCompat: cfg.AzureOpenAISchemaCompat, API: cfg.AzureOpenAIAPI, Client: &http.Client{Timeout: 90 * time.Second}}}
 	postRenderer := azureOpenAIRenderer
 	postMaterializer := newProductionMaterializer(postRenderer)
+
+	var memoryIndex *actormemory.Index
+	if cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "" {
+		toolTurnModel := &llm.OpenAIToolTurnModel{
+			Endpoint: cfg.AzureOpenAIEndpoint,
+			APIKey:   cfg.AzureOpenAIKey,
+			Model:    cfg.AzureOpenAIModel,
+			Client:   &http.Client{Timeout: 90 * time.Second},
+		}
+		postMaterializer.ToolModel = toolTurnModel
+
+		embeddingClient := &llm.AzureOpenAIEmbeddingClient{
+			Endpoint: cfg.AzureOpenAIEndpoint,
+			APIKey:   cfg.AzureOpenAIKey,
+			Model:    cfg.AzureOpenAIEmbeddingModel,
+			Client:   &http.Client{Timeout: 30 * time.Second},
+		}
+		memoryIndex = actormemory.NewIndex(embeddingClient, actormemory.IndexOptions{})
+		defer memoryIndex.Close()
+	}
+
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
+	if memoryIndex != nil {
+		runtimeStore.SetActorMemoryIndex(memoryIndex)
+		runtimeStore.SetPostIndexer(actormemory.NewPostIndexer(memoryIndex))
+	}
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetDebugLogGeneratedContent(cfg.DebugLogGeneratedContent)

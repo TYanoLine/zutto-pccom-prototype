@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/hostprogram"
@@ -75,6 +76,11 @@ type Repository struct {
 	// canonical write. It must not block (see PostIndexer).
 	indexerMu sync.RWMutex
 	indexer   PostIndexer
+
+	// actorMemoryIndex is optional: when set, it provides the embedding index for
+	// actor-scoped memory tool execution during prose materialization.
+	actorMemoryMu    sync.RWMutex
+	actorMemoryIndex *actormemory.Index
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -198,6 +204,20 @@ func (r *Repository) SetPostIndexer(ix PostIndexer) {
 	r.indexerMu.Lock()
 	r.indexer = ix
 	r.indexerMu.Unlock()
+}
+
+// SetActorMemoryIndex wires the optional actor memory index for tool-capable materialization.
+func (r *Repository) SetActorMemoryIndex(idx *actormemory.Index) {
+	r.actorMemoryMu.Lock()
+	r.actorMemoryIndex = idx
+	r.actorMemoryMu.Unlock()
+}
+
+// ActorMemoryIndex returns the configured actor memory index, if any.
+func (r *Repository) ActorMemoryIndex() *actormemory.Index {
+	r.actorMemoryMu.RLock()
+	defer r.actorMemoryMu.RUnlock()
+	return r.actorMemoryIndex
 }
 
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
