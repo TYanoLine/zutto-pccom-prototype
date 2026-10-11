@@ -60,6 +60,7 @@
 - 今回の実装は、既にworld layerが選んだ記事を言語化する処理である。記事を読む／無視する／返信する／独立投稿する判断自体は追加していない。
 - 返信確率をログの`Re:`率で代用しない。人物の活動・閲覧履歴・関係・動機・無反応をworld layerが決めてからcomposition planを作る。
 - `WorldClock`、親記事の投稿時刻からの返信遅延、観測済み履歴との整合、投稿のPostgreSQL永続化を含めて別PRで実装する。
+- 担い手・時刻の決定は `specs/008-persona-reactions/`、関係・未決事項・メール/チャットを含むチャネル横断の影響は `docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md` で定める。
 
 ## 次の完了単位
 

@@ -66,6 +66,12 @@ A reply planner may receive a few prior relevant claims only when SDD-004 says t
 
 Claims must never be injected merely because they exist globally in the database.
 
+## Cross-channel extension (SDD-005)
+
+A claim can be asserted in a board post, mail, chat utterance or telegram. Its source generalizes from `post_id` to the SDD-005 `event_id`, and it carries the event's visibility scope (`public_board`, `private`, `chat_session`, ...). Retrieval additionally requires that the scope is compatible with the output channel: a private claim must not enter the context of a public board post unless World has selected a disclosure action.
+
+Note: the current prototype's body-render context (`worldrepo/bbs_render_context.go`) still passes same-board "related posts" regardless of actor observation, labelled as duplicate-topic hints only. That is a temporary development shortcut that this contract does not endorse; SDD-005 phase P3 replaces it with the actor-knowledge projection.
+
 ## Non-goals
 
 - storing every sentence as a claim;

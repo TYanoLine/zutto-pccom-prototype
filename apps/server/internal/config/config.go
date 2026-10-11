@@ -10,6 +10,7 @@ type Config struct {
 	AzureOpenAIEndpoint         string
 	AzureOpenAIKey              string
 	AzureOpenAIModel            string
+	AzureOpenAIEmbeddingModel   string
 	AzureOpenAIVerbosity        string
 	AzureOpenAIReasoningEffort  string
 	AzureOpenAISchemaCompat     bool
@@ -36,6 +37,7 @@ func Load() Config {
 		AzureOpenAIEndpoint:         os.Getenv("AZURE_OPENAI_ENDPOINT"),
 		AzureOpenAIKey:              os.Getenv("AZURE_OPENAI_API_KEY"),
 		AzureOpenAIModel:            env("AZURE_OPENAI_MODEL", "zutto-pccom-gpt-6-luna"),
+		AzureOpenAIEmbeddingModel:   env("AZURE_OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		AzureOpenAIVerbosity:        os.Getenv("AZURE_OPENAI_VERBOSITY"),
 		AzureOpenAIReasoningEffort:  os.Getenv("AZURE_OPENAI_REASONING_EFFORT"),
 		AzureOpenAISchemaCompat:     envBool("AZURE_OPENAI_SCHEMA_COMPAT", false),

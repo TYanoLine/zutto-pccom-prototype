@@ -102,6 +102,20 @@ type PersonaFactStore interface {
 	SavePersonaFact(PersonaFact)
 }
 
+// InteractionLedgerStore persists the append-only interaction ledger events.
+type InteractionLedgerStore interface {
+	AppendInteractionEvent(event InteractionEvent) error
+	ListInteractionEvents(hostID string, limit int) []InteractionEvent
+	GetInteractionEvent(eventID string) (InteractionEvent, bool)
+}
+
+// RelationshipStore manages directional relationship edges between actors.
+type RelationshipStore interface {
+	GetRelationship(hostID string, from, to ActorRef) (RelationshipEdge, bool)
+	UpdateRelationship(edge RelationshipEdge) error
+	ListRelationshipsFrom(hostID string, from ActorRef) []RelationshipEdge
+}
+
 // DevelopmentConversationResetStore is intentionally a development-only escape
 // hatch. It lets the materialization demo clear observed posts and lazily-created
 // persona details so a tester can compare generation behavior without rebuilding
@@ -109,6 +123,12 @@ type PersonaFactStore interface {
 type DevelopmentConversationResetStore interface {
 	ClearHostPosts(hostID string) int
 	ClearPersonaFacts(personaIDs []string) int
+}
+
+type relationshipKey struct {
+	hostID string
+	from   ActorRef
+	to     ActorRef
 }
 
 type MemoryStore struct {
@@ -122,6 +142,9 @@ type MemoryStore struct {
 	memberships   map[string][]string
 	populations   map[string]hostcatalog.Population
 	details       map[string]hostcatalog.PresetDetail
+	eventsByID    map[string]InteractionEvent
+	eventsByHost  map[string][]InteractionEvent
+	relationships map[relationshipKey]RelationshipEdge
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
 	next      int64
@@ -138,6 +161,9 @@ func NewMemoryStore() *MemoryStore {
 		memberships:   map[string][]string{},
 		populations:   map[string]hostcatalog.Population{},
 		details:       map[string]hostcatalog.PresetDetail{},
+		eventsByID:    map[string]InteractionEvent{},
+		eventsByHost:  map[string][]InteractionEvent{},
+		relationships: map[relationshipKey]RelationshipEdge{},
 		next:          1000,
 	}
 
@@ -340,3 +366,75 @@ func (s *MemoryStore) ClearPersonaFacts(personaIDs []string) int {
 	}
 	return count
 }
+
+func (s *MemoryStore) AppendInteractionEvent(event InteractionEvent) error {
+	if event.EventID == "" {
+		return errors.New("event id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.eventsByID[event.EventID]; ok {
+		return nil
+	}
+	s.eventsByID[event.EventID] = event
+	s.eventsByHost[event.HostID] = append(s.eventsByHost[event.HostID], event)
+	return nil
+}
+
+func (s *MemoryStore) ListInteractionEvents(hostID string, limit int) []InteractionEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	events := s.eventsByHost[hostID]
+	n := len(events)
+	if n == 0 {
+		return nil
+	}
+	count := n
+	if limit > 0 && limit < count {
+		count = limit
+	}
+	out := make([]InteractionEvent, 0, count)
+	for i := n - 1; i >= 0 && len(out) < count; i-- {
+		out = append(out, events[i])
+	}
+	return out
+}
+
+func (s *MemoryStore) GetInteractionEvent(eventID string) (InteractionEvent, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.eventsByID[eventID]
+	return e, ok
+}
+
+func (s *MemoryStore) GetRelationship(hostID string, from, to ActorRef) (RelationshipEdge, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key := relationshipKey{hostID: hostID, from: from, to: to}
+	edge, ok := s.relationships[key]
+	return edge, ok
+}
+
+func (s *MemoryStore) UpdateRelationship(edge RelationshipEdge) error {
+	if edge.HostID == "" || edge.FromActor.IsZero() || edge.ToActor.IsZero() {
+		return errors.New("invalid relationship edge")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := relationshipKey{hostID: edge.HostID, from: edge.FromActor, to: edge.ToActor}
+	s.relationships[key] = edge
+	return nil
+}
+
+func (s *MemoryStore) ListRelationshipsFrom(hostID string, from ActorRef) []RelationshipEdge {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []RelationshipEdge
+	for k, edge := range s.relationships {
+		if k.hostID == hostID && k.from == from {
+			out = append(out, edge)
+		}
+	}
+	return out
+}
+

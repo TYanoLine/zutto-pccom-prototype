@@ -3,6 +3,7 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -181,7 +182,99 @@ func (r *Repository) ListPosts(hostID string) []world.Post {
 }
 
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
-	return r.Base.AddPost(hostID, p)
+	saved := r.Base.AddPost(hostID, p)
+	r.recordPostInteraction(hostID, saved)
+	return saved
+}
+
+func (r *Repository) recordPostInteraction(hostID string, p world.Post) {
+	var actor world.ActorRef
+	if p.AuthorPersonaID != "" {
+		actor = world.ActorRef{Kind: "persona", ID: p.AuthorPersonaID}
+	} else if p.AuthorMemberID != "" {
+		actor = world.ActorRef{Kind: "member", ID: p.AuthorMemberID}
+	} else if p.Author != "" {
+		actor = world.ActorRef{Kind: "member", ID: p.Author}
+	}
+
+	sourceKind := "human_authored"
+	if actor.Kind == "persona" {
+		sourceKind = "npc_world_selected"
+	}
+
+	parentID := p.ParentID
+	if parentID == 0 && p.Intent.RespondsToPostID != 0 {
+		parentID = p.Intent.RespondsToPostID
+	}
+
+	channel := "board_root"
+	var addressedTo []world.ActorRef
+	var respondsToEventID string
+
+	if parentID != 0 {
+		channel = "board_reply"
+		respondsToEventID = fmt.Sprintf("post:%s:%d", hostID, parentID)
+
+		var parentAuthor world.ActorRef
+		for _, post := range r.Base.ListPosts(hostID) {
+			if post.ID == parentID {
+				if post.AuthorPersonaID != "" {
+					parentAuthor = world.ActorRef{Kind: "persona", ID: post.AuthorPersonaID}
+				} else if post.AuthorMemberID != "" {
+					parentAuthor = world.ActorRef{Kind: "member", ID: post.AuthorMemberID}
+				} else if post.Author != "" {
+					parentAuthor = world.ActorRef{Kind: "member", ID: post.Author}
+				}
+				break
+			}
+		}
+		if !parentAuthor.IsZero() {
+			addressedTo = []world.ActorRef{parentAuthor}
+		}
+	}
+
+	eventID := fmt.Sprintf("post:%s:%d", hostID, p.ID)
+	scope := fmt.Sprintf("public_board:%s:%s", hostID, p.BoardID)
+	event := world.InteractionEvent{
+		EventID:           eventID,
+		HostID:            hostID,
+		Channel:           channel,
+		Actor:             actor,
+		AudienceScope:     scope,
+		AddressedTo:       addressedTo,
+		RespondsToEventID: respondsToEventID,
+		ContentRef:        strconv.FormatInt(p.ID, 10),
+		OccurredAt:        p.CreatedAt,
+		SourceKind:        sourceKind,
+	}
+
+	if ledgerStore, ok := r.Base.(world.InteractionLedgerStore); ok {
+		_ = ledgerStore.AppendInteractionEvent(event)
+	}
+
+	if channel == "board_reply" && len(addressedTo) > 0 {
+		toActor := addressedTo[0]
+		if !actor.IsZero() && !toActor.IsZero() {
+			if relStore, ok := r.Base.(world.RelationshipStore); ok {
+				edge, exists := relStore.GetRelationship(hostID, actor, toActor)
+				if edge.LastEventID != eventID {
+					count := 1
+					if exists {
+						count = edge.BoardReplyCount + 1
+					}
+					newEdge := world.RelationshipEdge{
+						HostID:            hostID,
+						FromActor:         actor,
+						ToActor:           toActor,
+						BoardReplyCount:   count,
+						LastInteractionAt: p.CreatedAt,
+						LastEventID:       eventID,
+					}
+					_ = relStore.UpdateRelationship(newEdge)
+				}
+			}
+		}
+	}
 }
 
 func (r *Repository) ListBoardPosts(host world.Host, boardID, boardTopic string) []world.Post {
@@ -235,7 +328,7 @@ func (r *Repository) ensureBoard(host world.Host, boardID, boardTopic string) er
 	}
 	for _, p := range posts {
 		p.BoardID = boardID
-		r.Base.AddPost(host.ID, p)
+		r.AddPost(host.ID, p)
 	}
 	return nil
 }

@@ -134,10 +134,52 @@ type Post struct {
 	ParentID        int64      `json:"parent_id,omitempty"`
 	Author          string     `json:"author"`
 	AuthorPersonaID string     `json:"author_persona_id,omitempty"`
+	AuthorMemberID  string     `json:"author_member_id,omitempty"`
 	Subject         string     `json:"subject"`
 	Intent          PostIntent `json:"intent,omitempty"`
 	Body            string     `json:"body"`
 	CreatedAt       time.Time  `json:"created_at"`
+}
+
+// ActorRef uniquely identifies an actor (either a persona or a human member) in the world.
+type ActorRef struct {
+	Kind string `json:"kind"` // "persona" | "member"
+	ID   string `json:"id"`   // persona_id or member_id
+}
+
+func (a ActorRef) IsZero() bool {
+	return a.Kind == "" && a.ID == ""
+}
+
+func (a ActorRef) String() string {
+	if a.IsZero() {
+		return ""
+	}
+	return a.Kind + ":" + a.ID
+}
+
+// InteractionEvent is an append-only record of a dynamic interaction in the world.
+type InteractionEvent struct {
+	EventID           string     `json:"event_id"`
+	HostID            string     `json:"host_id"`
+	Channel           string     `json:"channel"` // "board_root", "board_reply", "mail", "chat_utterance"
+	Actor             ActorRef   `json:"actor"`
+	AudienceScope     string     `json:"audience_scope"` // e.g. "public_board:<host_id>:<board_id>"
+	AddressedTo       []ActorRef `json:"addressed_to,omitempty"`
+	RespondsToEventID string     `json:"responds_to_event_id,omitempty"`
+	ContentRef        string     `json:"content_ref"` // e.g. post_id "1001"
+	OccurredAt        time.Time  `json:"occurred_at"`
+	SourceKind        string     `json:"source_kind"` // "npc_world_selected", "human_authored"
+}
+
+// RelationshipEdge records directional interaction history between two actors.
+type RelationshipEdge struct {
+	HostID            string    `json:"host_id"`
+	FromActor         ActorRef  `json:"from_actor"`
+	ToActor           ActorRef  `json:"to_actor"`
+	BoardReplyCount   int       `json:"board_reply_count"`
+	LastInteractionAt time.Time `json:"last_interaction_at"`
+	LastEventID       string    `json:"last_event_id"`
 }
 
 type Persona struct {

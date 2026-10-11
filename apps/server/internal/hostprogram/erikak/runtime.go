@@ -104,11 +104,12 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			return "\r\n書き込みを中止しました。\r\n" + r.renderBoardIndex(), false
 		}
 		p := r.Store.AddPost(r.Host.ID, world.Post{
-			BoardID:   r.boardPath,
-			Author:    r.handle,
-			Subject:   r.subject,
-			Body:      line,
-			CreatedAt: time.Now(),
+			BoardID:        r.boardPath,
+			Author:         r.handle,
+			AuthorMemberID: r.handle,
+			Subject:        r.subject,
+			Body:           line,
+			CreatedAt:      time.Now(),
 		})
 		r.threadID = p.ID
 		r.state = "thread"
@@ -142,9 +143,10 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			return "\r\nMSGが見つかりません。\r\n" + r.renderBoardIndex(), false
 		}
 		r.Store.AddPost(r.Host.ID, world.Post{
-			BoardID:  root.BoardID,
-			ParentID: root.ID,
-			Author:   r.handle,
+			BoardID:        root.BoardID,
+			ParentID:       root.ID,
+			Author:         r.handle,
+			AuthorMemberID: r.handle,
 			// Erika-K's append is represented by the parent/root relationship;
 			// the append itself has no independently displayed subject.
 			Subject:   "",
