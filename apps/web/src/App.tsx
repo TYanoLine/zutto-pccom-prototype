@@ -7,6 +7,7 @@ import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
 import { clearLegacyDirectoryStorage, fetchDirectory, fetchWorldCenters, mergeCenters, resetWorldHosts } from './modem/CenterDirectory';
 import type { RegisteredCenter } from './modem/CenterDirectory';
 import { TerminalCenterDirectory } from './modem/TerminalCenterDirectory';
+import { TerminalMainMenu } from './terminal/TerminalMainMenu';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
 import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
@@ -86,6 +87,7 @@ export default function App() {
   const modemRef = useRef<VirtualModem | null>(null);
   const localStationRef = useRef<LocalTestStation | null>(null);
   const directoryRef = useRef<TerminalCenterDirectory | null>(null);
+  const mainMenuRef = useRef<TerminalMainMenu | null>(null);
   const centersRef = useRef<RegisteredCenter[]>([]);
   const presetCentersRef = useRef<RegisteredCenter[]>([]);
   const directoryLoadStateRef = useRef<DirectoryLoadState>('loading');
@@ -224,6 +226,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    mainMenuRef.current = new TerminalMainMenu(
+      terminal,
+      APP_VERSION,
+      () => (directoryLoadStateRef.current === 'ready' ? `${centersRef.current.length}局` : '---'),
+      item => { executeMainMenuCommand(item.key); },
+    );
     showMainMenu();
     const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
     modem.onStatus = setStatus;
@@ -241,7 +249,7 @@ export default function App() {
     localStation.setCommunicationSettings(commSettings);
     localStationRef.current = localStation;
     directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { setDirectoryOpen(false); dialCenter(center); }, () => { setDirectoryOpen(false); showMainMenu(); });
-    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.onTelemetry = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.onTelemetry = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
+    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.onTelemetry = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.onTelemetry = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; mainMenuRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
   useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
@@ -264,13 +272,32 @@ export default function App() {
   }, []);
 
   function resetInput() { setInput(''); echoedInputRef.current = ''; }
-  function showMainMenu() {
+  function showMainMenu(index?: number) {
     screenModeRef.current = 'main';
-    terminal.clear(); terminal.write(`\x1b[37;44m ずっとパソコン通信 Ver ${APP_VERSION}                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n`);
-    terminal.write('                     \x1b[30;46m　メイン・メニュー　\x1b[0m\r\n\r\n');
-    terminal.write('                     1　センターの呼び出し\r\n                     2　通信パラメータの設定\r\n                     3　ターミナル・モード\r\n                     4　ノート・パッド\r\n                     5　ディスク・ユーティリティ\r\n                     6　MS-DOS コマンドへ\r\n                     7　終　了\r\n\r\n');
-    const countText = directoryLoadStateRef.current === 'ready' ? `${centersRef.current.length}局` : '---';
-    terminal.write(` 登録センター: ${countText}　　　　　　　　　使用する電話回線: ダイアル(10)\r\n 番号を選択してください > `); resetInput();
+    if (typeof index === 'number') {
+      mainMenuRef.current?.setSelectedIndex(index);
+    }
+    mainMenuRef.current?.render();
+    resetInput();
+  }
+  function executeMainMenuCommand(rawCommand: string) {
+    const command = rawCommand.trim();
+    const lower = command.toLowerCase();
+    if (lower === '1') {
+      if (directoryLoadStateRef.current === 'ready') { directoryRef.current?.show(); setDirectoryOpen(true); }
+      else if (directoryLoadStateRef.current === 'loading') { openDirectoryWhenReadyRef.current = true; showDirectoryLoading(); }
+      else showDirectoryError();
+    } else if (lower === '1r') {
+      startHostRegeneration();
+    } else if (lower === '3') {
+      showTerminalMode();
+    } else if (command !== '') {
+      mainMenuRef.current?.setSelectedByKey(command);
+      terminal.write('\r\n 現在この項目は未実装です。\r\n\r\n');
+      showMainMenu();
+    } else {
+      showMainMenu();
+    }
   }
   function showTerminalMode() {
     screenModeRef.current = 'terminal';
@@ -339,6 +366,14 @@ export default function App() {
       if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating' || openDirectoryWhenReadyRef.current === false) showMainMenu();
       e.preventDefault(); return;
     }
+    if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        resetInput();
+        mainMenuRef.current?.handleKey(e.key);
+        return;
+      }
+    }
     if (e.key !== 'Enter') return;
     if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; }
     e.preventDefault();
@@ -354,26 +389,27 @@ export default function App() {
     const command = raw.trim();
     resetInput();
     if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
-      const lower = command.toLowerCase();
-      if (lower === '1') {
-        if (directoryLoadStateRef.current === 'ready') { directoryRef.current?.show(); setDirectoryOpen(true); }
-        else if (directoryLoadStateRef.current === 'loading') { openDirectoryWhenReadyRef.current = true; showDirectoryLoading(); }
-        else showDirectoryError();
-      } else if (lower === '1r') {
-        startHostRegeneration();
-      } else if (command === '3') {
-        showTerminalMode();
-      } else if (command !== '') {
-        terminal.write('\r\n 現在この項目は未実装です。\r\n\r\n');
-        showMainMenu();
-      } else {
-        showMainMenu();
-      }
+      const selectedKey = mainMenuRef.current?.getSelectedItem().key ?? '1';
+      const targetCommand = command !== '' ? command : selectedKey;
+      executeMainMenuCommand(targetCommand);
     } else {
       routeCommand(raw);
     }
   }
-  function softKey(key: string) { directoryRef.current?.handleKey(key); }
+  function softKey(key: string) {
+    if (directoryRef.current?.isOpen()) {
+      directoryRef.current.handleKey(key);
+      return;
+    }
+    if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        resetInput();
+        mainMenuRef.current?.handleKey(key);
+      } else if (key === 'Enter') {
+        submitInput();
+      }
+    }
+  }
   function dialCenter(center: RegisteredCenter) { screenModeRef.current = 'terminal'; const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`; terminal.write(`${command}\r\n`); routeCommand(command); resetInput(); }
   function audition(baud: number) { try { setAudioStatus(`SYNTHESIZING ${baud}bps...`); const run = playHandshake(baud); setLastHandshake(run); setAudioStatus(`PLAYING ${baud}bps`); } catch (error) { setAudioStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`); } }
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
