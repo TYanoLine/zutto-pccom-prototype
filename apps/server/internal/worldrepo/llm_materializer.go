@@ -95,7 +95,10 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 			}
 			return ""
 		}(),
-		QuoteText: req.QuoteText, BodyMinChars: req.BodyMinChars, BodyMaxChars: req.BodyMaxChars,
+		QuoteText:           req.QuoteText,
+		RelationshipContext: req.RelationshipContext,
+		BodyMinChars:        req.BodyMinChars,
+		BodyMaxChars:        req.BodyMaxChars,
 	}
 
 	if m.ToolModel != nil && m.ActorMemoryStore != nil && req.Persona != nil {
