@@ -21,6 +21,9 @@ type Host struct {
 	ANSI           bool    `json:"ansi"`
 	GuestAllowed   bool    `json:"guest_allowed"`
 	TelehoFriendly bool    `json:"teleho_friendly"`
+	// OperatingHours is the station's answering window ["HH:MM", "HH:MM"];
+	// zero means always open. Copied from the immutable host definition.
+	OperatingHours [2]string `json:"-"`
 	// Role is an operational label copied from the host definition
 	// ("experiment", "test", ...). It is only a label: debug and experimental
 	// behavior follows the explicit Debug and Generation flags below, never the

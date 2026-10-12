@@ -269,7 +269,30 @@ func (s *Store) AddMembership(hostID, personaID string) {
 
 func (s *Store) SavePersonaFact(fact world.PersonaFact) {
 	s.MemoryStore.SavePersonaFact(fact)
-	s.persistTargets(s.targetsForPersonaIDs([]string{fact.PersonaID}))
+	// Presence observation saves several facts inside one batch; outside a
+	// batch this persists immediately as before.
+	for _, target := range s.targetsForPersonaIDs([]string{fact.PersonaID}) {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
+// SaveObservedSessions persists observed presence with the host snapshot.
+func (s *Store) SaveObservedSessions(hostID string, sessions []world.PresenceSession) {
+	s.MemoryStore.SaveObservedSessions(hostID, sessions)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
+// EndHumanCall keeps the finished call in the host's persisted history.
+func (s *Store) EndHumanCall(callID string, at time.Time) (world.HumanCall, bool) {
+	call, ok := s.MemoryStore.EndHumanCall(callID, at)
+	if ok {
+		if target, targeted := s.targets[call.HostID]; targeted {
+			s.persistTargetOrMarkBatchDirty(target)
+		}
+	}
+	return call, ok
 }
 
 func (s *Store) ClearPersonaFacts(personaIDs []string) int {

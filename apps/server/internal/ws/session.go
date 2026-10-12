@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -147,12 +148,26 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					observer.BeginHostObservation(res.Host, hostprogram.ObservationBoards(runtime))
 				}
 				session, token, err := sessions.Create(res.Host, res.Baud, res.Line, runtime)
+				if errors.Is(err, ErrLineBusy) {
+					// Another caller took the last line after the dial decision.
+					sm.Result = string(telephone.Busy)
+					sm.Baud = 0
+					sm.Line = 0
+					if err := writeJSON(ctx, conn, sm); err != nil {
+						return
+					}
+					continue
+				}
 				if err != nil {
 					_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "could not create call session"})
 					return
 				}
 				active = session
 				attachment = token
+				if receiver, ok := runtime.(hostprogram.CallInfoReceiver); ok {
+					receiver.SetCallInfo(active.ID, active.Line, active.Baud)
+				}
+				sm.Line = active.Line
 				sm.Host = &active.Host
 				sm.Capabilities = capabilitiesFor(active.Host)
 				sm.SessionID = active.ID

@@ -86,7 +86,11 @@ func screenTranscript(t *testing.T) string {
 		record(fmt.Sprintf("input %q disconnect=%t", input, disconnect), text)
 	}
 
-	guest := New(host, store)
+	// Spec 015: WHO prints the world's presence. The golden was recorded from
+	// the earlier fixed rows, so the harness supplies the same three sessions;
+	// matching bytes prove the WHO format did not change.
+	guest := New(host, goldenPresenceStore{store})
+	guest.SetCallInfo("golden-call", 3, 9600)
 	record("welcome", guest.Welcome())
 	send(guest, "GUEST")
 	send(guest, "1")
@@ -189,5 +193,16 @@ func TestEmbeddedErikaKDetailFitsScreen(t *testing.T) {
 	}
 	if err := ValidateDetail(*detail.ErikaK); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// goldenPresenceStore reproduces the WHO rows recorded in the screen golden.
+type goldenPresenceStore struct{ *world.MemoryStore }
+
+func (goldenPresenceStore) ObservePresenceNow(host world.Host) []world.PresenceSession {
+	return []world.PresenceSession{
+		{HostID: host.ID, Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "golden-sysop"}, Handle: "SYSOP", Line: 1, Baud: 14400},
+		{HostID: host.ID, Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "golden-mari"}, Handle: "MARI", Line: 2, Baud: 9600},
+		{HostID: host.ID, Actor: world.ActorRef{Kind: world.ActorKindMember, ID: "golden-call"}, Line: 3, Baud: 9600},
 	}
 }

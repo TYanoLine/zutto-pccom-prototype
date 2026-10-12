@@ -2,7 +2,10 @@ package worldpersist
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -282,5 +285,54 @@ func TestNestedPostBatchesPersistOnlyWhenOutermostBatchEnds(t *testing.T) {
 	store.EndPostBatch(host.ID)
 	if backend.saves != 1 {
 		t.Fatalf("nested batch snapshots=%d, want 1", backend.saves)
+	}
+}
+
+func TestStorePersistsObservedPresence(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	store, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone(genericPersistPhone)
+	start := time.Date(1996, 10, 15, 23, 5, 0, 0, time.UTC)
+	session := world.PresenceSession{HostID: host.ID, Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}, Handle: "P1", Line: 1, Baud: 9600, Start: start, End: start.Add(time.Hour)}
+	store.SaveObservedSessions(host.ID, []world.PresenceSession{session})
+	store.SaveHumanCall(world.HumanCall{CallID: "c1", HostID: host.ID, Line: 2, Baud: 14400, Start: start})
+	if _, ok := store.EndHumanCall("c1", start.Add(10*time.Minute)); !ok {
+		t.Fatal("end call failed")
+	}
+
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := restored.ListObservedSessions(host.ID, start, time.Time{})
+	if len(got) != 2 || !got[0].Start.Equal(start) {
+		t.Fatalf("restored presence = %+v", got)
+	}
+}
+
+func TestOldSnapshotWithoutPresenceStillLoads(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := newPersistBase()
+	host, _ := base.HostByPhone(genericPersistPhone)
+	snap, _ := base.DevelopmentSnapshot(genericPersistPhone)
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"presence"`) {
+		t.Fatal("an empty presence list must not appear in the snapshot")
+	}
+	backend.data = map[string][]byte{host.ID: data}
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.ListObservedSessions(host.ID, time.Time{}, time.Time{}); len(got) != 0 {
+		t.Fatalf("presence = %+v", got)
 	}
 }

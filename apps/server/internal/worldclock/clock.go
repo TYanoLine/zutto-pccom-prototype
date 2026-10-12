@@ -50,3 +50,47 @@ func NewFrom(source WorldClock, date string, location *time.Location) (*MappedCl
 func (c *MappedClock) Now() time.Time {
 	return c.worldOrigin.Add(c.source.Now().In(c.realOrigin.Location()).Sub(c.realOrigin))
 }
+
+// The base year belongs to the world, not to the deployment: worlds are to be
+// created per user or group, each choosing its base year at creation. Until
+// that exists, the single world uses these values. They are deliberately not
+// read from the environment.
+const (
+	CurrentWorldBaseYear      = 1996
+	CurrentWorldStartRealYear = 2026
+)
+
+// CalendarClock maps the real Japanese wall clock onto the world calendar. The
+// world's base year corresponds to the real year in which the world was
+// started; the difference is subtracted from every real time. Month, day and
+// time of day are kept, and the world crosses New Year together with the real
+// calendar, so the world date does not depend on when the process started.
+//
+// A real 29 February that maps onto a common world year is normalized by
+// AddDate to 1 March (a known limitation, see docs/WORLD_SIMULATION.md "Time").
+type CalendarClock struct {
+	source     WorldClock
+	location   *time.Location
+	yearOffset int // startRealYear - baseYear
+}
+
+func NewCalendar(location *time.Location, baseYear, startRealYear int) (*CalendarClock, error) {
+	return NewCalendarFrom(systemClock{location: location}, location, baseYear, startRealYear)
+}
+
+func NewCalendarFrom(source WorldClock, location *time.Location, baseYear, startRealYear int) (*CalendarClock, error) {
+	if source == nil {
+		return nil, fmt.Errorf("world clock source is required")
+	}
+	if location == nil {
+		return nil, fmt.Errorf("world clock location is required")
+	}
+	if baseYear > startRealYear {
+		return nil, fmt.Errorf("world base year %d is after the start real year %d", baseYear, startRealYear)
+	}
+	return &CalendarClock{source: source, location: location, yearOffset: startRealYear - baseYear}, nil
+}
+
+func (c *CalendarClock) Now() time.Time {
+	return c.source.Now().In(c.location).AddDate(-c.yearOffset, 0, 0)
+}

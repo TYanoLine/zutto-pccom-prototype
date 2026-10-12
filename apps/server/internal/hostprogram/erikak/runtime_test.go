@@ -601,3 +601,51 @@ func TestHakataBoardPurposesDoNotLeakHistoricalUncertainty(t *testing.T) {
 		t.Fatalf("different offline station boards lost their purposes: %q / %q", office.SemanticScope, contact.SemanticScope)
 	}
 }
+
+type whoStore struct {
+	*world.MemoryStore
+	sessions []world.PresenceSession
+}
+
+func (s whoStore) ObservePresenceNow(world.Host) []world.PresenceSession { return s.sessions }
+
+func TestWHOShowsWorldPresence(t *testing.T) {
+	base := world.NewMemoryStore()
+	host, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := whoStore{MemoryStore: base, sessions: []world.PresenceSession{
+		{Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "a"}, Handle: "ふぃーる", Line: 1, Baud: 28800},
+		{Actor: world.ActorRef{Kind: world.ActorKindMember, ID: "me"}, Line: 2, Baud: 9600},
+	}}
+	r := New(host, store)
+	r.SetCallInfo("me", 2, 9600)
+	r.HandleLine("GUEST")
+	out, _ := r.HandleLine("WHO")
+	if !strings.Contains(out, "LINE 1  ふぃーる  28800") || !strings.Contains(out, "LINE 2  GUEST      ONLINE") {
+		t.Fatalf("WHO output:\n%s", out)
+	}
+	if strings.Contains(out, "MARI") {
+		t.Fatalf("station names must come from the world, not the program:\n%s", out)
+	}
+	r.HandleLine("C")
+	chat, _ := r.HandleLine("WHO")
+	if !strings.Contains(chat, "LINE1 ふぃーる  LINE2 GUEST") {
+		t.Fatalf("chat WHO output:\n%s", chat)
+	}
+}
+
+func TestWHOWithoutPresenceShowsOnlyTheCaller(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := New(host, store)
+	r.HandleLine("GUEST")
+	out, _ := r.HandleLine("WHO")
+	if strings.Count(out, "LINE ") != 1 || !strings.Contains(out, "LINE 1  GUEST      ONLINE") {
+		t.Fatalf("WHO output:\n%s", out)
+	}
+}

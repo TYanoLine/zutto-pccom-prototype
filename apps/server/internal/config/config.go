@@ -44,7 +44,7 @@ func Load() Config {
 		AzureOpenAIAPI:              os.Getenv("AZURE_OPENAI_API"),
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
-		WorldDate:                   env("WORLD_DATE", "1996-08-26"),
+		WorldDate:                   strings.TrimSpace(os.Getenv("WORLD_DATE")),
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
 		DebugLogGeneratedContent:                envBool("DEBUG_LOG_GENERATED_CONTENT", true),

@@ -280,6 +280,36 @@ Generation/update leases and bounded processing capacity may also temporarily ma
 
 Time-of-day, popularity, member schedules, special events, and Telehodai windows can influence occupancy.
 
+Since spec 015 this is implemented for hosts whose store supports presence
+(`internal/presence`, `worldrepo/presence.go`). Who is on a host's lines at a
+world time is computed deterministically, without an LLM, from 10-minute call
+windows over the last four hours. Each resident's chance to call is a product of
+independent layers: `ActivityPattern`, a lifestyle daily rhythm (weekday or
+holiday), Telehodai registration for that host (with a rush right after 23:00
+and hang-ups before 08:00), a phone line shared with the family, a night-owl
+factor, the calendar (`internal/worldcalendar`), and the station's optional
+`operating_hours`. Every coefficient is a fictional tuning value, not a
+historical statistic. Calls are placed on the lowest free line; a resident who
+finds every line taken simply got BUSY.
+
+The computation itself saves nothing. When a caller observes it (a dial's
+BUSY/CONNECT or a WHO screen), the resident sessions and their connection
+profile facts (`presence.*` persona facts) are stored and never rewritten; later
+computations keep them. Human calls hold a line from CONNECT until hang-up or
+reconnect-grace expiry, and are kept as history when they end. Stores without
+presence keep the earlier probabilistic BUSY model.
+
+Planned, not implemented yet: the members who are connected at the same time
+as the human caller are the people the caller can meet. The caller will be able
+to chat with them (CHAT / CALL), and their presence is also when activity
+happens: while they are on line they may post, reply, and so add articles and
+replies that the caller can see appear. Who is active keeps changing. Members
+log off when their call ends, which simply frees the line, and others connect
+in later windows. Chat partners and the authors of such activity are chosen
+from the presence computed above, never invented because the human is there;
+the World decides whether each one speaks, posts, or does nothing, and an LLM
+only words an action that was selected (see SDD-005 section 3.4).
+
 ## Moderation
 
 Misbehavior can occur: spam, arguments, impersonation, local-rule violations, escape-code abuse, etc. SYSOP personality and local policy determine warnings, deletion, read-only restrictions, temporary suspension, or removal. The human-controlled member is subject to the same local rules.
@@ -287,3 +317,18 @@ Misbehavior can occur: spam, arguments, impersonation, local-rule violations, es
 ## Time
 
 Use a `WorldClock` abstraction. Real Japan time can drive time-of-day behavior while dates map into the 1996 world. Tests should be able to jump across important boundaries such as 22:59, 23:00, and 08:00.
+
+Since spec 015 the default clock follows the real calendar. Each world has a
+base year that corresponds to the real year in which the world was started; the
+world time is the real Japanese time minus that many years. Month, day and time
+of day match the real calendar, restarts do not move the world date, and the
+world crosses New Year together with the real calendar (real 2027-01-01 is
+1997-01-01). The base year is a property of the world, chosen when the world is
+created (worlds are planned per user or group; the allowed range is not decided
+yet). It is not a deployment setting. Until per-world creation exists, the single
+world uses base year 1996 started in 2026 (`worldclock.CurrentWorldBaseYear` on
+the server, `CURRENT_WORLD_BASE_YEAR` in the web client). An explicit
+`WORLD_DATE` / `VITE_WORLD_DATE` keeps the older fixed-origin development clock.
+
+Known limitation: a real 29 February that maps onto a common world year is
+normalized to 1 March, so that world day occurs twice (first in real 2028).
