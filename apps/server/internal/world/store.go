@@ -138,22 +138,28 @@ type PresenceStore interface {
 	SaveCallActivities(hostID string, acts []CallActivity)
 }
 
-// ChatEventKind is a resident entering or leaving a chat room.
+// ChatEventKind is a resident entering or leaving a chat room, or a line said
+// in it.
 type ChatEventKind string
 
 const (
 	ChatJoin  ChatEventKind = "join"
 	ChatLeave ChatEventKind = "leave"
+	ChatSay   ChatEventKind = "say"
 )
 
 // ChatEvent is a resident entering or leaving a chat room at a world time. A
 // leave is also reported when the call ends while the resident is in the room.
+// A say event is a recorded line, a human's or a resident's (spec 017).
 type ChatEvent struct {
 	At     time.Time
 	Kind   ChatEventKind
 	Room   int
 	Actor  ActorRef
 	Handle string
+	// Body and UtteranceID are set on a say event.
+	Body        string
+	UtteranceID string
 }
 
 // ChatHost gives host programs what residents do within their calls and in
@@ -164,8 +170,8 @@ type ChatHost interface {
 	// CallActivitiesNow returns the plans of the residents on the host's lines
 	// now, saving them as observed.
 	CallActivitiesNow(host Host) []CallActivity
-	// ChatEvents returns room's join and leave events in (from, to], in time
-	// order, saving the plans they come from as observed.
+	// ChatEvents returns room's join and leave events and recorded lines in
+	// (from, to], in time order, saving the plans they come from as observed.
 	ChatEvents(host Host, room int, from, to time.Time) []ChatEvent
 	// RecordChatUtterance saves what a caller said in a room and records it
 	// in the ledger, addressed to the residents in the room at u.At.
@@ -173,6 +179,10 @@ type ChatHost interface {
 	// SendLineMessage saves a line message and records it in the ledger,
 	// addressed to its recipient. The caller sets DeliverAt.
 	SendLineMessage(host Host, m LineMessage) (LineMessage, error)
+	// EnterChatRoom and LeaveChatRoom tell the world a caller is in a room.
+	// Residents' lines are written only while a caller is there (spec 017).
+	EnterChatRoom(host Host, room int, actor ActorRef, handle string, at time.Time)
+	LeaveChatRoom(host Host, room int, actor ActorRef, at time.Time)
 }
 
 // LineOccupancy decides and registers line use on behalf of the telephone and

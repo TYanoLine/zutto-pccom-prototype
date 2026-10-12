@@ -31,6 +31,11 @@ type ChatUtterance struct {
 	Handle string    `json:"handle,omitempty"`
 	Body   string    `json:"body"`
 	At     time.Time `json:"at"`
+	// Slot is the key of the World's decision a resident's line verbalizes
+	// (spec 017); empty for a human's line. RespondsTo is the ID of the
+	// utterance the line answers, if any.
+	Slot       string `json:"slot,omitempty"`
+	RespondsTo string `json:"responds_to,omitempty"`
 }
 
 // LineMessage is a short message sent to whoever holds a line. DeliverAt is

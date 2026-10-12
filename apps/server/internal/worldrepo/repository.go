@@ -90,6 +90,10 @@ type Repository struct {
 	residentChat atomic.Bool
 	// presenceWindows caches presence on the window grid for chat plans.
 	presenceWindows presenceWindowCache
+
+	// chatTalk is who watches each chat room and what residents' lines are
+	// being written (spec 017).
+	chatTalk chatTalk
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {

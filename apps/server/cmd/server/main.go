@@ -137,6 +137,10 @@ func main() {
 	// Residents enter chat rooms only when the server can also give them words
 	// (spec 016 FR-004); without a model the rooms stay empty.
 	runtimeStore.SetResidentChat(cfg.AzureOpenAIKey != "")
+	if cfg.AzureOpenAIKey != "" {
+		// What residents say in a room while a caller is there (spec 017).
+		runtimeStore.SetChatLineWriter(azureOpenAIRenderer)
+	}
 	sessions.SetLineOccupancy(runtimeStore)
 	network := telephone.New(runtimeStore, clock)
 

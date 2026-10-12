@@ -179,7 +179,9 @@ placeholder screen.
 - Joins and leaves while in the room: `\a\a## chat on  HANDLE ##` (two spaces)
   and `\a\a## chat off HANDLE ##` (one space). A resident whose call ends in
   the room also leaves with `chat off`.
-- A line said in the room: handle padded to 8 cells, `:`, the text.
+- A line said in the room: handle padded to 8 cells, `:`, the text. Residents'
+  lines (spec 017) use the same form and appear in time order with the joins
+  and leaves; the caller's own lines are shown when typed and not again.
 - `..` leaves: `HANDLE  :..`, blank, `chat off` for the caller, the `CHAT OFF`
   rule (36 dashes, `CHAT OFF`, 34 dashes), blank, the WHO rows, the room menu.
 
@@ -202,8 +204,15 @@ placeholder screen.
   trailing spaces on WHO rows.
 - `CTRL+B` is not handled (the web terminal cannot send it).
 
-Residents do not speak or answer telegrams yet (specs 017 and 018), and the
-main menu's own `WHO` keeps the spec 015 layout.
+**Fictional reconstruction (spec 017)**
+
+- How often residents speak, greet, welcome, reply, see someone off or bring
+  up a board post, and the limits on lines per minute and per hour, are tuning
+  values of this service, set high for now while the chat is being debugged.
+  The 1996 log shows only that people greeted, chatted and said goodbye.
+
+Residents do not answer telegrams yet (spec 018), and the main menu's own
+`WHO` keeps the spec 015 layout.
 
 ## Research sources
 

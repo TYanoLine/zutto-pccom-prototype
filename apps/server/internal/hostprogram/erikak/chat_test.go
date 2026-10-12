@@ -1,6 +1,7 @@
 package erikak
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +22,7 @@ type chatWorld struct {
 	chat     *hostcatalog.ErikaKChat
 	sent     []world.LineMessage
 	said     []world.ChatUtterance
+	stays    []string
 }
 
 func (w *chatWorld) WorldNow() time.Time { return w.now }
@@ -51,6 +53,14 @@ func (w *chatWorld) RecordChatUtterance(_ world.Host, u world.ChatUtterance) (wo
 func (w *chatWorld) SendLineMessage(_ world.Host, m world.LineMessage) (world.LineMessage, error) {
 	w.sent = append(w.sent, m)
 	return m, nil
+}
+
+func (w *chatWorld) EnterChatRoom(_ world.Host, room int, actor world.ActorRef, _ string, _ time.Time) {
+	w.stays = append(w.stays, fmt.Sprintf("enter %d %s", room, actor))
+}
+
+func (w *chatWorld) LeaveChatRoom(_ world.Host, room int, actor world.ActorRef, _ time.Time) {
+	w.stays = append(w.stays, fmt.Sprintf("leave %d %s", room, actor))
 }
 
 var chatT0 = time.Date(1996, 4, 30, 23, 40, 0, 0, time.FixedZone("JST", 9*3600))
@@ -291,5 +301,32 @@ func TestStationWithoutChatKeepsThePlaceholder(t *testing.T) {
 	}
 	if rt.Poll(chatT0.Add(time.Hour)) != "" {
 		t.Fatal("Poll printed on a station without chat")
+	}
+}
+
+// TestChatRoomShowsLines shows the lines said in the room in time order with
+// the joins and leaves, without the caller's own lines, and tells the world
+// when the caller enters and leaves (spec 017).
+func TestChatRoomShowsLines(t *testing.T) {
+	w, host := newChatWorld(4)
+	rt := loggedInChatRuntime(t, w, host)
+	self := world.ActorRef{Kind: world.ActorKindMember, ID: "call-1"}
+	rt.HandleLine("4")
+	rt.HandleLine("X")
+	w.events = []world.ChatEvent{
+		{At: chatT0.Add(10 * time.Second), Kind: world.ChatSay, Room: 0, Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "chatting"}, Handle: "ｿﾈｾｲｼﾞ", Body: "こんばんは〜"},
+		{At: chatT0.Add(20 * time.Second), Kind: world.ChatJoin, Room: 0, Handle: "まさや"},
+		{At: chatT0.Add(25 * time.Second), Kind: world.ChatSay, Room: 0, Actor: self, Handle: "GUEST", Body: "どうも"},
+		{At: chatT0.Add(30 * time.Second), Kind: world.ChatSay, Room: 0, Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "m"}, Handle: "まさや", Body: "ばんわ(^^)"},
+	}
+	rt.HandleLine("0")
+	got := rt.Poll(chatT0.Add(time.Minute))
+	want := "ｿﾈｾｲｼﾞ  :こんばんは〜\r\n\a\a## chat on  まさや ##\r\nまさや  :ばんわ(^^)\r\n"
+	if got != want {
+		t.Fatalf("poll:\n%q\nwant\n%q", got, want)
+	}
+	rt.HandleLine("..")
+	if fmt.Sprint(w.stays) != fmt.Sprintf("[enter 0 %s leave 0 %s]", self, self) {
+		t.Fatalf("stays told to the world: %v", w.stays)
 	}
 }

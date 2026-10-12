@@ -199,13 +199,30 @@ func (r *Repository) ChatEvents(host world.Host, room int, from, to time.Time) [
 			events[i].Handle = r.handleOf(host, e.Actor)
 		}
 	}
+	// Lines said in the room (spec 017), and the residents a caller watched
+	// there while they were said.
+	says, watched := r.chatLines(host, room, from, to, plans, sessions)
+	events = append(events, says...)
+	for _, a := range watched {
+		if !found(seen, a) {
+			seen = append(seen, a)
+			if s, ok := sessions[a.Key()]; ok {
+				seenSessions = append(seenSessions, s)
+			}
+		}
+	}
+	// At the same time: leaves, then lines, then joins.
+	rank := map[world.ChatEventKind]int{world.ChatLeave: 0, world.ChatSay: 1, world.ChatJoin: 2}
 	sort.SliceStable(events, func(i, j int) bool {
 		a, b := events[i], events[j]
 		if !a.At.Equal(b.At) {
 			return a.At.Before(b.At)
 		}
 		if a.Kind != b.Kind {
-			return a.Kind == world.ChatLeave
+			return rank[a.Kind] < rank[b.Kind]
+		}
+		if a.Kind == world.ChatSay {
+			return false
 		}
 		return a.Actor.ID < b.Actor.ID
 	})
@@ -219,6 +236,15 @@ func (r *Repository) ChatEvents(host world.Host, room int, from, to time.Time) [
 		r.observePresence(ps, host, observed, to, seen...)
 	}
 	return events
+}
+
+func found(plans []world.CallActivity, a world.CallActivity) bool {
+	for _, p := range plans {
+		if p.Key() == a.Key() {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *Repository) handleOf(host world.Host, actor world.ActorRef) string {
