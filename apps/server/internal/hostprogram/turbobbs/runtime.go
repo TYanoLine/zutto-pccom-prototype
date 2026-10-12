@@ -44,6 +44,9 @@ type Runtime struct {
 	Host  world.Host
 	Store world.Store
 
+	// humanID is the user across calls (spec 019).
+	humanID string
+
 	state       string
 	caller      string
 	access      int
@@ -70,6 +73,10 @@ type Runtime struct {
 	enterLines   []string
 
 }
+
+// SetCallInfo records who the caller is, so a message is filed under the user
+// as well as the account name shown.
+func (r *Runtime) SetCallInfo(info world.CallInfo) { r.humanID = info.HumanID }
 
 func New(host world.Host, store world.Store) *Runtime {
 	return &Runtime{
@@ -539,6 +546,7 @@ func (r *Runtime) storeEntry(preformatted bool) string {
 		BoardID:        r.enterSection,
 		Author:         r.caller,
 		AuthorMemberID: r.caller,
+		AuthorHumanID:  r.humanID,
 		Subject:        r.enterSubject,
 		Body:           body,
 		CreatedAt:      world.WorldNowOf(r.Store),
