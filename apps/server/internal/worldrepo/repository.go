@@ -94,6 +94,8 @@ type Repository struct {
 	// chatTalk is who watches each chat room and what residents' lines are
 	// being written (spec 017).
 	chatTalk chatTalk
+	// lineTalk is the residents' line messages to human callers (spec 018).
+	lineTalk lineTalk
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
