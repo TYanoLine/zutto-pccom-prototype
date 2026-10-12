@@ -463,7 +463,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }
 
   return (
-    <div className={`terminal-display terminal-display--${display} terminal-display--rows-${screenMode}`}>
+    <div className={`terminal-display terminal-display--${display} terminal-display--rows-${screenMode}${keyboardActive ? ' terminal-display--focused' : ''}`}>
       <nav className="terminal-tools" aria-label="端末表示">
         <button type="button" aria-pressed={display === 'readable'} onClick={() => setDisplay('readable')}>文字拡大</button>
         <button type="button" aria-pressed={display === 'fit'} onClick={() => setDisplay('fit')}>全体表示</button>
@@ -472,7 +472,13 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         <button type="button" onClick={() => setScrollOffset(0)} disabled={historyOffset === 0}>最新</button>
       </nav>
       <div className="terminal-viewport-shell">
-        <div ref={viewportRef} className="terminal-viewport" tabIndex={0} aria-label="端末画面。左右にスクロールできます">
+        <div
+          ref={viewportRef}
+          className={`terminal-viewport${keyboardActive ? ' terminal-viewport--focused' : ''}`}
+          tabIndex={0}
+          aria-label="端末画面。左右にスクロールできます"
+          onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) focusKeyboardProxy(); }}
+        >
           <canvas
             ref={ref}
             width={640 * backingScale}
