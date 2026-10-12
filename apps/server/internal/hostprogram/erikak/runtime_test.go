@@ -661,3 +661,31 @@ func TestWHOWithoutPresenceShowsOnlyTheCaller(t *testing.T) {
 		t.Fatalf("WHO output:\n%s", out)
 	}
 }
+
+// Spec 019: a post keeps the human ID of the user and the login ID shown, so
+// two guests are two people to the system and one name to everyone else.
+func TestAppendKeepsHumanIDAndLoginID(t *testing.T) {
+	var humans []string
+	for _, id := range []string{"u1", "u2"} {
+		runtime, store := sampleRuntime(t)
+		root := store.AddPost(runtime.Host.ID, world.Post{BoardID: "1", Author: "SYSOP", Subject: "テスト記事", Body: "本文"})
+		runtime.SetCallInfo(world.CallInfo{CallID: "call-" + id, HumanID: id, Line: 1, Baud: 9600})
+		loginGuest(t, runtime)
+		runtime.HandleLine("1")
+		runtime.HandleLine("1")
+		runtime.HandleLine(fmt.Sprintf("%d", root.ID))
+		runtime.HandleLine("A")
+		runtime.HandleLine("追加です")
+		for _, post := range store.ListPosts(runtime.Host.ID) {
+			if post.ParentID == root.ID {
+				if post.Author != "GUEST" || post.AuthorMemberID != "GUEST" {
+					t.Fatalf("login ID on the post = %q / %q", post.Author, post.AuthorMemberID)
+				}
+				humans = append(humans, post.AuthorHumanID)
+			}
+		}
+	}
+	if len(humans) != 2 || humans[0] != "u1" || humans[1] != "u2" {
+		t.Fatalf("human IDs on the posts = %q", humans)
+	}
+}

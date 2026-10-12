@@ -126,6 +126,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			BoardID:        r.boardPath,
 			Author:         r.handle,
 			AuthorMemberID: r.handle,
+			AuthorHumanID:  r.humanID,
 			Subject:        r.subject,
 			Body:           line,
 			CreatedAt:      world.WorldNowOf(r.Store),
@@ -166,6 +167,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			ParentID:       root.ID,
 			Author:         r.handle,
 			AuthorMemberID: r.handle,
+			AuthorHumanID:  r.humanID,
 			// Erika-K's append is represented by the parent/root relationship;
 			// the append itself has no independently displayed subject.
 			Subject:   "",
@@ -1222,7 +1224,7 @@ func (r *Runtime) lineUsers() []lineUser {
 	if observer, ok := r.Store.(world.PresenceObserver); ok {
 		for _, s := range observer.ObservePresenceNow(r.Host) {
 			u := lineUser{line: s.Line, handle: s.Handle, baud: s.Baud}
-			if r.callID != "" && s.Actor.Kind == world.ActorKindMember && s.Actor.ID == r.callID {
+			if r.isMyCall(s) {
 				u.self, u.handle = true, r.handle
 				selfShown = true
 			}
