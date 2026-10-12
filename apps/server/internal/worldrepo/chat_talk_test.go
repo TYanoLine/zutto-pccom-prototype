@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -550,5 +551,38 @@ func TestErikaKChatShowsResidentLines(t *testing.T) {
 	}
 	if said == 0 {
 		t.Fatalf("no resident line in ten minutes:\n%s", shown.String())
+	}
+}
+
+// Spec 019 story 5: nothing that reaches a writer names a human ID.
+func TestHumanIDNeverReachesTheWriters(t *testing.T) {
+	const humanID = "h-secret-human-id-4242"
+	writer := &fakeChatWriter{}
+	repo, store, host, at, room := talkTestRepo(t, writer)
+	human := world.ActorRef{Kind: world.ActorKindMember, ID: humanID}
+	post := taroPosted(t, repo, store, host, at, room, human)
+	repo.EnterChatRoom(host, room, human, "TARO", at)
+	if _, err := repo.RecordChatUtterance(host, world.ChatUtterance{Room: room, Actor: human, Handle: "TARO", Body: "こんばんは", At: at.Add(10 * time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	drive(t, repo, host, room, at, 5*time.Minute, 5*time.Second)
+	reqs := writer.requests()
+	if len(reqs) == 0 {
+		t.Fatal("the writer was never asked for a line")
+	}
+	raw, err := json.Marshal(reqs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), humanID) || strings.Contains(string(raw), "u-secret") {
+		t.Fatalf("a chat line request carries the human ID: %s", raw)
+	}
+
+	// The article-body relationship text is built from names and counts only.
+	parent := post
+	reply := world.Post{Author: "NORI", AuthorPersonaID: "p1", Subject: "Re: x"}
+	text := repo.materializationRelationshipContext(host, reply, &parent)
+	if strings.Contains(text, humanID) || text == "" {
+		t.Fatalf("relationship context = %q", text)
 	}
 }
