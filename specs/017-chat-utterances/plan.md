@@ -74,11 +74,19 @@ type Input struct {
 	Residents []ResidentStay       // 部屋の住民の chat 区間（spec 016 の計画）と persona
 	Utterances []world.ChatUtterance // 部屋で記録された発言（人間・住民）
 	Relation func(a, b world.ActorRef) int // 0 初対面、1 以前にもやり取り、2 常連
+	Events []WorldEvent // 部屋の外の世界の出来事（news のきっかけ）
 }
 type Slot struct {
 	Key string; Kind Kind; Room int; Speaker world.ActorRef; Handle string
 	At time.Time; Trigger string /* 発言 ID、入室の鍵など */; RespondsTo string; Addressee world.ActorRef
 	Depth int // 応答の連鎖の深さ
+	Event string // news のきっかけの出来事の ID
+}
+// WorldEvent is a world fact about someone that residents may bring up.
+type WorldEvent struct {
+	ID string; Subject world.ActorRef; At time.Time
+	Kind string // posted（書き込んだ）/ replied_to（その人の書き込みにレスが付いた）
+	Board, Title string; By world.ActorRef // replied_to ではレスを付けた人
 }
 func Slots(in Input) []Slot // 時刻順、上限を適用済み
 ```
@@ -86,6 +94,7 @@ func Slots(in Input) []Slot // 時刻順、上限を適用済み
 ### 3.1 観測される時刻
 
 `Viewers` の区間の和を「観測区間」とする。枠の時刻とそのきっかけの時刻の両方が観測区間に入る枠だけを返す（`talk` と `farewell` はきっかけなし）。
+`news` だけは、枠の時刻が観測区間に入り、きっかけの出来事が枠の時刻より `newsWindow`（30 分）以内なら返す。
 `Viewers` が空なら枠はない。
 
 ### 3.2 枠の種類と決め方
@@ -100,8 +109,17 @@ func Slots(in Input) []Slot // 時刻順、上限を適用済み
 | `reply` | 他の人の発言 | 発言の時に部屋にいる、話者以外の住民 | ハンドルを含む `0.85`、その住民への応答 `0.6`、ほか `0.5*ReplyTendency*(1+0.3*関係)` | 発言 + 6〜30 秒 |
 | `talk` | なし | 部屋にいる住民（他に誰かいる時刻だけ） | 区間の中で間隔 `(15 秒〜2 分)/max(soc, 0.3)` を順に引く | その時刻 |
 | `farewell` | なし（退室の予定） | 退室する住民（他に誰かいるとき） | `0.7*soc` | 退室 − 5〜20 秒 |
+| `sendoff` | 他の人の、抜けることを告げる発言（住民の `farewell` を含む） | 発言の時に部屋にいる、話者以外の住民 | `0.3 + 0.25*関係 + 0.2*soc` | 発言 + 2〜10 秒 |
+| `news` | 部屋にいる人の `WorldEvent` | その人と関係が 1 以上の住民（その人と、レスを付けた本人を除く） | `0.25 + 0.15*関係` | 出来事の時刻と、その人と住民が両方部屋にいる最初の時刻の遅いほう + 20 秒〜3 分 |
 
 - `welcome` と `reply` は、候補のうち `unit < p` のものから `unit/p` が最も小さい 1 人だけにする（多くとも 1 人、FR-001、不変条件）。
+- `sendoff` は別枠: 抜けることを告げる発言には `reply` を作らない。候補のうち `unit < p` のものを `unit/p` の小さい順に多くとも 2 人。
+  2 人目は 1 人目の 3〜8 秒後にする。`sendoff` には誰も応じない（連鎖しない）。
+- 抜けることを告げる発言かは、本文に共通の語の一覧（`落ちます`、`おちます`、`落ちるね`、`寝ます`、`おやすみ`、`失礼します`、`お先に`、
+  `抜けます`、`ではでは`、`ばいばい`、`さよなら`、`また来ます` など）のどれかを含むか。一覧は架空の調整値として `chatslot` に置く
+  （ホストプログラムに依らない）。住民の `farewell` は、本文によらず抜けることを告げる発言とみなす。
+- `news` は 1 つの出来事につき多くとも 1 人（`welcome` と同じ選び方）。同じ人の出来事は、観測区間 1 つにつき多くとも 2 つまで（新しい順）。
+  `news` への `reply` は通常どおり作れる（話題にされた本人が応じる、など）。
 - ハンドルを含むかは、発言の本文に住民のハンドルが部分文字列として入っているか（大文字小文字を区別しない）。
 - `reply` の `Depth` はきっかけの深さ + 1（人間の発言と `talk` は 0）。`maxDepth = 6` を超える枠は作らない。
 - 住民の発言へのきっかけは、記録された発言だけ（本文が作られなかった枠には誰も応じない）。
@@ -118,7 +136,7 @@ func Slots(in Input) []Slot // 時刻順、上限を適用済み
 ### 3.4 鍵
 
 `Key = kind | host | room | speaker | trigger`。きっかけは、発言なら人間の発言の ID か住民の発言の枠の鍵、入室なら `actor@時刻`、
-`talk` は `call 鍵#n`、`farewell` は `call 鍵`。同じ世界と同じ人間の行動なら同じ鍵になる。
+`talk` は `call 鍵#n`、`farewell` は `call 鍵`、`sendoff` はきっかけの発言、`news` は出来事の ID。同じ世界と同じ人間の行動なら同じ鍵になる。
 
 ## 4. 1 行の生成（`llm`）
 
@@ -128,12 +146,13 @@ type ChatLineRequest struct {
 	WorldTime  time.Time
 	Station    string   // 局の名前（定義から）
 	Room       int
-	Kind       string   // greet / welcome / reply / talk / farewell
+	Kind       string   // greet / welcome / reply / talk / farewell / sendoff / news
 	Speaker    ChatLinePerson // Handle, Summary（personaSummary）
 	Addressee  *ChatLinePerson
 	Relation   string   // 初対面 / 以前にもやり取り / 常連仲間（宛先があるとき）
 	Present    []string // 部屋にいる人のハンドル
 	Transcript []ChatLineTurn // Handle, Body（古い順、直近 12 行）
+	Event      *ChatLineEvent // news のとき: 誰が、掲示板、題、レスを付けた人、時刻（本文は渡さない）
 	MaxCells   int
 }
 type ChatLineWriter interface {
@@ -163,7 +182,9 @@ func (r *Repository) EnterChatRoom(...) / LeaveChatRoom(...)
 1. 既存どおり入退室を求める（presence lock の中）。
 2. 生成器があり、`residentChat` が有効なら、部屋の発言を `ListChatUtterances(host, room, from', 0)` で読み、
    `chatslot.Slots` を `Window = (from', to + lead]`（`from'` は観測区間の始まりと `to − 10 分` の遅いほう、`lead = 20 秒`）で求める。
-   住民の滞在は、入退室と同じ計画（`plans`）から取る。
+   住民の滞在は、入退室と同じ計画（`plans`）から取る。`Events` は、部屋にいる人について、台帳（`ListInteractionEvents`）の
+   `board_root` / `board_reply` のうち `to − newsWindow` 以降のものから作る（その人が書いた、またはその人の書き込みへのレス）。
+   掲示板の名前と題は記事の記録から読む。本文の生成（遅延生成）は起こさない。
 3. 記録されていない枠のうち、時刻が `to + lead` 以内で、きっかけの発言が記録済みのものについて、生成の仕事を始める（鍵ごとに 1 つ、
    局ごとに同時 `2` まで、待たせない）。時刻が `to − stale`（`stale = 60 秒`）より前の枠は始めずに捨てる。
 4. 発言（`ChatSay`）として、`ListChatUtterances` のうち `At` が `(from, to]` のものを、入退室と合わせて時刻順に返す
@@ -206,7 +227,9 @@ func (r *Repository) EnterChatRoom(...) / LeaveChatRoom(...)
 | リスク | 対策 |
 |---|---|
 | LLM の遅れで発言が遅れて出る | 枠の 20 秒前に始める。間に合わなければ記録時刻で出す。60 秒過ぎたら捨てる |
-| 人間の発言に住民が群がる | `reply` と `welcome` は多くとも 1 人。上限 §3.3 |
+| 人間の発言に住民が群がる | `reply` と `welcome` は多くとも 1 人、`sendoff` は 2 人。上限 §3.3 |
+| 見送りの語の一覧の誤判定 | 抜けない発言に見送りが付くか、抜けるのに見送られないだけ。どちらも沈黙と同じく世界を壊さない。一覧は後で調整する |
+| 出来事の話題が監視のように感じられる | 知り合い（関係 1 以上）だけ、1 つの出来事に 1 人、30 分以内、必ずではない |
 | 住民どうしの応答が終わらない | 連鎖の深さ 6 まで、1 時間 360 行まで |
 | 費用 | 本文は人間がいる部屋だけ。局ごとに同時 2 件 |
 | 表示済みの範囲に割り込む | 記録は presence lock の中で `At = max(枠, 今)`。`ChatEvents` も同じロック |
@@ -215,7 +238,7 @@ func (r *Repository) EnterChatRoom(...) / LeaveChatRoom(...)
 
 ## 10. 検証
 
-- `chatslot`: 決定性、多くとも 1 人、ハンドルで応答率が上がる、応答のない発言がある、上限、観測区間の外に枠がない、深さの上限。
+- `chatslot`: 決定性、多くとも 1 人、`sendoff` が別枠で 2 人まで・その発言に `reply` なし、`news` が知り合いだけ・1 出来事 1 人・30 分以内、ハンドルで応答率が上がる、応答のない発言がある、上限、観測区間の外に枠がない、深さの上限。
 - `llm`: 検証の各規則、要求の JSON スキーマと材料（`roundTripFunc`）、人間を特別扱いする語が材料にないこと。
 - `worldrepo`: 試験用の生成器で、人間が入ると発言が記録される、人間がいないと生成器が 0 回、失敗・不合格で記録なし、
   同じ枠を 2 回記録しない、表示済みの範囲に割り込まない、`-race`。
