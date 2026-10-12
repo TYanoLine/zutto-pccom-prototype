@@ -41,3 +41,10 @@ jobs:
           xcopy /E /I /Y api "C:\zutto-web\api"
           copy /Y server.mjs "C:\zutto-web\"
           echo Deployment to C:\zutto-web completed successfully.
+
+      - name: Restart Web Server
+        run: |
+          schtasks /end /tn "ZuttoWebServer" >nul 2>&1 || exit /b 0
+          timeout /t 1 /nobreak >nul
+          schtasks /run /tn "ZuttoWebServer"
+          echo Web server restarted via Scheduled Task (ZuttoWebServer).
