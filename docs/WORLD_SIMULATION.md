@@ -299,6 +299,17 @@ computations keep them. Human calls hold a line from CONNECT until hang-up or
 reconnect-grace expiry, and are kept as history when they end. Stores without
 presence keep the earlier probabilistic BUSY model.
 
+Planned, not implemented yet: the members who are connected at the same time
+as the human caller are the people the caller can meet. The caller will be able
+to chat with them (CHAT / CALL), and their presence is also when activity
+happens: while they are on line they may post, reply, and so add articles and
+replies that the caller can see appear. Who is active keeps changing. Members
+log off when their call ends, which simply frees the line, and others connect
+in later windows. Chat partners and the authors of such activity are chosen
+from the presence computed above, never invented because the human is there;
+the World decides whether each one speaks, posts, or does nothing, and an LLM
+only words an action that was selected (see SDD-005 section 3.4).
+
 ## Moderation
 
 Misbehavior can occur: spam, arguments, impersonation, local-rule violations, escape-code abuse, etc. SYSOP personality and local policy determine warnings, deletion, read-only restrictions, temporary suspension, or removal. The human-controlled member is subject to the same local rules.
