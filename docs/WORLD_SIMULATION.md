@@ -338,6 +338,18 @@ count, the rooms and their capacities come from the station definition.
   `private:<host>`, addressed to the recipient). Both survive restarts with the
   host snapshot.
 
+- **Who a human is (spec 019).** The system names a human by a *human ID*,
+  derived from a key the user's browser keeps, the same on every call and for
+  guests too. Every record of a human (posts, chat lines, line messages, the
+  ledger) also keeps the *login ID* shown at the time. Residents know a human
+  only by login ID: relationships, "acquaintance" checks, board events they
+  bring up and what their memory tools return use `login:<ID>`, never the
+  human ID. So a guest who later registers can say "that was me, as GUEST", a
+  user with two login IDs is two people to residents, and one who shows
+  another's login ID is that person to them. The shared login ID `GUEST` is
+  nobody a resident can know, so it builds no relationships. The key proves
+  nothing about who is typing; registration and passwords are not modelled yet.
+
 - **Residents speaking (spec 017).** `internal/chatslot` decides, without an
   LLM, each chance a resident has to say a line (a slot): `greet` on entering,
   `welcome` someone who entered, `reply` to a line, `talk` on their own,
