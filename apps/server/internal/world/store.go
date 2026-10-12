@@ -116,6 +116,41 @@ type RelationshipStore interface {
 	ListRelationshipsFrom(hostID string, from ActorRef) []RelationshipEdge
 }
 
+// PresenceStore keeps observed connection sessions and live human calls. A
+// session that was shown to a caller (WHO) or decided a caller's dial is world
+// history and is never rewritten. See spec 015.
+type PresenceStore interface {
+	ListObservedSessions(hostID string, from, to time.Time) []PresenceSession
+	// SaveObservedSessions stores sessions that are not stored yet; a session
+	// already stored for the same actor and start is left unchanged.
+	SaveObservedSessions(hostID string, sessions []PresenceSession)
+	SaveHumanCall(call HumanCall)
+	// EndHumanCall removes a live call and records it as an observed session
+	// that ended at the given world time.
+	EndHumanCall(callID string, at time.Time) (HumanCall, bool)
+	ListHumanCalls(hostID string) []HumanCall
+}
+
+// LineOccupancy decides and registers line use on behalf of the telephone and
+// call-session layers. Implementations compute resident presence, so they live
+// above the plain stores.
+type LineOccupancy interface {
+	// DialLine reports the lowest free line at world time at, or ok=false when
+	// every line is in use. The sessions that decided it become observed.
+	DialLine(host Host, at time.Time) (line int, ok bool)
+	// BeginHumanCall re-checks the line and registers the call at the current
+	// world time; ok=false means the line was taken in the meantime.
+	BeginHumanCall(host Host, callID string, baud int) (line int, ok bool)
+	SetHumanCallHandle(callID, handle string)
+	EndHumanCall(callID string)
+}
+
+// PresenceObserver is what host runtimes use: the sessions holding a line of
+// the host now, saved as observed world history.
+type PresenceObserver interface {
+	ObservePresenceNow(host Host) []PresenceSession
+}
+
 // DevelopmentConversationResetStore is intentionally a development-only escape
 // hatch. It lets the materialization demo clear observed posts and lazily-created
 // persona details so a tester can compare generation behavior without rebuilding
