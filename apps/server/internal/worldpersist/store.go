@@ -292,6 +292,24 @@ func (s *Store) SaveCallActivities(hostID string, acts []world.CallActivity) {
 	}
 }
 
+// SaveChatUtterance persists what a caller said with the host snapshot.
+func (s *Store) SaveChatUtterance(u world.ChatUtterance) world.ChatUtterance {
+	saved := s.MemoryStore.SaveChatUtterance(u)
+	if target, ok := s.targets[u.HostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+	return saved
+}
+
+// SaveLineMessage persists a line message with the host snapshot.
+func (s *Store) SaveLineMessage(m world.LineMessage) world.LineMessage {
+	saved := s.MemoryStore.SaveLineMessage(m)
+	if target, ok := s.targets[m.HostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+	return saved
+}
+
 // EndHumanCall keeps the finished call in the host's persisted history.
 func (s *Store) EndHumanCall(callID string, at time.Time) (world.HumanCall, bool) {
 	call, ok := s.MemoryStore.EndHumanCall(callID, at)

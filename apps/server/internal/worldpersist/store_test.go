@@ -385,3 +385,32 @@ func TestOldSnapshotWithoutCallActivitiesStillLoads(t *testing.T) {
 		t.Fatalf("plans = %+v", got)
 	}
 }
+
+func TestStorePersistsChatRecords(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	store, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone(genericPersistPhone)
+	at := time.Date(1996, 10, 15, 23, 30, 0, 0, time.UTC)
+	me := world.ActorRef{Kind: world.ActorKindMember, ID: "c1"}
+	u := store.SaveChatUtterance(world.ChatUtterance{HostID: host.ID, Room: 1, Actor: me, Handle: "GUEST", Body: "どうも", At: at})
+	m := store.SaveLineMessage(world.LineMessage{HostID: host.ID, From: me, To: world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}, ToLine: 3, Body: "やあ", SentAt: at, DeliverAt: at.Add(time.Minute)})
+
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.ListChatUtterances(host.ID, 1, at, time.Time{}); len(got) != 1 || got[0].ID != u.ID || got[0].Body != "どうも" || !got[0].At.Equal(at) {
+		t.Fatalf("restored utterances = %+v", got)
+	}
+	if got := restored.ListLineMessages(host.ID); len(got) != 1 || got[0].ID != m.ID || got[0].ToLine != 3 || !got[0].DeliverAt.Equal(at.Add(time.Minute)) {
+		t.Fatalf("restored messages = %+v", got)
+	}
+	next := restored.SaveChatUtterance(world.ChatUtterance{HostID: host.ID, Room: 1, Actor: me, Body: "2", At: at.Add(time.Minute)})
+	if next.ID == u.ID {
+		t.Fatalf("a restored store reused the ID %q", u.ID)
+	}
+}

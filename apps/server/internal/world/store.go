@@ -167,6 +167,12 @@ type ChatHost interface {
 	// ChatEvents returns room's join and leave events in (from, to], in time
 	// order, saving the plans they come from as observed.
 	ChatEvents(host Host, room int, from, to time.Time) []ChatEvent
+	// RecordChatUtterance saves what a caller said in a room and records it
+	// in the ledger, addressed to the residents in the room at u.At.
+	RecordChatUtterance(host Host, u ChatUtterance) (ChatUtterance, error)
+	// SendLineMessage saves a line message and records it in the ledger,
+	// addressed to its recipient. The caller sets DeliverAt.
+	SendLineMessage(host Host, m LineMessage) (LineMessage, error)
 }
 
 // LineOccupancy decides and registers line use on behalf of the telephone and
@@ -239,6 +245,10 @@ type MemoryStore struct {
 	humanCalls map[string]HumanCall
 	// callPlans holds observed resident call plans per host (spec 016).
 	callPlans map[string][]CallActivity
+	// chatLines and lineMessages are what callers said in chat rooms and sent
+	// to lines (spec 016).
+	chatLines    map[string][]ChatUtterance
+	lineMessages map[string][]LineMessage
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
 	next      int64
@@ -261,6 +271,8 @@ func NewMemoryStore() *MemoryStore {
 		presence:      map[string][]PresenceSession{},
 		humanCalls:    map[string]HumanCall{},
 		callPlans:     map[string][]CallActivity{},
+		chatLines:     map[string][]ChatUtterance{},
+		lineMessages:  map[string][]LineMessage{},
 		next:          1000,
 	}
 

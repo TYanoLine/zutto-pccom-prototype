@@ -24,6 +24,10 @@ type DevelopmentHostSnapshot struct {
 	// CallActivities holds the observed plans of resident calls (spec 016).
 	// Older snapshots have none.
 	CallActivities []CallActivity `json:"call_activities,omitempty"`
+	// ChatUtterances and LineMessages are what callers said in chat rooms and
+	// sent to lines (spec 016). Older snapshots have none.
+	ChatUtterances []ChatUtterance `json:"chat_utterances,omitempty"`
+	LineMessages   []LineMessage   `json:"line_messages,omitempty"`
 }
 
 // DevelopmentSnapshot returns a detached copy of the state needed to reproduce
@@ -68,6 +72,8 @@ func (s *MemoryStore) DevelopmentSnapshot(phone string) (DevelopmentHostSnapshot
 		Presence:      append([]PresenceSession(nil), s.presence[host.ID]...),
 	}
 	snapshot.CallActivities = cloneCallActivities(s.callPlans[host.ID])
+	snapshot.ChatUtterances = append([]ChatUtterance(nil), s.chatLines[host.ID]...)
+	snapshot.LineMessages = append([]LineMessage(nil), s.lineMessages[host.ID]...)
 	return snapshot, true
 }
 
@@ -119,6 +125,8 @@ func (s *MemoryStore) RestoreDevelopmentSnapshot(snapshot DevelopmentHostSnapsho
 	}
 	s.presence[hostID] = append([]PresenceSession(nil), snapshot.Presence...)
 	s.callPlans[hostID] = cloneCallActivities(snapshot.CallActivities)
+	s.chatLines[hostID] = append([]ChatUtterance(nil), snapshot.ChatUtterances...)
+	s.lineMessages[hostID] = append([]LineMessage(nil), snapshot.LineMessages...)
 	return nil
 }
 
