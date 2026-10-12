@@ -82,6 +82,17 @@ body { min-height: 100vh; overflow: hidden; background: #080808; touch-action: m
 .desktop-statusbar__group { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 24px; white-space: nowrap; }
 .desktop-statusbar__online { color: #e2ad4c; }
 .desktop-statusbar__offline { overflow: hidden; color: #aaa; text-overflow: ellipsis; }
+.desktop-statusbar__fee-wrap { position: relative; display: inline-flex; align-items: center; }
+.desktop-statusbar__fee-btn { background: transparent; border: 0; color: inherit; font: inherit; padding: 2px 4px; margin: -2px -4px; border-radius: 3px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+.desktop-statusbar__fee-btn:hover { color: #fff; background: #222; }
+.fee-popover { position: absolute; bottom: calc(100% + 10px); right: 0; z-index: 50; padding: 8px 12px; background: #1c1c1c; border: 1px solid #555; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.65); font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #eee; white-space: nowrap; }
+.fee-popover__row, .fee-popover__edit { display: flex; align-items: center; gap: 8px; }
+.fee-popover__change-btn { background: transparent; border: 0; color: #e2ad4c; font: inherit; font-weight: 600; cursor: pointer; padding: 0 2px; text-decoration: underline; }
+.fee-popover__change-btn:hover { color: #f5c76c; }
+.fee-popover__close-btn { background: transparent; border: 0; color: #888; font: inherit; cursor: pointer; padding: 0 3px; margin-left: 2px; }
+.fee-popover__close-btn:hover { color: #eee; }
+.fee-popover__label { display: inline-flex; align-items: center; gap: 4px; font: inherit; }
+.fee-popover__select { background: #2b2b2b; border: 1px solid #666; border-radius: 3px; color: #eee; font: inherit; padding: 3px 6px; }
 .quick-help, .directory-softkeys, .mobile-softkeys { display: none; }
 .dev-shortcuts { display: none !important; }
 code { color: #ddd; }

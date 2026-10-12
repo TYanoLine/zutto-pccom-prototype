@@ -12,7 +12,7 @@ import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettin
 import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
 import { ntt1996TariffTable } from './billing/pseudoTariffs';
-import { loadCallerLocation, saveCallerLocation } from './billing/CallerLocation';
+import { CALLER_LOCATION_PRESETS, loadCallerLocation, saveCallerLocation } from './billing/CallerLocation';
 import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
@@ -82,7 +82,10 @@ export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const terminalCanvasRef = useRef<TerminalCanvasHandle | null>(null);
   const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
-  const [callerLocation] = useState(loadCallerLocation);
+  const [callerLocation, setCallerLocation] = useState(loadCallerLocation);
+  const [feePopoverOpen, setFeePopoverOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState(false);
+  const feePopoverRef = useRef<HTMLDivElement | null>(null);
   const tariff = useMemo(() => new PseudoTariffService(ntt1996TariffTable, telehodaiNumbers, callerLocation), [callerLocation]);
   const modemRef = useRef<VirtualModem | null>(null);
   const localStationRef = useRef<LocalTestStation | null>(null);
@@ -146,6 +149,18 @@ export default function App() {
     return () => controller.abort();
   }, [versionRefresh]);
   useEffect(() => { saveCallerLocation(callerLocation); }, [callerLocation]);
+  useEffect(() => {
+    if (!feePopoverOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (feePopoverRef.current && !feePopoverRef.current.contains(target) && !target?.closest('.desktop-statusbar__fee-btn')) {
+        setFeePopoverOpen(false);
+        setEditingLocation(false);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [feePopoverOpen]);
   useEffect(() => { saveModemStatusDisplayMode(modemStatusMode); }, [modemStatusMode]);
   useEffect(() => {
     try { window.localStorage.setItem(SCREEN_MODE_KEY, terminalScreenMode); } catch { /* optional preference */ }
@@ -548,16 +563,69 @@ export default function App() {
   const desktopHostName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : '';
   const desktopBaud = activeCall || localTestConnected ? modemTelemetry.baud : commSettings.dteBaud;
   const desktopElapsed = mobileConnectedAt ? mobileElapsed.slice(0, 5) : '00:00';
-  const desktopLocation = `${callerLocation.maName}MA`;
   const buildInfoProps = {
     clientCommit: CLIENT_BUILD_COMMIT, clientRef: CLIENT_BUILD_REF, clientBuildTime: CLIENT_BUILD_TIME,
     server: serverBuildInfo, serverState: serverBuildState,
     onRetry: () => setVersionRefresh(value => value + 1),
   };
+  const feePopoverContent = feePopoverOpen && (
+    <div className="fee-popover" ref={feePopoverRef} role="dialog" aria-label="発信地設定">
+      {!editingLocation ? (
+        <div className="fee-popover__row">
+          <span>発信地：{callerLocation.label}({callerLocation.areaCode})</span>
+          <button
+            type="button"
+            className="fee-popover__change-btn"
+            onClick={() => setEditingLocation(true)}
+          >
+            [変更]
+          </button>
+          <button
+            type="button"
+            className="fee-popover__close-btn"
+            onClick={() => setFeePopoverOpen(false)}
+            aria-label="閉じる"
+          >
+            ✕
+          </button>
+        </div>
+      ) : (
+        <div className="fee-popover__edit">
+          <label className="fee-popover__label">
+            <span>発信地：</span>
+            <select
+              className="fee-popover__select"
+              value={callerLocation.id}
+              onChange={e => {
+                const next = CALLER_LOCATION_PRESETS.find(p => p.id === e.target.value);
+                if (next) {
+                  setCallerLocation(next);
+                  setEditingLocation(false);
+                }
+              }}
+            >
+              {CALLER_LOCATION_PRESETS.map(preset => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}({preset.areaCode})
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="fee-popover__change-btn"
+            onClick={() => setEditingLocation(false)}
+          >
+            [完了]
+          </button>
+        </div>
+      )}
+    </div>
+  );
   return <main className="shell">
     <header className="desktop-topbar">
       {desktopHostName && <span className="desktop-host-name" title={desktopHostName}>{desktopHostName}</span>}
-      <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
+      <span className="desktop-world-clock">{formatWorldDate(worldNow)}</span>
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
         <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
       </span>
@@ -596,7 +664,21 @@ export default function App() {
         <span className={`mobile-statusbar__name${mobileConnectionStatus.working ? ' mobile-statusbar__name--working' : ''}`}>{mobileConnectionStatus.label}</span>
       </span>
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
-      <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
+      <span className="mobile-statusbar__stats">
+        {mobileElapsed}&nbsp;&nbsp;
+        <span className="desktop-statusbar__fee-wrap">
+          <button
+            type="button"
+            className="desktop-statusbar__fee-btn"
+            onClick={() => { setFeePopoverOpen(open => !open); setEditingLocation(false); }}
+            aria-expanded={feePopoverOpen}
+            aria-label="通話料金と発信地"
+          >
+            ¥{mobileSessionCost}
+          </button>
+          {feePopoverContent}
+        </span>
+      </span>
     </div>
     <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
     <section className="screen-wrap"><TerminalCanvas
@@ -652,11 +734,22 @@ export default function App() {
         <span className={activeCall || localTestConnected ? 'desktop-statusbar__online' : 'desktop-statusbar__offline'}>{activeCall || localTestConnected ? '● 接続中' : status}</span>
         <span>{desktopBaud || commSettings.dteBaud} bps</span>
         <span>経過 {desktopElapsed}</span>
-        <span>料金 ¥{cost}</span>
+        <span className="desktop-statusbar__fee-wrap">
+          <button
+            type="button"
+            className="desktop-statusbar__fee-btn"
+            onClick={() => { setFeePopoverOpen(open => !open); setEditingLocation(false); }}
+            aria-expanded={feePopoverOpen}
+            aria-label="通話料金と発信地"
+          >
+            料金 ¥{cost}
+          </button>
+          {feePopoverContent}
+        </span>
       </span>
     </footer>
     <footer className="statusbar"><span>{status}</span><span>{localTestConnected ? 'CALL LOCAL TEST / ¥0' : `CALL ¥${cost}`}</span><span>{localTestConnected ? 'LOCAL LOOP' : registeredCall ? 'TELEHODAI FIXED RATE' : teleho ? 'TELEHODAI TIME' : 'NORMAL TOLL'}</span><label><input type="checkbox" checked={autoRedial} onChange={e => setAutoRedial(e.target.checked)} disabled={localTestConnected} /> AUTO REDIAL</label></footer>
-    <aside className="quick-help"><strong>発信地:</strong> {callerLocation.label}MA ({callerLocation.areaCode})<br /><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
+    <aside className="quick-help"><strong>発信地:</strong> {callerLocation.label} ({callerLocation.areaCode})<br /><strong>センター:</strong> {directoryStatus}<br /><strong>センターの呼び出し:</strong> メインメニューで <code>1</code>。現在 {directoryCount || '---'}局。<br /><strong>ターミナル・モード:</strong> メインメニューで <code>3</code>。電話番号を直接指定できます。<br /><strong>Local test station:</strong> <code>ATDT{LOCAL_TEST_NUMBER}</code>
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
     <GenerationInspector wsURL={wsURL} active={generationTraceVisible} open={traceOpen} onClose={() => setTraceOpen(false)} onRunningChange={setTraceRunning} />

@@ -15,18 +15,21 @@ export type CallerLocation = {
   localDialPrefixes: string[];
 };
 
-export const CALLER_LOCATION_STORAGE_KEY = 'zutto.callerLocation.v1';
+export const CALLER_LOCATION_STORAGE_KEY = 'zutto.callerLocation.v2';
 
-export const DEFAULT_CALLER_LOCATION: CallerLocation = {
-  id: 'fukuoka-092',
-  label: '福岡',
-  maName: '福岡',
-  areaCode: '092',
-  // The client tariff model currently uses area-code geography as its caller
-  // origin abstraction. Calls whose destination has the same configured area
-  // code are treated as local-area calls.
-  localDialPrefixes: ['092'],
-};
+export const CALLER_LOCATION_PRESETS: CallerLocation[] = [
+  { id: 'tokyo-03', label: '東京', maName: '東京', areaCode: '03', localDialPrefixes: ['03'] },
+  { id: 'fukuoka-092', label: '福岡', maName: '福岡', areaCode: '092', localDialPrefixes: ['092'] },
+  { id: 'osaka-06', label: '大阪', maName: '大阪', areaCode: '06', localDialPrefixes: ['06'] },
+  { id: 'nagoya-052', label: '名古屋', maName: '名古屋', areaCode: '052', localDialPrefixes: ['052'] },
+  { id: 'sapporo-011', label: '札幌', maName: '札幌', areaCode: '011', localDialPrefixes: ['011'] },
+  { id: 'sendai-022', label: '仙台', maName: '仙台', areaCode: '022', localDialPrefixes: ['022'] },
+  { id: 'hiroshima-082', label: '広島', maName: '広島', areaCode: '082', localDialPrefixes: ['082'] },
+  { id: 'yokohama-045', label: '横浜', maName: '横浜', areaCode: '045', localDialPrefixes: ['045'] },
+  { id: 'kyoto-075', label: '京都', maName: '京都', areaCode: '075', localDialPrefixes: ['075'] },
+];
+
+export const DEFAULT_CALLER_LOCATION: CallerLocation = CALLER_LOCATION_PRESETS[0];
 
 export function normalizeCallerLocation(value: Partial<CallerLocation> | null | undefined): CallerLocation {
   const fallback = DEFAULT_CALLER_LOCATION;

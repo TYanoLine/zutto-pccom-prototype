@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CALLER_LOCATION } from './CallerLocation';
+import { CALLER_LOCATION_PRESETS } from './CallerLocation';
 import { PseudoTariffService } from './PseudoTariffService';
 import { ntt1996TariffTable } from './pseudoTariffs';
 
+const fukuokaLocation = CALLER_LOCATION_PRESETS.find(p => p.id === 'fukuoka-092')!;
 const hakata = '0920000196';
 const yokohama = '0451234567';
 const service = new PseudoTariffService(
   ntt1996TariffTable,
   [hakata, yokohama],
-  DEFAULT_CALLER_LOCATION,
+  fukuokaLocation,
 );
 const at = (value: string) => new Date(`1996-08-26T${value}Z`);
 
@@ -30,7 +31,7 @@ describe('March 1996 NTT dial-call tariff', () => {
     const noTelehodai = new PseudoTariffService(
       ntt1996TariffTable,
       [],
-      DEFAULT_CALLER_LOCATION,
+      fukuokaLocation,
     );
     expect(noTelehodai.chargeYen(hakata, at('23:00:00'), at('23:03:59'))).toBe(10);
     expect(noTelehodai.chargeYen(hakata, at('23:00:00'), at('23:04:01'))).toBe(20);
@@ -41,7 +42,7 @@ describe('March 1996 NTT dial-call tariff', () => {
     const holidayService = new PseudoTariffService(
       ntt1996TariffTable,
       [],
-      DEFAULT_CALLER_LOCATION,
+      fukuokaLocation,
     );
     const sunday = (value: string) => new Date(`1996-08-25T${value}Z`);
     expect(holidayService.chargeYen(yokohama, sunday('20:00:00'), sunday('20:00:18'))).toBe(10);
