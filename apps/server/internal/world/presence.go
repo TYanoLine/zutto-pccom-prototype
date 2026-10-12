@@ -227,6 +227,17 @@ func (s *MemoryStore) SaveCallActivities(hostID string, acts []CallActivity) {
 	})
 }
 
+func cloneCallActivities(acts []CallActivity) []CallActivity {
+	if len(acts) == 0 {
+		return nil
+	}
+	out := make([]CallActivity, len(acts))
+	for i, a := range acts {
+		out[i] = cloneCallActivity(a)
+	}
+	return out
+}
+
 func cloneCallActivity(a CallActivity) CallActivity {
 	a.Segments = append([]CallSegment(nil), a.Segments...)
 	return a

@@ -21,6 +21,9 @@ type DevelopmentHostSnapshot struct {
 	// Presence holds the observed connection sessions (spec 015). Older
 	// snapshots have none.
 	Presence []PresenceSession `json:"presence,omitempty"`
+	// CallActivities holds the observed plans of resident calls (spec 016).
+	// Older snapshots have none.
+	CallActivities []CallActivity `json:"call_activities,omitempty"`
 }
 
 // DevelopmentSnapshot returns a detached copy of the state needed to reproduce
@@ -52,7 +55,7 @@ func (s *MemoryStore) DevelopmentSnapshot(phone string) (DevelopmentHostSnapshot
 		posts[i] = clonePost(post)
 	}
 
-	return DevelopmentHostSnapshot{
+	snapshot := DevelopmentHostSnapshot{
 		SchemaVersion: DevelopmentHostSnapshotSchemaVersion,
 		Host:          host,
 		Boards:        boards,
@@ -63,7 +66,9 @@ func (s *MemoryStore) DevelopmentSnapshot(phone string) (DevelopmentHostSnapshot
 		Memberships:   memberships,
 		NextPostID:    s.next,
 		Presence:      append([]PresenceSession(nil), s.presence[host.ID]...),
-	}, true
+	}
+	snapshot.CallActivities = cloneCallActivities(s.callPlans[host.ID])
+	return snapshot, true
 }
 
 // RestoreDevelopmentSnapshot replaces only the addressed host's materialized
@@ -113,6 +118,7 @@ func (s *MemoryStore) RestoreDevelopmentSnapshot(snapshot DevelopmentHostSnapsho
 		s.next = maxPostID
 	}
 	s.presence[hostID] = append([]PresenceSession(nil), snapshot.Presence...)
+	s.callPlans[hostID] = cloneCallActivities(snapshot.CallActivities)
 	return nil
 }
 

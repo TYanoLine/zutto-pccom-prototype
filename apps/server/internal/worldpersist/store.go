@@ -284,6 +284,14 @@ func (s *Store) SaveObservedSessions(hostID string, sessions []world.PresenceSes
 	}
 }
 
+// SaveCallActivities persists observed call plans with the host snapshot.
+func (s *Store) SaveCallActivities(hostID string, acts []world.CallActivity) {
+	s.MemoryStore.SaveCallActivities(hostID, acts)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
 // EndHumanCall keeps the finished call in the host's persisted history.
 func (s *Store) EndHumanCall(callID string, at time.Time) (world.HumanCall, bool) {
 	call, ok := s.MemoryStore.EndHumanCall(callID, at)

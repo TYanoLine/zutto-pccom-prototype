@@ -336,3 +336,52 @@ func TestOldSnapshotWithoutPresenceStillLoads(t *testing.T) {
 		t.Fatalf("presence = %+v", got)
 	}
 }
+
+func TestStorePersistsCallActivities(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	store, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone(genericPersistPhone)
+	start := time.Date(1996, 10, 15, 23, 5, 0, 0, time.UTC)
+	plan := world.CallActivity{HostID: host.ID, Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}, Start: start, Segments: []world.CallSegment{
+		{From: start, To: start.Add(2 * time.Minute), State: world.CallLogin},
+		{From: start.Add(2 * time.Minute), To: start.Add(3 * time.Minute), State: world.CallPaging},
+		{From: start.Add(3 * time.Minute), To: start.Add(time.Hour), State: world.CallChat, Room: 1},
+	}}
+	store.SaveCallActivities(host.ID, []world.CallActivity{plan})
+
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := restored.ListCallActivities(host.ID, start, time.Time{})
+	if len(got) != 1 || len(got[0].Segments) != 3 || got[0].Segments[2] != plan.Segments[2] || got[0].Actor != plan.Actor {
+		t.Fatalf("restored plans = %+v", got)
+	}
+}
+
+func TestOldSnapshotWithoutCallActivitiesStillLoads(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := newPersistBase()
+	host, _ := base.HostByPhone(genericPersistPhone)
+	snap, _ := base.DevelopmentSnapshot(genericPersistPhone)
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"call_activities"`) {
+		t.Fatal("an empty plan list must not appear in the snapshot")
+	}
+	backend.data = map[string][]byte{host.ID: data}
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.ListCallActivities(host.ID, time.Time{}, time.Time{}); len(got) != 0 {
+		t.Fatalf("plans = %+v", got)
+	}
+}
