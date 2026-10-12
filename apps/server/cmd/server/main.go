@@ -37,9 +37,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("load Japan timezone: %v", err)
 	}
-	clock, err := worldclock.New(cfg.WorldDate, jst)
+	var clock worldclock.WorldClock
+	worldClockInfo := map[string]any{"mode": "calendar", "base_year": cfg.WorldBaseYear, "start_real_year": cfg.WorldStartRealYear}
+	if cfg.WorldDate != "" {
+		// An explicit WORLD_DATE keeps the development fixed-origin clock.
+		clock, err = worldclock.New(cfg.WorldDate, jst)
+		worldClockInfo = map[string]any{"mode": "fixed_origin", "world_date": cfg.WorldDate}
+	} else {
+		clock, err = worldclock.NewCalendar(jst, cfg.WorldBaseYear, cfg.WorldStartRealYear)
+	}
 	if err != nil {
 		log.Fatalf("create world clock: %v", err)
+	}
+	if cfg.WorldDate == "" {
+		// The rest of the startup wiring takes a date string; in calendar mode it
+		// is the world date at startup, as the fixed origin date was before.
+		cfg.WorldDate = clock.Now().Format(time.DateOnly)
 	}
 	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
 	catalogGenerator := llm.CenterCatalogGenerator{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
@@ -545,7 +558,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "world_clock": worldClockInfo, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}
