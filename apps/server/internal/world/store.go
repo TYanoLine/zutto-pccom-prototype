@@ -125,6 +125,7 @@ type PresenceStore interface {
 	// already stored for the same actor and start is left unchanged.
 	SaveObservedSessions(hostID string, sessions []PresenceSession)
 	SaveHumanCall(call HumanCall)
+	HumanCall(callID string) (HumanCall, bool)
 	// EndHumanCall removes a live call and records it as an observed session
 	// that ended at the given world time.
 	EndHumanCall(callID string, at time.Time) (HumanCall, bool)
@@ -180,6 +181,9 @@ type MemoryStore struct {
 	eventsByID    map[string]InteractionEvent
 	eventsByHost  map[string][]InteractionEvent
 	relationships map[relationshipKey]RelationshipEdge
+	// presence holds observed sessions per host; humanCalls the live calls.
+	presence   map[string][]PresenceSession
+	humanCalls map[string]HumanCall
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
 	next      int64
@@ -199,6 +203,8 @@ func NewMemoryStore() *MemoryStore {
 		eventsByID:    map[string]InteractionEvent{},
 		eventsByHost:  map[string][]InteractionEvent{},
 		relationships: map[relationshipKey]RelationshipEdge{},
+		presence:      map[string][]PresenceSession{},
+		humanCalls:    map[string]HumanCall{},
 		next:          1000,
 	}
 

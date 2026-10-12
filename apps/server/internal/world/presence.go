@@ -1,6 +1,9 @@
 package world
 
-import "time"
+import (
+	"sort"
+	"time"
+)
 
 // Actor kinds used by presence sessions. ActorKindMember is a human caller;
 // its ID is the call ID until member accounts exist.
@@ -53,4 +56,88 @@ type HumanCall struct {
 // Session returns the call as a live presence session.
 func (c HumanCall) Session() PresenceSession {
 	return PresenceSession{HostID: c.HostID, Actor: ActorRef{Kind: ActorKindMember, ID: c.CallID}, Handle: c.Handle, Line: c.Line, Baud: c.Baud, Start: c.Start}
+}
+
+var _ PresenceStore = (*MemoryStore)(nil)
+
+func sessionKey(s PresenceSession) string {
+	return s.Actor.String() + "@" + s.Start.UTC().Format(time.RFC3339Nano)
+}
+
+func (s *MemoryStore) ListObservedSessions(hostID string, from, to time.Time) []PresenceSession {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []PresenceSession
+	for _, p := range s.presence[hostID] {
+		if p.Overlaps(from, to) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func (s *MemoryStore) SaveObservedSessions(hostID string, sessions []PresenceSession) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.saveObservedLocked(hostID, sessions)
+}
+
+func (s *MemoryStore) saveObservedLocked(hostID string, sessions []PresenceSession) {
+	known := map[string]bool{}
+	for _, p := range s.presence[hostID] {
+		known[sessionKey(p)] = true
+	}
+	for _, p := range sessions {
+		if p.Live() || known[sessionKey(p)] {
+			continue
+		}
+		known[sessionKey(p)] = true
+		s.presence[hostID] = append(s.presence[hostID], p)
+	}
+	sort.SliceStable(s.presence[hostID], func(i, j int) bool {
+		return s.presence[hostID][i].Start.Before(s.presence[hostID][j].Start)
+	})
+}
+
+func (s *MemoryStore) SaveHumanCall(call HumanCall) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.humanCalls[call.CallID] = call
+}
+
+func (s *MemoryStore) HumanCall(callID string) (HumanCall, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	c, ok := s.humanCalls[callID]
+	return c, ok
+}
+
+func (s *MemoryStore) EndHumanCall(callID string, at time.Time) (HumanCall, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, ok := s.humanCalls[callID]
+	if !ok {
+		return HumanCall{}, false
+	}
+	delete(s.humanCalls, callID)
+	ended := c.Session()
+	if !at.After(ended.Start) {
+		at = ended.Start.Add(time.Second)
+	}
+	ended.End = at
+	s.saveObservedLocked(c.HostID, []PresenceSession{ended})
+	return c, true
+}
+
+func (s *MemoryStore) ListHumanCalls(hostID string) []HumanCall {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []HumanCall
+	for _, c := range s.humanCalls {
+		if c.HostID == hostID {
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Line < out[j].Line })
+	return out
 }
