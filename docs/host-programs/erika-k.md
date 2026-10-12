@@ -211,8 +211,31 @@ placeholder screen.
   values of this service, set high for now while the chat is being debugged.
   The 1996 log shows only that people greeted, chatted and said goodbye.
 
-Residents do not answer telegrams yet (spec 018), and the main menu's own
-`WHO` keeps the spec 015 layout.
+**Residents' telegrams (spec 018)**
+
+- Confirmed (single station, 東京がらくた工房 1996): a telegram that arrives while
+  the caller waits at `CALL> ->` interrupts the screen: a bell, a line break,
+  `#14 SARURU>どうする?` and a bell, a blank line, the WHO rows, a blank line,
+  the hint and the prompt again. A caller-supplied screen of a later station
+  shows telegrams that arrived while the caller was elsewhere appearing at the
+  next blank answer (Enter) at `CALL> ->`, before the WHO rows. Nothing else
+  changed on that screen: there is no count notice (the user who supplied the
+  screen recalls "N 件の電報が届いています" as the mail count shown at login, not
+  as a telegram notice) and no new menu command.
+- Implemented from that: telegrams reach the caller at `CALL> ->` and at the
+  room menu (`X`) through `Poll`, and an empty answer at `CALL> ->` shows the
+  ones waiting before the WHO rows. They wait while the caller writes a
+  telegram, is in a room or is on another screen, and are shown when the
+  caller is back. Chat-room lines (not telegrams) are never delivered after the
+  room is left.
+- Likely / inferred: showing a telegram at the room menu the same way as at the
+  call prompt, with the room prompt shown again instead of WHO; showing a
+  telegram right away when the caller returns from a room, without waiting for
+  an empty answer.
+- Fictional reconstruction: whether, when and how often residents answer or
+  write first, and what they write.
+
+The main menu's own `WHO` keeps the spec 015 layout.
 
 ## Research sources
 
