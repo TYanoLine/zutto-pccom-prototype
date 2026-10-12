@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -282,5 +284,56 @@ func TestTheWritersMaterialsQuoteTheHumansWords(t *testing.T) {
 	}
 	if n == 0 {
 		t.Fatal("no answer was written")
+	}
+}
+
+// A caller on Erika-K writes to the residents on the lines and is answered on
+// the screen, through the real repository.
+func TestErikaKCallerIsAnsweredOnTheScreen(t *testing.T) {
+	repo, _, host, now := chatTestRepo(t, true)
+	repo.SetLineMessageWriter(&fakeLineWriter{})
+	host.Lines = 16
+	current := now
+	repo.SetWorldNow(func() time.Time { return current })
+	line, ok := repo.BeginHumanCall(host, "call-e", "human-e", 14400)
+	if !ok {
+		t.Fatal("no free line")
+	}
+	rt := erikak.New(host, repo)
+	rt.SetCallInfo(world.CallInfo{CallID: "call-e", HumanID: "human-e", Line: line, Baud: 14400})
+	rt.HandleLine("GUEST")
+	rt.HandleLine("4")
+	rt.Poll(now) // Starts the call's window.
+	written := 0
+	for _, s := range repo.ObservePresenceNow(host) {
+		if s.Actor.Kind != world.ActorKindPersona || s.Line == line {
+			continue
+		}
+		if out, _ := rt.HandleLine(fmt.Sprint(s.Line)); strings.Contains(out, "電報をどうぞ") {
+			rt.HandleLine("こんばんは")
+			written++
+		}
+	}
+	if written < 3 {
+		t.Fatalf("wrote only %d telegrams", written)
+	}
+	var shown []string
+	for at := now.Add(5 * time.Second); !at.After(now.Add(3 * time.Minute)); at = at.Add(5 * time.Second) {
+		current = at
+		if out := rt.Poll(at); out != "" {
+			shown = append(shown, out)
+		}
+		waitChatJobs(t, repo)
+	}
+	if len(shown) == 0 {
+		t.Fatal("no resident answered on the screen")
+	}
+	for _, out := range shown {
+		if !strings.HasPrefix(out, "\a\r\n#") || !strings.Contains(out, ">answerです(^^)\a\r\n") || !strings.HasSuffix(out, "CALL> ->") {
+			t.Fatalf("screen:\n%q", out)
+		}
+		if strings.Contains(out, "human-e") {
+			t.Fatalf("the human ID reached the screen: %q", out)
+		}
 	}
 }
