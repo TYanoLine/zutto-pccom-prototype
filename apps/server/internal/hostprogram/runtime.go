@@ -28,9 +28,10 @@ type ObservationCatalog interface {
 }
 
 // CallInfoReceiver is optional: a host program that shows line use (WHO)
-// learns which logical line and call its own caller holds. See spec 015.
+// learns which logical line and call its own caller holds (spec 015), and who
+// the caller is (spec 019).
 type CallInfoReceiver interface {
-	SetCallInfo(callID string, line, baud int)
+	SetCallInfo(info world.CallInfo)
 }
 
 // AsyncOutput is optional: a host program that has something to show without

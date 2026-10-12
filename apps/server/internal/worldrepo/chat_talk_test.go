@@ -451,7 +451,7 @@ func TestErikaKChatShowsResidentLines(t *testing.T) {
 	current := at
 	repo.SetWorldNow(func() time.Time { return current })
 	rt := erikak.New(host, repo)
-	rt.SetCallInfo("call-chat", 1, 14400)
+	rt.SetCallInfo(world.CallInfo{CallID: "call-chat", Line: 1, Baud: 14400})
 	rt.HandleLine("GUEST")
 	rt.HandleLine("4")
 	rt.HandleLine("X")

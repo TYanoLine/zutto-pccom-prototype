@@ -120,14 +120,14 @@ func TestHumanCallsHoldLines(t *testing.T) {
 	now := time.Date(1996, 10, 15, 14, 0, 0, 0, time.FixedZone("JST", 9*60*60))
 	repo, store, host := presenceTestRepo(t, now)
 	host.Lines = 1 + len(repo.ObservePresenceNow(host))
-	line, ok := repo.BeginHumanCall(host, "call-1", 9600)
+	line, ok := repo.BeginHumanCall(host, "call-1", "", 9600)
 	if !ok {
 		t.Fatal("first human call should get the free line")
 	}
 	if _, ok := repo.DialLine(host, now); ok {
 		t.Fatal("all lines are in use; the next dial must be BUSY")
 	}
-	if _, ok := repo.BeginHumanCall(host, "call-2", 9600); ok {
+	if _, ok := repo.BeginHumanCall(host, "call-2", "", 9600); ok {
 		t.Fatal("second human call must not get a line")
 	}
 	repo.SetHumanCallHandle("call-1", "GUEST")
@@ -167,12 +167,12 @@ func TestErikaKWHOThroughRepository(t *testing.T) {
 	now := busiestTime(t, repo, store, host)
 	repo.SetWorldNow(func() time.Time { return now })
 	host.Lines = 16
-	line, ok := repo.BeginHumanCall(host, "call-who", 9600)
+	line, ok := repo.BeginHumanCall(host, "call-who", "", 9600)
 	if !ok {
 		t.Fatal("no line for the caller")
 	}
 	rt := erikak.New(host, repo)
-	rt.SetCallInfo("call-who", line, 9600)
+	rt.SetCallInfo(world.CallInfo{CallID: "call-who", Line: line, Baud: 9600})
 	rt.HandleLine("GUEST")
 	out, _ := rt.HandleLine("WHO")
 	if !strings.Contains(out, fmt.Sprintf("LINE %d  GUEST      ONLINE", line)) {

@@ -632,7 +632,7 @@ func TestWHOShowsWorldPresence(t *testing.T) {
 		{Actor: world.ActorRef{Kind: world.ActorKindMember, ID: "me"}, Line: 2, Baud: 9600},
 	}}
 	r := New(host, store)
-	r.SetCallInfo("me", 2, 9600)
+	r.SetCallInfo(world.CallInfo{CallID: "me", Line: 2, Baud: 9600})
 	r.HandleLine("GUEST")
 	out, _ := r.HandleLine("WHO")
 	if !strings.Contains(out, "LINE 1  ふぃーる  28800") || !strings.Contains(out, "LINE 2  GUEST      ONLINE") {

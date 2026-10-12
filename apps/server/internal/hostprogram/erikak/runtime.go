@@ -25,15 +25,17 @@ type Runtime struct {
 	callID string
 	line   int
 	baud   int
+	// humanID is the user across calls (spec 019).
+	humanID string
 	// chat is the telegram and chat screen state (spec 016, chat.go).
 	chat chatState
 }
 
-// SetCallInfo records the caller's call, line and speed for WHO.
-func (r *Runtime) SetCallInfo(callID string, line, baud int) {
-	r.callID = callID
-	r.line = line
-	r.baud = baud
+// SetCallInfo records the caller's call, line and speed for WHO, and who the
+// caller is.
+func (r *Runtime) SetCallInfo(info world.CallInfo) {
+	r.callID, r.humanID = info.CallID, info.HumanID
+	r.line, r.baud = info.Line, info.Baud
 }
 
 func New(host world.Host, store world.Store) *Runtime {

@@ -201,12 +201,12 @@ func TestErikaKChatThroughRepository(t *testing.T) {
 	repo.SetWorldNow(func() time.Time { return current })
 	repo.SetResidentChat(true)
 	host.Lines = 16
-	line, ok := repo.BeginHumanCall(host, "call-chat", 14400)
+	line, ok := repo.BeginHumanCall(host, "call-chat", "", 14400)
 	if !ok {
 		t.Fatal("no line for the caller")
 	}
 	rt := erikak.New(host, repo)
-	rt.SetCallInfo("call-chat", line, 14400)
+	rt.SetCallInfo(world.CallInfo{CallID: "call-chat", Line: line, Baud: 14400})
 	rt.HandleLine("GUEST")
 	out, _ := rt.HandleLine("4")
 	if !strings.Contains(out, fmt.Sprintf("#%02d GUEST     WHO       14K-...", line)) || !strings.HasSuffix(out, "CALL> ->") {

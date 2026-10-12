@@ -65,6 +65,14 @@ type HumanCall struct {
 	HumanID string `json:"human_id,omitempty"`
 }
 
+// CallInfo is what a host program learns about its own caller's call.
+type CallInfo struct {
+	CallID  string // this connection
+	HumanID string // the user, across calls (spec 019)
+	Line    int
+	Baud    int
+}
+
 // Session returns the call as a live presence session. A call without a human
 // ID (made before spec 019) is named by its call ID.
 func (c HumanCall) Session() PresenceSession {

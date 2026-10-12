@@ -65,7 +65,7 @@ type fakeLines struct {
 }
 
 func (f *fakeLines) DialLine(world.Host, time.Time) (int, bool)         { f.dials++; return f.line, f.free }
-func (f *fakeLines) BeginHumanCall(world.Host, string, int) (int, bool) { return f.line, f.free }
+func (f *fakeLines) BeginHumanCall(world.Host, string, string, int) (int, bool) { return f.line, f.free }
 func (f *fakeLines) SetHumanCallHandle(string, string)                  {}
 func (f *fakeLines) EndHumanCall(string)                                {}
 
