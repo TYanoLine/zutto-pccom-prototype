@@ -55,10 +55,12 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 
 	m = m.withPeriodReferents(req.WorldDate)
 	facts := m.historicalFacts(decision)
-	author := ""
+	author := strings.TrimSpace(req.AuthorHandle)
 	personaProfile := ""
 	if req.Persona != nil {
-		author = req.Persona.Handle
+		if strings.TrimSpace(req.Persona.Handle) != "" {
+			author = strings.TrimSpace(req.Persona.Handle)
+		}
 		personaProfile = personaSummary(*req.Persona)
 		if req.FreeformFromSubject {
 			personaProfile = freeformPersonaSummary(*req.Persona)
@@ -117,6 +119,8 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 	}
 	if req.Persona != nil && req.Persona.Handle != "" {
 		draft.Author = req.Persona.Handle
+	} else if req.AuthorHandle != "" {
+		draft.Author = req.AuthorHandle
 	}
 	if strings.TrimSpace(req.CanonicalSubject) != "" {
 		// CanonicalSubject is already world-selected. The prose renderer may write

@@ -35,6 +35,7 @@ type BoardMaterializationRequest struct {
 	BoardTopic                 string
 	FreeformFromSubject        bool
 	WorldDate                  string
+	AuthorHandle               string
 	Persona                    *world.Persona
 	Intent                     world.PostIntent
 	CanonicalSubject           string
@@ -404,4 +405,57 @@ func worldTime(v string) time.Time {
 		return time.Now()
 	}
 	return t.Add(22*time.Hour + 15*time.Minute)
+}
+
+func (r *Repository) sysopPersona(host world.Host) world.Persona {
+	founded := host.FoundedOn
+	if strings.TrimSpace(founded) == "" {
+		founded = "1994年頃"
+	}
+	lines := host.Lines
+	if lines <= 0 {
+		lines = 1
+	}
+	maxBaud := host.MaxBaud
+	if maxBaud <= 0 {
+		maxBaud = 14400
+	}
+	sw := host.Software
+	if strings.TrimSpace(sw) == "" {
+		sw = "草の根BBS"
+	}
+
+	everyday := []string{
+		fmt.Sprintf("草の根BBS「%s」（%s）のシステムオペレータ（開局日: %s）。", host.Name, host.Region, founded),
+		fmt.Sprintf("自前の機器（%s、%d回線、最高%d bps）でホストを24時間運用している。", sw, lines, maxBaud),
+		"局の健全な運営と、利用者同士の気持ち良い交流・回線の譲り合いを大切にしている。",
+	}
+
+	return world.Persona{
+		ID:                  host.ID + ":sysop",
+		Handle:              "SYSOP",
+		Age:                 38,
+		Gender:              "男性",
+		Occupation:          "局長・システムオペレータ",
+		ActivityPattern:     "daily",
+		ReplyTendency:       0.8,
+		ThreadStartTendency: 0.5,
+		LurkerTendency:      0.0,
+		WritingStyle:        "丁寧で落ち着いた敬語。利用者を気遣い、ホストの責任者として案内やルールを分かりやすく伝える",
+		EverydayContext:     everyday,
+	}
+}
+
+func (r *Repository) resolvePersona(host world.Host, personaID, author string) *world.Persona {
+	if strings.EqualFold(strings.TrimSpace(author), "SYSOP") || personaID == host.ID+":sysop" {
+		p := r.sysopPersona(host)
+		return &p
+	}
+	if ps, ok := r.Base.(world.PersonaStore); ok && personaID != "" {
+		if p, found := ps.PersonaByID(personaID); found {
+			copy := p
+			return &copy
+		}
+	}
+	return nil
 }

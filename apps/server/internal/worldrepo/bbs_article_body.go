@@ -106,13 +106,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=setup detail=world engine or materializer unavailable", contextStats.String())
 	}
 
-	var persona *world.Persona
-	if ps, ok := r.Base.(world.PersonaStore); ok && selected.AuthorPersonaID != "" {
-		if p, found := ps.PersonaByID(selected.AuthorPersonaID); found {
-			copy := p
-			persona = &copy
-		}
-	}
+	persona := r.resolvePersona(host, selected.AuthorPersonaID, selected.Author)
 
 	topicLabel := strings.TrimSpace(selected.Subject)
 	if topicLabel == "" {
@@ -161,14 +155,15 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = r.materializationArticleWorkerContext(host, board, selected)
 	req := BoardMaterializationRequest{
-		Host:             host,
-		BoardID:          board.ID,
-		BoardTopic:       boardTopic,
+		Host:                host,
+		BoardID:             board.ID,
+		BoardTopic:          boardTopic,
 		FreeformFromSubject: freeform,
-		WorldDate:        selected.CreatedAt.Format("2006-01-02"),
-		Persona:          persona,
-		Intent:           renderIntent,
-		CanonicalSubject: canonicalSubject,
+		WorldDate:           selected.CreatedAt.Format("2006-01-02"),
+		AuthorHandle:        selected.Author,
+		Persona:             persona,
+		Intent:              renderIntent,
+		CanonicalSubject:    canonicalSubject,
 	}
 	req = r.prepareBoardComposition(req, selected)
 	if req.ParentPost != nil && req.RelationshipContext == "" {

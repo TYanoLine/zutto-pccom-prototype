@@ -182,5 +182,27 @@ func TestLLMMaterializerDoesNotFallbackForVerifiedFailure(t *testing.T) {
 	}
 }
 
+func TestLLMMaterializerUsesAuthorHandleWhenPersonaIsNil(t *testing.T) {
+	renderer := &fakeBoardRenderer{draft: llm.BoardPostDraft{Author: "SYSOP", Subject: "お知らせ", Body: "本文です"}}
+	m := LLMMaterializer{Renderer: renderer}
+	posts, err := m.GenerateBoardPosts(context.Background(), BoardMaterializationRequest{
+		Host:         world.Host{Name: "HAKATA CANAL NET", Region: "福岡県"},
+		BoardID:      "1",
+		BoardTopic:   "事務局からのお知らせ",
+		WorldDate:    "1996-08-29",
+		AuthorHandle: "SYSOP",
+		Persona:      nil,
+	}, worldengine.EvidenceDecision{Level: historicalkb.EvidenceAtmospheric, Knowledge: historicalkb.KnowledgeResult{CanUse: true}})
+	if err != nil {
+		t.Fatalf("GenerateBoardPosts failed: %v", err)
+	}
+	if renderer.req.AuthorHandle != "SYSOP" {
+		t.Fatalf("expected renderer AuthorHandle 'SYSOP', got %q", renderer.req.AuthorHandle)
+	}
+	if len(posts) != 1 || posts[0].Author != "SYSOP" {
+		t.Fatalf("expected post author 'SYSOP', got %#v", posts)
+	}
+}
+
 var _ llm.BoardPostRenderer = (*fakeBoardRenderer)(nil)
 var _ llm.BBSTimelineIntentPlanner = (*fakeBoardRenderer)(nil)
