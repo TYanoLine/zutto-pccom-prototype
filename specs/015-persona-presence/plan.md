@@ -42,33 +42,40 @@ ws.SessionManager（人間の通話の開始・終了を登録）
 `worldclock` に `CalendarClock` を追加する。
 
 ```go
-// CalendarClock maps the real Japanese wall clock onto the world calendar by
-// subtracting a fixed number of years. Month, day and time of day are kept, so
-// the world date does not depend on when the process started.
+// CalendarClock maps the real Japanese wall clock onto the world calendar. The
+// world's base year corresponds to the real year in which the world was
+// started; the difference is subtracted from every real time. Month, day and
+// time of day are kept, and the world crosses New Year together with the real
+// calendar, so the world date does not depend on when the process started.
 type CalendarClock struct {
 	source     WorldClock
 	location   *time.Location
-	yearOffset int
+	yearOffset int // startRealYear - baseYear
 }
+
+func NewCalendar(location *time.Location, baseYear, startRealYear int) (*CalendarClock, error)
 
 func (c *CalendarClock) Now() time.Time {
 	return c.source.Now().In(c.location).AddDate(-c.yearOffset, 0, 0)
 }
 ```
 
-- 設定: `WORLD_YEAR_OFFSET`（既定 30）。`WORLD_DATE` が**明示的に**設定されたときだけ、従来の `MappedClock` を使う。
+- 設定: `WORLD_BASE_YEAR`（世界の基準年、既定 1996）と `WORLD_START_REAL_YEAR`（その世界を始めた現実の年、既定 2026）。
+  ずれの年数は `WORLD_START_REAL_YEAR − WORLD_BASE_YEAR` で求める。基準年の範囲の検証はしない（T.B.D.）。
+  開始年より基準年が後になる設定（ずれが負）は、起動時のエラーにする。
+  `WORLD_DATE` が**明示的に**設定されたときだけ、従来の `MappedClock` を使う。
   `config.go` の `WorldDate` の既定値 `"1996-08-26"` は、空文字に変える（未設定なら暦連動）。
   `WorldDate` を参照している他の箇所（`worldrepo.New` の `worldDate` 引数、`/api/health` の `world_date`）は、
   暦連動のときに現在の世界の日付（`clock.Now().Format(time.DateOnly)`）を渡す。`worldrepo.worldTime` のテスト用の固定値はそのまま。
-- `/api/health` に `world_clock: {"mode": "calendar" | "fixed_origin", "year_offset": 30}` を加える。
+- `/api/health` に `world_clock: {"mode": "calendar" | "fixed_origin", "base_year": 1996, "start_real_year": 2026}` を加える。
 - 閏年: `AddDate` は 2028-02-29 を 1998-03-01 に正規化するため、2028 年 2 月 29 日と 3 月 1 日が同じ世界の日になる。
   本仕様では扱わず、`docs/WORLD_SIMULATION.md`「Time」に既知の制約として書く。
 
 ### 3.2 クライアント
 
-`apps/web/src/time/WorldClock.ts` に `CalendarWorldClock` を追加し、同じ規則で計算する（日本時間の年から `yearOffset` を引き、
+`apps/web/src/time/WorldClock.ts` に `CalendarWorldClock` を追加し、同じ規則で計算する（日本時間の年から `startRealYear − baseYear` を引き、
 月日と時刻を保つ）。`App.tsx` は、`VITE_WORLD_DATE` が設定されていれば従来の `Japan1996WorldClock`、
-なければ `CalendarWorldClock(VITE_WORLD_YEAR_OFFSET ?? 30)` を使う。料金計算（`PseudoTariffService`）は `WorldClock` インターフェース
+なければ `CalendarWorldClock(VITE_WORLD_BASE_YEAR ?? 1996, VITE_WORLD_START_REAL_YEAR ?? 2026)` を使う。料金計算（`PseudoTariffService`）は `WorldClock` インターフェース
 越しに使っているので、呼び出し側の変更は `App.tsx` だけになる見込み。違っていれば報告する。
 
 ### 3.3 共通の検証表
@@ -82,6 +89,9 @@ func (c *CalendarClock) Now() time.Time {
 | 2026-12-24 23:00:00 | 1996-12-24 23:00:00 |
 | 2026-12-31 23:59:59 | 1996-12-31 23:59:59 |
 | 2027-01-01 00:00:00 | 1997-01-01 00:00:00 |
+
+加えて、基準年 1990・開始年 2026 の設定で 2026-10-12 11:54:00 → 1990-10-12 11:54:00 になること、
+基準年 2030・開始年 2026 の設定がエラーになることを確かめる。
 
 ## 4. 暦データ（FR-002、FR-003）
 

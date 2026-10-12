@@ -40,13 +40,13 @@
 
 ## Phase 1: 世界時計（FR-001）
 
-- [ ] **T002** `internal/worldclock` に `CalendarClock` と `NewCalendar(location, yearOffset)` / `NewCalendarFrom(source, location, yearOffset)` を追加し、
+- [ ] **T002** `internal/worldclock` に `CalendarClock` と `NewCalendar(location, baseYear, startRealYear)` / `NewCalendarFrom(source, location, baseYear, startRealYear)` を追加し、
   `plan.md` §3.3 の表をテストにする（`clock_test.go`）。既存の `MappedClock` とそのテストは変えない。
-- [ ] **T003** `internal/config/config.go` に `WorldYearOffset`（`WORLD_YEAR_OFFSET`、既定 30）を加え、`WorldDate` の既定を空文字にする。
+- [ ] **T003** `internal/config/config.go` に `WorldBaseYear`（`WORLD_BASE_YEAR`、既定 1996）と `WorldStartRealYear`（`WORLD_START_REAL_YEAR`、既定 2026）を加え、`WorldDate` の既定を空文字にする。
   `cmd/server/main.go` で、`WorldDate` が空なら `CalendarClock`、空でなければ `MappedClock` を使う。`WorldDate` を他へ渡している箇所は、
   空のとき `clock.Now().Format(time.DateOnly)` を渡す。`/api/health` に `world_clock` を加える。
 - [ ] **T004** `apps/web/src/time/WorldClock.ts` に `CalendarWorldClock` を追加し、§3.3 の同じ表でテストする。`App.tsx` で
-  `VITE_WORLD_DATE` が空なら `CalendarWorldClock` を使う（`VITE_WORLD_YEAR_OFFSET`、既定 30）。
+  `VITE_WORLD_DATE` が空なら `CalendarWorldClock` を使う（`VITE_WORLD_BASE_YEAR`、既定 1996、`VITE_WORLD_START_REAL_YEAR`、既定 2026）。
 
   ```bash
   go -C apps/server test ./internal/worldclock ./internal/config -count=1
