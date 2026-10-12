@@ -308,14 +308,16 @@ Misbehavior can occur: spam, arguments, impersonation, local-rule violations, es
 Use a `WorldClock` abstraction. Real Japan time can drive time-of-day behavior while dates map into the 1996 world. Tests should be able to jump across important boundaries such as 22:59, 23:00, and 08:00.
 
 Since spec 015 the default clock follows the real calendar. Each world has a
-base year (`WORLD_BASE_YEAR`, default 1996) that corresponds to the real year in
-which the world was started (`WORLD_START_REAL_YEAR`, default 2026); the world
-time is the real Japanese time minus that many years. Month, day and time of day
-match the real calendar, restarts do not move the world date, and the world
-crosses New Year together with the real calendar (real 2027-01-01 is 1997-01-01).
-The web client uses the same rule (`VITE_WORLD_BASE_YEAR`,
-`VITE_WORLD_START_REAL_YEAR`). An explicit `WORLD_DATE` / `VITE_WORLD_DATE`
-keeps the older fixed-origin development clock.
+base year that corresponds to the real year in which the world was started; the
+world time is the real Japanese time minus that many years. Month, day and time
+of day match the real calendar, restarts do not move the world date, and the
+world crosses New Year together with the real calendar (real 2027-01-01 is
+1997-01-01). The base year is a property of the world, chosen when the world is
+created (worlds are planned per user or group; the allowed range is not decided
+yet). It is not a deployment setting. Until per-world creation exists, the single
+world uses base year 1996 started in 2026 (`worldclock.CurrentWorldBaseYear` on
+the server, `CURRENT_WORLD_BASE_YEAR` in the web client). An explicit
+`WORLD_DATE` / `VITE_WORLD_DATE` keeps the older fixed-origin development clock.
 
 Known limitation: a real 29 February that maps onto a common world year is
 normalized to 1 March, so that world day occurs twice (first in real 2028).

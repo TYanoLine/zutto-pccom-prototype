@@ -38,13 +38,13 @@ func main() {
 		log.Fatalf("load Japan timezone: %v", err)
 	}
 	var clock worldclock.WorldClock
-	worldClockInfo := map[string]any{"mode": "calendar", "base_year": cfg.WorldBaseYear, "start_real_year": cfg.WorldStartRealYear}
+	worldClockInfo := map[string]any{"mode": "calendar", "base_year": worldclock.CurrentWorldBaseYear, "start_real_year": worldclock.CurrentWorldStartRealYear}
 	if cfg.WorldDate != "" {
 		// An explicit WORLD_DATE keeps the development fixed-origin clock.
 		clock, err = worldclock.New(cfg.WorldDate, jst)
 		worldClockInfo = map[string]any{"mode": "fixed_origin", "world_date": cfg.WorldDate}
 	} else {
-		clock, err = worldclock.NewCalendar(jst, cfg.WorldBaseYear, cfg.WorldStartRealYear)
+		clock, err = worldclock.NewCalendar(jst, worldclock.CurrentWorldBaseYear, worldclock.CurrentWorldStartRealYear)
 	}
 	if err != nil {
 		log.Fatalf("create world clock: %v", err)

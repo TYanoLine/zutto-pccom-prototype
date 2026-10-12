@@ -165,22 +165,13 @@ func TestAzureOpenAIAPIDefaultsEmpty(t *testing.T) {
 	}
 }
 
-func TestWorldClockDefaultsToCalendarBaseYear(t *testing.T) {
+func TestWorldDateDefaultsToCalendarMode(t *testing.T) {
 	t.Setenv("WORLD_DATE", "")
-	t.Setenv("WORLD_BASE_YEAR", "")
-	t.Setenv("WORLD_START_REAL_YEAR", "")
-	cfg := Load()
-	if cfg.WorldDate != "" || cfg.WorldBaseYear != 1996 || cfg.WorldStartRealYear != 2026 {
-		t.Fatalf("world clock config = %q/%d/%d, want calendar mode 1996/2026", cfg.WorldDate, cfg.WorldBaseYear, cfg.WorldStartRealYear)
+	if got := Load().WorldDate; got != "" {
+		t.Fatalf("default WORLD_DATE = %q, want empty (calendar mode)", got)
 	}
-}
-
-func TestWorldClockSettingsCanBeOverridden(t *testing.T) {
 	t.Setenv("WORLD_DATE", "1996-08-26")
-	t.Setenv("WORLD_BASE_YEAR", "1990")
-	t.Setenv("WORLD_START_REAL_YEAR", "2027")
-	cfg := Load()
-	if cfg.WorldDate != "1996-08-26" || cfg.WorldBaseYear != 1990 || cfg.WorldStartRealYear != 2027 {
-		t.Fatalf("world clock config = %q/%d/%d", cfg.WorldDate, cfg.WorldBaseYear, cfg.WorldStartRealYear)
+	if got := Load().WorldDate; got != "1996-08-26" {
+		t.Fatalf("WORLD_DATE = %q, want 1996-08-26", got)
 	}
 }

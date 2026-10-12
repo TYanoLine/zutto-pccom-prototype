@@ -51,6 +51,15 @@ func (c *MappedClock) Now() time.Time {
 	return c.worldOrigin.Add(c.source.Now().In(c.realOrigin.Location()).Sub(c.realOrigin))
 }
 
+// The base year belongs to the world, not to the deployment: worlds are to be
+// created per user or group, each choosing its base year at creation. Until
+// that exists, the single world uses these values. They are deliberately not
+// read from the environment.
+const (
+	CurrentWorldBaseYear      = 1996
+	CurrentWorldStartRealYear = 2026
+)
+
 // CalendarClock maps the real Japanese wall clock onto the world calendar. The
 // world's base year corresponds to the real year in which the world was
 // started; the difference is subtracted from every real time. Month, day and

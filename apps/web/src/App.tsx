@@ -56,8 +56,6 @@ const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefin
 // An explicit VITE_WORLD_DATE keeps the development fixed-origin clock;
 // otherwise the world follows the real calendar from its base year.
 const fixedWorldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate) ? configuredWorldDate : '';
-const worldBaseYear = Number.parseInt((import.meta.env.VITE_WORLD_BASE_YEAR as string | undefined)?.trim() ?? '', 10) || 1996;
-const worldStartRealYear = Number.parseInt((import.meta.env.VITE_WORLD_START_REAL_YEAR as string | undefined)?.trim() ?? '', 10) || 2026;
 const configuredTelehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS as string | undefined)?.trim();
 const telehodaiNumbers = (configuredTelehodaiNumbers || '0920000196').split(',').map((phone: string) => phone.trim()).filter(Boolean);
 const SETTINGS_KEY = 'zutto.commSettings.v1';
@@ -85,7 +83,7 @@ function formatElapsed(startedAt: Date | null, now: Date) {
 export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const terminalCanvasRef = useRef<TerminalCanvasHandle | null>(null);
-  const clock = useMemo(() => (fixedWorldDate ? new Japan1996WorldClock(fixedWorldDate) : new CalendarWorldClock(worldBaseYear, worldStartRealYear)), []);
+  const clock = useMemo(() => (fixedWorldDate ? new Japan1996WorldClock(fixedWorldDate) : new CalendarWorldClock()), []);
   const [callerLocation] = useState(loadCallerLocation);
   const tariff = useMemo(() => new PseudoTariffService(ntt1996TariffTable, telehodaiNumbers, callerLocation), [callerLocation]);
   const modemRef = useRef<VirtualModem | null>(null);

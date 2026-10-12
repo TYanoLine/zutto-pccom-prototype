@@ -2,7 +2,6 @@ package config
 
 import (
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -19,8 +18,6 @@ type Config struct {
 	JevKey                      string
 	JevModel                    string
 	WorldDate                   string
-	WorldBaseYear               int
-	WorldStartRealYear          int
 	HistoricalReferencesEnabled                  bool
 	DebugLogBBSArticleDetails                    bool
 	DebugLogGeneratedContent                   bool
@@ -48,8 +45,6 @@ func Load() Config {
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
 		WorldDate:                   strings.TrimSpace(os.Getenv("WORLD_DATE")),
-		WorldBaseYear:               envInt("WORLD_BASE_YEAR", 1996),
-		WorldStartRealYear:          envInt("WORLD_START_REAL_YEAR", 2026),
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),
 		DebugLogGeneratedContent:                envBool("DEBUG_LOG_GENERATED_CONTENT", true),
@@ -65,14 +60,6 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func envInt(key string, fallback int) int {
-	v, err := strconv.Atoi(strings.TrimSpace(os.Getenv(key)))
-	if err != nil {
-		return fallback
-	}
-	return v
 }
 
 func envBool(key string, fallback bool) bool {

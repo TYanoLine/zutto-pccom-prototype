@@ -61,3 +61,12 @@ grep のパターンには掛からないが残っている。tasks.md は「ア
   （`presence` は `world` を参照する）。保存だけを `world.PresenceStore`（`MemoryStore` が実装）に置いた。
 - `operating_hours` は `world.Host` / `hostcatalog.Traits` で `[2]string` とした（`world.Host` を `==` で比較しているテストがあり、スライスにできないため）。
 - `worldpersist.Store.SavePersonaFact` を、バッチ中なら書き込みを最後にまとめるようにした（外の挙動は同じ）。WHO 1 回で住民ごとに 5 件の人物事実を保存するため。
+
+### spec FR-001 からの差分（PR #355 のレビュー後、ユーザーの指示）
+
+spec FR-001 と tasks.md T003/T004 は、基準年と開始年を環境変数（`WORLD_BASE_YEAR`、`WORLD_START_REAL_YEAR`、Web は `VITE_` 付き）で
+設定するとしていた。ユーザーから「世界はユーザーごと（またはグループごと）に作られ、基準年はそのとき決める。環境変数で決めるものではない」
+との指示があり、環境変数を削除した。世界ごとの作成ができるまでは、唯一の世界の値をコードの定数
+（サーバー `worldclock.CurrentWorldBaseYear` / `CurrentWorldStartRealYear`、Web `CURRENT_WORLD_BASE_YEAR` / `CURRENT_WORLD_START_REAL_YEAR`、
+1996 / 2026）に置く。`CalendarClock` / `CalendarWorldClock` は引き続き基準年と開始年を引数で受け取るので、世界ごとの値に差し替えられる。
+`WORLD_DATE` / `VITE_WORLD_DATE`（開発用の起点固定）は spec どおり残した。
