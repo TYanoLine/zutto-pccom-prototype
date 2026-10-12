@@ -2,11 +2,13 @@ package worldrepo
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"zutto-pccom/apps/server/internal/hostcatalog"
+	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/presence"
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -187,4 +189,53 @@ func TestCallActivitiesNowTiming(t *testing.T) {
 		warm = max(warm, time.Since(start))
 	}
 	t.Logf("CallActivitiesNow on %d residents: worst of 5 = %v (repeated at the same time: %v)", len(store.ListHostPersonas(host.ID)), cold, warm)
+}
+
+// TestErikaKChatThroughRepository drives the station's own chat screens
+// against the real world: the call screen shows the residents' states, and a
+// caller sitting in a room sees joins and leaves in time order.
+func TestErikaKChatThroughRepository(t *testing.T) {
+	repo, store, host := presenceTestRepo(t, time.Time{})
+	now := busiestTime(t, repo, store, host)
+	current := now
+	repo.SetWorldNow(func() time.Time { return current })
+	repo.SetResidentChat(true)
+	host.Lines = 16
+	line, ok := repo.BeginHumanCall(host, "call-chat", 14400)
+	if !ok {
+		t.Fatal("no line for the caller")
+	}
+	rt := erikak.New(host, repo)
+	rt.SetCallInfo("call-chat", line, 14400)
+	rt.HandleLine("GUEST")
+	out, _ := rt.HandleLine("4")
+	if !strings.Contains(out, fmt.Sprintf("#%02d GUEST     WHO       14K-...", line)) || !strings.HasSuffix(out, "CALL> ->") {
+		t.Fatalf("call screen:\n%s", out)
+	}
+	rows := 0
+	for _, l := range strings.Split(out, "\r\n") {
+		if strings.HasPrefix(l, "#") {
+			rows++
+		}
+	}
+	if rows != host.Lines {
+		t.Fatalf("%d WHO rows for %d lines:\n%s", rows, host.Lines, out)
+	}
+	rt.HandleLine("X")
+	if out, _ = rt.HandleLine("0"); !strings.Contains(out, "## chat on  GUEST ##") {
+		t.Fatalf("room entry:\n%s", out)
+	}
+	var shown strings.Builder
+	for i := 1; i <= 360; i++ {
+		current = now.Add(time.Duration(i) * 20 * time.Second)
+		shown.WriteString(rt.Poll(current))
+	}
+	if !strings.Contains(shown.String(), "## chat") {
+		t.Fatalf("two hours in room 0 showed nobody coming or going")
+	}
+	for _, l := range strings.Split(strings.TrimSuffix(shown.String(), "\r\n"), "\r\n") {
+		if !strings.HasPrefix(l, "\a\a## chat on  ") && !strings.HasPrefix(l, "\a\a## chat off ") {
+			t.Fatalf("unexpected room line %q", l)
+		}
+	}
 }
