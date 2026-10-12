@@ -3,6 +3,8 @@ package world
 import (
 	"testing"
 	"time"
+
+	"zutto-pccom/apps/server/internal/hostcatalog"
 )
 
 func TestSaveCallActivitiesKeepsTheFirstPlan(t *testing.T) {
@@ -48,5 +50,19 @@ func TestCallActivitySegmentAt(t *testing.T) {
 	}
 	if !a.End().Equal(start.Add(10 * time.Minute)) {
 		t.Fatalf("End = %v", a.End())
+	}
+}
+
+func TestChatRoomsOfCopiesTheDefinition(t *testing.T) {
+	detail := hostcatalog.PresetDetail{ChatRooms: []hostcatalog.ChatRoom{{Number: 0, Weight: 0.7}, {Number: 1, Capacity: 4, Weight: 0.3}}}
+	rooms := ChatRoomsOf(detail)
+	if len(rooms) != 2 || rooms[1] != (ChatRoom{Number: 1, Capacity: 4, Weight: 0.3}) {
+		t.Fatalf("rooms = %+v", rooms)
+	}
+	if rooms[0].Full(100) || !rooms[1].Full(4) || rooms[1].Full(3) {
+		t.Fatal("Full does not follow the capacity (0 = unlimited)")
+	}
+	if ChatRoomsOf(hostcatalog.PresetDetail{}) != nil {
+		t.Fatal("a station without rooms has rooms")
 	}
 }
