@@ -49,6 +49,14 @@ was rejected is logged on every station as
 `Chat line generation failed: host=... slot=... err=...`; the resident stayed
 silent. The caller's own lines are never logged.
 
+A resident's telegram to a caller (spec 018) is logged the same way as one JSON
+line prefixed with `Line message generated content:`: `host`, `slot`, `kind`
+(`answer` or `hail`), `speaker`, `recipient` (the handle the resident knows the
+caller by), `responds_to`, `body`, `at` and `elapsed_ms`. A telegram that failed
+or was rejected is logged on every station as
+`Line message generation failed: host=... slot=... err=...`; the resident
+stayed silent. The caller's own telegrams are never logged.
+
 ## Title-led body trial
 
 When `GENERATION_FREEFORM_BODY=1` (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.

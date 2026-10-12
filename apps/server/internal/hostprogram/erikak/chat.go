@@ -28,6 +28,9 @@ type chatState struct {
 	// said holds the IDs of the lines this call typed, which were shown when
 	// they were typed. Another call of the same user is someone else's screen.
 	said map[string]bool
+	// lineMark is the world time up to which the residents' telegrams to this
+	// call were shown (spec 018). Zero until the call is past its login.
+	lineMark time.Time
 }
 
 const (
@@ -184,6 +187,18 @@ func (r *Runtime) renderRoomMenu() string {
 func (r *Runtime) handleCall(line string) (string, bool) {
 	switch strings.ToUpper(line) {
 	case "":
+		now := world.WorldNowOf(r.Store)
+		// Telegrams that came in since the last screen are shown first.
+		shown := ""
+		for _, m := range r.lineMessagesDue(now) {
+			shown += lineMessageText(m)
+		}
+		if r.chat.lineMark.Before(now) {
+			r.chat.lineMark = now
+		}
+		if shown != "" {
+			return "\r\n" + shown + "\r\n" + r.whoRows(r.lineHolders(now)) + "\r\n" + r.callPromptText(), false
+		}
 		return "\r\n\r\n" + r.whoRows(r.lineHolders(world.WorldNowOf(r.Store))) + "\r\n" + r.callPromptText(), false
 	case "X":
 		r.state = "chat_menu"
@@ -301,10 +316,61 @@ func (r *Runtime) handleChatRoom(line string) (string, bool) {
 // there, since the last time.
 // Nothing interrupts the other screens, the telegram body included.
 func (r *Runtime) Poll(now time.Time) string {
-	if r.state != "chat_room" {
+	out := ""
+	if r.state == "chat_room" {
+		out = r.roomEvents(now)
+	}
+	return out + r.pollLineMessages(now)
+}
+
+// lineMessagesDue returns the residents' telegrams to this call whose time has
+// come since lineMark, and starts the world deciding the coming ones. The
+// caller moves lineMark when it can show what it got.
+func (r *Runtime) lineMessagesDue(now time.Time) []world.LineMessage {
+	host, ok := r.Store.(world.LineMessageHost)
+	if !ok || r.callID == "" || r.state == "login_id" || r.state == "login_password" {
+		return nil
+	}
+	if r.chat.lineMark.IsZero() {
+		r.chat.lineMark = now
+		return nil
+	}
+	if !now.After(r.chat.lineMark) {
+		return nil
+	}
+	call := world.LineMessageCall{CallID: r.callID, Human: r.self(), Line: r.line, Login: r.handle}
+	return host.LineMessageEvents(r.Host, call, r.chat.lineMark, now)
+}
+
+// pollLineMessages shows telegrams that arrived while the caller waits at the
+// CALL prompt or the room menu, as they interrupted the screen of 1996: a
+// bell, the line and handle, the text, and the screen again. On other screens
+// they wait, and are shown when the caller comes back.
+func (r *Runtime) pollLineMessages(now time.Time) string {
+	msgs := r.lineMessagesDue(now)
+	if r.state != "call" && r.state != "chat_menu" {
 		return ""
 	}
-	return r.roomEvents(now)
+	if r.chat.lineMark.Before(now) {
+		r.chat.lineMark = now
+	}
+	if len(msgs) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for _, m := range msgs {
+		b.WriteString("\a\r\n" + lineMessageText(m))
+	}
+	if r.state == "chat_menu" {
+		return b.String() + "\r\n" + roomPrompt
+	}
+	return b.String() + "\r\n" + r.whoRows(r.lineHolders(now)) + "\r\n" + r.callPromptText()
+}
+
+// lineMessageText is one telegram shown on the screen: the sender's line and
+// handle, then the text, then the bell.
+func lineMessageText(m world.LineMessage) string {
+	return fmt.Sprintf("#%02d %s>%s\a\r\n", m.FromLine, m.FromHandle, m.Body)
 }
 
 // roomEvents returns the joins, leaves and lines in the caller's room since

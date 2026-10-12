@@ -375,13 +375,35 @@ count, the rooms and their capacities come from the station definition.
   ledger as `npc_world_selected`, and is never rewritten or placed in a window
   already shown.
 
-Implemented: residents' states on the lines, joins and leaves in chat rooms,
-the human's own utterances and line messages as world records, and residents
-speaking in rooms.
+- **Residents' telegrams (spec 018).** `internal/lineslot` decides, without an
+  LLM, each chance a resident has to send the human a telegram (a line
+  message): `answer`, a reply to a telegram the human sent that resident, and
+  `hail`, a message the resident sends on their own to someone they know.
+  Silence is always possible. The chance of an answer comes from the persona
+  and spec 013's relationship; at most one answer per telegram, only after the
+  telegram reached the resident (a resident in a room gets it when they leave)
+  and only while the resident still holds the line. A hail needs a resident
+  who knows the human, which is a login ID other than `GUEST` (spec 019) and a
+  relationship; it happens on the call or about a recent board event, at most
+  twice per resident per call. What the human wrote is never read when
+  deciding, so it cannot change who answers or when. Messages per hour and
+  per resident are limited; every value is a fictional tuning value, set high
+  for now while this is debugged.
+- **Telegrams exist only while the call is live.** `LineMessageHost.LineMessageEvents`
+  is how a host program asks for the telegrams due on its call; each call also
+  decides and starts writing the coming ones, while the human's call is in
+  progress. An optional `llm.LineMessageWriter` words a selected slot; a failed
+  or rejected message is silence. A recorded message is a `world.LineMessage`
+  with its slot and the message it answers, entered in the ledger as
+  `npc_world_selected`, and is never rewritten. The host program moves its
+  window forward only when it could show what it got.
 
-Planned, not implemented yet: replies to line messages and messages from
-residents (spec 018), chat updating relationships, and residents posting and
-replying while they are on line. Who is active keeps changing: members log off when their call
+Implemented: residents' states on the lines, joins and leaves in chat rooms,
+the human's own utterances and line messages as world records, residents
+speaking in rooms, and residents' telegrams to the human.
+
+Planned, not implemented yet: chat and telegrams updating relationships, and
+residents posting and replying while they are on line. Who is active keeps changing: members log off when their call
 ends, which simply frees the line, and others connect in later windows. Chat
 partners and the authors of such activity are chosen from the presence computed
 above, never invented because the human is there; the World decides whether

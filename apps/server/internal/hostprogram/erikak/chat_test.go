@@ -23,6 +23,10 @@ type chatWorld struct {
 	sent     []world.LineMessage
 	said     []world.ChatUtterance
 	stays    []string
+	// incoming are residents' telegrams to the caller; asked records the
+	// windows the host program asked for.
+	incoming []world.LineMessage
+	asked    [][2]time.Time
 }
 
 func (w *chatWorld) WorldNow() time.Time { return w.now }

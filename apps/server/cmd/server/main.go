@@ -140,6 +140,8 @@ func main() {
 	if cfg.AzureOpenAIKey != "" {
 		// What residents say in a room while a caller is there (spec 017).
 		runtimeStore.SetChatLineWriter(azureOpenAIRenderer)
+		// Telegrams residents send a caller, in answer or on their own (spec 018).
+		runtimeStore.SetLineMessageWriter(azureOpenAIRenderer)
 	}
 	sessions.SetLineOccupancy(runtimeStore)
 	network := telephone.New(runtimeStore, clock)
