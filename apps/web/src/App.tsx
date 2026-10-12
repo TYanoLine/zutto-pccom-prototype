@@ -30,6 +30,7 @@ import {
   saveModemStatusDisplayMode,
 } from './modem/ModemStatusDisplay';
 import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
+import { getOrCreateCallerKey } from './modem/CallerKey';
 import './styles.css';
 import { GenerationInspector } from './debug/GenerationInspector';
 
@@ -217,7 +218,8 @@ export default function App() {
       item => { executeMainMenuCommand(item.key); },
     );
     showMainMenu();
-    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
+    const callerKey = getOrCreateCallerKey();
+    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, callerKey, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : { callerKey });
     modem.onStatus = setStatus;
     modem.onTelemetry = setModemTelemetry;
     modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now, capabilities: call.capabilities } : null; }); };
