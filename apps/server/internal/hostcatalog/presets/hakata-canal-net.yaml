@@ -52,7 +52,7 @@ detail:
     # Fictional station wording for the telegram and chat screens (spec 016).
     chat:
       call_menu:
-        title: "〖電報・チャット〗 HAKATA CANAL NET"
+        title: "【電報・チャット】 HAKATA CANAL NET"
         lines:
           - "------------------------------------------------------------------------------"
           - "【回線番号】その回線の人に電報を送る        【X】チャットルームへ"
