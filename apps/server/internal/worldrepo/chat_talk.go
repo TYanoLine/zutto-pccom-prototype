@@ -445,8 +445,10 @@ func (r *Repository) recordResidentLine(job chatJob, line string) (world.ChatUtt
 
 // memberAliases maps the member identity a caller's posts are filed under to
 // the caller's identity in the room. Erika-K files a caller's posts under
-// their handle and their chat under the call (spec 016); both are the same
-// person.
+// their handle and their chat under the call (spec 016). Residents know people
+// only by the login ID they show, so a caller in the room is, to them, whoever
+// posted under that handle. The system's own identity for a human is a
+// separate, later change.
 func memberAliases(viewers []viewerStay) map[world.ActorRef]world.ActorRef {
 	out := map[world.ActorRef]world.ActorRef{}
 	for _, v := range viewers {
