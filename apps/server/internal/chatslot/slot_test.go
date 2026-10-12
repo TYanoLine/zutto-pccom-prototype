@@ -101,6 +101,7 @@ func replyRates(body string) (any, nori, total int) {
 	for i := 0; i < 400; i++ {
 		in := room()
 		in.Host.ID = fmt.Sprintf("h%d", i)
+		in.To = t0.Add(3 * time.Minute)
 		in.Utterances = []world.ChatUtterance{human(i, body, t0.Add(time.Minute))}
 		total++
 		for _, s := range Slots(in) {
@@ -166,6 +167,7 @@ func TestSendoffsInsteadOfReplies(t *testing.T) {
 	for i := 0; i < 300; i++ {
 		in := room()
 		in.Host.ID = fmt.Sprintf("h%d", i)
+		in.To = t0.Add(3 * time.Minute)
 		in.Utterances = []world.ChatUtterance{human(i, "そろそろ落ちます〜", t0.Add(time.Minute))}
 		if i%2 == 0 {
 			in.Relation = func(a, b world.ActorRef) int { return 2 }
