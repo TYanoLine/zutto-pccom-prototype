@@ -299,16 +299,57 @@ computations keep them. Human calls hold a line from CONNECT until hang-up or
 reconnect-grace expiry, and are kept as history when they end. Stores without
 presence keep the earlier probabilistic BUSY model.
 
-Planned, not implemented yet: the members who are connected at the same time
-as the human caller are the people the caller can meet. The caller will be able
-to chat with them (CHAT / CALL), and their presence is also when activity
-happens: while they are on line they may post, reply, and so add articles and
-replies that the caller can see appear. Who is active keeps changing. Members
-log off when their call ends, which simply frees the line, and others connect
-in later windows. Chat partners and the authors of such activity are chosen
-from the presence computed above, never invented because the human is there;
-the World decides whether each one speaks, posts, or does nothing, and an LLM
-only words an action that was selected (see SDD-005 section 3.4).
+### Within a call: chat rooms and line messages (spec 016)
+
+This policy is host-independent. Each host program realizes it with its own
+screens; Erika-K's telegram and chat screens are the first realization (see
+`docs/host-programs/erika-k.md`). No layer assumes a number of lines: the line
+count, the rooms and their capacities come from the station definition.
+
+- **What a resident does within a call** is a plan of segments in a shared
+  vocabulary, `world.CallState`: `login` (the first two minutes), `idle`,
+  `paging` (at the screen for sending line messages, just before a chat) and
+  `chat` (in a room). Host programs map it to their own labels (Erika-K:
+  `paging` → `CALL`, `chat` → `CHAT`). `internal/callplan` computes the plans
+  deterministically, without an LLM: a base intention from the resident's
+  lifestyle and sociability (`1 − LurkerTendency` and `ReplyTendency`), tripled
+  in Telehodai hours, adjusted by how crowded the room looks (counted from the
+  other calls' base intentions only, so the computation never recurses), and
+  never above a room's capacity. Every coefficient is a fictional tuning value.
+- **Humans never enter the computation.** A resident's plan is the same whether
+  or not a human is on the host or in the room.
+- **Observation fixes a plan.** The first time any part of a call's plan is
+  shown (a WHO row, a join or leave line), the whole plan is stored with the
+  presence session and never rewritten (`worldrepo/callplan.go`).
+- **Chat rooms** are a shared item of the station definition
+  (`detail.chat_rooms`: number, capacity with 0 for unlimited, and a choice
+  weight). A station without rooms has no chat. Residents enter rooms only
+  while the server can also give them words (`SetResidentChat`, on when a
+  language model is configured); otherwise their calls have no `chat` segments.
+- **Asynchronous output.** A host program may implement
+  `hostprogram.AsyncOutput`; the WebSocket layer polls it once a second with
+  the world time and sends what it returns. The program decides when an
+  interruption is appropriate (Erika-K: only inside a chat room).
+- **Records.** What a human says in a room is stored as a `world.ChatUtterance`
+  and entered in the interaction ledger (`chat_utterance`, audience
+  `chat_room:<host>:<room>`, addressed to the residents in the room at that
+  moment). A message a human sends to a line is a `world.LineMessage` with a
+  delivery time the host program decides (`line_message`, audience
+  `private:<host>`, addressed to the recipient). Both survive restarts with the
+  host snapshot.
+
+Implemented: residents' states on the lines, joins and leaves in chat rooms,
+the human's own utterances and line messages as world records.
+
+Planned, not implemented yet: residents speaking in rooms (spec 017, worded by
+an LLM only after the World selected the speaker), replies to line messages and
+messages from residents (spec 018), and residents posting and replying while
+they are on line. Who is active keeps changing: members log off when their call
+ends, which simply frees the line, and others connect in later windows. Chat
+partners and the authors of such activity are chosen from the presence computed
+above, never invented because the human is there; the World decides whether
+each one speaks, posts, or does nothing, and an LLM only words an action that
+was selected (see SDD-005 section 3.4).
 
 ## Moderation
 

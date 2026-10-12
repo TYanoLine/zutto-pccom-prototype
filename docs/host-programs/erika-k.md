@@ -141,6 +141,70 @@ The sample runtime currently demonstrates:
 
 This remains a reconstruction, not a byte-for-byte emulator of vendor binaries.
 
+## Telegram (CALL) and chat (spec 016)
+
+Erika-K's realization of the shared policy in `docs/WORLD_SIMULATION.md`
+("Within a call"). Source: the 1996-04-30 GARAKUTA-KoBo connection/chat log
+(`docs/research/erika-k-sources/garakuta_D-00078.html`, cp932). It is one
+station's log, so it cannot tell software defaults from station settings.
+
+The program (`internal/hostprogram/erikak/chat.go`) prints the row shapes,
+prompts and announcement lines. The station definition supplies the wording
+(`detail.erika_k.chat`: the telegram screen's title, menu lines and hint, the
+room menu, and per-room notices) and the rooms themselves (the shared
+`detail.chat_rooms`). A station without `erika_k.chat` keeps the earlier
+placeholder screen.
+
+**Likely (software behavior, from the log; not confirmed as a vendor default)**
+
+- Main menu `4` / `C` / `CHAT` opens the telegram screen: title, menu lines,
+  blank, one WHO row per line, blank, hint, prompt `CALL> ->`.
+- WHO row: `#` + two-digit line number + space + handle padded to 10 cells +
+  state padded to 7 cells + a 3-cell column + speed as `28K-...`. A free line
+  is `#06 ring`. Row count equals the station's line count; line numbers are
+  always two digits.
+- States: `login`, `idle`, `CALL` (shared `paging`), `CHAT` (shared `chat`,
+  with `#` + room number in the 3-cell column). The caller's own row always
+  reads `WHO`.
+- Telegram: a line number, then `電報をどうぞ。 (最大全角150文字  中止:ﾘﾀｰﾝｷｰ)`,
+  the `---------+` ruler, one line of body, then `#05 に電報を送りました。`.
+  To someone in a room: `#02 チャットルームか会議室にちゃっかり入ってます。 CHAT終了後、電報を送ります。`
+  followed by the WHO rows; the message is recorded as delivered when that
+  stay ends (an inference from the wording).
+- `X` opens the room menu; `ルーム番号をどうぞ  （中止はﾘﾀｰﾝｷｰ） --> `. An empty
+  answer returns to the main menu (the log shows the main menu, not CALL).
+- Entering: blank, `  チャット終了は 「..」 または 「CTRL+B」 を入力して下さい`,
+  the room's notice lines, the `CHAT ON` rule (36 dashes, `CHAT ON`, 35 dashes),
+  then `\a\a## chat on  HANDLE ##`.
+- Joins and leaves while in the room: `\a\a## chat on  HANDLE ##` (two spaces)
+  and `\a\a## chat off HANDLE ##` (one space). A resident whose call ends in
+  the room also leaves with `chat off`.
+- A line said in the room: handle padded to 8 cells, `:`, the text.
+- `..` leaves: `HANDLE  :..`, blank, `chat off` for the caller, the `CHAT OFF`
+  rule (36 dashes, `CHAT OFF`, 34 dashes), blank, the WHO rows, the room menu.
+
+**Station-specific (HAKATA CANAL NET, fictional)**
+
+- Room numbers, capacities and choice weights, the telegram screen's title,
+  menu lines and hint, the room menu and the room notices. They were written
+  for this station and do not copy GARAKUTA's wording.
+
+**Fictional reconstruction (not in the log)**
+
+- The 3-cell column shows blanks except in `CHAT`. The log shows one character
+  per user there (○, み, 火, ...) whose meaning is unknown.
+- Speeds below 14,400 bps are shown the same way (`9K-...`). The log's `[52]`
+  and `TERMINAL` entries are not reproduced.
+- A telegram to a free line, to one's own line, or with `*`, `P`, `S` and the
+  other menu letters answers `? COMMAND ERROR`, as does an unknown or full room.
+- An empty telegram body returns to the hint and `CALL> ->`.
+- No blank line before join/leave lines (the log has both forms) and no
+  trailing spaces on WHO rows.
+- `CTRL+B` is not handled (the web terminal cannot send it).
+
+Residents do not speak or answer telegrams yet (specs 017 and 018), and the
+main menu's own `WHO` keeps the spec 015 layout.
+
 ## Research sources
 
 Preserve URLs because some sources are community archives and may disappear. Detailed analysis and captured primary sources are archived in `docs/research/ERIKA_K_PRIMARY_SOURCES.md` and `docs/research/erika-k-sources/`.
