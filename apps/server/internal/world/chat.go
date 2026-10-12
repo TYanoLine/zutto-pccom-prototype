@@ -50,6 +50,9 @@ type LineMessage struct {
 	Body      string    `json:"body"`
 	SentAt    time.Time `json:"sent_at"`
 	DeliverAt time.Time `json:"deliver_at"`
+
+	// FromHandle is a human sender's login ID (spec 019).
+	FromHandle string `json:"from_handle,omitempty"`
 }
 
 // ChatRecordStore keeps chat utterances and line messages as world history.

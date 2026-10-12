@@ -5,11 +5,16 @@ import (
 	"time"
 )
 
-// Actor kinds used by presence sessions. ActorKindMember is a human caller;
-// its ID is the call ID until member accounts exist.
+// Actor kinds. See spec 019 for how humans are named.
 const (
 	ActorKindPersona = "persona"
-	ActorKindMember  = "member"
+	// ActorKindMember is a human user. Its ID is the human ID, the same across
+	// calls, login IDs and worlds. Records made before spec 019 hold a call ID
+	// or a handle here.
+	ActorKindMember = "member"
+	// ActorKindLogin is a person as residents know them: by the login ID shown
+	// on the record's host. Residents never see a human ID.
+	ActorKindLogin = "login"
 )
 
 // PresenceSession is one call that holds a logical line of a host from Start
@@ -24,6 +29,10 @@ type PresenceSession struct {
 	Baud   int       `json:"baud"`
 	Start  time.Time `json:"start"`
 	End    time.Time `json:"end,omitempty"`
+
+	// CallID is a human call's own connection; empty for a resident. A human
+	// may hold several calls at once under one actor.
+	CallID string `json:"call_id,omitempty"`
 }
 
 // Live reports whether the session has no planned end (a human call in progress).
@@ -51,11 +60,19 @@ type HumanCall struct {
 	Line   int       `json:"line"`
 	Baud   int       `json:"baud"`
 	Start  time.Time `json:"start"`
+
+	// HumanID is the user who made the call (spec 019).
+	HumanID string `json:"human_id,omitempty"`
 }
 
-// Session returns the call as a live presence session.
+// Session returns the call as a live presence session. A call without a human
+// ID (made before spec 019) is named by its call ID.
 func (c HumanCall) Session() PresenceSession {
-	return PresenceSession{HostID: c.HostID, Actor: ActorRef{Kind: ActorKindMember, ID: c.CallID}, Handle: c.Handle, Line: c.Line, Baud: c.Baud, Start: c.Start}
+	id := c.HumanID
+	if id == "" {
+		id = c.CallID
+	}
+	return PresenceSession{HostID: c.HostID, Actor: ActorRef{Kind: ActorKindMember, ID: id}, Handle: c.Handle, Line: c.Line, Baud: c.Baud, Start: c.Start, CallID: c.CallID}
 }
 
 // CallState is what a caller is doing within a call. The vocabulary is shared
