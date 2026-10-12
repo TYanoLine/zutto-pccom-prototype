@@ -85,9 +85,9 @@ type LineMessageHost interface {
 - `Poll(now)`: 状態が `call` または `chat_menu` のとき、`LineMessageHost` があれば `LineMessageEvents(host, r.self(), r.line, r.lineMark, now)` を呼ぶ。
   電報があれば `lineMark` を `now` に進めて、`\a\r\n#NN HANDLE>本文\a\r\n` を 1 通ずつ並べ、最後に `\r\n` + `whoRows` + `\r\n` + `callPromptText()` を付けて返す。
   電報がなければ `lineMark` を進めて空文字を返す。
-  **たまっていた電報の通知。** 前回の確認から画面の移動をはさんでいた（`lineMark` を進められなかった期間がある）場合は、本文の前に
-  `N 件の電報が届いています。\r\n`（N は返す電報の数）を 1 回だけ付ける。その場で届いた 1 通の割り込みには付けない。
-  通知の文言は利用者の記憶に基づく推定で、メニューやコマンドは増やさない。
+  **たまっていた電報。** 配達できなかった間の電報は、`lineMark` を進めないので、`call` に戻ったあとの `Poll` でまとめて出る（通知の行は付けない）。
+  `call` で改行だけが入力されたとき（WHO の再表示）も、WHO の前に `LineMessageEvents` を呼んで、たまっていた電報を出す。
+  メニューやコマンドは増やさない。
   `telegram_body`、`chat_room`、その他の画面では呼ばない（`lineMark` を進めない）。後で `call` に戻ったとき、その間に届いた電報が出る。
 - `NN` は話者の回線番号（2 桁）。話者の回線番号は `LineMessage.From` の住民の滞在から求める（求められなければ出さない）。
 - 既存の `Poll` の `chat_room` の動きは変えない。画面の金型は変わらない（電報のない画面の出力は今のまま）。
