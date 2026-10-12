@@ -64,6 +64,7 @@ type Traits struct {
 	ANSI           bool
 	GuestAllowed   bool
 	TelehoFriendly bool
+	OperatingHours [2]string // ["HH:MM", "HH:MM"]; zero = always open
 }
 
 // DebugFlags switch on evaluation/debug behavior for one host. Every flag
@@ -325,4 +326,31 @@ func (d HostDescriptor) Validate(o Options) error {
 		add("generation", errors.New("must not be negative"))
 	}
 	return errors.Join(errs...)
+}
+
+// CheckOperatingHours validates a station's ["HH:MM", "HH:MM"] answering
+// window. The end may be earlier than the start (open across midnight); equal
+// times are rejected.
+func CheckOperatingHours(h []string) error {
+	if len(h) != 2 {
+		return fmt.Errorf("must be [\"HH:MM\", \"HH:MM\"]")
+	}
+	from, err1 := ParseClockMinutes(h[0])
+	to, err2 := ParseClockMinutes(h[1])
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("must be [\"HH:MM\", \"HH:MM\"]")
+	}
+	if from == to {
+		return fmt.Errorf("start and end must differ")
+	}
+	return nil
+}
+
+// ParseClockMinutes parses "HH:MM" into minutes after midnight.
+func ParseClockMinutes(s string) (int, error) {
+	t, err := time.Parse("15:04", s)
+	if err != nil {
+		return 0, err
+	}
+	return t.Hour()*60 + t.Minute(), nil
 }

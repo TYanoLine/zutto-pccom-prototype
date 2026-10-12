@@ -178,3 +178,24 @@ func TestPresetAlwaysConnectBehaviorParses(t *testing.T) {
 		t.Fatalf("always_connect not parsed: kind=%q err=%v", p.Dial.Kind, err)
 	}
 }
+
+func TestParsePresetOperatingHours(t *testing.T) {
+	src := strings.Replace(samplePreset, "teleho_friendly: true }", `teleho_friendly: true, operating_hours: ["22:00", "08:00"] }`, 1)
+	p, err := ParsePreset("sample-bbs.yaml", []byte(src), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := p.Descriptor()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Traits.OperatingHours != [2]string{"22:00", "08:00"} {
+		t.Fatalf("operating hours = %v", d.Traits.OperatingHours)
+	}
+	for _, bad := range []string{`["22:00"]`, `["25:00", "08:00"]`, `["08:00", "08:00"]`} {
+		src := strings.Replace(samplePreset, "teleho_friendly: true }", "teleho_friendly: true, operating_hours: "+bad+" }", 1)
+		if _, err := ParsePreset("sample-bbs.yaml", []byte(src), Options{}); err == nil || !strings.Contains(err.Error(), "operating_hours") {
+			t.Errorf("%s: want operating_hours error, got %v", bad, err)
+		}
+	}
+}
