@@ -6,7 +6,8 @@ import (
 )
 
 // humanID derives a user's human ID from the key their browser keeps (spec
-// 019). The key is a bearer secret and is never stored or logged; only a
+// 019). This is provisional, for as long as users are not identified; the
+// account's identifier will replace it once users sign in. The key is a bearer secret and is never stored or logged; only a
 // one-way digest is. Without a well-formed key the call gets an ID of its own.
 func humanID(callerKey string) string {
 	if isCallerKey(callerKey) {

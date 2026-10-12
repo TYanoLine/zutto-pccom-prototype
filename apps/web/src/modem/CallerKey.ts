@@ -1,5 +1,6 @@
 // The key this browser keeps so the server can tell the same user across calls
-// (spec 019). It is a bearer secret: it is sent only with a dial, and the
+// (spec 019). It is provisional: users are not identified yet. When they sign in
+// with an ID and password, the account's identifier replaces it. It is a bearer secret: it is sent only with a dial, and the
 // server stores a one-way digest, never the key. It identifies a browser, not a
 // login ID; it proves nothing about who is typing.
 const CALLER_KEY_STORAGE_KEY = 'zutto.callerKey.v1';

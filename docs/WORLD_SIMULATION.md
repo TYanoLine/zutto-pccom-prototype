@@ -348,7 +348,9 @@ count, the rooms and their capacities come from the station definition.
   user with two login IDs is two people to residents, and one who shows
   another's login ID is that person to them. The shared login ID `GUEST` is
   nobody a resident can know, so it builds no relationships. The key proves
-  nothing about who is typing; registration and passwords are not modelled yet.
+  nothing about who is typing. The key is a provisional stand-in while users are
+  not identified: once users sign in with an ID and password, the human ID
+  comes from that account instead, and the key goes away.
 
 - **Residents speaking (spec 017).** `internal/chatslot` decides, without an
   LLM, each chance a resident has to say a line (a slot): `greet` on entering,
