@@ -12,7 +12,8 @@ The project simulates a persistent 1996 Japanese dial-up BBS world. It is not a 
 4. For world/NPC work, read `docs/WORLD_SIMULATION.md` and `docs/LLM_POLICY.md`.
 5. For terminal/modem work, read `docs/TERMINAL_AND_MODEM.md` and relevant research documents.
 6. For historical host-program work, read the corresponding file under `docs/host-programs/` and inspect the current implementation under `apps/server/internal/hostprogram/`.
-7. Inspect current `main` and the relevant code immediately before editing. The human developer may be changing the repository concurrently.
+7. For inspection, debugging, and generation logging, read `docs/DEBUG_INSPECTION.md`.
+8. Inspect current `main` and the relevant code immediately before editing. The human developer may be changing the repository concurrently.
 
 If a document and current code disagree, do not silently guess. Determine whether the code is an intentional newer implementation or the documentation is stale, and update the stale side when appropriate.
 
@@ -83,6 +84,19 @@ Larger changes are written down first in `specs/NNN-name/` (`spec.md`, `plan.md`
 Use period-appropriate Japanese communication culture when generating fixture content. Examples include `(笑)`, `(爆)`, `(^^)`, `(^^;`, `(^_^;)`, `m(_ _)m`, and `>` quoting where appropriate. Avoid modern conventions such as `草`, modern `w` usage, `ググる`, and SNS terminology.
 
 Era-appropriate topics may include Windows 95, PC-98, DOS/V, Macintosh, modems/ISDN, NIFTY-Serve/PC-VAN, the emerging WWW/Internet, Saturn, PlayStation, Pokémon, Evangelion, MIDI/FM sound, Akihabara, and local/offline events — subject to the exact mapped world date.
+
+## Operations and logging
+
+- **Backend environment**:
+  - The shared backend runs as a Render Web Service (`https://zutto-pccom-prototype.onrender.com`).
+  - Service ID: `srv-da8fse5g1s2s7399tvmg` (owner: `tea-da8fphgae00c73cqh9s0`).
+  - Merges into `main` automatically trigger builds and deployments on Render.
+- **Frontend environment**:
+  - The web application (`apps/web`) is deployed locally to `C:\zutto-web` and served by Node.js via the scheduled task `ZuttoWebServer` (port 3001), proxying `/api` to the Render backend.
+- **Log inspection policy**:
+  - When asked to inspect logs (e.g. "ログを見て", generation failures, missing articles/messages), do not search for local `*.log` files on the development machine. **Render operational logs are the primary source of truth for runtime errors and generation events.**
+  - If `RENDER_API_KEY` is present in the environment, query the Render API (`https://api.render.com/v1/logs?ownerId=tea-da8fphgae00c73cqh9s0&resource=srv-da8fse5g1s2s7399tvmg&limit=50`) directly to inspect recent application output.
+  - See `docs/DEBUG_INSPECTION.md` for details on `BBS generated content:` JSON records and error prefixes such as `BBS article body observation failed:`.
 
 ## Architecture maxim
 
