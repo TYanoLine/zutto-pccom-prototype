@@ -1,5 +1,18 @@
 # Plan 016: chat-foundation
 
+## 0. 層の分け方
+
+方針は汎用（ホストプログラムに依らない）で、絵理香K版はその具現化（spec §1、§3）。
+
+| 層 | パッケージ | 持つもの | 持たないもの |
+| --- | --- | --- | --- |
+| 共通 | `hostprogram`（インターフェースだけ）、`ws` | `AsyncOutput`、ポーリング、通話ごとのロック | 画面、状態名、いつ割り込むかの判断 |
+| 共通 | `world`、`callplan`、`worldrepo`、`worldpersist` | 通話の中の行動（共通の語彙）、チャット室の定義、発言と回線宛メッセージの記録、台帳 | 絵理香K版の `CALL` / `CHAT` / `電報` などの語、画面の文字列 |
+| 共通 | `hostcatalog`（局の定義の共通の項目） | `chat_rooms`（番号、定員、重み） | 部屋ごとの画面の文面 |
+| 具現化 | `hostcatalog`（`erika_k` の節）、`hostprogram/erikak` | 電報・チャットの画面、状態名の対応づけ、電報の届く時刻の規則、文面 | 住民の行動の決定 |
+
+回線数は局の定義（`world.Host.Lines`）から決まる。どの層も特定の回線数を前提にしない（spec FR-007）。
+
 ## 1. 現状（読んだコード）
 
 | 場所 | 現状 |
@@ -17,7 +30,7 @@
 | `world/models.go:165-177` | `InteractionEvent`。`Channel` に `chat_utterance` の想定がある。`telegram` はまだない |
 | `hostcatalog/program_detail.go:17-38` | `ErikaKDetail{Texts, Boards}`。`ErikaKTexts` は局が書く文面の名前つきの部品 |
 
-## 2. 資料からの書式（GARAKUTA-KoBo、1996-04-30）
+## 2. 絵理香K版の書式（具現化。資料: GARAKUTA-KoBo、1996-04-30）
 
 分類: 書式は **Likely（ソフトウェアの既定）**。資料は 1 局の記録だけで、ソフトウェアの既定か局の設定かを区別できない。
 行の形とプロンプトはソフトウェア側（ホストプログラム）に置き、見出し・項目の文面・部屋と定員・注意文は局の定義に置く。
@@ -49,7 +62,7 @@ WHO 行の書式（表示幅で数える）:
   意味が確認できない（`ERIKA_K_REVERSE_ENGINEERING.md:228`）。**本仕様では空白 3 桁にする**（Fictional reconstruction として文書に書く）。
 - 速度: 記録は `28K-...`、`26K-...`、`14K-...`。**`fmt.Sprintf("%dK-...", baud/1000)`**（Likely。14,400 bps 未満の表示は記録にない）。
   記録の `[52]` や `TERMINAL` は扱わない。
-- 回線番号は 2 桁（記録は `#02`〜`#14`）。局の回線数が 1 桁でも 2 桁で出す。
+- 回線番号は 2 桁（記録は `#02`〜`#14`）。局の回線数が 1 桁でも 2 桁で出す。行数は局の回線数と同じ（空き回線は `ring`）。
 - 行末の空白は記録にあるが、本仕様では付けない（端末の表示は同じ）。
 
 電報（ホストプログラム）:
@@ -108,6 +121,34 @@ CALL> ->
 
 ## 3. 局の定義（YAML）
 
+### 3.1 共通の項目（FR-005）
+
+局の定義の共通の項目に `chat_rooms` を加える（`preset.go` の `presetHost`、`world.Host` に `ChatRooms []ChatRoom`）。
+ないかぎり、住民はチャット室に入らない。
+
+```yaml
+chat_rooms:
+  - { number: 0, capacity: 0, weight: 0.7 }   # capacity 0 = 無制限
+  - { number: 1, capacity: 4, weight: 0.3 }
+```
+
+```go
+// world/models.go
+// ChatRoom is a chat room of a station: a world resource, the same for every
+// host program. Its on-screen wording belongs to the host program's section.
+type ChatRoom struct {
+	Number   int     `json:"number"`
+	Capacity int     `json:"capacity"` // 0 = unlimited
+	Weight   float64 `json:"weight"`   // relative choice weight; a fictional tuning value
+}
+```
+
+検証（`hostcatalog` の読み込み時）: 部屋番号が 0 以上で重複しない、定員が 0 以上、重みが 0 以上で合計が正。
+`world.Host` は `==` で比較しているテストがある（spec 015 の `OperatingHours` で判明）。`ChatRooms` をスライスにすると比較できなくなるので、
+`world.Host` ではなく `HostDetail` 側に置くか、比較しているテストを確認して決める。**実装時に確認し、選んだ方を verification.md に書く。**
+
+### 3.2 絵理香K版の節（FR-008）
+
 `hostcatalog.ErikaKDetail` に `Chat *ErikaKChat` を加える（`yaml:"chat"`）。なければ電報・チャットは今のスタブのまま
 （既存の局の挙動を変えない）。`hakata-canal-net.yaml` には、架空の局の文面として新しく書く（GARAKUTA の文面を写さない。
 局固有の文面は局ごとに違うため）。
@@ -119,20 +160,13 @@ type ErikaKChat struct {
 		Lines []string `yaml:"lines"`
 		Hint  string   `yaml:"hint"`
 	} `yaml:"call_menu"`
-	ChatMenu []string     `yaml:"chat_menu"`
-	Rooms    []ErikaKRoom `yaml:"rooms"`
-}
-
-type ErikaKRoom struct {
-	Number   int      `yaml:"number"`
-	Capacity int      `yaml:"capacity"` // 0 = 無制限
-	Notice   []string `yaml:"notice"`
-	// Weight は住民が部屋を選ぶ相対的な重み（架空の調整値）。
-	Weight float64 `yaml:"weight"`
+	ChatMenu []string `yaml:"chat_menu"`
+	// RoomNotices are the lines shown on entering a room, by room number.
+	RoomNotices map[int][]string `yaml:"room_notices"`
 }
 ```
 
-検証（`hostcatalog` の読み込み時）: 部屋番号が 0〜9 で重複しない、定員が 0 以上、重みが 0 以上で合計が正。
+検証: `RoomNotices` の部屋番号が共通の `chat_rooms` にあること。
 
 ## 4. 非同期出力（FR-001）
 
@@ -162,14 +196,16 @@ type AsyncOutput interface {
 // world/presence.go
 type CallState string
 
+// The vocabulary is shared by every host program; each program maps it to its
+// own labels (Erika-K: paging -> "CALL", chat -> "CHAT").
 const (
-	CallLogin CallState = "login"
-	CallIdle  CallState = "idle"
-	CallMenu  CallState = "CALL"
-	CallChat  CallState = "CHAT"
+	CallLogin  CallState = "login"
+	CallIdle   CallState = "idle"
+	CallPaging CallState = "paging" // at the page / line-message screen
+	CallChat   CallState = "chat"
 )
 
-// CallSegment is one stretch of a call in one state. Room is set for CHAT.
+// CallSegment is one stretch of a call in one state. Room is set for chat.
 type CallSegment struct {
 	From  time.Time
 	To    time.Time
@@ -198,8 +234,8 @@ package callplan
 
 type Input struct {
 	Host     world.Host
-	Rooms    []hostcatalog.ErikaKRoom // nil または空ならチャットなし
-	Chat     bool                     // FR-004: false なら CHAT を作らない
+	Rooms    []world.ChatRoom         // nil または空ならチャットなし
+	Chat     bool                     // FR-004: false なら chat の区間を作らない
 	Sessions []world.PresenceSession  // 計算する通話と、部屋の混み具合に使う通話（重なるもの全部）
 	Profiles map[string]presence.Profile
 	Personas map[string]world.Persona
@@ -220,8 +256,9 @@ func Plan(in Input) map[string]world.CallActivity // key: actor ID + start
    - **混み具合**: 入る時刻にその部屋にいる住民の数 `n` を、**他の通話の基本の意向だけで決めた計画**から数える（2 段にして再帰しない）。
      `n == 0` なら入る確率を 0.4 倍、`n >= 1` なら 1.5 倍。定員に達していたら入らない。
    - 入ったら、滞在は `n == 0` なら 2〜6 分（誰もいないので早く出る）、そうでなければ通話の残りの 30〜90%。
-3. `CALL`: `CHAT` の直前 0.5〜2 分（メニューを経由するため）。
-4. 通話の終わりまでに `CHAT` が終わらない場合は、通話の終わりで切る。
+3. `paging`: `chat` の直前 0.5〜2 分（メニューを経由するため）。
+4. 通話の終わりまでに `chat` が終わらない場合は、通話の終わりで切る。
+5. 回線数・部屋の数・定員は入力から読み、定数にしない（FR-007）。
 
 **人間のことは計算に入れない**（FR-002）。人間がチャット室にいても、住民の計画は変わらない。
 
@@ -238,17 +275,27 @@ func (r *Repository) ChatEvents(host world.Host, room int, from, to time.Time) [
 
 - 部屋の混み具合を数えるため、`[t − Lookback, t]` で重なる通話を集める。`presence.Compute` は 1 時刻の結果を返すので、
   `t − Lookback` から 10 分ごとに `presenceAt` を呼んで通話を集める（24 回 × 約 4 ms。WHO 1 回で約 100 ms）。
-  **性能の確認を tasks に入れる**（§9）。遅すぎる場合の対策（局ごとの 10 分窓のキャッシュ）は §8。
+  **性能の確認を tasks に入れる**（§10）。遅すぎる場合の対策（局ごとの 10 分窓のキャッシュ）は §9。
 - 保存は `observePresence` と同じバッチの中で行う。
-- `world.ChatHost` インターフェース（`CallActivitiesNow`、`ChatEvents`、`SendTelegram`、`RecordChatUtterance`）を
-  `world/store.go` に置き、絵理香K版はこれを型アサーションで使う（spec 015 の `PresenceObserver` と同じ）。
+- `world.ChatHost` インターフェース（`CallActivitiesNow`、`ChatEvents`、`SendLineMessage`、`RecordChatUtterance`）を
+  `world/store.go` に置き、ホストプログラムはこれを型アサーションで使う（spec 015 の `PresenceObserver` と同じ）。
+  名前と引数に、特定のホストプログラムの語を使わない。
 
 ### 5.4 チャットの有効化（FR-004）
 
 `Repository.SetResidentChat(enabled bool)`。`cmd/server/main.go` で `cfg.AzureOpenAIKey != ""` のとき `true`。
 既定は `false`。
 
-## 6. 絵理香K版（FR-005、FR-006）
+## 6. 記録（FR-006、共通）
+
+- 発言: `world.ChatUtterance{ID, HostID, Room, Actor, Body, At}`。台帳は
+  `InteractionEvent{Channel: "chat_utterance", AudienceScope: "chat_room:<host>:<room>", AddressedTo: その時点で部屋にいる住民, ContentRef: "chat:<id>"}`。
+- 回線宛メッセージ: `world.LineMessage{ID, HostID, From, To ActorRef, ToLine int, Body, SentAt, DeliverAt}`。台帳は
+  `InteractionEvent{Channel: "line_message", AudienceScope: "private:<host>", AddressedTo: [To], ContentRef: "line_message:<id>"}`。
+  `DeliverAt` はホストプログラムが決める（絵理香K版の規則は §7）。
+- `worldpersist` と `DevelopmentHostSnapshot` で保存・復元する。
+
+## 7. 絵理香K版での具現化（FR-008、FR-009）
 
 - 状態を足す: `"call"`（`CALL> ->`）、`"telegram_body"`（電報の本文）、`"chat_menu"`（部屋番号）、`"chat_room"`（チャット中）。
   局の定義に `chat` がなければ、今の `"chat"` のスタブを使う（既存の局と既存のテストを変えない）。
@@ -261,17 +308,19 @@ func (r *Repository) ChatEvents(host world.Host, room int, from, to time.Time) [
   入室した時刻を最初の「前回」にする（入室前の入退室は出さない）。
 - 住民が通話を終えた（`CHAT` の区間が通話の終わりで切れた）場合も `## chat off ##` を出す。
 - 人間自身の WHO の行は常に `WHO`（§2）。ただし他の画面（メインメニューの WHO）は spec 015 のまま。
-- 台帳: 発言は `InteractionEvent{Channel: "chat_utterance", AudienceScope: "chat_room:<host>:<room>", AddressedTo: その時点で部屋にいる住民, ContentRef: "chat:<id>"}`。
-  本文は新しい `world.ChatUtterance{ID, HostID, Room, Actor, Body, At}` として保存。電報は `world.Telegram{ID, HostID, From, To, Body, SentAt, DeliverAt}`
-  と `InteractionEvent{Channel: "telegram", AudienceScope: "private:<host>"}`。
+- 状態名の対応づけ: 共通の `login` / `idle` / `paging` / `chat` を `login` / `idle` / `CALL` / `CHAT` で表示する。
+- 電報は `SendLineMessage` で保存する。`DeliverAt` は、相手が `chat` の区間にいればその区間の終わり、そうでなければ送った時刻
+  （接続記録の「CHAT終了後、電報を送ります」からの推定。Likely）。
+- 部屋の一覧と定員は共通の `chat_rooms` から読む。チャットのメニューの文面と部屋の注意文は `erika_k.chat` から読む。
 
-## 7. 文書
+## 8. 文書
 
+- `docs/WORLD_SIMULATION.md`: 共通の方針（非同期出力、通話の中の行動と共通の語彙、チャット室、回線宛メッセージ、回線数は局の定義から）。
 - `docs/host-programs/erika-k.md`: 電報・チャットの節。§2 の書式と分類（Likely / 局固有 / Fictional reconstruction の項目を明記）。
 - `docs/ARCHITECTURE.md:345` 付近の「電報・チャットは固定のスタブ」を更新。
 - `docs/WORLD_SIMULATION.md`「Lines and presence」の予定の段落を、実装済みの部分（入退室）と予定（発言）に分ける。
 
-## 8. リスクと対策
+## 9. リスクと対策
 
 | リスク | 対策 |
 | --- | --- |
@@ -279,13 +328,15 @@ func (r *Repository) ChatEvents(host world.Host, room int, from, to time.Time) [
 | ポーリングと入力の競合 | 通話ごとのロック。`go test -race ./internal/ws` |
 | 再接続で入退室が二重・欠落 | 「前回」の時刻をホストプログラムが持ち、`Poll` は時刻で区切る |
 | 部屋の混み具合の計算が実行のたびに違う | 2 段の計算（基本の意向だけで数える）と、観測したら計画を丸ごと保存 |
+| 共通の層に絵理香K版の語が混ざる | 共通の層のテストとレビューで確認（`grep -n "CALL\|CHAT\|電報" internal/{ws,world,callplan,worldrepo}` が、コメントの対応表以外に出ないこと） |
 | 人間の入室で住民の行動が変わる | 計算に人間を入れない。テストで人間の有無による計画の一致を確かめる |
 
-## 9. 検証
+## 10. 検証
 
-- `callplan`: 決定性（同じ入力で同じ計画）、`Chat=false` で `CHAT` なし、定員を超えない、人間の有無で計画が同じ、テレホ帯で `CHAT` が多い。
+- `callplan`: 決定性（同じ入力で同じ計画）、`Chat=false` で `chat` なし、定員を超えない、人間の有無で計画が同じ、テレホ帯で `chat` が多い、
+  回線数 1・3・8・16 と部屋の数・定員を変えた局での性質（同時接続数 ≤ 回線数、部屋の人数 ≤ 定員）。
 - `worldrepo`: 観測した計画が住民の追加後も残る、同時の観測で保存 1 回、`ChatEvents` が時刻順で重複しない、WHO 1 回の所要時間（ログに出す）。
-- 絵理香K版: 電報メニュー、WHO 行の書式（全角のハンドルを含む）、電報の 3 つの場合、入室から入退室の表示、`..` の退室、入力中に `Poll` が空、
+- 絵理香K版: 電報メニュー、WHO 行の書式（全角のハンドルを含む、回線数の違う局で行数が回線数と同じ）、電報の 3 つの場合、入室から入退室の表示、`..` の退室、入力中に `Poll` が空、
   定義に `chat` がない局で今のスタブのまま。
 - `ws`: `Poll` の出力が `terminal` で届く、入力と並行して壊れない（`-race`）。
 - 金型: `screens_golden.txt`、`boards_golden.json`、人物生成の金型が変わらない。
