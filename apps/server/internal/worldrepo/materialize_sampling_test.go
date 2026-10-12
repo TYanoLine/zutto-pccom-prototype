@@ -460,6 +460,85 @@ func TestMaterializeSampling_PersonaToneAndRelationship(t *testing.T) {
 	})
 }
 
+func TestMaterializeSampling_LineWrapAndLayout(t *testing.T) {
+	store := newTestStore()
+	host := experimentTestHost()
+	store.SaveHost(host)
+
+	// Mock body generated with natural 30-35 full-width char line breaks
+	// (reflecting the prompt's layout guidance for 80-column terminal).
+	sampleBody := "ニンテンドウ64、店頭で見てから気になってるんですが、\r\n" +
+		"そろそろ本体ごと買おうかなと思ってます。\r\n" +
+		"最初の一本をマリオ64にするか、\r\n" +
+		"パイロットウイングス64にするかで迷い中です。\r\n" +
+		"\r\n" +
+		"マリオは新しい3Dアクションを動かしてみたいし、\r\n" +
+		"コースも豊富で長くじっくり遊べそうですよね。\r\n" +
+		"パイロットウイングスは景色を眺めながら飛ぶのが\r\n" +
+		"気持ちよさそうで、のんびり楽しめそうなのが魅力です。\r\n" +
+		"\r\n" +
+		"もう遊んだ方、実際の感想を聞かせてもらえませんか？\r\n" +
+		"操作の慣れやすさなど、おすすめがあればぜひ (^^)\r\n"
+
+	var capturedPrompt string
+	mockRenderer := &fakeSamplingRenderer{
+		onGenerate: func(req llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+			capturedPrompt = llm.BuildBoardPostPrompt(req)
+			return llm.BoardPostDraft{
+				Author:  req.AuthorHandle,
+				Subject: req.CanonicalSubject,
+				Body:    sampleBody,
+			}, nil
+		},
+	}
+
+	repo := New(store, nil, LLMMaterializer{Renderer: mockRenderer, ActorMemoryStore: store}, "1996-07-27")
+	repo.SetFreeformBody(true)
+
+	post := world.Post{
+		BoardID:         "game",
+		Author:          "SATOSHI.U",
+		AuthorPersonaID: "satoshi",
+		Subject:         "N64最初の一本、マリオ64かパイロットウイングス64か",
+		CreatedAt:       time.Date(1996, 7, 27, 10, 12, 0, 0, time.UTC),
+		Intent: world.PostIntent{
+			Topic: "N64最初の一本のソフト選び相談",
+		},
+	}
+	savedPost := store.AddPost(host.ID, post)
+
+	result, found, generated, diag := repo.materializeArticleBodyOnce(
+		host,
+		world.Board{ID: "game", Name: "ゲーム"},
+		savedPost,
+	)
+	if !found || !generated {
+		t.Fatalf("materialize failed: found=%v generated=%v diag=%s", found, generated, diag)
+	}
+
+	// Verify that prompt contains the 80-column layout guidance
+	if !strings.Contains(capturedPrompt, "全角30〜35文字程度を目安") {
+		t.Errorf("prompt missing 80-column layout guidance:\n%s", capturedPrompt)
+	}
+
+	// Verify line lengths in generated body
+	lines := strings.Split(strings.ReplaceAll(result.Body, "\r\n", "\n"), "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		runes := []rune(trimmed)
+		// Max full-width limit is 40 chars (80 columns). Lines should not overflow 40.
+		if len(runes) > 40 {
+			t.Errorf("line %d exceeds 40 full-width chars (length=%d): %q", i+1, len(runes), trimmed)
+		}
+	}
+
+	t.Logf("[Scenario 5 80-Column Formatted Body Output]:\n%s", result.Body)
+}
+
+
 type fakeSamplingRenderer struct {
 	onGenerate func(req llm.BoardPostRequest) (llm.BoardPostDraft, error)
 }
