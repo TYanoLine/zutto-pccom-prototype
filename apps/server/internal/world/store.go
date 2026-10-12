@@ -130,6 +130,12 @@ type PresenceStore interface {
 	// that ended at the given world time.
 	EndHumanCall(callID string, at time.Time) (HumanCall, bool)
 	ListHumanCalls(hostID string) []HumanCall
+	// ListCallActivities returns the stored plans of calls that started in
+	// [from, to). A zero to means no upper bound.
+	ListCallActivities(hostID string, from, to time.Time) []CallActivity
+	// SaveCallActivities stores plans that are not stored yet; a plan already
+	// stored for the same actor and call start is left unchanged.
+	SaveCallActivities(hostID string, acts []CallActivity)
 }
 
 // LineOccupancy decides and registers line use on behalf of the telephone and
@@ -200,6 +206,8 @@ type MemoryStore struct {
 	// presence holds observed sessions per host; humanCalls the live calls.
 	presence   map[string][]PresenceSession
 	humanCalls map[string]HumanCall
+	// callPlans holds observed resident call plans per host (spec 016).
+	callPlans map[string][]CallActivity
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
 	next      int64
@@ -221,6 +229,7 @@ func NewMemoryStore() *MemoryStore {
 		relationships: map[relationshipKey]RelationshipEdge{},
 		presence:      map[string][]PresenceSession{},
 		humanCalls:    map[string]HumanCall{},
+		callPlans:     map[string][]CallActivity{},
 		next:          1000,
 	}
 
