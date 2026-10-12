@@ -159,6 +159,11 @@ func (r *Repository) SetWorldNow(now func() time.Time) {
 	}
 }
 
+// WorldNow implements world.WorldTimeSource.
+func (r *Repository) WorldNow() time.Time {
+	return r.currentWorldTime()
+}
+
 func (r *Repository) currentWorldTime() time.Time {
 	if r.worldNow != nil {
 		return r.worldNow()

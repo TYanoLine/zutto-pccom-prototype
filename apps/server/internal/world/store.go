@@ -152,6 +152,22 @@ type PresenceObserver interface {
 	ObservePresenceNow(host Host) []PresenceSession
 }
 
+// WorldTimeSource is implemented by stores that know the world clock. Host
+// runtimes stamp what the human writes with it, so human posts share the
+// world's timeline with resident activity.
+type WorldTimeSource interface {
+	WorldNow() time.Time
+}
+
+// WorldNowOf returns the world time of store, or the real time for stores
+// without a world clock (plain in-memory stores in tests and tools).
+func WorldNowOf(store any) time.Time {
+	if source, ok := store.(WorldTimeSource); ok {
+		return source.WorldNow()
+	}
+	return time.Now()
+}
+
 // DevelopmentConversationResetStore is intentionally a development-only escape
 // hatch. It lets the materialization demo clear observed posts and lazily-created
 // persona details so a tester can compare generation behavior without rebuilding

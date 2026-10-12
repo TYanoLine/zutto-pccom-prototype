@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"zutto-pccom/apps/server/internal/hostcatalog"
 	"zutto-pccom/apps/server/internal/world"
@@ -123,7 +122,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			AuthorMemberID: r.handle,
 			Subject:        r.subject,
 			Body:           line,
-			CreatedAt:      time.Now(),
+			CreatedAt:      world.WorldNowOf(r.Store),
 		})
 		r.threadID = p.ID
 		r.state = "thread"
@@ -165,7 +164,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			// the append itself has no independently displayed subject.
 			Subject:   "",
 			Body:      line,
-			CreatedAt: time.Now(),
+			CreatedAt: world.WorldNowOf(r.Store),
 		})
 		r.state = "thread"
 		return "\r\nアペンドしました。\r\n" + r.renderThread(r.threadID), false

@@ -5,7 +5,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -542,7 +541,7 @@ func (r *Runtime) storeEntry(preformatted bool) string {
 		AuthorMemberID: r.caller,
 		Subject:        r.enterSubject,
 		Body:           body,
-		CreatedAt:      time.Now(),
+		CreatedAt:      world.WorldNowOf(r.Store),
 	})
 	r.clearEntry()
 	r.state = "main"
