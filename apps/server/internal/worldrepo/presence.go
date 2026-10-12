@@ -47,8 +47,9 @@ func (r *Repository) presenceAt(ps world.PresenceStore, host world.Host, t time.
 }
 
 // observePresence stores the residents' sessions and their connection profiles
-// as world history. Live human calls are stored separately when they end.
-func (r *Repository) observePresence(ps world.PresenceStore, host world.Host, res presence.Result, at time.Time) {
+// as world history, with the plans of those calls when given (spec 016). Live
+// human calls are stored separately when they end.
+func (r *Repository) observePresence(ps world.PresenceStore, host world.Host, res presence.Result, at time.Time, plans ...world.CallActivity) {
 	if batch, ok := r.Base.(world.PostBatchStore); ok {
 		batch.BeginPostBatch(host.ID)
 		defer batch.EndPostBatch(host.ID)
@@ -60,6 +61,9 @@ func (r *Repository) observePresence(ps world.PresenceStore, host world.Host, re
 		}
 	}
 	ps.SaveObservedSessions(host.ID, residents)
+	if len(plans) > 0 {
+		ps.SaveCallActivities(host.ID, plans)
+	}
 
 	factStore, ok := r.Base.(world.PersonaFactStore)
 	if !ok {

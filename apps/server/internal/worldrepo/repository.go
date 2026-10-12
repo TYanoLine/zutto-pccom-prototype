@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"zutto-pccom/apps/server/internal/actormemory"
@@ -83,6 +84,10 @@ type Repository struct {
 	// actor-scoped memory tool execution during prose materialization.
 	actorMemoryMu    sync.RWMutex
 	actorMemoryIndex *actormemory.Index
+
+	// residentChat lets residents enter chat rooms (spec 016 FR-004). It is
+	// off unless the server can also give them words.
+	residentChat atomic.Bool
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {

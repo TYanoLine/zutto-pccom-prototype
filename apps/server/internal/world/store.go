@@ -138,6 +138,37 @@ type PresenceStore interface {
 	SaveCallActivities(hostID string, acts []CallActivity)
 }
 
+// ChatEventKind is a resident entering or leaving a chat room.
+type ChatEventKind string
+
+const (
+	ChatJoin  ChatEventKind = "join"
+	ChatLeave ChatEventKind = "leave"
+)
+
+// ChatEvent is a resident entering or leaving a chat room at a world time. A
+// leave is also reported when the call ends while the resident is in the room.
+type ChatEvent struct {
+	At     time.Time
+	Kind   ChatEventKind
+	Room   int
+	Actor  ActorRef
+	Handle string
+}
+
+// ChatHost gives host programs what residents do within their calls and in
+// chat rooms (spec 016). It is shared by every host program: the names and
+// arguments carry no program's screen wording. Host programs use it through a
+// type assertion, like PresenceObserver.
+type ChatHost interface {
+	// CallActivitiesNow returns the plans of the residents on the host's lines
+	// now, saving them as observed.
+	CallActivitiesNow(host Host) []CallActivity
+	// ChatEvents returns room's join and leave events in (from, to], in time
+	// order, saving the plans they come from as observed.
+	ChatEvents(host Host, room int, from, to time.Time) []ChatEvent
+}
+
 // LineOccupancy decides and registers line use on behalf of the telephone and
 // call-session layers. Implementations compute resident presence, so they live
 // above the plain stores.
