@@ -90,7 +90,7 @@
 
 - [ ] **T008** `Poll` に電報の配達を足す（状態 `call`、`chat_menu`）。
   テスト（ストーリー 10、11）: `call` で `\a`、`#NN HANDLE>本文\a`、空行、WHO、空行、ヒント、`CALL> ->` の形で出る。同じ電報は 2 回出ない。
-  `telegram_body`、`chat_room` では空で、`call` に戻ったあとに出る。電報のない画面の出力が変わらない。
+  `telegram_body`、`chat_room` では空で、`call` に戻ったあとに `N 件の電報が届いています。` の行に続けてまとめて出る（1 通でも同じ。割り込みの 1 通には付かない）。電報のない画面の出力が変わらない。
 
   ```bash
   go -C apps/server test ./internal/hostprogram/... -count=1
