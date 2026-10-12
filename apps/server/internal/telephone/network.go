@@ -52,6 +52,19 @@ func (n *Network) dialAt(phone string, at time.Time, attempt int) DialResult {
 		return DialResult{Result: Connect, Host: host, Baud: host.MaxBaud, Line: 1}
 	}
 
+	if lines, ok := n.store.(world.LineOccupancy); ok {
+		// Spec 015: BUSY comes from real line occupancy by residents and
+		// other callers at this world time.
+		line, free := lines.DialLine(host, at)
+		if !free {
+			return DialResult{Result: Busy, Host: host}
+		}
+		bucket := at.Unix() / 10
+		baud := negotiatedBaud(host.MaxBaud, stableUnit(phone+"baud", bucket, int64(attempt)))
+		return DialResult{Result: Connect, Host: host, Baud: baud, Line: line}
+	}
+
+	// Stores without line occupancy keep the earlier probabilistic model.
 	p := busyProbability(host, at)
 	// Deterministic-ish per 10-second bucket + attempt; repeated redial changes outcome.
 	bucket := at.Unix() / 10
