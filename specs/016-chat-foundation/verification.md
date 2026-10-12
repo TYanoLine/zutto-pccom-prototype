@@ -47,3 +47,89 @@ T008 の時点（上の表）では 200 ms 未満なのでキャッシュを入�
 | 同じ時刻の 3 回目の WHO（最初の WHO が保存した後） | 測定なし | 7.7〜13.5 ms |
 
 最初の WHO は、見たものを保存して指紋が変わるため、キャッシュが効くのは次の保存までの呼び出し。
+
+## T004 ポーリングのテスト
+
+| コマンド | 結果 |
+|---|---|
+| `go -C apps/server test ./internal/ws -count=1` | ok |
+| `go -C apps/server test -race ./internal/ws -count=1` | ok |
+
+## T009 / T013 の確認
+
+| コマンド | 結果 |
+|---|---|
+| `go -C apps/server test ./internal/world ./internal/callplan ./internal/worldrepo ./internal/worldpersist ./internal/hostcatalog -count=1` | すべて ok |
+| `go -C apps/server test ./internal/hostprogram/... ./internal/hostcatalog ./cmd/server -count=1` | すべて ok |
+| `git diff --stat origin/main -- apps/server/internal/hostprogram/erikak/testdata apps/server/internal/world/testdata` | 出力なし（金型の差分なし） |
+
+## T015 全体の確認（HEAD fba7330）
+
+| コマンド | 結果 |
+|---|---|
+| `go -C apps/server test ./... -count=1` | 26 パッケージ ok、失敗 0 |
+| `go -C apps/server vet ./...` | エラー 0 |
+| `go -C apps/server test -race ./internal/ws ./internal/worldrepo -count=1` | ok（ws 1.2 s、worldrepo 57.6 s。T015 の時点の HEAD c052160 で実行。その後の変更は YAML の 1 文字だけ） |
+| `grep -rn "電報\|\"CALL\"\|\"CHAT\"" apps/server/internal/ws apps/server/internal/world apps/server/internal/callplan apps/server/internal/worldrepo` | 下の 2 行 |
+
+```text
+apps/server/internal/world/presence.go:63:// paging -> "CALL", chat -> "CHAT"). See spec 016.
+apps/server/internal/worldrepo/bbs_situation_open_topics_test.go:81:        {"CHAT", world.Board{ID: "68/1", Name: "深夜雑談", SemanticScope: "深夜に接続している会員の雑談。"}},
+```
+
+1 行目は `world/presence.go` の状態名の対応表のコメント（許される行）。2 行目は `main` にすでにある掲示板の題名のテスト
+（`0892531` で追加。チャットとは関係がなく、本仕様では変更していない）。
+
+## 既存のテストの変更
+
+`erikak/runtime_test.go` の `TestWHOShowsWorldPresence` は、HAKATA CANAL NET（`0920000196`）で旧スタブのチャット画面の `WHO` を
+確かめていた。T012 で HAKATA に `erika_k.chat` を加えたので、`4` / `C` は電報の画面に進み、このテストは失敗した。
+テストの意図（`erika_k.chat` のない局のスタブの `WHO` が世界の接続を出す）を保つため、このテストの `whoStore` に、局の定義から
+`erika_k.chat` を外す `HostDetail` を加えた。アサーションは変えていない。
+
+## ローカルのサーバーでの手動確認
+
+`ADDR=127.0.0.1:18080` でサーバーを起動し（Azure OpenAI のキーなし。したがって住民はチャット室に入らない）、Node の WebSocket で
+`0920000196` に接続して、`""`（GUEST）、`4`、`""`、`1`、`2`、`テストです(^^)`、`X`、`0`、`こんばんは`、`..`、`""` を送った。
+世界時刻は 1996-10-12 の午後で、回線 2、3 は空いていた。出力の抜粋（BEL は `\a` と表記）:
+
+```text
+#01 GUEST     WHO       14K-...
+#02 ring
+#03 ring
+
+[回線番号]=電報 [ﾘﾀｰﾝ]=WHO [X]=CHAT [.]=戻る
+CALL> ->? COMMAND ERROR
+...
+ルーム番号をどうぞ  （中止はﾘﾀｰﾝｷｰ） -->
+
+  チャット終了は 「..」 または 「CTRL+B」 を入力して下さい
+------------------------------------------------------------------------------
+  ロビーはどなたでもどうぞ。はじめての方もお気軽に(^^)
+------------------------------------------------------------------------------
+------------------------------------CHAT ON-----------------------------------
+\a\a## chat on  GUEST ##
+
+GUEST   :こんばんは
+
+GUEST   :..
+
+\a\a## chat off GUEST ##
+------------------------------------CHAT OFF----------------------------------
+
+#01 GUEST     WHO       14K-...
+#02 ring
+#03 ring
+```
+
+`1`（自分の回線）と `2`（空き回線）は `? COMMAND ERROR` になり、電報の本文には進まなかった。
+このとき電報の画面の見出しの `〖〗` が PC-98 の Shift_JIS に変換できず `?` と表示されたので、`【】` に直した（`fba7330`）。
+
+## 実施しなかった確認
+
+- Web 端末（`apps/web`）での表示は確かめていない。とくに、入力した行が端末にどう残るか（各応答の先頭の改行と、チャット室での自分の行の表示の重なり）は、
+  上の生の出力でしか見ていない。
+- 住民がチャット室に出入りする様子は、Azure OpenAI のキーがない手元のサーバーでは出ないため、手では確かめていない。
+  `worldrepo` の `TestErikaKChatThroughRepository`（実際の局と住民、チャット有効、`Poll` を 2 時間分）で確かめた。
+- `ChatEvents` 1 回の所要時間は単独では測っていない（上の `Poll` 360 回の合計からの平均だけ）。
+- 対話の台帳（`InteractionEvent`）は、これまでと同じくスナップショットに保存されない。保存・復元するのは発言と回線宛メッセージの記録（`chat_utterances`、`line_messages`）だけ。
