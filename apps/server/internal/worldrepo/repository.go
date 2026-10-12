@@ -41,6 +41,7 @@ type BoardMaterializationRequest struct {
 	Kind                       worldengine.PostKind
 	ParentPost                 *world.Post
 	QuoteText                  string
+	RelationshipContext        string
 	BodyMinChars, BodyMaxChars int
 }
 

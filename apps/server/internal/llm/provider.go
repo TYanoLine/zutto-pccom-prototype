@@ -40,11 +40,12 @@ type BoardPostRequest struct {
 	PostIntent       string
 	CanonicalSubject string
 	Kind             string
-	ParentSubject    string
-	ParentBody       string
-	QuoteText        string
-	BodyMinChars     int
-	BodyMaxChars     int
+	ParentSubject       string
+	ParentBody          string
+	QuoteText           string
+	RelationshipContext string
+	BodyMinChars        int
+	BodyMaxChars        int
 }
 
 type BoardPostDraft struct {

@@ -171,6 +171,9 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		CanonicalSubject: canonicalSubject,
 	}
 	req = r.prepareBoardComposition(req, selected)
+	if req.ParentPost != nil && req.RelationshipContext == "" {
+		req.RelationshipContext = r.materializationRelationshipContext(host, selected, req.ParentPost)
+	}
 	var posts []world.Post
 	var usage GenerationUsage
 	for attempt := 0; attempt < 2; attempt++ {
@@ -357,3 +360,46 @@ func joinDevelopmentDiagnostics(parts ...string) string {
 	}
 	return strings.Join(out, " ")
 }
+
+func (r *Repository) materializationRelationshipContext(host world.Host, selected world.Post, parentPost *world.Post) string {
+	if parentPost == nil {
+		return ""
+	}
+	authorRef := actorRefFromPost(selected)
+	targetRef := actorRefFromPost(*parentPost)
+	targetName := parentPost.Author
+	if targetName == "" {
+		targetName = "相手"
+	}
+
+	replyCount := 0
+	if !authorRef.IsZero() && !targetRef.IsZero() {
+		if relStore, ok := r.Base.(world.RelationshipStore); ok {
+			if edge, found := relStore.GetRelationship(host.ID, authorRef, targetRef); found {
+				replyCount += edge.BoardReplyCount
+			}
+			if reverseEdge, found := relStore.GetRelationship(host.ID, targetRef, authorRef); found {
+				replyCount += reverseEdge.BoardReplyCount
+			}
+		}
+	}
+
+	if replyCount == 0 {
+		return fmt.Sprintf("相手（%s）とは初めてのやり取り（初対面）です。最低限のネチケットを守りつつ、同じ掲示板の仲間として親しみやすく接してください。", targetName)
+	} else if replyCount >= 2 {
+		return fmt.Sprintf("相手（%s）とは以前から掲示板で何度もやり取りしている気心の知れた常連仲間です。堅苦しい挨拶は抜きにして、趣味サークルのようなフランクなノリで話してください。", targetName)
+	}
+	return fmt.Sprintf("相手（%s）とは以前にもやり取りしたことがある仲間です。親しみのある自然なトーンで接してください。", targetName)
+}
+
+func actorRefFromPost(p world.Post) world.ActorRef {
+	if p.AuthorPersonaID != "" {
+		return world.ActorRef{Kind: "persona", ID: p.AuthorPersonaID}
+	} else if p.AuthorMemberID != "" {
+		return world.ActorRef{Kind: "member", ID: p.AuthorMemberID}
+	} else if p.Author != "" {
+		return world.ActorRef{Kind: "member", ID: p.Author}
+	}
+	return world.ActorRef{}
+}
+

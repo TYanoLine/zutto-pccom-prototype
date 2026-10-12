@@ -213,3 +213,261 @@ func TestMaterializeSampling_RestrainedMemoryVerification(t *testing.T) {
 		}
 	})
 }
+
+func TestMaterializeSampling_PersonaToneAndRelationship(t *testing.T) {
+	ctx := context.Background()
+	store := newTestStore()
+	host := experimentTestHost()
+	store.SaveHost(host)
+
+	// Seed actors: KAZU.O (author of root post) and JOKER.N (regular peer)
+	kazuActor := world.ActorRef{Kind: "persona", ID: "kazu"}
+	jokerActor := world.ActorRef{Kind: "persona", ID: "joker"}
+
+	// Seed relationship: KAZU.O and JOKER.N have interacted 4 times (regulars)
+	_ = store.UpdateRelationship(world.RelationshipEdge{
+		HostID:          host.ID,
+		FromActor:       jokerActor,
+		ToActor:         kazuActor,
+		BoardReplyCount: 4,
+	})
+
+	// Parent post: KAZU.O offers Tactics Ogre lending
+	parentPost := world.Post{
+		BoardID:         "game",
+		Author:          "KAZU.O",
+		AuthorPersonaID: "kazu",
+		Subject:         "タクティクスオウガ、クリアしたので貸せます",
+		Body:            "SFC版の『タクティクスオウガ』、ひとまずクリアしました。しばらく遊ぶ予定もないので、やってみたい方がいたらお貸しします。希望の方はこの板かメールで連絡ください。",
+		CreatedAt:       time.Date(1996, 2, 11, 16, 0, 0, 0, time.UTC),
+	}
+	savedParent := store.AddPost(host.ID, parentPost)
+
+	decision := worldengine.EvidenceDecision{
+		Level:     historicalkb.EvidenceAtmospheric,
+		Knowledge: historicalkb.KnowledgeResult{CanUse: true},
+	}
+
+	t.Run("Scenario 1: Regular peer (JOKER.N) - casual clubroom tone without stiff business mail", func(t *testing.T) {
+		jokerPersona := world.Persona{
+			ID:           "joker",
+			Handle:       "JOKER.N",
+			Age:          24,
+			Gender:       "male",
+			Occupation:   "会社員",
+			WritingStyle: "気さくでテンポの良い口調。(笑) や (^^) を好む。",
+		}
+		store.SavePersona(jokerPersona)
+
+		var capturedPrompt string
+		model := &mockToolTurnModel{
+			onComplete: func(req llm.ToolTurnRequest) (llm.ToolTurnResponse, error) {
+				if len(req.Messages) > 0 {
+					capturedPrompt = req.Messages[0].Content
+				}
+				return llm.ToolTurnResponse{
+					Text: `{"author":"JOKER.N","subject":"Re: タクティクスオウガ、クリアしたので貸せます","body":"うわ、もう希望者が(笑) じゃあ自分は2番手でお願いします！\r\nオウガ面白いって評判ですよね〜。順番回ってきたら声かけてください (^^)"}`,
+				}, nil
+			},
+		}
+
+		repo := New(store, nil, LLMMaterializer{ToolModel: model, ActorMemoryStore: store}, "1996-02-12")
+		repo.SetFreeformBody(true)
+
+		replyPost := world.Post{
+			BoardID:         "game",
+			Author:          "JOKER.N",
+			AuthorPersonaID: "joker",
+			ParentID:        savedParent.ID,
+			Subject:         "Re: タクティクスオウガ、クリアしたので貸せます",
+			CreatedAt:       time.Date(1996, 2, 12, 10, 0, 0, 0, time.UTC),
+			Intent: world.PostIntent{
+				DiscourseMode:    "reply",
+				Topic:            "貸出希望の表明",
+				RespondsToPostID: savedParent.ID,
+			},
+		}
+		savedReply := store.AddPost(host.ID, replyPost)
+
+		result, found, generated, diag := repo.materializeArticleBodyOnce(
+			host,
+			world.Board{ID: "game", Name: "ゲーム"},
+			savedReply,
+		)
+		if !found || !generated {
+			t.Fatalf("materialize failed: found=%v generated=%v diag=%s", found, generated, diag)
+		}
+
+		// Verify that relationship context is injected into prompt
+		if !strings.Contains(capturedPrompt, "常連仲間") {
+			t.Errorf("expected regular peer relationship context in prompt, got:\n%s", capturedPrompt)
+		}
+		// Verify that persona traits are injected into prompt
+		if !strings.Contains(capturedPrompt, "24歳・male・会社員") || !strings.Contains(capturedPrompt, "気さくでテンポの良い口調") {
+			t.Errorf("expected persona traits in prompt, got:\n%s", capturedPrompt)
+		}
+
+		t.Logf("[Scenario 1 Regular Peer Output]:\n%s", result.Body)
+	})
+
+	t.Run("Scenario 2: First-time poster (JUN) - polite yet approachable tone", func(t *testing.T) {
+		junPersona := world.Persona{
+			ID:               "jun",
+			Handle:           "JUN",
+			Age:              19,
+			Gender:           "female",
+			Occupation:       "学生",
+			WritingStyle:     "丁寧だが堅苦しくない親しみやすい口調。",
+			NewcomerOpenness: 0.8,
+		}
+		store.SavePersona(junPersona)
+
+		var capturedPrompt string
+		model := &mockToolTurnModel{
+			onComplete: func(req llm.ToolTurnRequest) (llm.ToolTurnResponse, error) {
+				if len(req.Messages) > 0 {
+					capturedPrompt = req.Messages[0].Content
+				}
+				return llm.ToolTurnResponse{
+					Text: `{"author":"JUN","subject":"Re: タクティクスオウガ、クリアしたので貸せます","body":"はじめまして！ 私もオウガずっと気になっていたので、もし順番が回ってきたらぜひ遊ばせてください。急ぎませんのでゆっくりで大丈夫です (^_^)"}`,
+				}, nil
+			},
+		}
+
+		repo := New(store, nil, LLMMaterializer{ToolModel: model, ActorMemoryStore: store}, "1996-02-12")
+		repo.SetFreeformBody(true)
+
+		replyPost := world.Post{
+			BoardID:         "game",
+			Author:          "JUN",
+			AuthorPersonaID: "jun",
+			ParentID:        savedParent.ID,
+			Subject:         "Re: タクティクスオウガ、クリアしたので貸せます",
+			CreatedAt:       time.Date(1996, 2, 12, 11, 0, 0, 0, time.UTC),
+			Intent: world.PostIntent{
+				DiscourseMode:    "reply",
+				Topic:            "初対面での貸出希望",
+				RespondsToPostID: savedParent.ID,
+			},
+		}
+		savedReply := store.AddPost(host.ID, replyPost)
+
+		result, found, generated, diag := repo.materializeArticleBodyOnce(
+			host,
+			world.Board{ID: "game", Name: "ゲーム"},
+			savedReply,
+		)
+		if !found || !generated {
+			t.Fatalf("materialize failed: found=%v generated=%v diag=%s", found, generated, diag)
+		}
+
+		// Verify that first-time relationship context is injected into prompt
+		if !strings.Contains(capturedPrompt, "初めてのやり取り（初対面）") {
+			t.Errorf("expected first-time relationship context in prompt, got:\n%s", capturedPrompt)
+		}
+		if !strings.Contains(capturedPrompt, "19歳・female・学生") {
+			t.Errorf("expected student persona traits in prompt, got:\n%s", capturedPrompt)
+		}
+
+		t.Logf("[Scenario 2 First-Time Poster Output]:\n%s", result.Body)
+	})
+
+	t.Run("Scenario 3: Argumentative tech persona (X68.G) - opinionated & logical tone", func(t *testing.T) {
+		x68Persona := world.Persona{
+			ID:                "x68g",
+			Handle:            "X68.G",
+			Age:               32,
+			Gender:            "male",
+			Occupation:        "エンジニア",
+			WritingStyle:      "要点を明確に書く。技術的な理由を添える。",
+			Argumentativeness: 0.85,
+		}
+
+		m := LLMMaterializer{
+			Renderer: &fakeSamplingRenderer{
+				onGenerate: func(req llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+					// Check prompt contains personality traits
+					if !strings.Contains(req.PersonaProfile, "自分のこだわりや論理をはっきり述べる傾向がある") {
+						t.Errorf("expected argumentative trait in PersonaProfile: %s", req.PersonaProfile)
+					}
+					return llm.BoardPostDraft{
+						Author:  req.AuthorHandle,
+						Subject: req.CanonicalSubject,
+						Body:    "グラフィック処理の負荷を考えると、SFCのカスタム音源チップの使い方が秀逸ですね。特に多重スクロールの制御は見事だと思います。\r\n",
+					}, nil
+				},
+			},
+		}
+
+		req := BoardMaterializationRequest{
+			Host:             world.Host{ID: genericTestHostID, Name: "TEST NET"},
+			BoardID:          "game",
+			BoardTopic:       "ゲーム技術",
+			WorldDate:        "1996-02-12",
+			Persona:          &x68Persona,
+			CanonicalSubject: "Re: オウガの描画エンジンについて",
+		}
+
+		posts, _, err := m.GenerateBoardPostsWithUsage(ctx, req, decision)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(posts) != 1 {
+			t.Fatalf("expected 1 post, got %d", len(posts))
+		}
+		t.Logf("[Scenario 3 Argumentative Engineer Output]:\n%s", posts[0].Body)
+	})
+
+	t.Run("Scenario 4: LLM autonomous quote selection - focused excerpt at opening without mechanical boilerplate", func(t *testing.T) {
+		model := &mockToolTurnModel{
+			onComplete: func(req llm.ToolTurnRequest) (llm.ToolTurnResponse, error) {
+				return llm.ToolTurnResponse{
+					Text: `{"author":"JOKER.N","subject":"Re: タクティクスオウガ、クリアしたので貸せます","body":">やってみたい方がいたらお貸しします。\r\n\r\nぜひ遊んでみたいです！\r\n評判がすごく良いので気になってました。受け渡し方法はどうしましょうか？ (^^)"}`,
+				}, nil
+			},
+		}
+
+		repo := New(store, nil, LLMMaterializer{ToolModel: model, ActorMemoryStore: store}, "1996-02-12")
+		repo.SetFreeformBody(true)
+
+		replyPost := world.Post{
+			BoardID:         "game",
+			Author:          "JOKER.N",
+			AuthorPersonaID: "joker",
+			ParentID:        savedParent.ID,
+			Subject:         "Re: タクティクスオウガ、クリアしたので貸せます",
+			CreatedAt:       time.Date(1996, 2, 12, 12, 0, 0, 0, time.UTC),
+			Intent: world.PostIntent{
+				DiscourseMode:    "reply",
+				Topic:            "貸出希望の連絡",
+				RespondsToPostID: savedParent.ID,
+			},
+		}
+		savedReply := store.AddPost(host.ID, replyPost)
+
+		result, found, generated, diag := repo.materializeArticleBodyOnce(
+			host,
+			world.Board{ID: "game", Name: "ゲーム"},
+			savedReply,
+		)
+		if !found || !generated {
+			t.Fatalf("materialize failed: found=%v generated=%v diag=%s", found, generated, diag)
+		}
+		if !strings.HasPrefix(result.Body, ">やってみたい方がいたらお貸しします。") {
+			t.Errorf("expected natural opening quote, got:\n%s", result.Body)
+		}
+		t.Logf("[Scenario 4 LLM Autonomous Quote Output]:\n%s", result.Body)
+	})
+}
+
+type fakeSamplingRenderer struct {
+	onGenerate func(req llm.BoardPostRequest) (llm.BoardPostDraft, error)
+}
+
+func (f *fakeSamplingRenderer) GenerateBoardPost(ctx context.Context, req llm.BoardPostRequest) (llm.BoardPostDraft, error) {
+	if f.onGenerate != nil {
+		return f.onGenerate(req)
+	}
+	return llm.BoardPostDraft{Author: req.AuthorHandle, Subject: req.CanonicalSubject, Body: "ok"}, nil
+}
+

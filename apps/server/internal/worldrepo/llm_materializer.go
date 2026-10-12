@@ -95,7 +95,10 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 			}
 			return ""
 		}(),
-		QuoteText: req.QuoteText, BodyMinChars: req.BodyMinChars, BodyMaxChars: req.BodyMaxChars,
+		QuoteText:           req.QuoteText,
+		RelationshipContext: req.RelationshipContext,
+		BodyMinChars:        req.BodyMinChars,
+		BodyMaxChars:        req.BodyMaxChars,
 	}
 
 	if m.ToolModel != nil && m.ActorMemoryStore != nil && req.Persona != nil {
@@ -237,8 +240,37 @@ func personaSummary(p world.Persona) string {
 	if len(p.EverydayContext) > 0 {
 		baseline = strings.Join(p.EverydayContext, " / ")
 	}
-	return fmt.Sprintf("age=%d; gender=%s; occupation=%s; activity=%s; reply=%.2f; thread_start=%.2f; lurker=%.2f; newcomer_open=%.2f; argumentative=%.2f; writing=%s; everyday_baseline=[%s]; interests=[%s]; opinions=[%s]; IMPORTANT: everyday_baseline is ordinary already-established context, normally unspoken and never a novelty/topic by itself",
+
+	var traits []string
+	if p.Age > 0 && p.Gender != "" && p.Occupation != "" {
+		traits = append(traits, fmt.Sprintf("人物像: %d歳・%s・%s", p.Age, p.Gender, p.Occupation))
+	} else if p.Age > 0 {
+		traits = append(traits, fmt.Sprintf("年齢: %d歳", p.Age))
+	}
+	if strings.TrimSpace(p.WritingStyle) != "" {
+		traits = append(traits, fmt.Sprintf("文体・口調: %s", strings.TrimSpace(p.WritingStyle)))
+	}
+	if p.Argumentativeness >= 0.7 {
+		traits = append(traits, "性格・傾向: 自分のこだわりや論理をはっきり述べる傾向がある")
+	} else if p.Argumentativeness > 0 && p.Argumentativeness <= 0.3 {
+		traits = append(traits, "性格・傾向: 穏やかで和やか。相手の意見に共感しやすく角を立てない")
+	}
+	if p.NewcomerOpenness >= 0.7 {
+		traits = append(traits, "態度: 初対面や新参者にも親切で歓迎的")
+	}
+
+	toneGuide := ""
+	if len(traits) > 0 {
+		toneGuide = strings.Join(traits, "\n") + "\n"
+	}
+
+	rawMeta := fmt.Sprintf("age=%d; gender=%s; occupation=%s; activity=%s; reply=%.2f; thread_start=%.2f; lurker=%.2f; newcomer_open=%.2f; argumentative=%.2f; writing=%s; everyday_baseline=[%s]; interests=[%s]; opinions=[%s]; IMPORTANT: everyday_baseline is ordinary already-established context, normally unspoken and never a novelty/topic by itself",
 		p.Age, p.Gender, p.Occupation, p.ActivityPattern, p.ReplyTendency, p.ThreadStartTendency, p.LurkerTendency, p.NewcomerOpenness, p.Argumentativeness, p.WritingStyle, baseline, strings.Join(interests, ","), strings.Join(opinions, ","))
+
+	if toneGuide != "" {
+		return toneGuide + rawMeta
+	}
+	return rawMeta
 }
 
 func intentSummary(i world.PostIntent) string {
