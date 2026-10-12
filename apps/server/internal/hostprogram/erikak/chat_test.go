@@ -53,6 +53,10 @@ func (w *chatWorld) SendLineMessage(_ world.Host, m world.LineMessage) (world.Li
 	return m, nil
 }
 
+func (w *chatWorld) EnterChatRoom(world.Host, int, world.ActorRef, string, time.Time) {}
+
+func (w *chatWorld) LeaveChatRoom(world.Host, int, world.ActorRef, time.Time) {}
+
 var chatT0 = time.Date(1996, 4, 30, 23, 40, 0, 0, time.FixedZone("JST", 9*3600))
 
 func testChatSection() *hostcatalog.ErikaKChat {

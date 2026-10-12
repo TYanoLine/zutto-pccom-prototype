@@ -414,3 +414,33 @@ func TestStorePersistsChatRecords(t *testing.T) {
 		t.Fatalf("a restored store reused the ID %q", u.ID)
 	}
 }
+
+// TestStorePersistsResidentLines keeps what a resident's line verbalizes and
+// answers (spec 017), and still reads a snapshot written before those fields.
+func TestStorePersistsResidentLines(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	store, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone(genericPersistPhone)
+	at := time.Date(1996, 10, 15, 23, 30, 0, 0, time.UTC)
+	resident := world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}
+	u := store.SaveChatUtterance(world.ChatUtterance{HostID: host.ID, Room: 0, Actor: resident, Handle: "NORI", Body: "こんばんは〜", At: at, Slot: "welcome|x", RespondsTo: "h:1"})
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.ListChatUtterances(host.ID, 0, at, time.Time{}); len(got) != 1 || got[0].ID != u.ID || got[0].Slot != "welcome|x" || got[0].RespondsTo != "h:1" {
+		t.Fatalf("restored utterances = %+v", got)
+	}
+
+	var old world.ChatUtterance
+	if err := json.Unmarshal([]byte(`{"id":"h:1","host_id":"h","room":0,"actor":{"kind":"member","id":"c1"},"body":"どうも","at":"1996-10-15T23:30:00Z"}`), &old); err != nil {
+		t.Fatal(err)
+	}
+	if old.Body != "どうも" || old.Slot != "" || old.RespondsTo != "" {
+		t.Fatalf("old utterance = %+v", old)
+	}
+}
