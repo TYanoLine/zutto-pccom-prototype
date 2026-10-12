@@ -164,6 +164,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				active = session
 				attachment = token
+				if receiver, ok := runtime.(hostprogram.CallInfoReceiver); ok {
+					receiver.SetCallInfo(active.ID, active.Line, active.Baud)
+				}
+				sm.Line = active.Line
 				sm.Host = &active.Host
 				sm.Capabilities = capabilitiesFor(active.Host)
 				sm.SessionID = active.ID

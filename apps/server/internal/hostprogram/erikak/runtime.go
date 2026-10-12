@@ -22,6 +22,15 @@ type Runtime struct {
 	subject   string
 	detail    hostcatalog.ErikaKDetail
 	catalog   boardCatalog
+	// callID and line identify the caller's own logical line (spec 015).
+	callID string
+	line   int
+}
+
+// SetCallInfo records the caller's call and line for WHO.
+func (r *Runtime) SetCallInfo(callID string, line, _ int) {
+	r.callID = callID
+	r.line = line
 }
 
 func New(host world.Host, store world.Store) *Runtime {
@@ -79,6 +88,11 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 		r.handle = trimRunes(line, 16)
 		if strings.EqualFold(r.handle, "GUEST") {
 			r.handle = "GUEST"
+		}
+		if lines, ok := r.Store.(world.LineOccupancy); ok && r.callID != "" {
+			lines.SetHumanCallHandle(r.callID, r.handle)
+		}
+		if r.handle == "GUEST" {
 			return r.finishLogin(), false
 		}
 		r.state = "login_password"
@@ -307,7 +321,17 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 		if !r.canUseFeature(FeatureTelegramChat) {
 			return r.featureUnavailable()
 		}
-		return fmt.Sprintf("\r\n〖使用状態表示〗\r\nLINE 1  SYSOP     14400\r\nLINE 2  MARI       9600\r\nLINE 3  %-10s ONLINE\r\n\r\nMAIN MENU --> ", r.handle), false
+		var b strings.Builder
+		b.WriteString("\r\n〖使用状態表示〗\r\n")
+		for _, u := range r.lineUsers() {
+			if u.self {
+				fmt.Fprintf(&b, "LINE %d  %s ONLINE\r\n", u.line, padRunes(u.handle, 10))
+			} else {
+				fmt.Fprintf(&b, "LINE %d  %s%5d\r\n", u.line, padRunes(u.handle, 10), u.baud)
+			}
+		}
+		b.WriteString("\r\nMAIN MENU --> ")
+		return b.String(), false
 	case "MEMB":
 		if !r.canUseFeature(FeatureMemberList) {
 			return r.featureUnavailable()
@@ -548,7 +572,11 @@ func (r *Runtime) handleSimpleMenu(line, menu string) (string, bool) {
 			return r.renderChatMenu(), false
 		}
 		if upper == "WHO" {
-			return fmt.Sprintf("\r\nLINE1 SYSOP  LINE2 MARI  LINE3 %s\r\n\r\n(C) CHAT [M]=MENU [?]=HELP --> ", r.handle), false
+			var cells []string
+			for _, u := range r.lineUsers() {
+				cells = append(cells, fmt.Sprintf("LINE%d %s", u.line, u.handle))
+			}
+			return "\r\n" + strings.Join(cells, "  ") + "\r\n\r\n(C) CHAT [M]=MENU [?]=HELP --> ", false
 		}
 		if strings.HasPrefix(upper, "CALL") {
 			return "\r\n*** 電報を送信しました ***\r\n\r\n(C) CHAT [M]=MENU [?]=HELP --> ", false
@@ -1160,4 +1188,39 @@ func runeCellWidth(r rune) int {
 		return 1
 	}
 	return 2
+}
+
+type lineUser struct {
+	line   int
+	handle string
+	baud   int
+	self   bool
+}
+
+// lineUsers lists who holds the station's lines now, from the world's
+// observed presence (spec 015). Without presence only the caller is shown.
+func (r *Runtime) lineUsers() []lineUser {
+	var out []lineUser
+	selfShown := false
+	if observer, ok := r.Store.(world.PresenceObserver); ok {
+		for _, s := range observer.ObservePresenceNow(r.Host) {
+			u := lineUser{line: s.Line, handle: s.Handle, baud: s.Baud}
+			if r.callID != "" && s.Actor.Kind == world.ActorKindMember && s.Actor.ID == r.callID {
+				u.self, u.handle = true, r.handle
+				selfShown = true
+			}
+			if u.handle == "" {
+				u.handle = "GUEST"
+			}
+			out = append(out, u)
+		}
+	}
+	if !selfShown {
+		line := r.line
+		if line == 0 {
+			line = 1
+		}
+		out = append(out, lineUser{line: line, handle: r.handle, self: true})
+	}
+	return out
 }

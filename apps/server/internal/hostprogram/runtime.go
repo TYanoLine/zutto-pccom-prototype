@@ -26,6 +26,12 @@ type ObservationCatalog interface {
 	ObservationBoards() []world.Board
 }
 
+// CallInfoReceiver is optional: a host program that shows line use (WHO)
+// learns which logical line and call its own caller holds. See spec 015.
+type CallInfoReceiver interface {
+	SetCallInfo(callID string, line, baud int)
+}
+
 func ObservationBoards(runtime Runtime) []world.Board {
 	if provider, ok := runtime.(ObservationCatalog); ok {
 		return append([]world.Board(nil), provider.ObservationBoards()...)

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/presence"
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -158,5 +159,38 @@ func TestHumanCallsHoldLines(t *testing.T) {
 	}
 	if !hasEnded {
 		t.Fatalf("ended call not kept as history: %v", ended)
+	}
+}
+
+func TestErikaKWHOThroughRepository(t *testing.T) {
+	repo, store, host := presenceTestRepo(t, time.Time{})
+	now := busiestTime(t, repo, store, host)
+	repo.SetWorldNow(func() time.Time { return now })
+	host.Lines = 16
+	line, ok := repo.BeginHumanCall(host, "call-who", 9600)
+	if !ok {
+		t.Fatal("no line for the caller")
+	}
+	rt := erikak.New(host, repo)
+	rt.SetCallInfo("call-who", line, 9600)
+	rt.HandleLine("GUEST")
+	out, _ := rt.HandleLine("WHO")
+	if !strings.Contains(out, fmt.Sprintf("LINE %d  GUEST      ONLINE", line)) {
+		t.Fatalf("caller row missing on line %d:\n%s", line, out)
+	}
+	residents := 0
+	for _, s := range store.ListObservedSessions(host.ID, now, now.Add(time.Second)) {
+		if s.Actor.Kind == world.ActorKindPersona {
+			residents++
+			if !strings.Contains(out, s.Handle) {
+				t.Fatalf("resident %s observed but not shown:\n%s", s.Handle, out)
+			}
+		}
+	}
+	if residents == 0 {
+		t.Fatal("expected residents on the line at the busiest time")
+	}
+	if call, ok := store.HumanCall("call-who"); !ok || call.Handle != "GUEST" {
+		t.Fatalf("login did not record the handle: %+v", call)
 	}
 }
