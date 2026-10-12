@@ -3,6 +3,7 @@ package ws
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -11,6 +12,10 @@ import (
 )
 
 const DefaultReconnectGrace = 60 * time.Second
+
+// ErrLineBusy means every logical line was taken between the dial decision
+// and the call registration; the caller should be told BUSY.
+var ErrLineBusy = errors.New("all host lines are in use")
 
 type CallSession struct {
 	ID                string
@@ -30,6 +35,16 @@ type SessionManager struct {
 	mu             sync.Mutex
 	sessions       map[string]*CallSession
 	reconnectGrace time.Duration
+	// lines, when set, makes human calls hold a logical line from CONNECT
+	// until hang-up or expiry (spec 015).
+	lines world.LineOccupancy
+}
+
+// SetLineOccupancy registers human calls with the world's line occupancy.
+func (m *SessionManager) SetLineOccupancy(lines world.LineOccupancy) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lines = lines
 }
 
 func NewSessionManager(reconnectGrace time.Duration) *SessionManager {
@@ -50,6 +65,14 @@ func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostpro
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.lines != nil {
+		held, ok := m.lines.BeginHumanCall(host, id, baud)
+		if !ok {
+			return nil, 0, ErrLineBusy
+		}
+		line = held
+	}
 
 	s := &CallSession{
 		ID:          id,
@@ -148,6 +171,9 @@ func (m *SessionManager) deleteLocked(s *CallSession) {
 		s.expiry = nil
 	}
 	delete(m.sessions, s.ID)
+	if m.lines != nil {
+		m.lines.EndHumanCall(s.ID)
+	}
 }
 
 func newSessionID() (string, error) {

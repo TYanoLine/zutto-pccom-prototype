@@ -134,6 +134,7 @@ func main() {
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
 	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
+	sessions.SetLineOccupancy(runtimeStore)
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
