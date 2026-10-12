@@ -332,7 +332,7 @@ func (r *Repository) recordLineMessage(job lineJob, body string) (world.LineMess
 		return world.LineMessage{}, false
 	}
 	saved := records.SaveLineMessage(world.LineMessage{
-		HostID: job.host.ID, From: s.Speaker, To: job.call.Human, ToLine: job.call.Line, Body: body,
+		HostID: job.host.ID, From: s.Speaker, FromHandle: s.Handle, FromLine: s.Line, To: job.call.Human, ToLine: job.call.Line, Body: body,
 		SentAt: at, DeliverAt: at, Slot: s.Key, RespondsTo: s.RespondsTo,
 	})
 	if err := r.appendLedger(world.InteractionEvent{

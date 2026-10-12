@@ -51,8 +51,12 @@ type LineMessage struct {
 	SentAt    time.Time `json:"sent_at"`
 	DeliverAt time.Time `json:"deliver_at"`
 
-	// FromHandle is a human sender's login ID (spec 019).
+	// FromHandle is the handle the sender is shown under: a human's login ID
+	// (spec 019), or a resident's handle (spec 018).
 	FromHandle string `json:"from_handle,omitempty"`
+	// FromLine is the line a resident sent the message from (spec 018). A
+	// human's message does not set it.
+	FromLine int `json:"from_line,omitempty"`
 
 	// Slot is the key of the world's decision that a resident's message
 	// words (spec 018); empty for a human's message.
