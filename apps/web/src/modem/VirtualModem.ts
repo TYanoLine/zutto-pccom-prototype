@@ -214,7 +214,7 @@ export class VirtualModem {
     if (hadCarrier) this.onCallState?.(null);
     this.releaseSocket('hangup');
     this.terminal.write(wasCalling ? '\r\nNO CARRIER\r\n' : '\r\nOK\r\n');
-    this.onStatus?.('STANDALONE / MODEM IDLE');
+    this.onStatus?.('オフライン');
     this.emitTelemetry();
   }
 
@@ -296,7 +296,7 @@ export class VirtualModem {
           this.onStatus?.('STANDALONE / LINE SIMULATION');
         }
       } else {
-        this.onStatus?.('STANDALONE / MODEM IDLE');
+        this.onStatus?.('オフライン');
       }
     };
     socket.onmessage = event => {
@@ -418,7 +418,7 @@ export class VirtualModem {
       return;
     }
     if (msg.type === 'carrier' && msg.result === 'off') {
-      this.finishCarrierLoss('STANDALONE / MODEM IDLE');
+      this.finishCarrierLoss('オフライン');
       return;
     }
     if (msg.type === 'resume_result') {

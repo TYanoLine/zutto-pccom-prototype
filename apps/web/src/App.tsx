@@ -105,7 +105,7 @@ export default function App() {
   const suppressEnterRef = useRef(false);
   const commandHistoryRef = useRef<string[]>([]);
   const commandHistoryIndexRef = useRef<number>(-1);
-  const [status, setStatus] = useState('STANDALONE / MODEM IDLE');
+  const [status, setStatus] = useState('オフライン');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
   const [worldNow, setWorldNow] = useState(() => clock.now());
