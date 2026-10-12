@@ -214,6 +214,7 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 			add("detail.erika_k", fmt.Errorf("is only valid for host.program %q", erikaKProgramID))
 		}
 		add("detail.erika_k", validateErikaKDetail(f.Detail.ErikaK))
+		add("detail.erika_k.chat", validateErikaKChatRooms(f.Detail.ErikaK.Chat, f.Detail.ChatRooms))
 	}
 
 	if len(errs) > 0 {

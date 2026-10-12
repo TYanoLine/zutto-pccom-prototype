@@ -45,3 +45,50 @@ func TestChatRoomsAreValidated(t *testing.T) {
 		})
 	}
 }
+
+func TestErikaKChatIsParsed(t *testing.T) {
+	d := mustParseErikaK(t, `
+detail:
+  chat_rooms:
+    - { number: 0, weight: 1 }
+    - { number: 2, capacity: 4, weight: 1 }
+  erika_k:
+    chat:
+      call_menu:
+        title: "TITLE"
+        lines: ["----", "MENU", "----"]
+        hint: "HINT"
+      chat_menu: ["== ROOMS ==", "[0] ROOM 0", "[2] ROOM 2"]
+      room_notices:
+        2: ["notice one", "notice two"]
+`)
+	c := d.Chat
+	if c == nil || c.CallMenu.Title != "TITLE" || len(c.CallMenu.Lines) != 3 || c.CallMenu.Hint != "HINT" ||
+		len(c.ChatMenu) != 3 || len(c.RoomNotices[2]) != 2 {
+		t.Fatalf("chat = %+v", c)
+	}
+}
+
+func TestErikaKChatNeedsKnownRooms(t *testing.T) {
+	requireErikaKError(t, `
+detail:
+  erika_k:
+    chat:
+      chat_menu: ["ROOMS"]
+`, "detail.erika_k.chat", "needs detail.chat_rooms")
+	requireErikaKError(t, `
+detail:
+  chat_rooms: [{ number: 0, weight: 1 }]
+  erika_k:
+    chat:
+      room_notices:
+        5: ["no such room"]
+`, "detail.erika_k.chat", "room 5 is not in detail.chat_rooms")
+	requireErikaKError(t, `
+detail:
+  chat_rooms: [{ number: 0, weight: 1 }]
+  erika_k:
+    chat:
+      call_menu: { hint: "hello {handle}" }
+`, "chat.call_menu.hint", "{handle} is not replaced")
+}
