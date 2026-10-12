@@ -1,7 +1,10 @@
 package worldrepo
 
 import (
+	"fmt"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"zutto-pccom/apps/server/internal/callplan"
@@ -60,13 +63,17 @@ func (r *Repository) gatherCalls(ps world.PresenceStore, host world.Host, t time
 			ctx.profiles[id] = prof
 		}
 	}
-	times := append([]time.Time{}, extra...)
-	for w := t.Add(-presence.Lookback).Truncate(presence.Window); w.Before(t); w = w.Add(presence.Window) {
-		times = append(times, w)
-	}
-	times = append(times, t)
-	for _, at := range times {
+	for _, at := range append(extra, t) {
 		add(r.presenceAt(ps, host, at))
+	}
+	windows := r.presenceWindows.forHost(host.ID, presenceFingerprint(r, ps, host), t)
+	for w := t.Add(-presence.Lookback).Truncate(presence.Window); w.Before(t); w = w.Add(presence.Window) {
+		res, ok := windows.results[w.Unix()]
+		if !ok {
+			res = r.presenceAt(ps, host, w)
+			windows.results[w.Unix()] = res
+		}
+		add(res)
 	}
 	ctx.observed = ps.ListCallActivities(host.ID, t.Add(-2*presence.Lookback), time.Time{})
 	return ctx
@@ -225,4 +232,56 @@ func (r *Repository) handleOf(host world.Host, actor world.ActorRef) string {
 		}
 	}
 	return ""
+}
+
+// presenceWindowCache keeps presence computed on the window grid, per host.
+// A chat plan needs four hours of it; recomputing it on every poll of a caller
+// in a room costs about 100 ms (spec 016 plan §9). A grid time's result only
+// changes when the host's stored sessions, live human calls or residents
+// change, which the fingerprint captures; any change drops the host's entries.
+type presenceWindowCache struct {
+	mu    sync.Mutex
+	hosts map[string]*presenceWindows
+}
+
+type presenceWindows struct {
+	fingerprint string
+	results     map[int64]presence.Result
+}
+
+// forHost returns the host's cached windows for the fingerprint, dropping
+// windows too old to matter at t. The caller holds the host's presence lock,
+// which also guards the returned entry.
+func (c *presenceWindowCache) forHost(hostID, fingerprint string, t time.Time) *presenceWindows {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.hosts == nil {
+		c.hosts = map[string]*presenceWindows{}
+	}
+	w := c.hosts[hostID]
+	if w == nil || w.fingerprint != fingerprint {
+		w = &presenceWindows{fingerprint: fingerprint, results: map[int64]presence.Result{}}
+		c.hosts[hostID] = w
+	}
+	oldest := t.Add(-2 * presence.Lookback).Unix()
+	for at := range w.results {
+		if at < oldest {
+			delete(w.results, at)
+		}
+	}
+	return w
+}
+
+// presenceFingerprint summarizes what presence on a host is computed from.
+// Stored sessions and residents are only ever added, so counts tell a change.
+func presenceFingerprint(r *Repository, ps world.PresenceStore, host world.Host) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d|", len(ps.ListObservedSessions(host.ID, time.Time{}, time.Time{})))
+	if store, ok := r.Base.(world.PersonaStore); ok {
+		fmt.Fprintf(&b, "%d|", len(store.ListHostPersonas(host.ID)))
+	}
+	for _, c := range ps.ListHumanCalls(host.ID) {
+		fmt.Fprintf(&b, "%s@%d,", c.CallID, c.Line)
+	}
+	return b.String()
 }

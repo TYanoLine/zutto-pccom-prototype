@@ -171,15 +171,20 @@ func TestCallActivitiesNowTiming(t *testing.T) {
 	if n := len(store.ListHostPersonas(host.ID)); n < 300 {
 		t.Fatalf("%d residents, want 300", n)
 	}
-	var worst time.Duration
+	// The first WHO at a time computes four hours of presence and saves what it
+	// saw, which changes the cache fingerprint; from then on the window grid is
+	// cached until something new is saved.
+	var cold, warm time.Duration
 	for i := 0; i < 5; i++ {
 		at := now.Add(time.Duration(i) * 7 * time.Minute)
 		repo.SetWorldNow(func() time.Time { return at })
 		start := time.Now()
 		repo.CallActivitiesNow(host)
-		if d := time.Since(start); d > worst {
-			worst = d
-		}
+		cold = max(cold, time.Since(start))
+		repo.CallActivitiesNow(host)
+		start = time.Now()
+		repo.CallActivitiesNow(host)
+		warm = max(warm, time.Since(start))
 	}
-	t.Logf("CallActivitiesNow on %d residents: worst of 5 = %v", len(store.ListHostPersonas(host.ID)), worst)
+	t.Logf("CallActivitiesNow on %d residents: worst of 5 = %v (repeated at the same time: %v)", len(store.ListHostPersonas(host.ID)), cold, warm)
 }
