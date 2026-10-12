@@ -20,9 +20,9 @@ func KnownAs(actor ActorRef, login string) ActorRef {
 	return ActorRef{}
 }
 
-// postLogin is the login ID a human post was written under. Posts written
+// PostLogin is the login ID a human post was written under. Posts written
 // before spec 019 hold it in AuthorMemberID or Author only.
-func postLogin(p Post) string {
+func PostLogin(p Post) string {
 	if p.AuthorMemberID != "" {
 		return p.AuthorMemberID
 	}
@@ -39,7 +39,7 @@ func PostActor(p Post) ActorRef {
 	case p.AuthorHumanID != "":
 		return ActorRef{Kind: ActorKindMember, ID: p.AuthorHumanID}
 	}
-	if login := postLogin(p); login != "" {
+	if login := PostLogin(p); login != "" {
 		return ActorRef{Kind: ActorKindMember, ID: login}
 	}
 	return ActorRef{}
@@ -50,7 +50,7 @@ func PostKnownAs(p Post) ActorRef {
 	if p.AuthorPersonaID != "" {
 		return ActorRef{Kind: ActorKindPersona, ID: p.AuthorPersonaID}
 	}
-	return KnownAs(ActorRef{Kind: ActorKindMember, ID: "-"}, postLogin(p))
+	return KnownAs(ActorRef{Kind: ActorKindMember, ID: "-"}, PostLogin(p))
 }
 
 // knownLogin names a human actor of a ledger event as residents know them.

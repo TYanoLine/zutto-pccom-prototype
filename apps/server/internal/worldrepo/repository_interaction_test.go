@@ -130,7 +130,8 @@ func TestAddPost_UpdatesRelationshipEdge(t *testing.T) {
 	})
 
 	mariActor := world.ActorRef{Kind: "persona", ID: "persona-mari-01"}
-	taroActor := world.ActorRef{Kind: "member", ID: "member-taro-99"}
+	// Residents know a human by the login ID on the post (spec 019).
+	taroActor := world.ActorRef{Kind: world.ActorKindLogin, ID: "member-taro-99"}
 
 	// 2. 人間が親記事へ返信 (ParentID 指定)
 	reply1 := repo.AddPost(host.ID, world.Post{
@@ -212,5 +213,78 @@ func TestAddPost_UpdatesRelationshipEdge(t *testing.T) {
 	// 5. LLM プロバイダの呼び出しが 0 回であること
 	if llmClient.callCount != 0 {
 		t.Errorf("expected 0 LLM calls, got %d", llmClient.callCount)
+	}
+}
+
+// Spec 019: a human's post is filed under the human ID with the login ID it was
+// written under; residents' relationships are kept by login ID, and a guest is
+// nobody they know.
+func TestHumanPostsAreFiledByHumanIDAndKnownByLoginID(t *testing.T) {
+	store := newTestStore()
+	repo := New(store, nil, LLMMaterializer{Renderer: &countingLLMClient{}}, "1996-08-29")
+	host, err := store.HostByPhone(genericTestPhone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := repo.AddPost(host.ID, world.Post{BoardID: "1", Author: "MARI", AuthorPersonaID: "persona-mari-01", Subject: "モデム", CreatedAt: time.Date(1996, 8, 29, 12, 0, 0, 0, time.Local)})
+	mari := world.ActorRef{Kind: world.ActorKindPersona, ID: "persona-mari-01"}
+
+	reply := func(login, humanID string, minute int) world.Post {
+		return repo.AddPost(host.ID, world.Post{BoardID: "1", ParentID: root.ID, Author: login, AuthorMemberID: login, AuthorHumanID: humanID,
+			Subject: "Re: モデム", CreatedAt: time.Date(1996, 8, 29, 12, minute, 0, 0, time.Local)})
+	}
+	p := reply("TARO", "u1", 10)
+	ev, ok := store.GetInteractionEvent(fmt.Sprintf("post:%s:%d", host.ID, p.ID))
+	if !ok {
+		t.Fatal("no ledger event")
+	}
+	if ev.Actor != (world.ActorRef{Kind: world.ActorKindMember, ID: "u1"}) || ev.ActorLogin != "TARO" {
+		t.Errorf("ledger actor = %+v login %q", ev.Actor, ev.ActorLogin)
+	}
+	if len(ev.AddressedTo) != 1 || ev.AddressedTo[0] != mari || len(ev.AddressedLogins) != 1 || ev.AddressedLogins[0] != "" {
+		t.Errorf("addressed = %+v logins %q", ev.AddressedTo, ev.AddressedLogins)
+	}
+	if _, ok := store.GetRelationship(host.ID, world.ActorRef{Kind: world.ActorKindLogin, ID: "TARO"}, mari); !ok {
+		t.Error("no relationship between login TARO and MARI")
+	}
+
+	// The same human writing as GUEST, and a second guest, leave no relationship.
+	reply("GUEST", "u1", 20)
+	reply("GUEST", "u2", 30)
+	if _, ok := store.GetRelationship(host.ID, world.ActorRef{Kind: world.ActorKindLogin, ID: "GUEST"}, mari); ok {
+		t.Error("a relationship was kept for GUEST")
+	}
+	// Another human writing as TARO adds to the same person to residents.
+	reply("TARO", "u3", 40)
+	edge, _ := store.GetRelationship(host.ID, world.ActorRef{Kind: world.ActorKindLogin, ID: "TARO"}, mari)
+	if edge.BoardReplyCount != 2 {
+		t.Errorf("replies counted for TARO = %d, want 2", edge.BoardReplyCount)
+	}
+	// A reply to a guest's post is no relationship either.
+	g := reply("GUEST", "u2", 50)
+	repo.AddPost(host.ID, world.Post{BoardID: "1", ParentID: g.ID, Author: "MARI", AuthorPersonaID: "persona-mari-01", Subject: "Re: Re: モデム", CreatedAt: time.Date(1996, 8, 29, 12, 55, 0, 0, time.Local)})
+	if _, ok := store.GetRelationship(host.ID, mari, world.ActorRef{Kind: world.ActorKindLogin, ID: "GUEST"}); ok {
+		t.Error("a relationship was kept toward GUEST")
+	}
+}
+
+// Chat lines and telegrams of a human are filed under the human ID with the
+// login ID shown.
+func TestChatRecordsKeepTheLoginID(t *testing.T) {
+	repo, store, host, at := chatTestRepo(t, true)
+	human := world.ActorRef{Kind: world.ActorKindMember, ID: "u1"}
+	u, err := repo.RecordChatUtterance(host, world.ChatUtterance{Room: 0, Actor: human, Handle: "TARO", Body: "どうも", At: at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := repo.SendLineMessage(host, world.LineMessage{From: human, FromHandle: "TARO", To: world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}, ToLine: 2, Body: "やあ", SentAt: at, DeliverAt: at})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{world.ChannelChatUtterance + ":" + u.ID, world.ChannelLineMessage + ":" + m.ID} {
+		ev, ok := store.GetInteractionEvent(id)
+		if !ok || ev.Actor != human || ev.ActorLogin != "TARO" {
+			t.Errorf("%s: %+v", id, ev)
+		}
 	}
 }
