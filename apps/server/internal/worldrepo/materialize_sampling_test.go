@@ -417,6 +417,47 @@ func TestMaterializeSampling_PersonaToneAndRelationship(t *testing.T) {
 		}
 		t.Logf("[Scenario 3 Argumentative Engineer Output]:\n%s", posts[0].Body)
 	})
+
+	t.Run("Scenario 4: LLM autonomous quote selection - focused excerpt at opening without mechanical boilerplate", func(t *testing.T) {
+		model := &mockToolTurnModel{
+			onComplete: func(req llm.ToolTurnRequest) (llm.ToolTurnResponse, error) {
+				return llm.ToolTurnResponse{
+					Text: `{"author":"JOKER.N","subject":"Re: タクティクスオウガ、クリアしたので貸せます","body":">やってみたい方がいたらお貸しします。\r\n\r\nぜひ遊んでみたいです！\r\n評判がすごく良いので気になってました。受け渡し方法はどうしましょうか？ (^^)"}`,
+				}, nil
+			},
+		}
+
+		repo := New(store, nil, LLMMaterializer{ToolModel: model, ActorMemoryStore: store}, "1996-02-12")
+		repo.SetFreeformBody(true)
+
+		replyPost := world.Post{
+			BoardID:         "game",
+			Author:          "JOKER.N",
+			AuthorPersonaID: "joker",
+			ParentID:        savedParent.ID,
+			Subject:         "Re: タクティクスオウガ、クリアしたので貸せます",
+			CreatedAt:       time.Date(1996, 2, 12, 12, 0, 0, 0, time.UTC),
+			Intent: world.PostIntent{
+				DiscourseMode:    "reply",
+				Topic:            "貸出希望の連絡",
+				RespondsToPostID: savedParent.ID,
+			},
+		}
+		savedReply := store.AddPost(host.ID, replyPost)
+
+		result, found, generated, diag := repo.materializeArticleBodyOnce(
+			host,
+			world.Board{ID: "game", Name: "ゲーム"},
+			savedReply,
+		)
+		if !found || !generated {
+			t.Fatalf("materialize failed: found=%v generated=%v diag=%s", found, generated, diag)
+		}
+		if !strings.HasPrefix(result.Body, ">やってみたい方がいたらお貸しします。") {
+			t.Errorf("expected natural opening quote, got:\n%s", result.Body)
+		}
+		t.Logf("[Scenario 4 LLM Autonomous Quote Output]:\n%s", result.Body)
+	})
 }
 
 type fakeSamplingRenderer struct {

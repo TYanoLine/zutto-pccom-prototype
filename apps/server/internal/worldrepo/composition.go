@@ -40,9 +40,10 @@ func (r *Repository) prepareBoardComposition(req BoardMaterializationRequest, se
 			}
 		}
 	}
-	if req.Kind == worldengine.PostKindReply && req.QuoteText == "" && req.ParentPost != nil && h.Sum64()%1000 < 576 {
-		req.QuoteText = replyQuoteFragment(req.ParentPost.Body)
-	}
+	// Server-side deterministic quote extraction is disabled in favor of natural
+	// LLM quote selection from ParentBody, avoiding mechanical boilerplate quoting
+	// such as tail greetings like "よろしくお願いします。".
+	// (Explicit req.QuoteText passed by caller is still preserved if present.)
 	return req
 }
 

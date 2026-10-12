@@ -80,6 +80,19 @@
 - **検証評価**:
   - `Argumentativeness` が高い技術系ペルソナらしい、論理的で要点をはっきり述べる職人気質なトーンが表現されている。
 
+### シナリオ 4: LLM自律的引用選択（定型挨拶の機械的引用・末尾配置の排除）
+- **親記事**: KAZU.O「タクティクスオウガ、クリアしたので貸せます...やってみたい方がいたらお貸しします。希望の方はこの板かメールで連絡ください。」
+- **状況**: サーバー側の機械的な文末抽出（「よろしくお願いします。」の強制）を廃止し、親記事本文を読んだLLMが言及したい核心部分を冒頭へ自律的に引用。
+- **生成結果**:
+  ```text
+  >やってみたい方がいたらお貸しします。
+
+  ぜひ遊んでみたいです！
+  評判がすごく良いので気になってました。受け渡し方法はどうしましょうか？ (^^)
+  ```
+- **検証評価**:
+  - 機械的定型文（挨拶や結び）ではなく、言及したい核心部分（「やってみたい方がいたらお貸しします。」）が冒頭に `>` 引用され、本文末尾にぽつんと置かれる不自然さが解消されている。
+
 ---
 
 ## 4. 変更差分概要
@@ -88,6 +101,7 @@
    - `apps/server/internal/llm/board_post_prompt.go`
    - `apps/server/internal/llm/board_post_freeform.go`
    - 草の根BBSの部室的コミュニティ感の指針を追加。ビジネスメール調・メルカリ調・論文調を明確に禁止し、感情符（`(笑)`, `(^^;)`, `(^^)` 等）や親しみやすい口語を許容。
+   - 引用指針の追加: 返信時は親記事の核心部分を必要に応じて冒頭等に `>` 引用（または引用なし）する自然な表現を促し、挨拶のみの機械的引用を抑止。
 2. **ペルソナ自然言語プロファイルの導入**:
    - `apps/server/internal/worldrepo/llm_materializer.go` (`personaSummary`)
    - `apps/server/internal/worldrepo/freeform_body.go` (`freeformPersonaSummary`)
@@ -97,9 +111,12 @@
    - `apps/server/internal/worldrepo/repository.go` (`BoardMaterializationRequest.RelationshipContext`)
    - `apps/server/internal/worldrepo/llm_materializer.go` (`BoardPostRequest.RelationshipContext`)
    - 返信先の著者と本人の過去やり取り回数を `RelationshipEdge` から取得し、距離感に応じた文体コンテキストを自動注入。
-4. **サンプリング検証ハーネスの拡充**:
+4. **サーバー側の機械的引用抽出の廃止とLLMへの委譲**:
+   - `apps/server/internal/worldrepo/composition.go` (`prepareBoardComposition`)
+   - 親記事の文末を機械的に切り出して強制注入していたロジックを廃止し、親記事本文を読んだLLMの自然言語生成に委任。
+5. **サンプリング検証ハーネスの拡充**:
    - `apps/server/internal/worldrepo/materialize_sampling_test.go`
-   - `TestMaterializeSampling_PersonaToneAndRelationship` を新設し、各種シナリオでのプロンプト注入と出力を恒久的に検証。
+   - `TestMaterializeSampling_PersonaToneAndRelationship` を新設し、各種シナリオ（常連、初対面、こだわり派、自律的引用）でのプロンプト注入と出力を恒久的に検証。
 
 ---
 
