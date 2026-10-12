@@ -556,7 +556,7 @@ export default function App() {
   };
   return <main className="shell">
     <header className="desktop-topbar">
-      {desktopHostName && <span className="desktop-host-name">{desktopHostName}</span>}
+      {desktopHostName && <span className="desktop-host-name" title={desktopHostName}>{desktopHostName}</span>}
       <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
         <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
