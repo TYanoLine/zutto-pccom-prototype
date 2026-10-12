@@ -18,6 +18,9 @@ type DevelopmentHostSnapshot struct {
 	PersonaFacts  map[string][]PersonaFact `json:"persona_facts"`
 	Memberships   []string                 `json:"memberships"`
 	NextPostID    int64                    `json:"next_post_id"`
+	// Presence holds the observed connection sessions (spec 015). Older
+	// snapshots have none.
+	Presence []PresenceSession `json:"presence,omitempty"`
 }
 
 // DevelopmentSnapshot returns a detached copy of the state needed to reproduce
@@ -59,6 +62,7 @@ func (s *MemoryStore) DevelopmentSnapshot(phone string) (DevelopmentHostSnapshot
 		PersonaFacts:  facts,
 		Memberships:   memberships,
 		NextPostID:    s.next,
+		Presence:      append([]PresenceSession(nil), s.presence[host.ID]...),
 	}, true
 }
 
@@ -108,6 +112,7 @@ func (s *MemoryStore) RestoreDevelopmentSnapshot(snapshot DevelopmentHostSnapsho
 	if maxPostID > s.next {
 		s.next = maxPostID
 	}
+	s.presence[hostID] = append([]PresenceSession(nil), snapshot.Presence...)
 	return nil
 }
 
