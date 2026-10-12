@@ -254,21 +254,22 @@ func visibleTo(hostID string, actor world.ActorRef) func(Item) bool {
 
 func parseActor(id string) (world.ActorRef, error) {
 	kind, rest, ok := strings.Cut(id, ":")
-	if !ok || rest == "" || (kind != "persona" && kind != "member") {
-		return world.ActorRef{}, fmt.Errorf("invalid actor id %q (want persona:<id> or member:<id>)", id)
+	if !ok || rest == "" || (kind != "persona" && kind != "login") {
+		return world.ActorRef{}, fmt.Errorf("invalid actor id %q (want persona:<id> or login:<id>)", id)
 	}
 	return world.ActorRef{Kind: kind, ID: rest}, nil
 }
 
-// postActor mirrors how the interaction ledger names a post's author.
+// postActor names a post's author as residents know them (spec 019): a
+// resident by persona ID, a human by the login ID shown on the post. The author
+// is shown to the reader whatever the login ID, guests included; the human ID
+// is not a thing residents have.
 func postActor(p world.Post) world.ActorRef {
-	switch {
-	case p.AuthorPersonaID != "":
-		return world.ActorRef{Kind: "persona", ID: p.AuthorPersonaID}
-	case p.AuthorMemberID != "":
-		return world.ActorRef{Kind: "member", ID: p.AuthorMemberID}
-	case p.Author != "":
-		return world.ActorRef{Kind: "member", ID: p.Author}
+	if p.AuthorPersonaID != "" {
+		return world.ActorRef{Kind: world.ActorKindPersona, ID: p.AuthorPersonaID}
+	}
+	if login := world.PostLogin(p); login != "" {
+		return world.ActorRef{Kind: world.ActorKindLogin, ID: login}
 	}
 	return world.ActorRef{}
 }
@@ -296,24 +297,27 @@ func rootOf(byID map[int64]world.Post, id int64) int64 {
 }
 
 func matchesCounterpart(ref world.ActorRef, counterpart string) bool {
-	if kind, rest, ok := strings.Cut(counterpart, ":"); ok && (kind == "persona" || kind == "member") {
-		return ref.Kind == kind && ref.ID == rest
+	if kind, rest, ok := strings.Cut(counterpart, ":"); ok && (kind == "persona" || kind == "login" || kind == "member") {
+		// A human ID (member:<id>) is not something residents know.
+		return kind != "member" && ref.Kind == kind && ref.ID == rest
 	}
 	return ref.ID == counterpart
 }
 
-// between reports whether ev is an actor→counterpart or counterpart→actor exchange.
+// between reports whether ev is an actor→counterpart or counterpart→actor
+// exchange, between the people residents know.
 func between(ev world.InteractionEvent, actor world.ActorRef, counterpart string) bool {
-	if ev.Actor == actor {
-		for _, to := range ev.AddressedTo {
-			if matchesCounterpart(to, counterpart) {
+	from := ev.KnownActor()
+	if from == actor {
+		for i := range ev.AddressedTo {
+			if matchesCounterpart(ev.KnownAddressed(i), counterpart) {
 				return true
 			}
 		}
 	}
-	if matchesCounterpart(ev.Actor, counterpart) {
-		for _, to := range ev.AddressedTo {
-			if to == actor {
+	if matchesCounterpart(from, counterpart) {
+		for i := range ev.AddressedTo {
+			if ev.KnownAddressed(i) == actor {
 				return true
 			}
 		}
