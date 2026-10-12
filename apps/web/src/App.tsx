@@ -645,16 +645,6 @@ export default function App() {
       >
         {directoryOpen ? 'CALL' : 'RET'}<small>{directoryOpen ? '呼出' : '送出'}</small>
       </button>
-      <button
-        type="button"
-        className={`softkey-hangup${isCallingOrConnected ? ' softkey-hangup--active' : ''}`}
-        onPointerDown={e => e.preventDefault()}
-        onClick={() => softKey('HangUp')}
-        disabled={!isCallingOrConnected}
-        aria-label="回線を切断"
-      >
-        切断<small>ATH</small>
-      </button>
     </nav>
     <footer className="desktop-statusbar" aria-label="通信状況">
       <span className="desktop-statusbar__separator" />
