@@ -74,19 +74,32 @@ func hostOpen(host world.Host, t time.Time) bool {
 	return m >= from || m < to
 }
 
+// calendarContext is the calendar's view of one window for one lifestyle.
+type calendarContext struct {
+	holiday bool
+	factor  float64
+}
+
+func calendarAt(cal *worldcalendar.Calendar, t time.Time, lifestyle string) calendarContext {
+	return calendarContext{holiday: cal.UseHolidayProfile(t, lifestyle), factor: cal.Factor(t, lifestyle)}
+}
+
 // StartProbability is the chance that the resident starts a call to the host
 // in the window beginning at t: the product of the spec 008 FR-012 layers.
 func StartProbability(p world.Persona, prof Profile, host world.Host, cal *worldcalendar.Calendar, t time.Time) float64 {
+	return startProbability(p, prof, host, calendarAt(cal, t, prof.Lifestyle), t)
+}
+
+func startProbability(p world.Persona, prof Profile, host world.Host, cc calendarContext, t time.Time) float64 {
 	if !hostOpen(host, t) {
 		return 0
 	}
-	holiday := cal.UseHolidayProfile(t, prof.Lifestyle)
-	perWindow := dailyCalls(p.ActivityPattern) * share(prof.Lifestyle, holiday, t.Hour()) / float64(time.Hour/Window)
+	perWindow := dailyCalls(p.ActivityPattern) * share(prof.Lifestyle, cc.holiday, t.Hour()) / float64(time.Hour/Window)
 	v := perWindow *
 		telehoFactor(prof, t) *
 		phoneFactor(prof, t) *
 		nightFactor(prof, t) *
-		cal.Factor(t, prof.Lifestyle)
+		cc.factor
 	if v > maxStartProbability {
 		return maxStartProbability
 	}
