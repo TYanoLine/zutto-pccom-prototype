@@ -341,7 +341,7 @@ Current code intentionally still has shortcuts, including:
 - simplified terminal/ANSI behavior
 - atmospheric rather than fully historical telephone tariffs
 - Azure OpenAI provider boundary present but AI not yet part of normal host posting behavior
-- human posts stored with a handle string only (no member ID, no annotated intent), so they cannot yet be the subject of observations or relationships
+ - human posts keep the user's human ID and the login ID shown (spec 019) but no annotated intent; residents know a human only by login ID, and the shared guest login ID `GUEST` is nobody they can know; sign-up and password checks do not exist, so any ID is accepted
 - mail menus are fixed placeholder text with no persistence; telegram and chat screens exist only for stations whose definition has an `erika_k.chat` section (spec 016), and residents do not yet speak in rooms or answer telegrams; no interaction ledger, relationship edges or open loops exist yet
 - body-render context passes same-board "related posts" without an actor-observation filter (duplicate-topic hint only; to be replaced by the SDD-005 projection)
 

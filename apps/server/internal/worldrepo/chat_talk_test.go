@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -379,26 +380,32 @@ func TestResidentLinesStayWithinLimits(t *testing.T) {
 	}
 }
 
-func TestResidentBringsUpACallersPost(t *testing.T) {
-	writer := &fakeChatWriter{}
-	repo, store, host, at, room := talkTestRepo(t, writer)
+// taroPosted gives the host a post by a human who wrote it as TARO and makes
+// every resident in the room a regular of the login ID TARO.
+func taroPosted(t *testing.T, repo *Repository, store *world.MemoryStore, host world.Host, at time.Time, room int, human world.ActorRef) world.Post {
+	t.Helper()
 	boards := []world.Board{{ID: "chat-test-board", Name: "雑談"}}
 	store.SaveBoards(host.ID, boards)
-	post := store.AddPost(host.ID, world.Post{BoardID: boards[0].ID, Author: "GUEST", AuthorMemberID: "GUEST", Subject: "モデム買いました", CreatedAt: at.Add(-5 * time.Minute)})
-	member := world.ActorRef{Kind: world.ActorKindMember, ID: "GUEST"}
+	post := store.AddPost(host.ID, world.Post{BoardID: boards[0].ID, Author: "TARO", AuthorMemberID: "TARO", AuthorHumanID: human.ID, Subject: "モデム買いました", CreatedAt: at.Add(-5 * time.Minute)})
 	if err := store.AppendInteractionEvent(world.InteractionEvent{EventID: fmt.Sprintf("post:%s:%d", host.ID, post.ID), HostID: host.ID, Channel: "board_root",
-		Actor: member, ContentRef: fmt.Sprint(post.ID), OccurredAt: post.CreatedAt, SourceKind: "human_authored"}); err != nil {
+		Actor: human, ActorLogin: "TARO", ContentRef: fmt.Sprint(post.ID), OccurredAt: post.CreatedAt, SourceKind: "human_authored"}); err != nil {
 		t.Fatal(err)
 	}
-	// Every resident in the room is a regular of the caller.
 	for _, a := range repo.CallActivitiesNow(host) {
 		if seg, ok := a.SegmentAt(at); ok && seg.State == world.CallChat && seg.Room == room {
-			if err := store.UpdateRelationship(world.RelationshipEdge{HostID: host.ID, FromActor: a.Actor, ToActor: member, BoardReplyCount: 3}); err != nil {
+			if err := store.UpdateRelationship(world.RelationshipEdge{HostID: host.ID, FromActor: a.Actor, ToActor: world.ActorRef{Kind: world.ActorKindLogin, ID: "TARO"}, BoardReplyCount: 3}); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	repo.EnterChatRoom(host, room, caller, "GUEST", at)
+	return post
+}
+
+func TestResidentBringsUpACallersPost(t *testing.T) {
+	writer := &fakeChatWriter{}
+	repo, store, host, at, room := talkTestRepo(t, writer)
+	taroPosted(t, repo, store, host, at, room, caller)
+	repo.EnterChatRoom(host, room, caller, "TARO", at)
 	drive(t, repo, host, room, at, 10*time.Minute, 5*time.Second)
 	var news []llm.ChatLineRequest
 	for _, req := range writer.requests() {
@@ -410,12 +417,69 @@ func TestResidentBringsUpACallersPost(t *testing.T) {
 		t.Skip("no resident drew news in this room; the chance is a tuning value")
 	}
 	for _, req := range news {
-		if req.Event == nil || req.Event.Title != "モデム買いました" || req.Event.Board != boards[0].Name || req.Event.Subject != "GUEST" || req.Relation != "常連仲間" {
+		if req.Event == nil || req.Event.Title != "モデム買いました" || req.Event.Board != "雑談" || req.Event.Subject != "TARO" || req.Relation != "常連仲間" {
 			t.Fatalf("news request: %+v / %+v", req, req.Event)
 		}
 	}
 	if len(news) > 1 {
 		t.Fatalf("%d residents brought up one post", len(news))
+	}
+}
+
+// Spec 019: residents know a caller only by the login ID shown. The same human
+// as GUEST is a stranger, and another human who shows TARO is TARO to them.
+func TestResidentsKnowCallersByLoginID(t *testing.T) {
+	repo, store, host, at, room := talkTestRepo(t, &fakeChatWriter{})
+	taro := world.ActorRef{Kind: world.ActorKindMember, ID: "u-taro"}
+	other := world.ActorRef{Kind: world.ActorKindMember, ID: "u-other"}
+	taroPosted(t, repo, store, host, at, room, taro)
+	var resident world.ActorRef
+	for _, a := range repo.CallActivitiesNow(host) {
+		if seg, ok := a.SegmentAt(at); ok && seg.State == world.CallChat && seg.Room == room {
+			resident = a.Actor
+			break
+		}
+	}
+	if resident.IsZero() {
+		t.Fatal("no resident in the room")
+	}
+	now := at.Add(time.Minute)
+	known := func(viewer world.ActorRef, login string) map[world.ActorRef]world.ActorRef {
+		return viewerKnown([]viewerStay{{Actor: viewer, Handle: login, From: at}})
+	}
+	subjects := func(k map[world.ActorRef]world.ActorRef) []world.ActorRef {
+		var out []world.ActorRef
+		for _, e := range repo.chatWorldEvents(host, k, now) {
+			out = append(out, e.Subject)
+		}
+		return out
+	}
+
+	asGuest := known(taro, "GUEST")
+	if got := repo.chatRelation(host, asGuest, resident, taro); got != 0 {
+		t.Errorf("the same human as GUEST: relation %d, want a stranger", got)
+	}
+	if got := subjects(asGuest); len(got) != 0 {
+		t.Errorf("the same human as GUEST: events %v", got)
+	}
+	asTaro := known(taro, "TARO")
+	if got := repo.chatRelation(host, asTaro, resident, taro); got != 2 {
+		t.Errorf("as TARO: relation %d, want regulars", got)
+	}
+	if got := subjects(asTaro); len(got) == 0 || got[0] != taro {
+		t.Errorf("as TARO: events %v", got)
+	}
+	// Another human who shows the login ID TARO is TARO to residents.
+	asImpostor := known(other, "TARO")
+	if got := repo.chatRelation(host, asImpostor, resident, other); got != 2 {
+		t.Errorf("another human as TARO: relation %d, want regulars", got)
+	}
+	if got := subjects(asImpostor); len(got) == 0 || got[0] != other {
+		t.Errorf("another human as TARO: events %v", got)
+	}
+	// Under a login ID nobody wrote anything as, the same human is unknown.
+	if got := repo.chatRelation(host, known(taro, "JIRO"), resident, taro); got != 0 {
+		t.Errorf("as JIRO: relation %d, want a stranger", got)
 	}
 }
 
@@ -451,7 +515,7 @@ func TestErikaKChatShowsResidentLines(t *testing.T) {
 	current := at
 	repo.SetWorldNow(func() time.Time { return current })
 	rt := erikak.New(host, repo)
-	rt.SetCallInfo("call-chat", 1, 14400)
+	rt.SetCallInfo(world.CallInfo{CallID: "call-chat", Line: 1, Baud: 14400})
 	rt.HandleLine("GUEST")
 	rt.HandleLine("4")
 	rt.HandleLine("X")
@@ -487,5 +551,38 @@ func TestErikaKChatShowsResidentLines(t *testing.T) {
 	}
 	if said == 0 {
 		t.Fatalf("no resident line in ten minutes:\n%s", shown.String())
+	}
+}
+
+// Spec 019 story 5: nothing that reaches a writer names a human ID.
+func TestHumanIDNeverReachesTheWriters(t *testing.T) {
+	const humanID = "h-secret-human-id-4242"
+	writer := &fakeChatWriter{}
+	repo, store, host, at, room := talkTestRepo(t, writer)
+	human := world.ActorRef{Kind: world.ActorKindMember, ID: humanID}
+	post := taroPosted(t, repo, store, host, at, room, human)
+	repo.EnterChatRoom(host, room, human, "TARO", at)
+	if _, err := repo.RecordChatUtterance(host, world.ChatUtterance{Room: room, Actor: human, Handle: "TARO", Body: "こんばんは", At: at.Add(10 * time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	drive(t, repo, host, room, at, 5*time.Minute, 5*time.Second)
+	reqs := writer.requests()
+	if len(reqs) == 0 {
+		t.Fatal("the writer was never asked for a line")
+	}
+	raw, err := json.Marshal(reqs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), humanID) || strings.Contains(string(raw), "u-secret") {
+		t.Fatalf("a chat line request carries the human ID: %s", raw)
+	}
+
+	// The article-body relationship text is built from names and counts only.
+	parent := post
+	reply := world.Post{Author: "NORI", AuthorPersonaID: "p1", Subject: "Re: x"}
+	text := repo.materializationRelationshipContext(host, reply, &parent)
+	if strings.Contains(text, humanID) || text == "" {
+		t.Fatalf("relationship context = %q", text)
 	}
 }

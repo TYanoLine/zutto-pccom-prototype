@@ -63,6 +63,7 @@ func (r *Repository) RecordChatUtterance(host world.Host, u world.ChatUtterance)
 		HostID:        host.ID,
 		Channel:       world.ChannelChatUtterance,
 		Actor:         saved.Actor,
+		ActorLogin:    humanLogin(saved.Actor, saved.Handle),
 		AudienceScope: world.ChatRoomScope(host.ID, saved.Room),
 		AddressedTo:   audience,
 		ContentRef:    "chat:" + saved.ID,
@@ -86,6 +87,7 @@ func (r *Repository) SendLineMessage(host world.Host, m world.LineMessage) (worl
 		HostID:        host.ID,
 		Channel:       world.ChannelLineMessage,
 		Actor:         saved.From,
+		ActorLogin:    humanLogin(saved.From, saved.FromHandle),
 		AudienceScope: world.PrivateScope(host.ID),
 		AddressedTo:   []world.ActorRef{saved.To},
 		ContentRef:    "line_message:" + saved.ID,
@@ -101,6 +103,14 @@ func (r *Repository) appendLedger(event world.InteractionEvent) error {
 		return nil
 	}
 	return ledger.AppendInteractionEvent(event)
+}
+
+// humanLogin is the login ID on a record whose actor is a human (spec 019).
+func humanLogin(actor world.ActorRef, login string) string {
+	if actor.Kind == world.ActorKindMember {
+		return login
+	}
+	return ""
 }
 
 func sourceKindOf(actor world.ActorRef) string {

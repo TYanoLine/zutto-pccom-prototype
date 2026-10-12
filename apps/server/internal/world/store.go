@@ -194,7 +194,7 @@ type LineOccupancy interface {
 	DialLine(host Host, at time.Time) (line int, ok bool)
 	// BeginHumanCall re-checks the line and registers the call at the current
 	// world time; ok=false means the line was taken in the meantime.
-	BeginHumanCall(host Host, callID string, baud int) (line int, ok bool)
+	BeginHumanCall(host Host, callID, humanID string, baud int) (line int, ok bool)
 	SetHumanCallHandle(callID, handle string)
 	EndHumanCall(callID string)
 }

@@ -25,6 +25,9 @@ type chatState struct {
 	// to and toLine are the recipient of the telegram being written.
 	to     world.ActorRef
 	toLine int
+	// said holds the IDs of the lines this call typed, which were shown when
+	// they were typed. Another call of the same user is someone else's screen.
+	said map[string]bool
 }
 
 const (
@@ -82,7 +85,7 @@ func (r *Runtime) lineHolders(now time.Time) map[int]lineHolder {
 	if observer, ok := r.Store.(world.PresenceObserver); ok {
 		for _, s := range observer.ObservePresenceNow(r.Host) {
 			h := lineHolder{line: s.Line, actor: s.Actor, handle: s.Handle, baud: s.Baud, state: world.CallIdle}
-			if s.Actor.Kind == world.ActorKindMember && s.Actor.ID == r.callID && r.callID != "" {
+			if r.isMyCall(s) {
 				h.self = true
 			}
 			if a, ok := plans[world.CallActivity{Actor: s.Actor, Start: s.Start}.Key()]; ok {
@@ -210,7 +213,7 @@ func (r *Runtime) handleTelegramBody(line string) (string, bool) {
 	}
 	now := world.WorldNowOf(r.Store)
 	msg := world.LineMessage{
-		From: world.ActorRef{Kind: world.ActorKindMember, ID: r.callID}, To: r.chat.to, ToLine: r.chat.toLine,
+		From: r.self(), FromHandle: r.handle, To: r.chat.to, ToLine: r.chat.toLine,
 		Body: trimCells(line, telegramCells), SentAt: now, DeliverAt: now,
 	}
 	holders := r.lineHolders(now)
@@ -280,10 +283,15 @@ func (r *Runtime) handleChatRoom(line string) (string, bool) {
 	}
 	if line != "" {
 		if chat, ok := r.Store.(world.ChatHost); ok {
-			_, _ = chat.RecordChatUtterance(r.Host, world.ChatUtterance{
+			if saved, err := chat.RecordChatUtterance(r.Host, world.ChatUtterance{
 				Room: r.chat.room, Actor: r.self(),
 				Handle: r.handle, Body: line, At: now,
-			})
+			}); err == nil && saved.ID != "" {
+				if r.chat.said == nil {
+					r.chat.said = map[string]bool{}
+				}
+				r.chat.said[saved.ID] = true
+			}
 		}
 	}
 	return out + padRunes(r.handle, 8) + ":" + line + "\r\n", false
@@ -320,7 +328,7 @@ func (r *Runtime) roomEvents(now time.Time) string {
 		case world.ChatLeave:
 			b.WriteString(chatLeaveLine(e.Handle))
 		case world.ChatSay:
-			if e.Actor != r.self() {
+			if !r.saidByMe(e) {
 				b.WriteString(padRunes(e.Handle, 8) + ":" + e.Body + "\r\n")
 			}
 		}
@@ -328,9 +336,35 @@ func (r *Runtime) roomEvents(now time.Time) string {
 	return b.String()
 }
 
-// self is the caller as the world knows them in rooms and telegrams.
+// self is the caller as the world knows them in rooms and telegrams: the user
+// (spec 019). A call made without a human ID is named by its call ID.
 func (r *Runtime) self() world.ActorRef {
-	return world.ActorRef{Kind: world.ActorKindMember, ID: r.callID}
+	id := r.humanID
+	if id == "" {
+		id = r.callID
+	}
+	return world.ActorRef{Kind: world.ActorKindMember, ID: id}
+}
+
+// isMyCall reports whether a presence session is this caller's own call. A
+// session that does not name its call is matched by the actor it names, as
+// before spec 019.
+func (r *Runtime) isMyCall(s world.PresenceSession) bool {
+	if r.callID == "" {
+		return false
+	}
+	if s.CallID != "" {
+		return s.CallID == r.callID
+	}
+	return s.Actor.Kind == world.ActorKindMember && s.Actor.ID == r.callID
+}
+
+// saidByMe reports whether a line of the room was typed on this call.
+func (r *Runtime) saidByMe(e world.ChatEvent) bool {
+	if e.UtteranceID != "" {
+		return r.chat.said[e.UtteranceID]
+	}
+	return e.Actor == r.self()
 }
 
 func chatJoinLine(handle string) string  { return "\a\a## chat on  " + handle + " ##\r\n" }

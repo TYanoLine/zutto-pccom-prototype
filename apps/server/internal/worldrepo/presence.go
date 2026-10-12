@@ -112,7 +112,7 @@ func (r *Repository) DialLine(host world.Host, at time.Time) (int, bool) {
 }
 
 // BeginHumanCall registers a human call on the lowest free line now.
-func (r *Repository) BeginHumanCall(host world.Host, callID string, baud int) (int, bool) {
+func (r *Repository) BeginHumanCall(host world.Host, callID, humanID string, baud int) (int, bool) {
 	ps, ok := r.presenceStore()
 	if !ok {
 		return 1, true
@@ -127,7 +127,7 @@ func (r *Repository) BeginHumanCall(host world.Host, callID string, baud int) (i
 		return 0, false
 	}
 	r.observePresence(ps, host, res, now)
-	ps.SaveHumanCall(world.HumanCall{CallID: callID, HostID: host.ID, Line: line, Baud: baud, Start: now})
+	ps.SaveHumanCall(world.HumanCall{CallID: callID, HumanID: humanID, HostID: host.ID, Line: line, Baud: baud, Start: now})
 	return line, true
 }
 

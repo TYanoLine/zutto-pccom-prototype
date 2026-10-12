@@ -142,12 +142,18 @@ type Post struct {
 	Intent          PostIntent `json:"intent,omitempty"`
 	Body            string     `json:"body"`
 	CreatedAt       time.Time  `json:"created_at"`
+
+	// AuthorHumanID is the human who wrote the post (spec 019). Author and
+	// AuthorMemberID keep the login ID shown when it was written.
+	AuthorHumanID string `json:"author_human_id,omitempty"`
 }
 
-// ActorRef uniquely identifies an actor (either a persona or a human member) in the world.
+// ActorRef uniquely identifies an actor in the world: a persona, a human
+// (member, by human ID) or a person as residents know them (login, by login
+// ID). See spec 019.
 type ActorRef struct {
-	Kind string `json:"kind"` // "persona" | "member"
-	ID   string `json:"id"`   // persona_id or member_id
+	Kind string `json:"kind"` // "persona" | "member" | "login"
+	ID   string `json:"id"`   // persona_id, human ID or login ID
 }
 
 func (a ActorRef) IsZero() bool {
@@ -173,6 +179,11 @@ type InteractionEvent struct {
 	ContentRef        string     `json:"content_ref"` // e.g. post_id "1001"
 	OccurredAt        time.Time  `json:"occurred_at"`
 	SourceKind        string     `json:"source_kind"` // "npc_world_selected", "human_authored"
+
+	// ActorLogin is a human actor's login ID on the record. AddressedLogins
+	// follows AddressedTo in order, empty for a resident (spec 019).
+	ActorLogin      string   `json:"actor_login,omitempty"`
+	AddressedLogins []string `json:"addressed_logins,omitempty"`
 }
 
 // RelationshipEdge records directional interaction history between two actors.

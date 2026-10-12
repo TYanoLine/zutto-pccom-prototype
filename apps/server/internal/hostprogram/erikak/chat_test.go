@@ -105,7 +105,7 @@ func newChatWorld(lines int) (*chatWorld, world.Host) {
 func loggedInChatRuntime(t *testing.T, w *chatWorld, host world.Host) *Runtime {
 	t.Helper()
 	rt := New(host, w)
-	rt.SetCallInfo("call-1", 1, 28800)
+	rt.SetCallInfo(world.CallInfo{CallID: "call-1", Line: 1, Baud: 28800})
 	rt.HandleLine("")
 	if rt.state != "main" {
 		t.Fatalf("not at the main menu after login: %s", rt.state)

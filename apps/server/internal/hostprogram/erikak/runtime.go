@@ -25,15 +25,17 @@ type Runtime struct {
 	callID string
 	line   int
 	baud   int
+	// humanID is the user across calls (spec 019).
+	humanID string
 	// chat is the telegram and chat screen state (spec 016, chat.go).
 	chat chatState
 }
 
-// SetCallInfo records the caller's call, line and speed for WHO.
-func (r *Runtime) SetCallInfo(callID string, line, baud int) {
-	r.callID = callID
-	r.line = line
-	r.baud = baud
+// SetCallInfo records the caller's call, line and speed for WHO, and who the
+// caller is.
+func (r *Runtime) SetCallInfo(info world.CallInfo) {
+	r.callID, r.humanID = info.CallID, info.HumanID
+	r.line, r.baud = info.Line, info.Baud
 }
 
 func New(host world.Host, store world.Store) *Runtime {
@@ -124,6 +126,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			BoardID:        r.boardPath,
 			Author:         r.handle,
 			AuthorMemberID: r.handle,
+			AuthorHumanID:  r.humanID,
 			Subject:        r.subject,
 			Body:           line,
 			CreatedAt:      world.WorldNowOf(r.Store),
@@ -164,6 +167,7 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			ParentID:       root.ID,
 			Author:         r.handle,
 			AuthorMemberID: r.handle,
+			AuthorHumanID:  r.humanID,
 			// Erika-K's append is represented by the parent/root relationship;
 			// the append itself has no independently displayed subject.
 			Subject:   "",
@@ -1220,7 +1224,7 @@ func (r *Runtime) lineUsers() []lineUser {
 	if observer, ok := r.Store.(world.PresenceObserver); ok {
 		for _, s := range observer.ObservePresenceNow(r.Host) {
 			u := lineUser{line: s.Line, handle: s.Handle, baud: s.Baud}
-			if r.callID != "" && s.Actor.Kind == world.ActorKindMember && s.Actor.ID == r.callID {
+			if r.isMyCall(s) {
 				u.self, u.handle = true, r.handle
 				selfShown = true
 			}

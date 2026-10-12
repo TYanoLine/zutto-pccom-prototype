@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sort"
 	"strconv"
@@ -244,12 +245,12 @@ func (r *Repository) chatLines(host world.Host, room int, from, to time.Time, pl
 		callers = append(callers, chatslot.Stay{Actor: v.Actor, Handle: v.Handle, From: v.From, To: v.To})
 	}
 	utterances := records.ListChatUtterances(host.ID, room, windowFrom.Add(-chatContext), time.Time{})
-	alias := memberAliases(viewers)
+	known := viewerKnown(viewers)
 	in := chatslot.Input{
 		Host: host, Room: room, From: windowFrom, To: to.Add(chatLead),
 		Viewers: callers, Residents: stays, Utterances: utterances,
-		Relation: func(a, b world.ActorRef) int { return r.chatRelation(host, alias, a, b) },
-		Events:   r.chatWorldEvents(host, alias, to),
+		Relation: func(a, b world.ActorRef) int { return r.chatRelation(host, known, a, b) },
+		Events:   r.chatWorldEvents(host, known, to),
 	}
 	events := map[string]chatslot.WorldEvent{}
 	for _, e := range in.Events {
@@ -344,7 +345,9 @@ func (r *Repository) chatJobFor(host world.Host, in chatslot.Input, s chatslot.S
 		req.Event = &llm.ChatLineEvent{Subject: handles[e.Subject], Kind: e.Kind, Board: e.Board, Title: e.Title, At: e.At}
 		if !e.By.IsZero() {
 			req.Event.By = handles[e.By]
-			if req.Event.By == "" {
+			if e.By.Kind == world.ActorKindLogin {
+				req.Event.By = e.By.ID // Residents know a caller by the login ID shown.
+			} else if req.Event.By == "" {
 				req.Event.By = r.handleOf(host, e.By)
 			}
 		}
@@ -443,48 +446,39 @@ func (r *Repository) recordResidentLine(job chatJob, line string) (world.ChatUtt
 	return saved, true
 }
 
-// memberAliases maps the member identity a caller's posts are filed under to
-// the caller's identity in the room. Erika-K files a caller's posts under
-// their handle and their chat under the call (spec 016). Residents know people
-// only by the login ID they show, so a caller in the room is, to them, whoever
-// posted under that handle. The system's own identity for a human is a
-// separate, later change.
-func memberAliases(viewers []viewerStay) map[world.ActorRef]world.ActorRef {
+// viewerKnown maps each caller in the room to the person residents know them
+// as: the login ID they showed on entering (spec 019). A guest maps to nobody.
+func viewerKnown(viewers []viewerStay) map[world.ActorRef]world.ActorRef {
 	out := map[world.ActorRef]world.ActorRef{}
 	for _, v := range viewers {
-		if v.Actor.Kind == world.ActorKindMember && v.Handle != "" {
-			out[world.ActorRef{Kind: world.ActorKindMember, ID: v.Handle}] = v.Actor
-		}
+		out[v.Actor] = world.KnownAs(v.Actor, v.Handle)
 	}
 	return out
 }
 
 // chatRelation is spec 013's measure between two people: 0 strangers, 1 have
-// talked before, 2 regulars, counted from board replies both ways.
-func (r *Repository) chatRelation(host world.Host, alias map[world.ActorRef]world.ActorRef, a, b world.ActorRef) int {
+// talked before, 2 regulars, counted from board replies both ways. People are
+// the ones residents know; a caller who is nobody they know is a stranger.
+func (r *Repository) chatRelation(host world.Host, known map[world.ActorRef]world.ActorRef, a, b world.ActorRef) int {
 	rel, ok := r.Base.(world.RelationshipStore)
 	if !ok {
 		return 0
 	}
-	ids := func(x world.ActorRef) []world.ActorRef {
-		out := []world.ActorRef{x}
-		for member, actor := range alias {
-			if actor == x {
-				out = append(out, member)
-			}
-		}
-		return out
+	if k, ok := known[a]; ok {
+		a = k
+	}
+	if k, ok := known[b]; ok {
+		b = k
+	}
+	if a.IsZero() || b.IsZero() {
+		return 0
 	}
 	n := 0
-	for _, x := range ids(a) {
-		for _, y := range ids(b) {
-			if e, ok := rel.GetRelationship(host.ID, x, y); ok {
-				n += e.BoardReplyCount
-			}
-			if e, ok := rel.GetRelationship(host.ID, y, x); ok {
-				n += e.BoardReplyCount
-			}
-		}
+	if e, ok := rel.GetRelationship(host.ID, a, b); ok {
+		n += e.BoardReplyCount
+	}
+	if e, ok := rel.GetRelationship(host.ID, b, a); ok {
+		n += e.BoardReplyCount
 	}
 	return min(n, 2)
 }
@@ -502,7 +496,7 @@ func relationLabel(n int) string {
 // chatWorldEvents lists recent board events about people: what they posted
 // and the replies their posts received. Reading headers never materializes a
 // post body.
-func (r *Repository) chatWorldEvents(host world.Host, alias map[world.ActorRef]world.ActorRef, now time.Time) []chatslot.WorldEvent {
+func (r *Repository) chatWorldEvents(host world.Host, known map[world.ActorRef]world.ActorRef, now time.Time) []chatslot.WorldEvent {
 	ledger, ok := r.Base.(world.InteractionLedgerStore)
 	if !ok {
 		return nil
@@ -527,11 +521,23 @@ func (r *Repository) chatWorldEvents(host world.Host, alias map[world.ActorRef]w
 			boards[b.ID] = b.Name
 		}
 	}
-	who := func(a world.ActorRef) world.ActorRef {
-		if actor, ok := alias[a]; ok {
-			return actor
+	// subjects are the callers in the room whom residents know as person, or
+	// the resident itself. A guest, or someone not in the room, has none.
+	subjects := func(person world.ActorRef) []world.ActorRef {
+		switch {
+		case person.IsZero():
+			return nil
+		case person.Kind == world.ActorKindPersona:
+			return []world.ActorRef{person}
 		}
-		return a
+		var out []world.ActorRef
+		for viewer, k := range known {
+			if k == person {
+				out = append(out, viewer)
+			}
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].String() < out[j].String() })
+		return out
 	}
 	var out []chatslot.WorldEvent
 	for _, e := range recent {
@@ -541,13 +547,18 @@ func (r *Repository) chatWorldEvents(host world.Host, alias map[world.ActorRef]w
 			board = p.BoardID
 		}
 		base := chatslot.WorldEvent{At: e.OccurredAt, Board: board, Title: p.Subject}
-		posted := base
-		posted.ID, posted.Subject, posted.Kind = e.EventID, who(e.Actor), "posted"
-		out = append(out, posted)
-		for _, to := range e.AddressedTo {
-			replied := base
-			replied.ID, replied.Subject, replied.Kind, replied.By = e.EventID+">"+to.String(), who(to), "replied_to", who(e.Actor)
-			out = append(out, replied)
+		by := e.KnownActor()
+		for _, subject := range subjects(by) {
+			posted := base
+			posted.ID, posted.Subject, posted.Kind = e.EventID, subject, "posted"
+			out = append(out, posted)
+		}
+		for i := range e.AddressedTo {
+			for _, subject := range subjects(e.KnownAddressed(i)) {
+				replied := base
+				replied.ID, replied.Subject, replied.Kind, replied.By = fmt.Sprintf("%s>%d", e.EventID, i), subject, "replied_to", by
+				out = append(out, replied)
+			}
 		}
 	}
 	return out

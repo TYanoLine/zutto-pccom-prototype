@@ -18,7 +18,9 @@ const DefaultReconnectGrace = 60 * time.Second
 var ErrLineBusy = errors.New("all host lines are in use")
 
 type CallSession struct {
-	ID                string
+	ID string
+	// HumanID is the user who made the call (spec 019).
+	HumanID           string
 	Host              world.Host
 	Baud              int
 	Line              int
@@ -87,7 +89,7 @@ func NewSessionManager(reconnectGrace time.Duration) *SessionManager {
 	}
 }
 
-func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostprogram.Runtime) (*CallSession, uint64, error) {
+func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostprogram.Runtime, humanID string) (*CallSession, uint64, error) {
 	id, err := newSessionID()
 	if err != nil {
 		return nil, 0, err
@@ -97,7 +99,7 @@ func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostpro
 	defer m.mu.Unlock()
 
 	if m.lines != nil {
-		held, ok := m.lines.BeginHumanCall(host, id, baud)
+		held, ok := m.lines.BeginHumanCall(host, id, humanID, baud)
 		if !ok {
 			return nil, 0, ErrLineBusy
 		}
@@ -106,6 +108,7 @@ func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostpro
 
 	s := &CallSession{
 		ID:          id,
+		HumanID:     humanID,
 		Host:        host,
 		Baud:        baud,
 		Line:        line,

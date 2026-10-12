@@ -16,7 +16,7 @@ const testHost = "h"
 
 var (
 	mari = world.ActorRef{Kind: "persona", ID: "mari"}
-	taro = world.ActorRef{Kind: "member", ID: "TARO"}
+	taro = world.ActorRef{Kind: "login", ID: "TARO"}
 )
 
 func at(min int) time.Time { return time.Date(1996, 8, 29, 12, min, 0, 0, time.UTC) }
@@ -27,7 +27,7 @@ type seeded struct {
 }
 
 // seed builds a small world: a thread on board 1 between MARI (persona) and TARO
-// (member), a separate MARI post on board 2, and a post on another host.
+// (known by the login ID TARO), a separate MARI post on board 2, and a post on another host.
 func seed(t *testing.T) seeded {
 	t.Helper()
 	s := world.NewMemoryStore()
@@ -134,7 +134,7 @@ func TestGetInteractionHistoryWithCounterpart(t *testing.T) {
 	w := seed(t)
 	e := NewExecutor(testHost, w.store, nil)
 
-	for _, id := range []string{"member:TARO", "TARO"} {
+	for _, id := range []string{"login:TARO", "TARO"} {
 		got := strings.Split(run(t, e, mari, llm.ToolGetInteractionHistoryWith, map[string]any{"counterpart_id": id}), "\n")
 		if len(got) != 2 || !strings.Contains(got[0], "#"+itoa(w.nested)) || !strings.Contains(got[1], "#"+itoa(w.reply)) {
 			t.Fatalf("history with %q = %q", id, got)
@@ -147,7 +147,7 @@ func TestGetInteractionHistoryWithCounterpart(t *testing.T) {
 	if got := run(t, e, taro, llm.ToolGetInteractionHistoryWith, map[string]any{"counterpart_id": "persona:mari"}); strings.Count(got, "\n") != 1 {
 		t.Fatalf("taro's history=%q", got)
 	}
-	if got := run(t, e, mari, llm.ToolGetInteractionHistoryWith, map[string]any{"counterpart_id": "member:NOBODY"}); got != msgNothing {
+	if got := run(t, e, mari, llm.ToolGetInteractionHistoryWith, map[string]any{"counterpart_id": "login:NOBODY"}); got != msgNothing {
 		t.Fatalf("no history=%q", got)
 	}
 }
@@ -325,5 +325,41 @@ func TestToolTurnThroughRegistryMakesNoExtraModelCalls(t *testing.T) {
 	}
 	if out.ModelCalls != 2 || model.calls != 2 || out.ToolCallsExecuted != 1 {
 		t.Fatalf("outcome=%+v model.calls=%d", out, model.calls)
+	}
+}
+
+// Spec 019: a human is filed under a human ID, but residents know them only by
+// the login ID shown. The human ID never reaches a tool result.
+func TestHumansAreKnownByLoginIDOnly(t *testing.T) {
+	s := world.NewMemoryStore()
+	const humanID = "h7f3a9c21d4e5b608"
+	post := s.AddPost(testHost, world.Post{BoardID: "1", Author: "JIRO", AuthorMemberID: "JIRO", AuthorHumanID: humanID,
+		Subject: "質問です", Body: "どなたか教えてください。", CreatedAt: at(0)})
+	if err := s.AppendInteractionEvent(world.InteractionEvent{EventID: "post:h:" + itoa(post.ID), HostID: testHost, Channel: "board_reply",
+		Actor: world.ActorRef{Kind: "member", ID: humanID}, ActorLogin: "JIRO", AudienceScope: "public_board:h:1",
+		AddressedTo: []world.ActorRef{mari}, AddressedLogins: []string{""}, ContentRef: itoa(post.ID), OccurredAt: at(0)}); err != nil {
+		t.Fatal(err)
+	}
+	e := NewExecutor(testHost, s, nil)
+	jiro := world.ActorRef{Kind: "login", ID: "JIRO"}
+	if got := run(t, e, jiro, llm.ToolGetMyRecentPosts, map[string]any{}); !strings.Contains(got, "質問です") {
+		t.Errorf("the login ID does not find its own post: %q", got)
+	}
+	if got := run(t, e, mari, llm.ToolGetInteractionHistoryWith, map[string]any{"counterpart_id": "login:JIRO"}); got == msgNothing {
+		t.Error("history with the login ID found nothing")
+	}
+	for _, other := range []string{"member:" + humanID, humanID} {
+		if got := run(t, e, mari, llm.ToolGetInteractionHistoryWith, map[string]any{"counterpart_id": other}); got != msgNothing {
+			t.Errorf("history with the human ID %q found %q", other, got)
+		}
+	}
+	for _, name := range []string{llm.ToolGetMyRecentPosts, llm.ToolGetThreadContext} {
+		args := map[string]any{}
+		if name == llm.ToolGetThreadContext {
+			args["thread_root_id"] = post.ID
+		}
+		if got := run(t, e, mari, name, args); strings.Contains(got, humanID) {
+			t.Errorf("%s shows the human ID: %q", name, got)
+		}
 	}
 }

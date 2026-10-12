@@ -79,6 +79,23 @@ describe('VirtualModem standalone lifecycle', () => {
     modem.dispose();
   });
 
+  it('sends the caller key with the dial only when it has one', () => {
+    const socket = new FakeSocket();
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => socket,
+      audio: silentAudio,
+      dialDelayMs: 10,
+      callerKey: '0123456789abcdef0123456789abcdef',
+    });
+    modem.submitLine('ATDT0450000001');
+    socket.open();
+    vi.advanceTimersByTime(100);
+    expect(socket.sent).toEqual([
+      JSON.stringify({ type: 'dial', phone: '0450000001', attempt: 1, caller_key: '0123456789abcdef0123456789abcdef' }),
+    ]);
+    modem.dispose();
+  });
+
   it('shows NO CARRIER when the server rejects a dial after line setup', () => {
     const socket = new FakeSocket();
     const terminal = new TerminalCore();

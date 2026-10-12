@@ -60,7 +60,7 @@ func waitFor(t *testing.T, cond func() bool) {
 
 func TestPollSendsAsynchronousOutputAsTerminalText(t *testing.T) {
 	m := NewSessionManager(time.Minute)
-	call, token, err := m.Create(world.Host{ID: "poll"}, 9600, 1, &pollingRuntime{})
+	call, token, err := m.Create(world.Host{ID: "poll"}, 9600, 1, &pollingRuntime{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestPollSendsAsynchronousOutputAsTerminalText(t *testing.T) {
 
 func TestPollStopsWhenTheCallEndsOrMovesToAnotherConnection(t *testing.T) {
 	m := NewSessionManager(time.Minute)
-	call, token, err := m.Create(world.Host{ID: "poll"}, 9600, 1, &pollingRuntime{})
+	call, token, err := m.Create(world.Host{ID: "poll"}, 9600, 1, &pollingRuntime{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestPollStopsWhenTheCallEndsOrMovesToAnotherConnection(t *testing.T) {
 
 func TestPollDoesNotRunForProgramsWithoutAsyncOutput(t *testing.T) {
 	m := NewSessionManager(time.Minute)
-	call, token, err := m.Create(world.Host{ID: "plain"}, 9600, 1, plainRuntime{})
+	call, token, err := m.Create(world.Host{ID: "plain"}, 9600, 1, plainRuntime{}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func (plainRuntime) HandleLine(string) (string, bool) { return "", false }
 func TestPollAndInputDoNotRunConcurrently(t *testing.T) {
 	m := NewSessionManager(time.Minute)
 	rt := &pollingRuntime{}
-	call, token, err := m.Create(world.Host{ID: "poll"}, 9600, 1, rt)
+	call, token, err := m.Create(world.Host{ID: "poll"}, 9600, 1, rt, "")
 	if err != nil {
 		t.Fatal(err)
 	}

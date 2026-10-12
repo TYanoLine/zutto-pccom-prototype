@@ -90,7 +90,7 @@ func screenTranscript(t *testing.T) string {
 	// the earlier fixed rows, so the harness supplies the same three sessions;
 	// matching bytes prove the WHO format did not change.
 	guest := New(host, goldenPresenceStore{store})
-	guest.SetCallInfo("golden-call", 3, 9600)
+	guest.SetCallInfo(world.CallInfo{CallID: "golden-call", Line: 3, Baud: 9600})
 	record("welcome", guest.Welcome())
 	send(guest, "GUEST")
 	send(guest, "1")

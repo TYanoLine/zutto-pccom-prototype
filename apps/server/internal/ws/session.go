@@ -31,6 +31,9 @@ type clientMessage struct {
 	Line      string `json:"line,omitempty"`
 	Attempt   int    `json:"attempt,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
+	// CallerKey is the key the user's browser keeps (spec 019). It is read to
+	// derive the human ID and never stored or logged.
+	CallerKey string `json:"caller_key,omitempty"`
 }
 
 type serverMessage struct {
@@ -158,7 +161,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					// boundary. Directory lookup and HostByPhone remain metadata-only.
 					observer.BeginHostObservation(res.Host, hostprogram.ObservationBoards(runtime))
 				}
-				session, token, err := sessions.Create(res.Host, res.Baud, res.Line, runtime)
+				session, token, err := sessions.Create(res.Host, res.Baud, res.Line, runtime, humanID(msg.CallerKey))
 				if errors.Is(err, ErrLineBusy) {
 					// Another caller took the last line after the dial decision.
 					sm.Result = string(telephone.Busy)
@@ -176,7 +179,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				active = session
 				attachment = token
 				if receiver, ok := runtime.(hostprogram.CallInfoReceiver); ok {
-					receiver.SetCallInfo(active.ID, active.Line, active.Baud)
+					receiver.SetCallInfo(world.CallInfo{CallID: active.ID, HumanID: active.HumanID, Line: active.Line, Baud: active.Baud})
 				}
 				sm.Line = active.Line
 				sm.Host = &active.Host
