@@ -571,9 +571,9 @@ export default function App() {
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
   const isConnected = !!(activeCall || localTestConnected);
   const cost = localTestConnected ? 0 : runningCost;
-  const desktopCostLabel = isConnected ? `料金 ¥${cost}` : '料金 ー円';
+  const desktopCostLabel = isConnected ? `料金 ¥${cost}` : '料金 ¥--';
   const mobileSessionCost = localTestConnected ? 0 : runningCost;
-  const mobileCostLabel = isConnected ? `¥${mobileSessionCost}` : 'ー円';
+  const mobileCostLabel = isConnected ? `¥${mobileSessionCost}` : '¥--';
   const currentMonthLabel = `${worldNow.getMonth() + 1}月`;
   const monthlyTotalDisplay = monthlyAccumulated + (localTestConnected ? 0 : runningCost);
   const generationTraceVisible = activeCall?.capabilities.generationTrace === true && !standaloneLine;
