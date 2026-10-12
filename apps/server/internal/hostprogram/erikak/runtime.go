@@ -24,12 +24,16 @@ type Runtime struct {
 	// callID and line identify the caller's own logical line (spec 015).
 	callID string
 	line   int
+	baud   int
+	// chat is the telegram and chat screen state (spec 016, chat.go).
+	chat chatState
 }
 
-// SetCallInfo records the caller's call and line for WHO.
-func (r *Runtime) SetCallInfo(callID string, line, _ int) {
+// SetCallInfo records the caller's call, line and speed for WHO.
+func (r *Runtime) SetCallInfo(callID string, line, baud int) {
 	r.callID = callID
 	r.line = line
+	r.baud = baud
 }
 
 func New(host world.Host, store world.Store) *Runtime {
@@ -185,6 +189,14 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 		return r.handleSimpleMenu(line, "mail")
 	case "chat":
 		return r.handleSimpleMenu(line, "chat")
+	case "call":
+		return r.handleCall(line)
+	case "telegram_body":
+		return r.handleTelegramBody(line)
+	case "chat_menu":
+		return r.handleChatMenu(line)
+	case "chat_room":
+		return r.handleChatRoom(line)
 	case "junk":
 		return r.handleSimpleMenu(line, "junk")
 	case "mode":
@@ -253,6 +265,10 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 	case "4", "C", "CHAT":
 		if !r.canUseFeature(FeatureTelegramChat) {
 			return r.featureUnavailable()
+		}
+		if r.detail.Chat != nil {
+			r.state = "call"
+			return r.renderCallScreen(), false
 		}
 		r.state = "chat"
 		return r.renderChatMenu(), false

@@ -342,7 +342,7 @@ Current code intentionally still has shortcuts, including:
 - atmospheric rather than fully historical telephone tariffs
 - Azure OpenAI provider boundary present but AI not yet part of normal host posting behavior
 - human posts stored with a handle string only (no member ID, no annotated intent), so they cannot yet be the subject of observations or relationships
-- mail and chat/telegram menus are fixed placeholder text with no persistence; no interaction ledger, relationship edges or open loops exist yet
+- mail menus are fixed placeholder text with no persistence; telegram and chat screens exist only for stations whose definition has an `erika_k.chat` section (spec 016), and residents do not yet speak in rooms or answer telegrams; no interaction ledger, relationship edges or open loops exist yet
 - body-render context passes same-board "related posts" without an actor-observation filter (duplicate-topic hint only; to be replaced by the SDD-005 projection)
 
 These shortcuts are adapter/prototype boundaries and must not become domain rules.

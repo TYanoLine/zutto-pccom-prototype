@@ -29,6 +29,36 @@ type CallSession struct {
 	attached   bool
 	attachment uint64
 	expiry     *time.Timer
+
+	// mu serializes the runtime: a line from the caller and an asynchronous
+	// Poll never run at the same time (spec 016).
+	mu sync.Mutex
+}
+
+// HandleLine passes one input line to the host program.
+func (s *CallSession) HandleLine(line string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Runtime.HandleLine(line)
+}
+
+// Welcome returns the host program's first output after CONNECT.
+func (s *CallSession) Welcome() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Runtime.Welcome()
+}
+
+// Poll asks the host program for output that does not answer an input line.
+// Programs without asynchronous output return "".
+func (s *CallSession) Poll(now time.Time) string {
+	async, ok := s.Runtime.(hostprogram.AsyncOutput)
+	if !ok {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return async.Poll(now)
 }
 
 type SessionManager struct {

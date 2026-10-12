@@ -5,7 +5,7 @@
 # Its resident definition is in the `population:` block.
 schema: 1
 key: hakata-canal-net
-revision: 4
+revision: 5
 listed: true
 role: experiment
 
@@ -41,7 +41,42 @@ population:
   handle_prefixes: ["N88", "V30", "X68", "98", "COM"]
 
 detail:
+  # Chat rooms are shared by every host program; the wording of the screens
+  # is in erika_k.chat below. Capacity 0 means unlimited. The weights are
+  # fictional tuning values.
+  chat_rooms:
+    - { number: 0, capacity: 0, weight: 0.6 }
+    - { number: 1, capacity: 4, weight: 0.3 }
+    - { number: 2, capacity: 2, weight: 0.1 }
   erika_k:
+    # Fictional station wording for the telegram and chat screens (spec 016).
+    chat:
+      call_menu:
+        title: "【電報・チャット】 HAKATA CANAL NET"
+        lines:
+          - "------------------------------------------------------------------------------"
+          - "【回線番号】その回線の人に電報を送る        【X】チャットルームへ"
+          - "【ﾘﾀｰﾝ】いまの使用状態を見る                【.】メインメニューへ"
+          - "※ チャット中の相手への電報は、退室してから届きます。"
+          - "------------------------------------------------------------------------------"
+        hint: "[回線番号]=電報 [ﾘﾀｰﾝ]=WHO [X]=CHAT [.]=戻る"
+      chat_menu:
+        - "-----------------------------------"
+        - "      ◇ ＣＡＮＡＬ ＣＨＡＴ ◇"
+        - "-----------------------------------"
+        - "【0】 ロビー            (定員なし)"
+        - "【1】 屋台の奥          (定員 4名)"
+        - "【2】 ないしょ話        (定員 2名)"
+        - "-----------------------------------"
+      room_notices:
+        0:
+          - "------------------------------------------------------------------------------"
+          - "  ロビーはどなたでもどうぞ。はじめての方もお気軽に(^^)"
+          - "------------------------------------------------------------------------------"
+        1:
+          - "------------------------------------------------------------------------------"
+          - "  23:00を過ぎると混み合います。長居はほどほどに(^^;"
+          - "------------------------------------------------------------------------------"
     texts:
       login_banner:
         - "######################### WELCOME TO HAKATA CANAL NET ##########################"

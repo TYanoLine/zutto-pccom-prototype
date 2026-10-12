@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -94,6 +95,16 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		sessions = fallbackSessions
 	}
 
+	// Every write to the connection goes through send, so a line's answer and
+	// asynchronous output from the poller never interleave (spec 016).
+	var writeMu sync.Mutex
+	send := func(msg serverMessage) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return writeJSON(ctx, conn, msg)
+	}
+	worldNow := func() time.Time { return world.WorldNowOf(h.Store) }
+
 	var active *CallSession
 	var attachment uint64
 	defer func() {
@@ -112,7 +123,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		var msg clientMessage
 		if err := json.Unmarshal(data, &msg); err != nil {
-			_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "bad request"})
+			_ = send(serverMessage{Type: "error", Text: "bad request"})
 			continue
 		}
 
@@ -136,7 +147,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					sm.Result = string(telephone.NoCarrier)
 					sm.Baud = 0
 					sm.Line = 0
-					if err := writeJSON(ctx, conn, sm); err != nil {
+					if err := send(sm); err != nil {
 						return
 					}
 					continue
@@ -153,13 +164,13 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					sm.Result = string(telephone.Busy)
 					sm.Baud = 0
 					sm.Line = 0
-					if err := writeJSON(ctx, conn, sm); err != nil {
+					if err := send(sm); err != nil {
 						return
 					}
 					continue
 				}
 				if err != nil {
-					_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: "could not create call session"})
+					_ = send(serverMessage{Type: "error", Text: "could not create call session"})
 					return
 				}
 				active = session
@@ -172,21 +183,22 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				sm.Capabilities = capabilitiesFor(active.Host)
 				sm.SessionID = active.ID
 			}
-			if err := writeJSON(ctx, conn, sm); err != nil {
+			if err := send(sm); err != nil {
 				return
 			}
 			if active != nil && res.Result == telephone.Connect {
 				// Tiny pause so CONNECT appears before host bytes, like a modem handoff.
 				time.Sleep(120 * time.Millisecond)
-				if err := writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: active.Runtime.Welcome()}); err != nil {
+				if err := send(serverMessage{Type: "terminal", Text: active.Welcome()}); err != nil {
 					return
 				}
+				go pollCall(ctx, sessions, active, attachment, PollInterval, worldNow, send)
 			}
 
 		case "resume":
 			id := strings.TrimSpace(msg.SessionID)
 			if id == "" {
-				_ = writeJSON(ctx, conn, serverMessage{Type: "resume_result", Result: "not_found"})
+				_ = send(serverMessage{Type: "resume_result", Result: "not_found"})
 				continue
 			}
 
@@ -198,12 +210,12 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			session, token, result := sessions.Resume(id)
 			if result != "ok" {
-				_ = writeJSON(ctx, conn, serverMessage{Type: "resume_result", Result: result, SessionID: id})
+				_ = send(serverMessage{Type: "resume_result", Result: result, SessionID: id})
 				continue
 			}
 			active = session
 			attachment = token
-			if err := writeJSON(ctx, conn, serverMessage{
+			if err := send(serverMessage{
 				Type:         "resume_result",
 				Result:       "ok",
 				SessionID:    active.ID,
@@ -214,23 +226,24 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}); err != nil {
 				return
 			}
+			go pollCall(ctx, sessions, active, attachment, PollInterval, worldNow, send)
 
 		case "line":
 			if active == nil || !sessions.IsCurrent(active.ID, attachment) {
 				active = nil
 				attachment = 0
-				_ = writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: "NO CARRIER\r\n"})
+				_ = send(serverMessage{Type: "terminal", Text: "NO CARRIER\r\n"})
 				continue
 			}
-			out, disconnect := active.Runtime.HandleLine(msg.Line)
-			if err := writeJSON(ctx, conn, serverMessage{Type: "terminal", Text: out}); err != nil {
+			out, disconnect := active.HandleLine(msg.Line)
+			if err := send(serverMessage{Type: "terminal", Text: out}); err != nil {
 				return
 			}
 			if disconnect {
 				sessions.End(active.ID)
 				active = nil
 				attachment = 0
-				_ = writeJSON(ctx, conn, serverMessage{Type: "carrier", Result: "off"})
+				_ = send(serverMessage{Type: "carrier", Result: "off"})
 			}
 
 		case "hangup":
@@ -239,10 +252,40 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 			active = nil
 			attachment = 0
-			_ = writeJSON(ctx, conn, serverMessage{Type: "carrier", Result: "off"})
+			_ = send(serverMessage{Type: "carrier", Result: "off"})
 
 		default:
-			_ = writeJSON(ctx, conn, serverMessage{Type: "error", Text: fmt.Sprintf("unknown type %q", msg.Type)})
+			_ = send(serverMessage{Type: "error", Text: fmt.Sprintf("unknown type %q", msg.Type)})
+		}
+	}
+}
+
+// PollInterval is how often a connected call is asked for asynchronous output.
+const PollInterval = time.Second
+
+// pollCall sends a call's asynchronous output while this connection is the
+// call's current transport. It stops when the connection ends, the call ends,
+// or the call is resumed on another connection. Detached calls are not polled;
+// the host program keeps what it has not shown for the next Poll.
+func pollCall(ctx context.Context, sessions *SessionManager, call *CallSession, attachment uint64, interval time.Duration, now func() time.Time, send func(serverMessage) error) {
+	if _, ok := call.Runtime.(hostprogram.AsyncOutput); !ok {
+		return
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		if !sessions.IsCurrent(call.ID, attachment) {
+			return
+		}
+		if out := call.Poll(now()); out != "" {
+			if err := send(serverMessage{Type: "terminal", Text: out}); err != nil {
+				return
+			}
 		}
 	}
 }

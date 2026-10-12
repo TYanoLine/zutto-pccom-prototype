@@ -609,6 +609,18 @@ type whoStore struct {
 
 func (s whoStore) ObservePresenceNow(world.Host) []world.PresenceSession { return s.sessions }
 
+// HostDetail drops the station's erika_k.chat section, so the test sees the
+// placeholder chat screen that stations without one keep (spec 016).
+func (s whoStore) HostDetail(hostID string) (hostcatalog.PresetDetail, bool) {
+	d, ok := s.MemoryStore.HostDetail(hostID)
+	if ok && d.ErikaK != nil {
+		erikaK := *d.ErikaK
+		erikaK.Chat = nil
+		d.ErikaK = &erikaK
+	}
+	return d, ok
+}
+
 func TestWHOShowsWorldPresence(t *testing.T) {
 	base := world.NewMemoryStore()
 	host, err := base.HostByPhone("0920000196")

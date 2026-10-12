@@ -3,6 +3,7 @@ package hostprogram
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"zutto-pccom/apps/server/internal/bbs"
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
@@ -30,6 +31,14 @@ type ObservationCatalog interface {
 // learns which logical line and call its own caller holds. See spec 015.
 type CallInfoReceiver interface {
 	SetCallInfo(callID string, line, baud int)
+}
+
+// AsyncOutput is optional: a host program that has something to show without
+// input (chat lines, an arriving message) returns it from Poll, given the world
+// time. The program decides when an interruption is appropriate and returns ""
+// otherwise, for example while the caller is typing a message body. See spec 016.
+type AsyncOutput interface {
+	Poll(now time.Time) string
 }
 
 func ObservationBoards(runtime Runtime) []world.Board {

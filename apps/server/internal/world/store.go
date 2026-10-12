@@ -130,6 +130,49 @@ type PresenceStore interface {
 	// that ended at the given world time.
 	EndHumanCall(callID string, at time.Time) (HumanCall, bool)
 	ListHumanCalls(hostID string) []HumanCall
+	// ListCallActivities returns the stored plans of calls that started in
+	// [from, to). A zero to means no upper bound.
+	ListCallActivities(hostID string, from, to time.Time) []CallActivity
+	// SaveCallActivities stores plans that are not stored yet; a plan already
+	// stored for the same actor and call start is left unchanged.
+	SaveCallActivities(hostID string, acts []CallActivity)
+}
+
+// ChatEventKind is a resident entering or leaving a chat room.
+type ChatEventKind string
+
+const (
+	ChatJoin  ChatEventKind = "join"
+	ChatLeave ChatEventKind = "leave"
+)
+
+// ChatEvent is a resident entering or leaving a chat room at a world time. A
+// leave is also reported when the call ends while the resident is in the room.
+type ChatEvent struct {
+	At     time.Time
+	Kind   ChatEventKind
+	Room   int
+	Actor  ActorRef
+	Handle string
+}
+
+// ChatHost gives host programs what residents do within their calls and in
+// chat rooms (spec 016). It is shared by every host program: the names and
+// arguments carry no program's screen wording. Host programs use it through a
+// type assertion, like PresenceObserver.
+type ChatHost interface {
+	// CallActivitiesNow returns the plans of the residents on the host's lines
+	// now, saving them as observed.
+	CallActivitiesNow(host Host) []CallActivity
+	// ChatEvents returns room's join and leave events in (from, to], in time
+	// order, saving the plans they come from as observed.
+	ChatEvents(host Host, room int, from, to time.Time) []ChatEvent
+	// RecordChatUtterance saves what a caller said in a room and records it
+	// in the ledger, addressed to the residents in the room at u.At.
+	RecordChatUtterance(host Host, u ChatUtterance) (ChatUtterance, error)
+	// SendLineMessage saves a line message and records it in the ledger,
+	// addressed to its recipient. The caller sets DeliverAt.
+	SendLineMessage(host Host, m LineMessage) (LineMessage, error)
 }
 
 // LineOccupancy decides and registers line use on behalf of the telephone and
@@ -200,6 +243,12 @@ type MemoryStore struct {
 	// presence holds observed sessions per host; humanCalls the live calls.
 	presence   map[string][]PresenceSession
 	humanCalls map[string]HumanCall
+	// callPlans holds observed resident call plans per host (spec 016).
+	callPlans map[string][]CallActivity
+	// chatLines and lineMessages are what callers said in chat rooms and sent
+	// to lines (spec 016).
+	chatLines    map[string][]ChatUtterance
+	lineMessages map[string][]LineMessage
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
 	next      int64
@@ -221,6 +270,9 @@ func NewMemoryStore() *MemoryStore {
 		relationships: map[relationshipKey]RelationshipEdge{},
 		presence:      map[string][]PresenceSession{},
 		humanCalls:    map[string]HumanCall{},
+		callPlans:     map[string][]CallActivity{},
+		chatLines:     map[string][]ChatUtterance{},
+		lineMessages:  map[string][]LineMessage{},
 		next:          1000,
 	}
 

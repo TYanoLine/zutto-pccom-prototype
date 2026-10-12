@@ -134,6 +134,9 @@ func main() {
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
 	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
+	// Residents enter chat rooms only when the server can also give them words
+	// (spec 016 FR-004); without a model the rooms stay empty.
+	runtimeStore.SetResidentChat(cfg.AzureOpenAIKey != "")
 	sessions.SetLineOccupancy(runtimeStore)
 	network := telephone.New(runtimeStore, clock)
 

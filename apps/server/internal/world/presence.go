@@ -58,6 +58,59 @@ func (c HumanCall) Session() PresenceSession {
 	return PresenceSession{HostID: c.HostID, Actor: ActorRef{Kind: ActorKindMember, ID: c.CallID}, Handle: c.Handle, Line: c.Line, Baud: c.Baud, Start: c.Start}
 }
 
+// CallState is what a caller is doing within a call. The vocabulary is shared
+// by every host program; each program maps it to its own labels (Erika-K:
+// paging -> "CALL", chat -> "CHAT"). See spec 016.
+type CallState string
+
+const (
+	CallLogin  CallState = "login"
+	CallIdle   CallState = "idle"
+	CallPaging CallState = "paging" // at the page / line-message screen
+	CallChat   CallState = "chat"
+)
+
+// CallSegment is one stretch [From, To) of a call in one state. Room is set
+// for chat.
+type CallSegment struct {
+	From  time.Time `json:"from"`
+	To    time.Time `json:"to"`
+	State CallState `json:"state"`
+	Room  int       `json:"room,omitempty"`
+}
+
+// CallActivity is the plan of one resident call, observed as a whole the first
+// time any part of it is shown, and never rewritten afterwards.
+type CallActivity struct {
+	HostID   string        `json:"host_id"`
+	Actor    ActorRef      `json:"actor"`
+	Start    time.Time     `json:"start"` // == PresenceSession.Start
+	Segments []CallSegment `json:"segments"`
+}
+
+// Key identifies the call the plan belongs to, like a presence session key.
+func (a CallActivity) Key() string {
+	return a.Actor.String() + "@" + a.Start.UTC().Format(time.RFC3339Nano)
+}
+
+// End is the end of the last segment.
+func (a CallActivity) End() time.Time {
+	if len(a.Segments) == 0 {
+		return a.Start
+	}
+	return a.Segments[len(a.Segments)-1].To
+}
+
+// SegmentAt returns the segment that covers t.
+func (a CallActivity) SegmentAt(t time.Time) (CallSegment, bool) {
+	for _, seg := range a.Segments {
+		if !t.Before(seg.From) && t.Before(seg.To) {
+			return seg, true
+		}
+	}
+	return CallSegment{}, false
+}
+
 var _ PresenceStore = (*MemoryStore)(nil)
 
 func sessionKey(s PresenceSession) string {
@@ -140,4 +193,52 @@ func (s *MemoryStore) ListHumanCalls(hostID string) []HumanCall {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Line < out[j].Line })
 	return out
+}
+
+func (s *MemoryStore) ListCallActivities(hostID string, from, to time.Time) []CallActivity {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []CallActivity
+	for _, a := range s.callPlans[hostID] {
+		if a.Start.Before(from) || (!to.IsZero() && !a.Start.Before(to)) {
+			continue
+		}
+		out = append(out, cloneCallActivity(a))
+	}
+	return out
+}
+
+func (s *MemoryStore) SaveCallActivities(hostID string, acts []CallActivity) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	known := map[string]bool{}
+	for _, a := range s.callPlans[hostID] {
+		known[a.Key()] = true
+	}
+	for _, a := range acts {
+		if known[a.Key()] {
+			continue
+		}
+		known[a.Key()] = true
+		s.callPlans[hostID] = append(s.callPlans[hostID], cloneCallActivity(a))
+	}
+	sort.SliceStable(s.callPlans[hostID], func(i, j int) bool {
+		return s.callPlans[hostID][i].Start.Before(s.callPlans[hostID][j].Start)
+	})
+}
+
+func cloneCallActivities(acts []CallActivity) []CallActivity {
+	if len(acts) == 0 {
+		return nil
+	}
+	out := make([]CallActivity, len(acts))
+	for i, a := range acts {
+		out[i] = cloneCallActivity(a)
+	}
+	return out
+}
+
+func cloneCallActivity(a CallActivity) CallActivity {
+	a.Segments = append([]CallSegment(nil), a.Segments...)
+	return a
 }

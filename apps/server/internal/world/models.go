@@ -222,3 +222,29 @@ type PersonaFact struct {
 	MaterializedAt time.Time `json:"materialized_at"`
 	SourceKind     string    `json:"source_kind,omitempty"`
 }
+
+// ChatRoom is a chat room of a station: a world resource, the same for every
+// host program. Its on-screen wording belongs to the host program's section of
+// the station definition. See spec 016.
+type ChatRoom struct {
+	Number   int     `json:"number"`
+	Capacity int     `json:"capacity"` // 0 = unlimited
+	Weight   float64 `json:"weight"`   // relative choice weight; a fictional tuning value
+}
+
+// Full reports whether n people fill the room.
+func (r ChatRoom) Full(n int) bool { return r.Capacity > 0 && n >= r.Capacity }
+
+// ChatRoomsOf returns the chat rooms of a station definition. The rooms are
+// part of the immutable definition, so they are kept with the host detail
+// rather than in Host, which stays a comparable value.
+func ChatRoomsOf(detail hostcatalog.PresetDetail) []ChatRoom {
+	if len(detail.ChatRooms) == 0 {
+		return nil
+	}
+	out := make([]ChatRoom, len(detail.ChatRooms))
+	for i, r := range detail.ChatRooms {
+		out[i] = ChatRoom{Number: r.Number, Capacity: r.Capacity, Weight: r.Weight}
+	}
+	return out
+}

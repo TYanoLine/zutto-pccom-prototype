@@ -31,5 +31,20 @@ func ValidateDetail(d hostcatalog.ErikaKDetail) error {
 	check("texts.login_greeting", d.Texts.LoginGreeting)
 	check("texts.main_menu_title", d.Texts.MainMenuTitle)
 	check("texts.goodbye", d.Texts.Goodbye)
+	if c := d.Chat; c != nil {
+		check("chat.call_menu.title", c.CallMenu.Title)
+		for i, line := range c.CallMenu.Lines {
+			check(fmt.Sprintf("chat.call_menu.lines[%d]", i), line)
+		}
+		check("chat.call_menu.hint", c.CallMenu.Hint)
+		for i, line := range c.ChatMenu {
+			check(fmt.Sprintf("chat.chat_menu[%d]", i), line)
+		}
+		for room, lines := range c.RoomNotices {
+			for i, line := range lines {
+				check(fmt.Sprintf("chat.room_notices[%d][%d]", room, i), line)
+			}
+		}
+	}
 	return errors.Join(errs...)
 }
