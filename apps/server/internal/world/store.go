@@ -185,6 +185,27 @@ type ChatHost interface {
 	LeaveChatRoom(host Host, room int, actor ActorRef, at time.Time)
 }
 
+// LineMessageCall is a human's call as the world delivers messages to it.
+type LineMessageCall struct {
+	// CallID is the connection; messages are delivered only while it is live.
+	CallID string
+	// Human is the user making the call (spec 019) and Line the line they hold.
+	Human ActorRef
+	Line  int
+	// Login is the login ID shown on the call; residents know a human by it.
+	Login string
+}
+
+// LineMessageHost delivers residents' messages to a human's call (spec 018).
+type LineMessageHost interface {
+	// LineMessageEvents returns the residents' messages to the call whose
+	// delivery time is in (from, to], in time order. Each call also decides the
+	// residents' coming messages and starts writing the ones that are due; a
+	// call that is not live makes nothing. A host program moves from forward
+	// only when it could show what it got.
+	LineMessageEvents(host Host, call LineMessageCall, from, to time.Time) []LineMessage
+}
+
 // LineOccupancy decides and registers line use on behalf of the telephone and
 // call-session layers. Implementations compute resident presence, so they live
 // above the plain stores.

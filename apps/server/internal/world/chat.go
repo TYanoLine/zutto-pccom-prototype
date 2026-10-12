@@ -53,6 +53,12 @@ type LineMessage struct {
 
 	// FromHandle is a human sender's login ID (spec 019).
 	FromHandle string `json:"from_handle,omitempty"`
+
+	// Slot is the key of the world's decision that a resident's message
+	// words (spec 018); empty for a human's message.
+	Slot string `json:"slot,omitempty"`
+	// RespondsTo is the ID of the message a resident's message answers.
+	RespondsTo string `json:"responds_to,omitempty"`
 }
 
 // ChatRecordStore keeps chat utterances and line messages as world history.
