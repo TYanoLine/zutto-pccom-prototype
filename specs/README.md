@@ -20,6 +20,7 @@
 | 013 | persona-tone-and-relationship（ペルソナ個性パラメータと関係性の反映によるBBS本文文体の生動化） |
 | 014 | terminal-line-wrap-and-layout（80桁端末環境に即した記事レイアウトと改行指針） |
 | 015 | persona-presence（住民の接続と回線占有、暦に連動した世界時計） |
+| 016 | chat-foundation（非同期出力、通話の中の行動、絵理香K版の電報・チャット画面） |
 
 ## フォルダの構成
 
