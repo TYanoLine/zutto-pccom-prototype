@@ -98,6 +98,8 @@ export default function App() {
   const echoedInputRef = useRef('');
   const composingRef = useRef(false);
   const suppressEnterRef = useRef(false);
+  const commandHistoryRef = useRef<string[]>([]);
+  const commandHistoryIndexRef = useRef<number>(-1);
   const [status, setStatus] = useState('STANDALONE / MODEM IDLE');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
@@ -340,14 +342,87 @@ export default function App() {
   function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
   function compositionStart() { composingRef.current = true; followLiveInput(); }
   function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
-  function routeCommand(raw: string) { const upper = raw.trim().toUpperCase(), station = localStationRef.current; if (station?.isConnected()) { station.submitLine(raw); return; } if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; } let localMode: DialMode | null = null; if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode; if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; } if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; } if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false; modemRef.current?.submitLine(raw); }
+  function hangUp() {
+    if (localStationRef.current?.isConnected() || localStationRef.current?.isDialing()) {
+      localStationRef.current.hangup(true);
+      return;
+    }
+    modemRef.current?.hangup();
+  }
+  function navigateHistory(direction: -1 | 1) {
+    const history = commandHistoryRef.current;
+    if (history.length === 0) return;
+    if (direction === -1) {
+      if (commandHistoryIndexRef.current === -1) {
+        commandHistoryIndexRef.current = history.length - 1;
+      } else if (commandHistoryIndexRef.current > 0) {
+        commandHistoryIndexRef.current--;
+      }
+    } else {
+      if (commandHistoryIndexRef.current !== -1) {
+        if (commandHistoryIndexRef.current < history.length - 1) {
+          commandHistoryIndexRef.current++;
+        } else {
+          commandHistoryIndexRef.current = -1;
+          syncTerminalInput('');
+          resetInput();
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+    const cmd = history[commandHistoryIndexRef.current];
+    syncTerminalInput(cmd);
+    setInput(cmd);
+  }
+  function routeCommand(raw: string) {
+    const upper = raw.trim().toUpperCase(), station = localStationRef.current;
+    if (upper === 'ATH') {
+      hangUp();
+      return;
+    }
+    if (station?.isConnected()) { station.submitLine(raw); return; }
+    if (station?.isDialing()) { return; }
+    let localMode: DialMode | null = null;
+    if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone';
+    else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse';
+    else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode;
+    if (localMode) {
+      lastDialWasLocalRef.current = true;
+      lastLocalDialModeRef.current = localMode;
+      station?.dial(localMode, commSettings);
+      return;
+    }
+    if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) {
+      station?.dial(lastLocalDialModeRef.current, commSettings);
+      return;
+    }
+    if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false;
+    modemRef.current?.submitLine(raw);
+  }
   function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; }
+    if (directoryRef.current?.isOpen()) {
+      if (e.key === 'ArrowLeft') { directoryRef.current.handleKey('PageUp'); e.preventDefault(); return; }
+      if (e.key === 'ArrowRight') { directoryRef.current.handleKey('PageDown'); e.preventDefault(); return; }
+      directoryRef.current.handleKey(e.key);
+      e.preventDefault();
+      return;
+    }
     const native = e.nativeEvent as KeyboardEvent;
-    if (e.key === 'Escape' && !activeCall && !localTestConnected) {
-      if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
-      if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating' || openDirectoryWhenReadyRef.current === false) showMainMenu();
-      e.preventDefault(); return;
+    if (e.key === 'Escape') {
+      if (!activeCall && !localTestConnected) {
+        if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
+        if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating' || openDirectoryWhenReadyRef.current === false) showMainMenu();
+        e.preventDefault(); return;
+      } else {
+        if (input.length > 0) {
+          syncTerminalInput('');
+          resetInput();
+          e.preventDefault();
+          return;
+        }
+      }
     }
     if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -355,6 +430,14 @@ export default function App() {
         resetInput();
         mainMenuRef.current?.handleKey(e.key);
         return;
+      }
+    } else if (screenModeRef.current === 'terminal' || activeCall || localTestConnected) {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (commandHistoryRef.current.length > 0) {
+          e.preventDefault();
+          navigateHistory(e.key === 'ArrowUp' ? -1 : 1);
+          return;
+        }
       }
     }
     if (e.key !== 'Enter') return;
@@ -370,6 +453,10 @@ export default function App() {
     terminal.write('\r\n');
     const raw = input;
     const command = raw.trim();
+    if (raw.length > 0) {
+      commandHistoryRef.current.push(raw);
+      commandHistoryIndexRef.current = -1;
+    }
     resetInput();
     if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
       const selectedKey = mainMenuRef.current?.getSelectedItem().key ?? '1';
@@ -380,16 +467,62 @@ export default function App() {
     }
   }
   function softKey(key: string) {
+    if (key === 'HangUp') {
+      hangUp();
+      return;
+    }
     if (directoryRef.current?.isOpen()) {
+      if (key === 'ArrowLeft') {
+        directoryRef.current.handleKey('PageUp');
+        return;
+      }
+      if (key === 'ArrowRight') {
+        directoryRef.current.handleKey('PageDown');
+        return;
+      }
       directoryRef.current.handleKey(key);
+      return;
+    }
+    if (key === 'Escape') {
+      if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
+      if (!activeCall && !localTestConnected) {
+        if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating') {
+          showMainMenu();
+        } else {
+          resetInput();
+        }
+      } else {
+        if (input.length > 0) {
+          syncTerminalInput('');
+          resetInput();
+        } else {
+          routeCommand('\x1b');
+        }
+      }
+      return;
+    }
+    if (key === 'Enter') {
+      submitInput();
       return;
     }
     if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         resetInput();
         mainMenuRef.current?.handleKey(key);
-      } else if (key === 'Enter') {
-        submitInput();
+        return;
+      }
+    } else if (screenModeRef.current === 'terminal' || activeCall || localTestConnected) {
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        navigateHistory(key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
+      if (key === 'ArrowLeft') {
+        if (input.length > 0) {
+          const next = input.slice(0, -1);
+          syncTerminalInput(next);
+          setInput(next);
+        }
+        return;
       }
     }
   }
@@ -397,6 +530,13 @@ export default function App() {
   function audition(baud: number) { try { setAudioStatus(`SYNTHESIZING ${baud}bps...`); const run = playHandshake(baud); setLastHandshake(run); setAudioStatus(`PLAYING ${baud}bps`); } catch (error) { setAudioStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`); } }
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
+  const isCallingOrConnected = Boolean(
+    activeCall ||
+    localTestConnected ||
+    modemTelemetry.phase !== 'idle' ||
+    modemTelemetry.oh ||
+    modemTelemetry.cd
+  );
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
   const generationTraceVisible = activeCall?.capabilities.generationTrace === true && !standaloneLine;
   const activeCenter = activeCall ? centersRef.current.find(center => center.phone === activeCall.phone) : undefined;
@@ -438,7 +578,7 @@ export default function App() {
           <span>自動再接続</span>
           <button type="button" aria-pressed={autoRedial} onClick={() => setAutoRedial(value => !value)}>{autoRedial ? 'ON' : 'OFF'}</button>
         </div>
-        <button type="button" className="desktop-menu-action" onClick={() => { setDesktopMenuOpen(false); routeCommand('ATH'); }}>電話を切る</button>
+        <button type="button" className="desktop-menu-action" onClick={() => { setDesktopMenuOpen(false); hangUp(); }}>電話を切る</button>
         <div className="desktop-menu-section">
           <span>画面サイズ</span>
           <button type="button" aria-pressed={terminalScreenMode === 'variable'} onClick={() => { setTerminalScreenMode('variable'); setDesktopMenuOpen(false); }}>80桁 × 可変行</button>
@@ -463,11 +603,13 @@ export default function App() {
       ref={terminalCanvasRef}
       terminal={terminal}
       keyboardActive={commandFocused}
-      bottomControlsActive={directoryOpen}
+      bottomControlsActive={true}
       screenMode={terminalScreenMode}
       modemStatusMode={modemStatusMode}
       onModemStatusModeChange={setModemStatusMode}
       buildInfo={buildInfoProps}
+      onHangUp={hangUp}
+      isCallingOrConnected={isCallingOrConnected}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,
@@ -479,11 +621,41 @@ export default function App() {
         onBlur: () => setCommandFocused(false),
       }}
     /></section>
-    {directoryOpen && <nav className="directory-softkeys" aria-label="センターリスト操作">
-      <button type="button" onClick={() => softKey('ArrowUp')}>▲<small>上</small></button><button type="button" onClick={() => softKey('ArrowDown')}>▼<small>下</small></button>
-      <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
-      <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
-    </nav>}
+    <nav className="mobile-softkeys directory-softkeys" aria-label="専用ソフトキー">
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('Escape')}>
+        ESC<small>戻る</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowUp')}>
+        ▲<small>上</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowDown')}>
+        ▼<small>下</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowLeft')}>
+        ◀<small>{directoryOpen ? '前頁' : '左'}</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowRight')}>
+        ▶<small>{directoryOpen ? '次頁' : '右'}</small>
+      </button>
+      <button
+        type="button"
+        className={directoryOpen ? 'softkey-call' : 'softkey-enter'}
+        onPointerDown={e => e.preventDefault()}
+        onClick={() => softKey('Enter')}
+      >
+        {directoryOpen ? 'CALL' : 'RET'}<small>{directoryOpen ? '呼出' : '送出'}</small>
+      </button>
+      <button
+        type="button"
+        className={`softkey-hangup${isCallingOrConnected ? ' softkey-hangup--active' : ''}`}
+        onPointerDown={e => e.preventDefault()}
+        onClick={() => softKey('HangUp')}
+        disabled={!isCallingOrConnected}
+        aria-label="回線を切断"
+      >
+        切断<small>ATH</small>
+      </button>
+    </nav>
     <footer className="desktop-statusbar" aria-label="通信状況">
       <span className="desktop-statusbar__separator" />
       <span className="desktop-statusbar__group">

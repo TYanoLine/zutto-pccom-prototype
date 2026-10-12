@@ -57,6 +57,8 @@ type TerminalCanvasProps = {
   modemStatusMode: ModemStatusDisplayMode;
   onModemStatusModeChange: (mode: ModemStatusDisplayMode) => void;
   buildInfo: BuildInfoPanelProps;
+  onHangUp?: () => void;
+  isCallingOrConnected?: boolean;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
@@ -69,6 +71,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     modemStatusMode,
     onModemStatusModeChange,
     buildInfo,
+    onHangUp,
+    isCallingOrConnected = false,
   },
   forwardedRef,
 ) {
@@ -198,9 +202,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
       ? visualViewport.offsetTop + visualViewport.height
       : window.innerHeight;
     const viewportTop = viewport.getBoundingClientRect().top;
-    const bottomControls = bottomControlsActive
-      ? document.querySelector<HTMLElement>('.directory-softkeys')
-      : null;
+    const bottomControls = document.querySelector<HTMLElement>('.mobile-softkeys')
+      ?? (bottomControlsActive ? document.querySelector<HTMLElement>('.directory-softkeys') : null);
     const controlsTop = bottomControls?.getBoundingClientRect().top ?? visibleBottom;
     const availableHeight = Math.max(0, Math.min(visibleBottom, controlsTop) - viewportTop);
     const rows = mobileTerminalRows(canvas.clientWidth || viewport.clientWidth, availableHeight);
@@ -534,6 +537,16 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             <summary>バージョン情報</summary>
             <BuildInfoPanel {...buildInfo} />
           </details>
+          {onHangUp && (
+            <button
+              type="button"
+              className="terminal-function-hangup"
+              onClick={() => { setFunctionMenuOpen(false); onHangUp(); }}
+              disabled={!isCallingOrConnected}
+            >
+              電話を切る (ATH)
+            </button>
+          )}
           <button type="button" onClick={() => setFunctionMenuOpen(false)}>閉じる</button>
         </nav>
         {historyOffset > 0 && <button type="button" className="terminal-live-return" onClick={returnToLive}>最新へ</button>}

@@ -82,7 +82,7 @@ body { min-height: 100vh; overflow: hidden; background: #080808; touch-action: m
 .desktop-statusbar__group { display: flex; flex: 0 0 410px; align-items: center; justify-content: space-between; gap: 12px; white-space: nowrap; }
 .desktop-statusbar__online { color: #e2ad4c; }
 .desktop-statusbar__offline { overflow: hidden; color: #aaa; text-overflow: ellipsis; }
-.quick-help, .directory-softkeys { display: none; }
+.quick-help, .directory-softkeys, .mobile-softkeys { display: none; }
 .dev-shortcuts { display: none !important; }
 code { color: #ddd; }
 .debug-panel, .comm-panel, .center-panel { margin-top: 10px; padding: 7px 9px; border: 1px solid #444; background: #111; }
@@ -260,9 +260,15 @@ code { color: #ddd; }
   .terminal-display--readable.terminal-display--rows-fixed25 .terminal-canvas { width: max(100%, 640px); height: auto; max-width: none; max-height: none; }
   .settings-grid { grid-template-columns: 1fr; }
   .settings-grid select { min-height: 44px; font-size: 16px; }
-  .directory-softkeys { position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom); z-index: 9; display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; padding: 4px 2px; background: #111; border-top: 1px solid #555; border-bottom: 1px solid #333; }
-  .directory-softkeys button { min-width: 0; min-height: 54px; padding: 4px 1px; touch-action: manipulation; user-select: none; -webkit-user-select: none; font: 700 13px ui-monospace, monospace; color: #ddd; background: #303030; border: 1px solid #666; border-right-color: #222; border-bottom-color: #222; border-radius: 0; }
-  .directory-softkeys button:active { background: #777; color: #000; border-color: #222 #aaa #aaa #222; }
-  .directory-softkeys button small { display: block; margin-top: 3px; font-size: 9px; font-weight: 400; white-space: nowrap; }
-  .directory-softkeys .softkey-call { background: #163616; color: #cfc; }
+  .directory-softkeys, .mobile-softkeys { position: fixed; left: 0; right: 0; bottom: env(safe-area-inset-bottom); z-index: 9; display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; padding: 4px 2px; background: #111; border-top: 1px solid #555; border-bottom: 1px solid #333; }
+  .directory-softkeys button, .mobile-softkeys button { min-width: 0; min-height: 50px; padding: 4px 1px; touch-action: manipulation; user-select: none; -webkit-user-select: none; font: 700 12px ui-monospace, monospace; color: #ddd; background: #303030; border: 1px solid #666; border-right-color: #222; border-bottom-color: #222; border-radius: 0; }
+  .directory-softkeys button:active:not(:disabled), .mobile-softkeys button:active:not(:disabled) { background: #777; color: #000; border-color: #222 #aaa #aaa #222; }
+  .directory-softkeys button small, .mobile-softkeys button small { display: block; margin-top: 2px; font-size: 8px; font-weight: 400; white-space: nowrap; }
+  .directory-softkeys .softkey-call, .mobile-softkeys .softkey-call { background: #163616; color: #cfc; }
+  .mobile-softkeys .softkey-enter { background: #233323; color: #cfc; }
+  .mobile-softkeys .softkey-hangup { color: #666; background: #222; border-color: #444; }
+  .mobile-softkeys .softkey-hangup--active { background: #4a1818; color: #ffb4b4; border-color: #933; animation: mobile-connection-working 1.4s ease-in-out infinite; }
+  .mobile-softkeys .softkey-hangup--active:active { background: #833; color: #fff; }
+  .terminal-function-hangup { grid-column: 1 / -1; color: #ffb4b4 !important; background: #3a1515 !important; border-color: #833 !important; }
+  .terminal-function-hangup:disabled { color: #666 !important; background: #222 !important; border-color: #444 !important; }
 }
