@@ -86,7 +86,9 @@ body { min-height: 100vh; overflow: hidden; background: #080808; touch-action: m
 .desktop-statusbar__fee-btn { background: transparent; border: 0; color: inherit; font: inherit; padding: 2px 4px; margin: -2px -4px; border-radius: 3px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
 .desktop-statusbar__fee-btn:hover { color: #fff; background: #222; }
 .fee-popover { position: absolute; bottom: calc(100% + 10px); right: 0; z-index: 50; padding: 8px 12px; background: #1c1c1c; border: 1px solid #555; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.65); font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #eee; white-space: nowrap; }
+.fee-popover__content { display: flex; flex-direction: column; gap: 6px; }
 .fee-popover__row, .fee-popover__edit { display: flex; align-items: center; gap: 8px; }
+.fee-popover__row--sub { font-size: 12px; color: #bbb; border-top: 1px solid #3a3a3a; padding-top: 5px; }
 .fee-popover__change-btn { background: transparent; border: 0; color: #e2ad4c; font: inherit; font-weight: 600; cursor: pointer; padding: 0 2px; text-decoration: underline; }
 .fee-popover__change-btn:hover { color: #f5c76c; }
 .fee-popover__close-btn { background: transparent; border: 0; color: #888; font: inherit; cursor: pointer; padding: 0 3px; margin-left: 2px; }

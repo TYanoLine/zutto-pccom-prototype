@@ -13,6 +13,7 @@ import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
 import { ntt1996TariffTable } from './billing/pseudoTariffs';
 import { CALLER_LOCATION_PRESETS, loadCallerLocation, saveCallerLocation } from './billing/CallerLocation';
+import { addMonthlyCharge, getMonthKey, loadMonthlyTotal } from './billing/MonthlyBilling';
 import { Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
@@ -86,6 +87,7 @@ export default function App() {
   const [feePopoverOpen, setFeePopoverOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState(false);
   const feePopoverRef = useRef<HTMLDivElement | null>(null);
+  const [monthlyAccumulated, setMonthlyAccumulated] = useState(() => loadMonthlyTotal(getMonthKey(clock.now())));
   const tariff = useMemo(() => new PseudoTariffService(ntt1996TariffTable, telehodaiNumbers, callerLocation), [callerLocation]);
   const modemRef = useRef<VirtualModem | null>(null);
   const localStationRef = useRef<LocalTestStation | null>(null);
@@ -233,7 +235,21 @@ export default function App() {
     const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
     modem.onStatus = setStatus;
     modem.onTelemetry = setModemTelemetry;
-    modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now, capabilities: call.capabilities } : null; }); };
+    modem.onCallState = call => {
+      const now = clock.now();
+      setWorldNow(now);
+      setActiveCall(previous => {
+        if (previous) {
+          const yen = tariff.chargeYen(previous.phone, previous.connectedAt, now);
+          setCompletedCost(value => value + yen);
+          if (yen > 0) {
+            const nextMonthly = addMonthlyCharge(getMonthKey(now), yen);
+            setMonthlyAccumulated(nextMonthly);
+          }
+        }
+        return call ? { phone: call.phone, connectedAt: now, capabilities: call.capabilities } : null;
+      });
+    };
     modem.setCommunicationSettings(commSettings);
     modem.setAutoRedial(autoRedial); modemRef.current = modem;
     const localStation = new LocalTestStation(terminal, { audio: { dial: playDialSequence, handshake: playHandshake } });
@@ -552,14 +568,20 @@ export default function App() {
     modemTelemetry.oh ||
     modemTelemetry.cd
   );
-  const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
+  const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
+  const isConnected = !!(activeCall || localTestConnected);
+  const cost = localTestConnected ? 0 : runningCost;
+  const desktopCostLabel = isConnected ? `料金 ¥${cost}` : '料金 ー円';
+  const mobileSessionCost = localTestConnected ? 0 : runningCost;
+  const mobileCostLabel = isConnected ? `¥${mobileSessionCost}` : 'ー円';
+  const currentMonthLabel = `${worldNow.getMonth() + 1}月`;
+  const monthlyTotalDisplay = monthlyAccumulated + (localTestConnected ? 0 : runningCost);
   const generationTraceVisible = activeCall?.capabilities.generationTrace === true && !standaloneLine;
   const activeCenter = activeCall ? centersRef.current.find(center => center.phone === activeCall.phone) : undefined;
   const connectedMobileName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : null;
   const mobileConnectionStatus = resolveMobileConnectionStatus(modemTelemetry.phase, connectedMobileName);
   const mobileConnectedAt = localTestConnected ? localTestConnectedAt : activeCall?.connectedAt ?? null;
   const mobileElapsed = formatElapsed(mobileConnectedAt, worldNow);
-  const mobileSessionCost = localTestConnected ? 0 : runningCost;
   const desktopHostName = localTestConnected ? 'LOCAL TEST' : activeCall ? (activeCenter?.name ?? activeCall.phone) : '';
   const desktopBaud = activeCall || localTestConnected ? modemTelemetry.baud : commSettings.dteBaud;
   const desktopElapsed = mobileConnectedAt ? mobileElapsed.slice(0, 5) : '00:00';
@@ -569,25 +591,30 @@ export default function App() {
     onRetry: () => setVersionRefresh(value => value + 1),
   };
   const feePopoverContent = feePopoverOpen && (
-    <div className="fee-popover" ref={feePopoverRef} role="dialog" aria-label="発信地設定">
+    <div className="fee-popover" ref={feePopoverRef} role="dialog" aria-label="発信地と通話料金">
       {!editingLocation ? (
-        <div className="fee-popover__row">
-          <span>発信地：{callerLocation.label}({callerLocation.areaCode})</span>
-          <button
-            type="button"
-            className="fee-popover__change-btn"
-            onClick={() => setEditingLocation(true)}
-          >
-            [変更]
-          </button>
-          <button
-            type="button"
-            className="fee-popover__close-btn"
-            onClick={() => setFeePopoverOpen(false)}
-            aria-label="閉じる"
-          >
-            ✕
-          </button>
+        <div className="fee-popover__content">
+          <div className="fee-popover__row">
+            <span>発信地：{callerLocation.label}({callerLocation.areaCode})</span>
+            <button
+              type="button"
+              className="fee-popover__change-btn"
+              onClick={() => setEditingLocation(true)}
+            >
+              [変更]
+            </button>
+            <button
+              type="button"
+              className="fee-popover__close-btn"
+              onClick={() => setFeePopoverOpen(false)}
+              aria-label="閉じる"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="fee-popover__row fee-popover__row--sub">
+            <span>当月({currentMonthLabel})の累積：¥{monthlyTotalDisplay}</span>
+          </div>
         </div>
       ) : (
         <div className="fee-popover__edit">
@@ -674,7 +701,7 @@ export default function App() {
             aria-expanded={feePopoverOpen}
             aria-label="通話料金と発信地"
           >
-            ¥{mobileSessionCost}
+            {mobileCostLabel}
           </button>
           {feePopoverContent}
         </span>
@@ -742,7 +769,7 @@ export default function App() {
             aria-expanded={feePopoverOpen}
             aria-label="通話料金と発信地"
           >
-            料金 ¥{cost}
+            {desktopCostLabel}
           </button>
           {feePopoverContent}
         </span>
