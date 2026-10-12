@@ -254,6 +254,9 @@ func (r *Runtime) handleChatMenu(line string) (string, bool) {
 	}
 	r.state = "chat_room"
 	r.chat.room, r.chat.since = number, now
+	if chat, ok := r.Store.(world.ChatHost); ok {
+		chat.EnterChatRoom(r.Host, number, r.self(), r.handle, now)
+	}
 	var b strings.Builder
 	b.WriteString("\r\n\r\n" + chatExitHint + "\r\n")
 	for _, notice := range r.detail.Chat.RoomNotices[number] {
@@ -268,6 +271,9 @@ func (r *Runtime) handleChatRoom(line string) (string, bool) {
 	out := "\r\n" + r.roomEvents(now)
 	if line == ".." {
 		r.state = "chat_menu"
+		if chat, ok := r.Store.(world.ChatHost); ok {
+			chat.LeaveChatRoom(r.Host, r.chat.room, r.self(), now)
+		}
 		return out + padRunes(r.handle, 8) + ":..\r\n" +
 			"\r\n" + chatLeaveLine(r.handle) + chatOffRule + "\r\n" +
 			"\r\n" + r.whoRows(r.lineHolders(now)) + r.renderRoomMenu(), false
@@ -275,7 +281,7 @@ func (r *Runtime) handleChatRoom(line string) (string, bool) {
 	if line != "" {
 		if chat, ok := r.Store.(world.ChatHost); ok {
 			_, _ = chat.RecordChatUtterance(r.Host, world.ChatUtterance{
-				Room: r.chat.room, Actor: world.ActorRef{Kind: world.ActorKindMember, ID: r.callID},
+				Room: r.chat.room, Actor: r.self(),
 				Handle: r.handle, Body: line, At: now,
 			})
 		}
@@ -283,7 +289,8 @@ func (r *Runtime) handleChatRoom(line string) (string, bool) {
 	return out + padRunes(r.handle, 8) + ":" + line + "\r\n", false
 }
 
-// Poll shows who entered or left the caller's chat room since the last time.
+// Poll shows who entered or left the caller's chat room, and what was said
+// there, since the last time.
 // Nothing interrupts the other screens, the telegram body included.
 func (r *Runtime) Poll(now time.Time) string {
 	if r.state != "chat_room" {
@@ -292,8 +299,9 @@ func (r *Runtime) Poll(now time.Time) string {
 	return r.roomEvents(now)
 }
 
-// roomEvents returns the joins and leaves in the caller's room since the last
-// call and moves the mark to now.
+// roomEvents returns the joins, leaves and lines in the caller's room since
+// the last call and moves the mark to now. The caller's own lines were shown
+// when they were typed.
 func (r *Runtime) roomEvents(now time.Time) string {
 	if !now.After(r.chat.since) {
 		return ""
@@ -306,13 +314,23 @@ func (r *Runtime) roomEvents(now time.Time) string {
 	}
 	var b strings.Builder
 	for _, e := range chat.ChatEvents(r.Host, r.chat.room, from, now) {
-		if e.Kind == world.ChatJoin {
+		switch e.Kind {
+		case world.ChatJoin:
 			b.WriteString(chatJoinLine(e.Handle))
-		} else {
+		case world.ChatLeave:
 			b.WriteString(chatLeaveLine(e.Handle))
+		case world.ChatSay:
+			if e.Actor != r.self() {
+				b.WriteString(padRunes(e.Handle, 8) + ":" + e.Body + "\r\n")
+			}
 		}
 	}
 	return b.String()
+}
+
+// self is the caller as the world knows them in rooms and telegrams.
+func (r *Runtime) self() world.ActorRef {
+	return world.ActorRef{Kind: world.ActorKindMember, ID: r.callID}
 }
 
 func chatJoinLine(handle string) string  { return "\a\a## chat on  " + handle + " ##\r\n" }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"zutto-pccom/apps/server/internal/chatslot"
+	"zutto-pccom/apps/server/internal/hostprogram/erikak"
 	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 )
@@ -440,4 +441,51 @@ func TestChatEventsTiming(t *testing.T) {
 		prev = now
 	}
 	t.Logf("ChatEvents on %d residents with a caller in the room: worst of 30 polls = %v", len(store.ListHostPersonas(host.ID)), worst)
+}
+
+// TestErikaKChatShowsResidentLines drives the station's chat room against the
+// real world with a writer: residents' lines appear among the joins and
+// leaves, and the caller's own lines are not shown again.
+func TestErikaKChatShowsResidentLines(t *testing.T) {
+	repo, _, host, at, room := talkTestRepo(t, &fakeChatWriter{})
+	current := at
+	repo.SetWorldNow(func() time.Time { return current })
+	rt := erikak.New(host, repo)
+	rt.SetCallInfo("call-chat", 1, 14400)
+	rt.HandleLine("GUEST")
+	rt.HandleLine("4")
+	rt.HandleLine("X")
+	if out, _ := rt.HandleLine(fmt.Sprint(room)); !strings.Contains(out, "## chat on  GUEST ##") {
+		t.Fatalf("room entry:\n%s", out)
+	}
+	var shown strings.Builder
+	for i := 1; i <= 120; i++ {
+		current = at.Add(time.Duration(i) * 5 * time.Second)
+		if i == 30 {
+			out, _ := rt.HandleLine("みなさんこんばんは")
+			if !strings.Contains(out, "GUEST   :みなさんこんばんは") {
+				t.Fatalf("own line:\n%s", out)
+			}
+			shown.WriteString(strings.TrimPrefix(strings.ReplaceAll(out, "GUEST   :みなさんこんばんは\r\n", ""), "\r\n"))
+		}
+		shown.WriteString(rt.Poll(current))
+		waitChatJobs(t, repo)
+	}
+	said := 0
+	for _, l := range strings.Split(strings.TrimSuffix(shown.String(), "\r\n"), "\r\n") {
+		switch {
+		case l == "":
+		case strings.HasPrefix(l, "\a\a## chat on  "), strings.HasPrefix(l, "\a\a## chat off "):
+		case strings.Contains(l, ":") && strings.HasSuffix(l, "です(^^)"):
+			said++
+		default:
+			t.Fatalf("unexpected room line %q in:\n%s", l, shown.String())
+		}
+		if strings.Contains(l, "みなさんこんばんは") {
+			t.Fatalf("own line shown again: %q", l)
+		}
+	}
+	if said == 0 {
+		t.Fatalf("no resident line in ten minutes:\n%s", shown.String())
+	}
 }
