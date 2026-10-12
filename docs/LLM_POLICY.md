@@ -10,6 +10,19 @@ This document is product behavior, not merely prompt advice.
 - Agreement, praise and curiosity require persona/world justification.
 - Silence is a valid result and should usually be decided before the LLM is called.
 
+### Chat lines (spec 017)
+
+A resident's chat line is generated only after `internal/chatslot` selected the
+speaker, the time, the kind of line and what it answers. `llm.ChatLineWriter`
+receives that decision as materials: the speaker's profile and style, the
+addressee and spec 013's relationship label, who is in the room, the recent
+lines the speaker saw, the world date and time, the station and room, and for
+`news` only a summary of the board event (who, which board, which title; never
+a post body). The caller is listed by handle like everyone else. The answer is
+one line in a strict JSON schema; a line that is not one line, is too wide,
+cannot be written in Shift_JIS, starts with the speaker's handle or uses a term
+from after the world date is rejected, and the resident stays silent.
+
 ## Prompt construction
 
 Prefer **purpose + materials + schema/validation** over long prompt rule stacks.

@@ -38,6 +38,17 @@ Article Detail logging remains a separate opt-in diagnostic; Situation-first
 root headers normally have their detail completion bit set upstream.
 
 
+### Chat lines (spec 017)
+
+On the same condition (`DEBUG_LOG_GENERATED_CONTENT` and the station's
+`debug.content_log`), each recorded resident chat line is logged as one JSON
+line prefixed with `Chat generated content:`: `host`, `room`, `slot` (the
+World's decision key), `kind`, `speaker`, `addressee`, `responds_to` (the
+ledger event it answers), `body`, `at` and `elapsed_ms`. A line that failed or
+was rejected is logged on every station as
+`Chat line generation failed: host=... slot=... err=...`; the resident stayed
+silent. The caller's own lines are never logged.
+
 ## Title-led body trial
 
 When `GENERATION_FREEFORM_BODY=1` (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.

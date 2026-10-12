@@ -338,13 +338,36 @@ count, the rooms and their capacities come from the station definition.
   `private:<host>`, addressed to the recipient). Both survive restarts with the
   host snapshot.
 
-Implemented: residents' states on the lines, joins and leaves in chat rooms,
-the human's own utterances and line messages as world records.
+- **Residents speaking (spec 017).** `internal/chatslot` decides, without an
+  LLM, each chance a resident has to say a line (a slot): `greet` on entering,
+  `welcome` someone who entered, `reply` to a line, `talk` on their own,
+  `farewell` before leaving, `sendoff` someone who says they are leaving, and
+  `news`, bringing up a recent board event (a post, or a reply to a post) of an
+  acquaintance in the room. At most one resident welcomes an entry, replies to
+  a line or brings up an event; a line that says its speaker is leaving gets
+  up to two send-offs instead of a reply. Silence is always possible. The
+  chances come from the persona, spec 013's relationship and whether a handle
+  was named; chains of replies, lines per minute and per hour are limited.
+  Every value is a fictional tuning value, set high for now while the chat is
+  being debugged.
+- **Lines exist only while observed.** Slots are computed and worded only for
+  times a caller is in the room (`ChatHost.EnterChatRoom` / `LeaveChatRoom`;
+  a stay with no poll for a minute counts as ended). Unheard conversation is
+  not a world fact. Polling a room (`ChatEvents`) returns the recorded lines
+  with the joins and leaves and starts writing the lines due within twenty
+  seconds; an optional `llm.ChatLineWriter` words a selected slot, and a
+  failed or rejected line is silence, never canned text. A recorded line is a
+  `world.ChatUtterance` with its slot and the line it answers, entered in the
+  ledger as `npc_world_selected`, and is never rewritten or placed in a window
+  already shown.
 
-Planned, not implemented yet: residents speaking in rooms (spec 017, worded by
-an LLM only after the World selected the speaker), replies to line messages and
-messages from residents (spec 018), and residents posting and replying while
-they are on line. Who is active keeps changing: members log off when their call
+Implemented: residents' states on the lines, joins and leaves in chat rooms,
+the human's own utterances and line messages as world records, and residents
+speaking in rooms.
+
+Planned, not implemented yet: replies to line messages and messages from
+residents (spec 018), chat updating relationships, and residents posting and
+replying while they are on line. Who is active keeps changing: members log off when their call
 ends, which simply frees the line, and others connect in later windows. Chat
 partners and the authors of such activity are chosen from the presence computed
 above, never invented because the human is there; the World decides whether
