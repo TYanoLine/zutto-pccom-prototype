@@ -1,0 +1,187 @@
+.bbs-reset-backdrop {
+  position: fixed;
+  z-index: 110;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 3vh 3vw;
+  background: rgba(0, 0, 0, 0.78);
+}
+
+.bbs-reset-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(500px, 100%);
+  max-height: 90vh;
+  padding: 16px;
+  border: 1px solid #705b4d;
+  border-radius: 6px;
+  background: #191614;
+  color: #ede7e1;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.85);
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.bbs-reset-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #4a3c32;
+  padding-bottom: 10px;
+}
+
+.bbs-reset-dialog__header strong {
+  font-size: 15px;
+  color: #ffca85;
+}
+
+.bbs-reset-dialog__header button {
+  background: transparent;
+  border: 0;
+  color: #aaa;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 6px;
+  line-height: 1;
+}
+
+.bbs-reset-dialog__header button:hover {
+  color: #fff;
+}
+
+.bbs-reset-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 0;
+  overflow-y: auto;
+}
+
+.bbs-reset-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bbs-reset-dialog__label {
+  font-weight: bold;
+  color: #d8c2ad;
+}
+
+.bbs-reset-dialog__target {
+  font-weight: bold;
+  color: #92d892;
+  padding: 4px 8px;
+  background: #0f140f;
+  border: 1px solid #2f452f;
+}
+
+.bbs-reset-dialog__options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bbs-reset-dialog__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid #3d3128;
+  background: #110e0c;
+  cursor: pointer;
+}
+
+.bbs-reset-dialog__option input {
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+.bbs-reset-dialog__option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bbs-reset-dialog__option strong {
+  color: #ede7e1;
+}
+
+.bbs-reset-dialog__option small {
+  color: #a09285;
+  font-size: 11px;
+}
+
+.bbs-reset-dialog__input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #574537;
+  background: #0c0a09;
+  color: #fff;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.bbs-reset-dialog__input:focus {
+  border-color: #ffaa55;
+  outline: none;
+}
+
+.bbs-reset-dialog__error {
+  padding: 8px 10px;
+  border: 1px solid #843232;
+  background: #2a1111;
+  color: #ff9e9e;
+  font-size: 12px;
+}
+
+.bbs-reset-dialog__success {
+  padding: 8px 10px;
+  border: 1px solid #2f5f2f;
+  background: #0e220e;
+  color: #9eed9e;
+  font-size: 12px;
+}
+
+.bbs-reset-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #4a3c32;
+  padding-top: 12px;
+}
+
+.bbs-reset-dialog button {
+  padding: 7px 14px;
+  font: inherit;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.bbs-reset-dialog__btn-cancel {
+  border: 1px solid #555;
+  background: #262626;
+  color: #ccc;
+}
+
+.bbs-reset-dialog__btn-cancel:hover {
+  background: #333;
+}
+
+.bbs-reset-dialog__btn-execute {
+  border: 1px solid #a34731;
+  background: #5c1e10;
+  color: #ffd8d0;
+  font-weight: bold;
+}
+
+.bbs-reset-dialog__btn-execute:hover:not(:disabled) {
+  background: #7a2815;
+  border-color: #d15c40;
+}
+
+.bbs-reset-dialog__btn-execute:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

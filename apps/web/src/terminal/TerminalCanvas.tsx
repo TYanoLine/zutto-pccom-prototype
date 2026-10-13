@@ -59,6 +59,7 @@ type TerminalCanvasProps = {
   buildInfo: BuildInfoPanelProps;
   onHangUp?: () => void;
   isCallingOrConnected?: boolean;
+  onOpenResetDialog?: () => void;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
@@ -73,6 +74,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     buildInfo,
     onHangUp,
     isCallingOrConnected = false,
+    onOpenResetDialog,
   },
   forwardedRef,
 ) {
@@ -543,6 +545,18 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             <summary>バージョン情報</summary>
             <BuildInfoPanel {...buildInfo} />
           </details>
+          {onOpenResetDialog && (
+            <button
+              type="button"
+              className="terminal-function-debug"
+              onClick={() => {
+                setFunctionMenuOpen(false);
+                onOpenResetDialog();
+              }}
+            >
+              [DEBUG] 掲示板リセット…
+            </button>
+          )}
           {onHangUp && (
             <button
               type="button"

@@ -229,51 +229,7 @@ func main() {
 		return true
 	}
 
-	resetBBSArticles := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		if cfg.DebugResetToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "debug BBS reset requires DEBUG_RESET_TOKEN"})
-			return
-		}
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", "POST")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST only"})
-			return
-		}
-		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
-		// Public test deployment safety: expose the generic reset machinery only
-		// for hosts whose definition opts in with debug.http_endpoints. An unknown
-		// number and a host without the flag get the same answer on purpose.
-		host, err := runtimeStore.HostByPhone(phone)
-		if err != nil || !host.Debug.HTTPEndpoints {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset is not enabled for this host"})
-			return
-		}
-		if runtimeStore.MaterializationObservationRunning(host.ID) {
-			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "BBS observation/generation is still running; retry after it completes"})
-			return
-		}
-		removed, kept, ok := runtimeStore.ResetBBSGeneratedArticles(host)
-		if !ok {
-			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "shared BBS article reset unavailable"})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ok":                      true,
-			"phone":                   phone,
-			"host_id":                 host.ID,
-			"removed_generated_posts": removed,
-			"kept_posts":              kept,
-			"kept":                    "seed/user history + boards + personas + host program configuration",
-			"next":                    "visit a board again to run a fresh shared-engine catch-up batch",
-		})
-	}
+	resetBBSArticles := newBBSResetHandler(cfg.DebugResetToken, store, runtimeStore)
 
 	bbsSample := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
