@@ -41,6 +41,8 @@ body { min-height: 100vh; overflow: hidden; overscroll-behavior: none; backgroun
 .desktop-menu-toggle-group button + button { border-left: 0; }
 .desktop-menu button[aria-pressed="true"] { border-color: #d6a348; color: #16120a; background: #e0b653; }
 .desktop-menu-action { display: flex; width: 100%; align-items: center; justify-content: space-between; margin: 0; padding: 8px 0 !important; border: 0 !important; border-bottom: 1px solid #414141 !important; color: #eee !important; background: transparent !important; font: 14px ui-sans-serif, system-ui, sans-serif !important; text-align: left; }
+.desktop-menu-action--debug { color: #ffca85 !important; }
+.desktop-menu-action--debug:hover { color: #ffe3b3 !important; }
 .desktop-menu-section { display: grid; gap: 6px; padding-top: 10px; }
 .desktop-menu-section > span { margin-bottom: 2px; color: #aaa; font-size: 12px; }
 .desktop-menu-section button { width: 100%; text-align: left; }
@@ -259,6 +261,7 @@ code { color: #ddd; }
   .terminal-build-info summary { padding: 8px 4px; color: #ddd; font: 12px ui-monospace, monospace; cursor: pointer; }
   .terminal-build-info .build-info { margin-top: 0; padding: 3px 4px 6px; border-top: 0; font-size: 10px; }
   .terminal-build-info .build-info button { min-height: 40px; }
+  .terminal-function-debug { grid-column: 1 / -1; color: #ffca85 !important; border-color: #8c5b30 !important; }
 
   .terminal-function-mode-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
   .terminal-function-mode-row button { min-width: 0; padding-inline: 4px; font-size: 11px; }

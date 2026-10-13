@@ -144,8 +144,8 @@ subjects.
 
 An explicit leaf-board read realizes at most ten initial root headers with
 lazy article bodies. Returning to an already populated board index reuses
-committed headers rather than requesting additional titles. The current HAKATA
-quality-evaluation configuration deliberately clears articles on every new
+committed headers rather than requesting additional titles. A host configured
+with `debug.reset_articles_on_connect` deliberately clears articles on every new
 successful CONNECT, but never changes titles merely because an article is read.
 All historical host runtime commands, prompts and append representation remain
 owned by the individual host program.

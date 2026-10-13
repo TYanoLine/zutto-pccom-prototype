@@ -33,6 +33,7 @@ import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
 import { getOrCreateCallerKey } from './modem/CallerKey';
 import './styles.css';
 import { GenerationInspector } from './debug/GenerationInspector';
+import { BBSResetDialog } from './debug/BBSResetDialog';
 
 const APP_VERSION = '0.28';
 const CLIENT_BUILD_COMMIT = (import.meta.env.VITE_BUILD_COMMIT as string | undefined) || 'unknown';
@@ -127,6 +128,7 @@ export default function App() {
   const [commandFocused, setCommandFocused] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
   const [traceRunning, setTraceRunning] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [directoryGenerating, setDirectoryGenerating] = useState(true);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
@@ -588,6 +590,19 @@ export default function App() {
           <button type="button" aria-pressed={terminalScreenMode === 'variable'} onClick={() => { setTerminalScreenMode('variable'); setDesktopMenuOpen(false); }}>80桁 × 可変行</button>
           <button type="button" aria-pressed={terminalScreenMode === 'fixed25'} onClick={() => { setTerminalScreenMode('fixed25'); setDesktopMenuOpen(false); }}>80桁 × 25行固定</button>
         </div>
+        <div className="desktop-menu-section">
+          <span>デバッグ</span>
+          <button
+            type="button"
+            className="desktop-menu-action desktop-menu-action--debug"
+            onClick={() => {
+              setDesktopMenuOpen(false);
+              setResetDialogOpen(true);
+            }}
+          >
+            [DEBUG] 掲示板リセット…
+          </button>
+        </div>
         <BuildInfoPanel {...buildInfoProps} />
       </nav>}
     </header>
@@ -614,6 +629,7 @@ export default function App() {
       buildInfo={buildInfoProps}
       onHangUp={hangUp}
       isCallingOrConnected={isCallingOrConnected}
+      onOpenResetDialog={() => setResetDialogOpen(true)}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,
@@ -664,5 +680,12 @@ export default function App() {
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
     <GenerationInspector wsURL={wsURL} active={generationTraceVisible} open={traceOpen} onClose={() => setTraceOpen(false)} onRunningChange={setTraceRunning} />
+    <BBSResetDialog
+      wsURL={wsURL}
+      open={resetDialogOpen}
+      activePhone={activeCall?.phone}
+      activeHostName={desktopHostName}
+      onClose={() => setResetDialogOpen(false)}
+    />
   </main>;
 }
