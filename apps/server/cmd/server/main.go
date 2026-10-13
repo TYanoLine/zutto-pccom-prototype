@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/config"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/hostprogram/erikak"
@@ -36,9 +37,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("load Japan timezone: %v", err)
 	}
-	clock, err := worldclock.New(cfg.WorldDate, jst)
+	var clock worldclock.WorldClock
+	worldClockInfo := map[string]any{"mode": "calendar", "base_year": worldclock.CurrentWorldBaseYear, "start_real_year": worldclock.CurrentWorldStartRealYear}
+	if cfg.WorldDate != "" {
+		// An explicit WORLD_DATE keeps the development fixed-origin clock.
+		clock, err = worldclock.New(cfg.WorldDate, jst)
+		worldClockInfo = map[string]any{"mode": "fixed_origin", "world_date": cfg.WorldDate}
+	} else {
+		clock, err = worldclock.NewCalendar(jst, worldclock.CurrentWorldBaseYear, worldclock.CurrentWorldStartRealYear)
+	}
 	if err != nil {
 		log.Fatalf("create world clock: %v", err)
+	}
+	if cfg.WorldDate == "" {
+		// The rest of the startup wiring takes a date string; in calendar mode it
+		// is the world date at startup, as the fixed origin date was before.
+		cfg.WorldDate = clock.Now().Format(time.DateOnly)
 	}
 	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
 	catalogGenerator := llm.CenterCatalogGenerator{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
@@ -87,7 +101,32 @@ func main() {
 	azureOpenAIRenderer := llm.StructuredOpenAIProvider{OpenAIProvider: llm.OpenAIProvider{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel, Verbosity: cfg.AzureOpenAIVerbosity, ReasoningEffort: cfg.AzureOpenAIReasoningEffort, SchemaCompat: cfg.AzureOpenAISchemaCompat, API: cfg.AzureOpenAIAPI, Client: &http.Client{Timeout: 90 * time.Second}}}
 	postRenderer := azureOpenAIRenderer
 	postMaterializer := newProductionMaterializer(postRenderer)
+
+	var memoryIndex *actormemory.Index
+	if cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "" {
+		toolTurnModel := &llm.OpenAIToolTurnModel{
+			Endpoint: cfg.AzureOpenAIEndpoint,
+			APIKey:   cfg.AzureOpenAIKey,
+			Model:    cfg.AzureOpenAIModel,
+			Client:   &http.Client{Timeout: 90 * time.Second},
+		}
+		postMaterializer.ToolModel = toolTurnModel
+
+		embeddingClient := &llm.AzureOpenAIEmbeddingClient{
+			Endpoint: cfg.AzureOpenAIEndpoint,
+			APIKey:   cfg.AzureOpenAIKey,
+			Model:    cfg.AzureOpenAIEmbeddingModel,
+			Client:   &http.Client{Timeout: 30 * time.Second},
+		}
+		memoryIndex = actormemory.NewIndex(embeddingClient, actormemory.IndexOptions{})
+		defer memoryIndex.Close()
+	}
+
 	runtimeStore := worldrepo.New(store, worldEngine, postMaterializer, cfg.WorldDate)
+	if memoryIndex != nil {
+		runtimeStore.SetActorMemoryIndex(memoryIndex)
+		runtimeStore.SetPostIndexer(actormemory.NewPostIndexer(memoryIndex))
+	}
 	runtimeStore.SetArticleDetailPlanner(postRenderer)
 	runtimeStore.SetDebugLogBBSArticleDetails(cfg.DebugLogBBSArticleDetails)
 	runtimeStore.SetDebugLogGeneratedContent(cfg.DebugLogGeneratedContent)
@@ -95,6 +134,16 @@ func main() {
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
 	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
+	// Residents enter chat rooms only when the server can also give them words
+	// (spec 016 FR-004); without a model the rooms stay empty.
+	runtimeStore.SetResidentChat(cfg.AzureOpenAIKey != "")
+	if cfg.AzureOpenAIKey != "" {
+		// What residents say in a room while a caller is there (spec 017).
+		runtimeStore.SetChatLineWriter(azureOpenAIRenderer)
+		// Telegrams residents send a caller, in answer or on their own (spec 018).
+		runtimeStore.SetLineMessageWriter(azureOpenAIRenderer)
+	}
+	sessions.SetLineOccupancy(runtimeStore)
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -519,7 +568,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "world_clock": worldClockInfo, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}

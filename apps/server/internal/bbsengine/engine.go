@@ -759,7 +759,7 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 		// stored SYSOP persona if one has been materialized.
 		if !shouldReply && board.RootAuthorPolicy == "sysop_only" {
 			slot.Author = "SYSOP"
-			slot.AuthorPersonaID = ""
+			slot.AuthorPersonaID = host.ID + ":sysop"
 			for _, candidate := range actors {
 				if strings.EqualFold(candidate.handle, "SYSOP") {
 					slot.Author = candidate.handle

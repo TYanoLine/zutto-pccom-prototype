@@ -11,6 +11,15 @@ func TestAzureOpenAIDefaultModelUsesDeploymentName(t *testing.T) {
 	}
 }
 
+func TestAzureOpenAIEmbeddingModelDefault(t *testing.T) {
+	t.Setenv("AZURE_OPENAI_EMBEDDING_MODEL", "")
+
+	cfg := Load()
+	if cfg.AzureOpenAIEmbeddingModel != "text-embedding-3-small" {
+		t.Fatalf("AzureOpenAIEmbeddingModel=%q want deployment name %q", cfg.AzureOpenAIEmbeddingModel, "text-embedding-3-small")
+	}
+}
+
 func TestHistoricalReferencesDefaultOff(t *testing.T) {
 	t.Setenv("HISTORICAL_REFERENCES_ENABLED", "")
 	if Load().HistoricalReferencesEnabled {
@@ -153,5 +162,16 @@ func TestAzureOpenAIAPIDefaultsEmpty(t *testing.T) {
 	t.Setenv("AZURE_OPENAI_API", "anthropic")
 	if got := Load().AzureOpenAIAPI; got != "anthropic" {
 		t.Fatalf("API = %q, want anthropic", got)
+	}
+}
+
+func TestWorldDateDefaultsToCalendarMode(t *testing.T) {
+	t.Setenv("WORLD_DATE", "")
+	if got := Load().WorldDate; got != "" {
+		t.Fatalf("default WORLD_DATE = %q, want empty (calendar mode)", got)
+	}
+	t.Setenv("WORLD_DATE", "1996-08-26")
+	if got := Load().WorldDate; got != "1996-08-26" {
+		t.Fatalf("WORLD_DATE = %q, want 1996-08-26", got)
 	}
 }

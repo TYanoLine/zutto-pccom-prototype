@@ -143,6 +143,8 @@ export class TerminalCore {
       return;
     }
     if (ch === '\b') { this.autoWrapped = false; this.backspace(); return; }
+    // BEL (0x07) is a bell, not a glyph: it occupies no cell and moves nothing.
+    if (ch === '\x07') return;
 
     const cp = ch.codePointAt(0) ?? 0;
     const w = terminalCellWidth(ch);
@@ -234,4 +236,12 @@ export function terminalCellWidth(ch: string): 0 | 1 | 2 {
 
 export function isFullWidth(ch: string) {
   return terminalCellWidth(ch) === 2;
+}
+
+export function terminalStringWidth(value: string): number {
+  return Array.from(value).reduce((width, ch) => width + terminalCellWidth(ch), 0);
+}
+
+export function padTerminalCells(value: string, width: number): string {
+  return value + ' '.repeat(Math.max(0, width - terminalStringWidth(value)));
 }

@@ -102,6 +102,146 @@ type PersonaFactStore interface {
 	SavePersonaFact(PersonaFact)
 }
 
+// InteractionLedgerStore persists the append-only interaction ledger events.
+type InteractionLedgerStore interface {
+	AppendInteractionEvent(event InteractionEvent) error
+	ListInteractionEvents(hostID string, limit int) []InteractionEvent
+	GetInteractionEvent(eventID string) (InteractionEvent, bool)
+}
+
+// RelationshipStore manages directional relationship edges between actors.
+type RelationshipStore interface {
+	GetRelationship(hostID string, from, to ActorRef) (RelationshipEdge, bool)
+	UpdateRelationship(edge RelationshipEdge) error
+	ListRelationshipsFrom(hostID string, from ActorRef) []RelationshipEdge
+}
+
+// PresenceStore keeps observed connection sessions and live human calls. A
+// session that was shown to a caller (WHO) or decided a caller's dial is world
+// history and is never rewritten. See spec 015.
+type PresenceStore interface {
+	ListObservedSessions(hostID string, from, to time.Time) []PresenceSession
+	// SaveObservedSessions stores sessions that are not stored yet; a session
+	// already stored for the same actor and start is left unchanged.
+	SaveObservedSessions(hostID string, sessions []PresenceSession)
+	SaveHumanCall(call HumanCall)
+	HumanCall(callID string) (HumanCall, bool)
+	// EndHumanCall removes a live call and records it as an observed session
+	// that ended at the given world time.
+	EndHumanCall(callID string, at time.Time) (HumanCall, bool)
+	ListHumanCalls(hostID string) []HumanCall
+	// ListCallActivities returns the stored plans of calls that started in
+	// [from, to). A zero to means no upper bound.
+	ListCallActivities(hostID string, from, to time.Time) []CallActivity
+	// SaveCallActivities stores plans that are not stored yet; a plan already
+	// stored for the same actor and call start is left unchanged.
+	SaveCallActivities(hostID string, acts []CallActivity)
+}
+
+// ChatEventKind is a resident entering or leaving a chat room, or a line said
+// in it.
+type ChatEventKind string
+
+const (
+	ChatJoin  ChatEventKind = "join"
+	ChatLeave ChatEventKind = "leave"
+	ChatSay   ChatEventKind = "say"
+)
+
+// ChatEvent is a resident entering or leaving a chat room at a world time. A
+// leave is also reported when the call ends while the resident is in the room.
+// A say event is a recorded line, a human's or a resident's (spec 017).
+type ChatEvent struct {
+	At     time.Time
+	Kind   ChatEventKind
+	Room   int
+	Actor  ActorRef
+	Handle string
+	// Body and UtteranceID are set on a say event.
+	Body        string
+	UtteranceID string
+}
+
+// ChatHost gives host programs what residents do within their calls and in
+// chat rooms (spec 016). It is shared by every host program: the names and
+// arguments carry no program's screen wording. Host programs use it through a
+// type assertion, like PresenceObserver.
+type ChatHost interface {
+	// CallActivitiesNow returns the plans of the residents on the host's lines
+	// now, saving them as observed.
+	CallActivitiesNow(host Host) []CallActivity
+	// ChatEvents returns room's join and leave events and recorded lines in
+	// (from, to], in time order, saving the plans they come from as observed.
+	ChatEvents(host Host, room int, from, to time.Time) []ChatEvent
+	// RecordChatUtterance saves what a caller said in a room and records it
+	// in the ledger, addressed to the residents in the room at u.At.
+	RecordChatUtterance(host Host, u ChatUtterance) (ChatUtterance, error)
+	// SendLineMessage saves a line message and records it in the ledger,
+	// addressed to its recipient. The caller sets DeliverAt.
+	SendLineMessage(host Host, m LineMessage) (LineMessage, error)
+	// EnterChatRoom and LeaveChatRoom tell the world a caller is in a room.
+	// Residents' lines are written only while a caller is there (spec 017).
+	EnterChatRoom(host Host, room int, actor ActorRef, handle string, at time.Time)
+	LeaveChatRoom(host Host, room int, actor ActorRef, at time.Time)
+}
+
+// LineMessageCall is a human's call as the world delivers messages to it.
+type LineMessageCall struct {
+	// CallID is the connection; messages are delivered only while it is live.
+	CallID string
+	// Human is the user making the call (spec 019) and Line the line they hold.
+	Human ActorRef
+	Line  int
+	// Login is the login ID shown on the call; residents know a human by it.
+	Login string
+}
+
+// LineMessageHost delivers residents' messages to a human's call (spec 018).
+type LineMessageHost interface {
+	// LineMessageEvents returns the residents' messages to the call whose
+	// delivery time is in (from, to], in time order. Each call also decides the
+	// residents' coming messages and starts writing the ones that are due; a
+	// call that is not live makes nothing. A host program moves from forward
+	// only when it could show what it got.
+	LineMessageEvents(host Host, call LineMessageCall, from, to time.Time) []LineMessage
+}
+
+// LineOccupancy decides and registers line use on behalf of the telephone and
+// call-session layers. Implementations compute resident presence, so they live
+// above the plain stores.
+type LineOccupancy interface {
+	// DialLine reports the lowest free line at world time at, or ok=false when
+	// every line is in use. The sessions that decided it become observed.
+	DialLine(host Host, at time.Time) (line int, ok bool)
+	// BeginHumanCall re-checks the line and registers the call at the current
+	// world time; ok=false means the line was taken in the meantime.
+	BeginHumanCall(host Host, callID, humanID string, baud int) (line int, ok bool)
+	SetHumanCallHandle(callID, handle string)
+	EndHumanCall(callID string)
+}
+
+// PresenceObserver is what host runtimes use: the sessions holding a line of
+// the host now, saved as observed world history.
+type PresenceObserver interface {
+	ObservePresenceNow(host Host) []PresenceSession
+}
+
+// WorldTimeSource is implemented by stores that know the world clock. Host
+// runtimes stamp what the human writes with it, so human posts share the
+// world's timeline with resident activity.
+type WorldTimeSource interface {
+	WorldNow() time.Time
+}
+
+// WorldNowOf returns the world time of store, or the real time for stores
+// without a world clock (plain in-memory stores in tests and tools).
+func WorldNowOf(store any) time.Time {
+	if source, ok := store.(WorldTimeSource); ok {
+		return source.WorldNow()
+	}
+	return time.Now()
+}
+
 // DevelopmentConversationResetStore is intentionally a development-only escape
 // hatch. It lets the materialization demo clear observed posts and lazily-created
 // persona details so a tester can compare generation behavior without rebuilding
@@ -109,6 +249,12 @@ type PersonaFactStore interface {
 type DevelopmentConversationResetStore interface {
 	ClearHostPosts(hostID string) int
 	ClearPersonaFacts(personaIDs []string) int
+}
+
+type relationshipKey struct {
+	hostID string
+	from   ActorRef
+	to     ActorRef
 }
 
 type MemoryStore struct {
@@ -122,6 +268,18 @@ type MemoryStore struct {
 	memberships   map[string][]string
 	populations   map[string]hostcatalog.Population
 	details       map[string]hostcatalog.PresetDetail
+	eventsByID    map[string]InteractionEvent
+	eventsByHost  map[string][]InteractionEvent
+	relationships map[relationshipKey]RelationshipEdge
+	// presence holds observed sessions per host; humanCalls the live calls.
+	presence   map[string][]PresenceSession
+	humanCalls map[string]HumanCall
+	// callPlans holds observed resident call plans per host (spec 016).
+	callPlans map[string][]CallActivity
+	// chatLines and lineMessages are what callers said in chat rooms and sent
+	// to lines (spec 016).
+	chatLines    map[string][]ChatUtterance
+	lineMessages map[string][]LineMessage
 	// directory is the dialing directory: the listed hosts, from the presets.
 	directory []DirectoryEntry
 	next      int64
@@ -138,6 +296,14 @@ func NewMemoryStore() *MemoryStore {
 		memberships:   map[string][]string{},
 		populations:   map[string]hostcatalog.Population{},
 		details:       map[string]hostcatalog.PresetDetail{},
+		eventsByID:    map[string]InteractionEvent{},
+		eventsByHost:  map[string][]InteractionEvent{},
+		relationships: map[relationshipKey]RelationshipEdge{},
+		presence:      map[string][]PresenceSession{},
+		humanCalls:    map[string]HumanCall{},
+		callPlans:     map[string][]CallActivity{},
+		chatLines:     map[string][]ChatUtterance{},
+		lineMessages:  map[string][]LineMessage{},
 		next:          1000,
 	}
 
@@ -340,3 +506,75 @@ func (s *MemoryStore) ClearPersonaFacts(personaIDs []string) int {
 	}
 	return count
 }
+
+func (s *MemoryStore) AppendInteractionEvent(event InteractionEvent) error {
+	if event.EventID == "" {
+		return errors.New("event id is required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.eventsByID[event.EventID]; ok {
+		return nil
+	}
+	s.eventsByID[event.EventID] = event
+	s.eventsByHost[event.HostID] = append(s.eventsByHost[event.HostID], event)
+	return nil
+}
+
+func (s *MemoryStore) ListInteractionEvents(hostID string, limit int) []InteractionEvent {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	events := s.eventsByHost[hostID]
+	n := len(events)
+	if n == 0 {
+		return nil
+	}
+	count := n
+	if limit > 0 && limit < count {
+		count = limit
+	}
+	out := make([]InteractionEvent, 0, count)
+	for i := n - 1; i >= 0 && len(out) < count; i-- {
+		out = append(out, events[i])
+	}
+	return out
+}
+
+func (s *MemoryStore) GetInteractionEvent(eventID string) (InteractionEvent, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.eventsByID[eventID]
+	return e, ok
+}
+
+func (s *MemoryStore) GetRelationship(hostID string, from, to ActorRef) (RelationshipEdge, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	key := relationshipKey{hostID: hostID, from: from, to: to}
+	edge, ok := s.relationships[key]
+	return edge, ok
+}
+
+func (s *MemoryStore) UpdateRelationship(edge RelationshipEdge) error {
+	if edge.HostID == "" || edge.FromActor.IsZero() || edge.ToActor.IsZero() {
+		return errors.New("invalid relationship edge")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := relationshipKey{hostID: edge.HostID, from: edge.FromActor, to: edge.ToActor}
+	s.relationships[key] = edge
+	return nil
+}
+
+func (s *MemoryStore) ListRelationshipsFrom(hostID string, from ActorRef) []RelationshipEdge {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []RelationshipEdge
+	for k, edge := range s.relationships {
+		if k.hostID == hostID && k.from == from {
+			out = append(out, edge)
+		}
+	}
+	return out
+}
+

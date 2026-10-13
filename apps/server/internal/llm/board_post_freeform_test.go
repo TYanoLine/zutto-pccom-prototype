@@ -79,3 +79,24 @@ func TestHAKATAFreeformPromptEscapesSubjectJSON(t *testing.T){
         t.Fatalf("unsafe JSON template: %s",prompt)
     }
 }
+
+func TestBuildBoardPostPromptIncludesTerminalLineLayoutGuidance(t *testing.T) {
+	freeformPrompt := BuildBoardPostPrompt(BoardPostRequest{
+		FreeformFromSubject: true,
+		BoardTopic:          "GAME",
+		CanonicalSubject:    "テスト件名",
+	})
+	if !strings.Contains(freeformPrompt, "全角30〜35文字程度を目安") {
+		t.Fatalf("freeform prompt missing terminal line layout guidance:\n%s", freeformPrompt)
+	}
+
+	standardPrompt := BuildBoardPostPrompt(BoardPostRequest{
+		FreeformFromSubject: false,
+		BoardTopic:          "GAME",
+		CanonicalSubject:    "テスト件名",
+	})
+	if !strings.Contains(standardPrompt, "全角30〜35文字程度を目安") {
+		t.Fatalf("standard prompt missing terminal line layout guidance:\n%s", standardPrompt)
+	}
+}
+

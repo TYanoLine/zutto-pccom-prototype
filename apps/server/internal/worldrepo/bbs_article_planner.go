@@ -73,18 +73,16 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
     return p.planSituationFirstBatch(ctx,materializer,decision,situationProposer,titlePlanner,req,titleAsOf)
 }
 
-func (p repositoryBBSBatchPlanner) personaTitleContext(personaID string) (string, []string) {
-	if p.repo == nil || personaID == "" {
+func (p repositoryBBSBatchPlanner) personaTitleContext(host world.Host, personaID, author string) (string, []string) {
+	if p.repo == nil {
 		return "", nil
 	}
 	var profile string
-	if store, ok := p.repo.Base.(world.PersonaStore); ok {
-		if persona, found := store.PersonaByID(personaID); found {
-			profile = personaSummary(persona)
-		}
+	if persona := p.repo.resolvePersona(host, personaID, author); persona != nil {
+		profile = personaSummary(*persona)
 	}
 	facts := []string{}
-	if store, ok := p.repo.Base.(world.PersonaFactStore); ok {
+	if store, ok := p.repo.Base.(world.PersonaFactStore); ok && personaID != "" {
 		for _, fact := range store.ListPersonaFacts(personaID) {
 			facts = append(facts, fact.Key+"="+fact.Value)
 		}

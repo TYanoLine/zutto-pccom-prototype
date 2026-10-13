@@ -3,10 +3,13 @@ package worldrepo
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/bbsengine"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/hostprogram"
@@ -33,12 +36,14 @@ type BoardMaterializationRequest struct {
 	BoardTopic                 string
 	FreeformFromSubject        bool
 	WorldDate                  string
+	AuthorHandle               string
 	Persona                    *world.Persona
 	Intent                     world.PostIntent
 	CanonicalSubject           string
 	Kind                       worldengine.PostKind
 	ParentPost                 *world.Post
 	QuoteText                  string
+	RelationshipContext        string
 	BodyMinChars, BodyMaxChars int
 }
 
@@ -69,6 +74,28 @@ type Repository struct {
 	prefetchMu      sync.Mutex
 	prefetchQueues  map[string][]world.Board
 	prefetchRunning map[string]bool
+
+	// indexer is optional: when set, every saved post is handed to it after the
+	// canonical write. It must not block (see PostIndexer).
+	indexerMu sync.RWMutex
+	indexer   PostIndexer
+
+	// actorMemoryIndex is optional: when set, it provides the embedding index for
+	// actor-scoped memory tool execution during prose materialization.
+	actorMemoryMu    sync.RWMutex
+	actorMemoryIndex *actormemory.Index
+
+	// residentChat lets residents enter chat rooms (spec 016 FR-004). It is
+	// off unless the server can also give them words.
+	residentChat atomic.Bool
+	// presenceWindows caches presence on the window grid for chat plans.
+	presenceWindows presenceWindowCache
+
+	// chatTalk is who watches each chat room and what residents' lines are
+	// being written (spec 017).
+	chatTalk chatTalk
+	// lineTalk is the residents' line messages to human callers (spec 018).
+	lineTalk lineTalk
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -145,6 +172,11 @@ func (r *Repository) SetWorldNow(now func() time.Time) {
 	}
 }
 
+// WorldNow implements world.WorldTimeSource.
+func (r *Repository) WorldNow() time.Time {
+	return r.currentWorldTime()
+}
+
 func (r *Repository) currentWorldTime() time.Time {
 	if r.worldNow != nil {
 		return r.worldNow()
@@ -180,8 +212,136 @@ func (r *Repository) ListPosts(hostID string) []world.Post {
 	return r.Base.ListPosts(hostID)
 }
 
+// PostIndexer receives each saved post so it can be made searchable. Implementations
+// must return quickly and must never fail the save: embedding work belongs in the
+// background, not here.
+type PostIndexer interface {
+	IndexPost(hostID string, p world.Post)
+}
+
+// SetPostIndexer enables (or, with nil, disables) post indexing.
+func (r *Repository) SetPostIndexer(ix PostIndexer) {
+	r.indexerMu.Lock()
+	r.indexer = ix
+	r.indexerMu.Unlock()
+}
+
+// SetActorMemoryIndex wires the optional actor memory index for tool-capable materialization.
+func (r *Repository) SetActorMemoryIndex(idx *actormemory.Index) {
+	r.actorMemoryMu.Lock()
+	r.actorMemoryIndex = idx
+	r.actorMemoryMu.Unlock()
+}
+
+// ActorMemoryIndex returns the configured actor memory index, if any.
+func (r *Repository) ActorMemoryIndex() *actormemory.Index {
+	r.actorMemoryMu.RLock()
+	defer r.actorMemoryMu.RUnlock()
+	return r.actorMemoryIndex
+}
+
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
-	return r.Base.AddPost(hostID, p)
+	saved := r.Base.AddPost(hostID, p)
+	r.recordPostInteraction(hostID, saved)
+	r.indexerMu.RLock()
+	ix := r.indexer
+	r.indexerMu.RUnlock()
+	if ix != nil {
+		ix.IndexPost(hostID, saved)
+	}
+	return saved
+}
+
+func (r *Repository) recordPostInteraction(hostID string, p world.Post) {
+	actor := world.PostActor(p)
+	var actorLogin string
+	if actor.Kind == world.ActorKindMember {
+		actorLogin = world.PostLogin(p)
+	}
+
+	sourceKind := "human_authored"
+	if actor.Kind == "persona" {
+		sourceKind = "npc_world_selected"
+	}
+
+	parentID := p.ParentID
+	if parentID == 0 && p.Intent.RespondsToPostID != 0 {
+		parentID = p.Intent.RespondsToPostID
+	}
+
+	channel := "board_root"
+	var addressedTo []world.ActorRef
+	var addressedLogins []string
+	var respondsToEventID string
+	var knownFrom, knownTo world.ActorRef
+
+	if parentID != 0 {
+		channel = "board_reply"
+		respondsToEventID = fmt.Sprintf("post:%s:%d", hostID, parentID)
+
+		for _, post := range r.Base.ListPosts(hostID) {
+			if post.ID == parentID {
+				if parent := world.PostActor(post); !parent.IsZero() {
+					addressedTo = []world.ActorRef{parent}
+					if parent.Kind == world.ActorKindMember {
+						addressedLogins = []string{world.PostLogin(post)}
+					} else {
+						addressedLogins = []string{""}
+					}
+				}
+				knownTo = world.PostKnownAs(post)
+				break
+			}
+		}
+		knownFrom = world.PostKnownAs(p)
+	}
+
+	eventID := fmt.Sprintf("post:%s:%d", hostID, p.ID)
+	scope := fmt.Sprintf("public_board:%s:%s", hostID, p.BoardID)
+	event := world.InteractionEvent{
+		EventID:           eventID,
+		HostID:            hostID,
+		Channel:           channel,
+		Actor:             actor,
+		AudienceScope:     scope,
+		AddressedTo:       addressedTo,
+		RespondsToEventID: respondsToEventID,
+		ContentRef:        strconv.FormatInt(p.ID, 10),
+		OccurredAt:        p.CreatedAt,
+		SourceKind:        sourceKind,
+		ActorLogin:        actorLogin,
+		AddressedLogins:   addressedLogins,
+	}
+
+	if ledgerStore, ok := r.Base.(world.InteractionLedgerStore); ok {
+		_ = ledgerStore.AppendInteractionEvent(event)
+	}
+
+	// Residents know people by login ID, so relationships are kept between the
+	// people they know; a guest is nobody they know (spec 019).
+	if channel == "board_reply" && len(addressedTo) > 0 {
+		actor, toActor := knownFrom, knownTo
+		if !actor.IsZero() && !toActor.IsZero() {
+			if relStore, ok := r.Base.(world.RelationshipStore); ok {
+				edge, exists := relStore.GetRelationship(hostID, actor, toActor)
+				if edge.LastEventID != eventID {
+					count := 1
+					if exists {
+						count = edge.BoardReplyCount + 1
+					}
+					newEdge := world.RelationshipEdge{
+						HostID:            hostID,
+						FromActor:         actor,
+						ToActor:           toActor,
+						BoardReplyCount:   count,
+						LastInteractionAt: p.CreatedAt,
+						LastEventID:       eventID,
+					}
+					_ = relStore.UpdateRelationship(newEdge)
+				}
+			}
+		}
+	}
 }
 
 func (r *Repository) ListBoardPosts(host world.Host, boardID, boardTopic string) []world.Post {
@@ -235,7 +395,7 @@ func (r *Repository) ensureBoard(host world.Host, boardID, boardTopic string) er
 	}
 	for _, p := range posts {
 		p.BoardID = boardID
-		r.Base.AddPost(host.ID, p)
+		r.AddPost(host.ID, p)
 	}
 	return nil
 }
@@ -265,4 +425,57 @@ func worldTime(v string) time.Time {
 		return time.Now()
 	}
 	return t.Add(22*time.Hour + 15*time.Minute)
+}
+
+func (r *Repository) sysopPersona(host world.Host) world.Persona {
+	founded := host.FoundedOn
+	if strings.TrimSpace(founded) == "" {
+		founded = "1994年頃"
+	}
+	lines := host.Lines
+	if lines <= 0 {
+		lines = 1
+	}
+	maxBaud := host.MaxBaud
+	if maxBaud <= 0 {
+		maxBaud = 14400
+	}
+	sw := host.Software
+	if strings.TrimSpace(sw) == "" {
+		sw = "草の根BBS"
+	}
+
+	everyday := []string{
+		fmt.Sprintf("草の根BBS「%s」（%s）のシステムオペレータ（開局日: %s）。", host.Name, host.Region, founded),
+		fmt.Sprintf("自前の機器（%s、%d回線、最高%d bps）でホストを24時間運用している。", sw, lines, maxBaud),
+		"局の健全な運営と、利用者同士の気持ち良い交流・回線の譲り合いを大切にしている。",
+	}
+
+	return world.Persona{
+		ID:                  host.ID + ":sysop",
+		Handle:              "SYSOP",
+		Age:                 38,
+		Gender:              "男性",
+		Occupation:          "局長・システムオペレータ",
+		ActivityPattern:     "daily",
+		ReplyTendency:       0.8,
+		ThreadStartTendency: 0.5,
+		LurkerTendency:      0.0,
+		WritingStyle:        "丁寧で落ち着いた敬語。利用者を気遣い、ホストの責任者として案内やルールを分かりやすく伝える",
+		EverydayContext:     everyday,
+	}
+}
+
+func (r *Repository) resolvePersona(host world.Host, personaID, author string) *world.Persona {
+	if strings.EqualFold(strings.TrimSpace(author), "SYSOP") || personaID == host.ID+":sysop" {
+		p := r.sysopPersona(host)
+		return &p
+	}
+	if ps, ok := r.Base.(world.PersonaStore); ok && personaID != "" {
+		if p, found := ps.PersonaByID(personaID); found {
+			copy := p
+			return &copy
+		}
+	}
+	return nil
 }

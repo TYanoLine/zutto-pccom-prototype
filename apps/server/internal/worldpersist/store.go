@@ -269,7 +269,56 @@ func (s *Store) AddMembership(hostID, personaID string) {
 
 func (s *Store) SavePersonaFact(fact world.PersonaFact) {
 	s.MemoryStore.SavePersonaFact(fact)
-	s.persistTargets(s.targetsForPersonaIDs([]string{fact.PersonaID}))
+	// Presence observation saves several facts inside one batch; outside a
+	// batch this persists immediately as before.
+	for _, target := range s.targetsForPersonaIDs([]string{fact.PersonaID}) {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
+// SaveObservedSessions persists observed presence with the host snapshot.
+func (s *Store) SaveObservedSessions(hostID string, sessions []world.PresenceSession) {
+	s.MemoryStore.SaveObservedSessions(hostID, sessions)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
+// SaveCallActivities persists observed call plans with the host snapshot.
+func (s *Store) SaveCallActivities(hostID string, acts []world.CallActivity) {
+	s.MemoryStore.SaveCallActivities(hostID, acts)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
+// SaveChatUtterance persists what a caller said with the host snapshot.
+func (s *Store) SaveChatUtterance(u world.ChatUtterance) world.ChatUtterance {
+	saved := s.MemoryStore.SaveChatUtterance(u)
+	if target, ok := s.targets[u.HostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+	return saved
+}
+
+// SaveLineMessage persists a line message with the host snapshot.
+func (s *Store) SaveLineMessage(m world.LineMessage) world.LineMessage {
+	saved := s.MemoryStore.SaveLineMessage(m)
+	if target, ok := s.targets[m.HostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+	return saved
+}
+
+// EndHumanCall keeps the finished call in the host's persisted history.
+func (s *Store) EndHumanCall(callID string, at time.Time) (world.HumanCall, bool) {
+	call, ok := s.MemoryStore.EndHumanCall(callID, at)
+	if ok {
+		if target, targeted := s.targets[call.HostID]; targeted {
+			s.persistTargetOrMarkBatchDirty(target)
+		}
+	}
+	return call, ok
 }
 
 func (s *Store) ClearPersonaFacts(personaIDs []string) int {
@@ -277,6 +326,36 @@ func (s *Store) ClearPersonaFacts(personaIDs []string) int {
 	s.persistTargets(s.targetsForPersonaIDs(personaIDs))
 	return count
 }
+
+var (
+	_ world.InteractionLedgerStore = (*Store)(nil)
+	_ world.RelationshipStore      = (*Store)(nil)
+)
+
+func (s *Store) AppendInteractionEvent(event world.InteractionEvent) error {
+	return s.MemoryStore.AppendInteractionEvent(event)
+}
+
+func (s *Store) ListInteractionEvents(hostID string, limit int) []world.InteractionEvent {
+	return s.MemoryStore.ListInteractionEvents(hostID, limit)
+}
+
+func (s *Store) GetInteractionEvent(eventID string) (world.InteractionEvent, bool) {
+	return s.MemoryStore.GetInteractionEvent(eventID)
+}
+
+func (s *Store) GetRelationship(hostID string, from, to world.ActorRef) (world.RelationshipEdge, bool) {
+	return s.MemoryStore.GetRelationship(hostID, from, to)
+}
+
+func (s *Store) UpdateRelationship(edge world.RelationshipEdge) error {
+	return s.MemoryStore.UpdateRelationship(edge)
+}
+
+func (s *Store) ListRelationshipsFrom(hostID string, from world.ActorRef) []world.RelationshipEdge {
+	return s.MemoryStore.ListRelationshipsFrom(hostID, from)
+}
+
 
 func (s *Store) targetsForPersonaIDs(personaIDs []string) []persistedHost {
 	if len(personaIDs) == 0 {

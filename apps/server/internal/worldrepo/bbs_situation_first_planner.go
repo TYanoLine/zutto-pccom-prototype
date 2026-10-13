@@ -133,7 +133,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if req.Board.RootAuthorPolicy == "sysop_only" && !strings.EqualFold(strings.TrimSpace(slot.Author), "SYSOP") {
 			return nil, fmt.Errorf("board %s only permits SYSOP roots; got author %q", req.Board.ID, slot.Author)
 		}
-		profile, personaFacts := p.personaTitleContext(slot.AuthorPersonaID)
+		profile, personaFacts := p.personaTitleContext(req.Host, slot.AuthorPersonaID, slot.Author)
 		// The board is identified by its ID only. No topic domain is derived
 		// from board wording or persona interests: hosts and boards are created
 		// dynamically, so what belongs on a board is decided from the board name

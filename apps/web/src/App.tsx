@@ -7,12 +7,13 @@ import { LocalTestStation, LOCAL_TEST_NUMBER } from './modem/LocalTestStation';
 import { clearLegacyDirectoryStorage, fetchDirectory, fetchWorldCenters, mergeCenters, resetWorldHosts } from './modem/CenterDirectory';
 import type { RegisteredCenter } from './modem/CenterDirectory';
 import { TerminalCenterDirectory } from './modem/TerminalCenterDirectory';
+import { TerminalMainMenu } from './terminal/TerminalMainMenu';
 import { DEFAULT_COMM_SETTINGS, normalizeCommSettings } from './modem/CommSettings';
 import type { CommSettings } from './modem/CommSettings';
 import { PseudoTariffService } from './billing/PseudoTariffService';
 import { ntt1996TariffTable } from './billing/pseudoTariffs';
 import { loadCallerLocation, saveCallerLocation } from './billing/CallerLocation';
-import { Japan1996WorldClock } from './time/WorldClock';
+import { CalendarWorldClock, Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
 import type { DialMode } from './audio/dialLineAudio';
@@ -29,6 +30,7 @@ import {
   saveModemStatusDisplayMode,
 } from './modem/ModemStatusDisplay';
 import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
+import { getOrCreateCallerKey } from './modem/CallerKey';
 import './styles.css';
 import { GenerationInspector } from './debug/GenerationInspector';
 
@@ -52,7 +54,9 @@ const isLocalHost = typeof window !== 'undefined' && (window.location.hostname =
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
 const standaloneLine = wsURL.length === 0;
 const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefined)?.trim() ?? '';
-const worldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate) ? configuredWorldDate : '1996-08-26';
+// An explicit VITE_WORLD_DATE keeps the development fixed-origin clock;
+// otherwise the world follows the real calendar from its base year.
+const fixedWorldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate) ? configuredWorldDate : '';
 const configuredTelehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS as string | undefined)?.trim();
 const telehodaiNumbers = (configuredTelehodaiNumbers || '0920000196').split(',').map((phone: string) => phone.trim()).filter(Boolean);
 const SETTINGS_KEY = 'zutto.commSettings.v1';
@@ -80,12 +84,13 @@ function formatElapsed(startedAt: Date | null, now: Date) {
 export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const terminalCanvasRef = useRef<TerminalCanvasHandle | null>(null);
-  const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
+  const clock = useMemo(() => (fixedWorldDate ? new Japan1996WorldClock(fixedWorldDate) : new CalendarWorldClock()), []);
   const [callerLocation] = useState(loadCallerLocation);
   const tariff = useMemo(() => new PseudoTariffService(ntt1996TariffTable, telehodaiNumbers, callerLocation), [callerLocation]);
   const modemRef = useRef<VirtualModem | null>(null);
   const localStationRef = useRef<LocalTestStation | null>(null);
   const directoryRef = useRef<TerminalCenterDirectory | null>(null);
+  const mainMenuRef = useRef<TerminalMainMenu | null>(null);
   const centersRef = useRef<RegisteredCenter[]>([]);
   const presetCentersRef = useRef<RegisteredCenter[]>([]);
   const directoryLoadStateRef = useRef<DirectoryLoadState>('loading');
@@ -96,6 +101,8 @@ export default function App() {
   const echoedInputRef = useRef('');
   const composingRef = useRef(false);
   const suppressEnterRef = useRef(false);
+  const commandHistoryRef = useRef<string[]>([]);
+  const commandHistoryIndexRef = useRef<number>(-1);
   const [status, setStatus] = useState('STANDALONE / MODEM IDLE');
   const [input, setInput] = useState('');
   const [autoRedial, setAutoRedial] = useState(true);
@@ -120,6 +127,7 @@ export default function App() {
   const [commandFocused, setCommandFocused] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
   const [traceRunning, setTraceRunning] = useState(false);
+  const [directoryGenerating, setDirectoryGenerating] = useState(true);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
   useEffect(() => {
@@ -153,79 +161,65 @@ export default function App() {
   useEffect(() => {
     clearLegacyDirectoryStorage();
     let cancelled = false;
-    let retryTimer: number | undefined;
-    let attempt = 0;
-    const RETRY_DELAYS = [2000, 10000, 30000];
+    setDirectoryGenerating(true);
 
-    function scheduleRetry() {
-      if (cancelled) return;
-      directoryRef.current?.setNotice('ほかのセンターの読み込みに失敗しました（再試行中...）');
-      directoryRef.current?.refresh();
-      const delay = RETRY_DELAYS[Math.min(attempt, RETRY_DELAYS.length - 1)];
-      attempt++;
-      window.clearTimeout(retryTimer);
-      retryTimer = window.setTimeout(fetchGenerated, delay);
-    }
-
-    function fetchGenerated() {
-      if (cancelled) return;
-      directoryRef.current?.setNotice('ほかのセンターを読み込み中...');
-      directoryRef.current?.refresh();
-      fetchWorldCenters(wsURL).then(generated => {
+    async function loadDirectory() {
+      try {
+        const [presets, generated] = await Promise.all([
+          fetchDirectory(wsURL),
+          fetchWorldCenters(wsURL).catch(error => {
+            console.warn('Failed to fetch world centers, falling back to presets:', error);
+            return [] as RegisteredCenter[];
+          }),
+        ]);
         if (cancelled) return;
-        const merged = mergeCenters(presetCentersRef.current, generated);
+        if (!presets.length) throw new Error('empty center directory');
+
+        presetCentersRef.current = presets;
+        const merged = mergeCenters(presets, generated);
         centersRef.current = merged;
+        directoryLoadStateRef.current = 'ready';
         setDirectoryCount(merged.length);
         setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
-        directoryRef.current?.setNotice('');
-        directoryRef.current?.refresh();
-      }).catch(() => {
-        scheduleRetry();
-      });
+        setDirectoryGenerating(false);
+
+        if (openDirectoryWhenReadyRef.current) {
+          openDirectoryWhenReadyRef.current = false;
+          directoryRef.current?.show();
+          setDirectoryOpen(true);
+        } else if (screenModeRef.current === 'main') {
+          mainMenuRef.current?.render();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        directoryLoadStateRef.current = 'error';
+        setDirectoryGenerating(false);
+        const message = error instanceof Error ? error.message : String(error);
+        setDirectoryStatus(`CENTER API ERROR: ${message}`);
+        if (openDirectoryWhenReadyRef.current) {
+          openDirectoryWhenReadyRef.current = false;
+          showDirectoryError();
+        }
+      }
     }
 
-    const onOnline = () => {
-      if (cancelled) return;
-      window.clearTimeout(retryTimer);
-      fetchGenerated();
-    };
-    window.addEventListener('online', onOnline);
-
-    fetchDirectory(wsURL).then(presetCenters => {
-      if (cancelled) return;
-      if (!presetCenters.length) throw new Error('empty center directory');
-      presetCentersRef.current = presetCenters;
-      centersRef.current = presetCenters;
-      directoryLoadStateRef.current = 'ready';
-      setDirectoryCount(presetCenters.length);
-      setDirectoryStatus(`センター情報読込完了 (${presetCenters.length}局)`);
-      if (openDirectoryWhenReadyRef.current) {
-        openDirectoryWhenReadyRef.current = false;
-        directoryRef.current?.show();
-        setDirectoryOpen(true);
-      }
-      fetchGenerated();
-    }).catch(error => {
-      if (cancelled) return;
-      directoryLoadStateRef.current = 'error';
-      const message = error instanceof Error ? error.message : String(error);
-      setDirectoryStatus(`CENTER API ERROR: ${message}`);
-      if (openDirectoryWhenReadyRef.current) {
-        openDirectoryWhenReadyRef.current = false;
-        showDirectoryError();
-      }
-    });
+    void loadDirectory();
 
     return () => {
       cancelled = true;
-      window.clearTimeout(retryTimer);
-      window.removeEventListener('online', onOnline);
     };
   }, []);
 
   useEffect(() => {
+    mainMenuRef.current = new TerminalMainMenu(
+      terminal,
+      APP_VERSION,
+      () => (directoryLoadStateRef.current === 'ready' ? `${centersRef.current.length}局` : '---'),
+      item => { executeMainMenuCommand(item.key); },
+    );
     showMainMenu();
-    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
+    const callerKey = getOrCreateCallerKey();
+    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, callerKey, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : { callerKey });
     modem.onStatus = setStatus;
     modem.onTelemetry = setModemTelemetry;
     modem.onCallState = call => { const now = clock.now(); setWorldNow(now); setActiveCall(previous => { if (previous) setCompletedCost(value => value + tariff.chargeYen(previous.phone, previous.connectedAt, now)); return call ? { phone: call.phone, connectedAt: now, capabilities: call.capabilities } : null; }); };
@@ -241,7 +235,7 @@ export default function App() {
     localStation.setCommunicationSettings(commSettings);
     localStationRef.current = localStation;
     directoryRef.current = new TerminalCenterDirectory(terminal, () => centersRef.current, center => { setDirectoryOpen(false); dialCenter(center); }, () => { setDirectoryOpen(false); showMainMenu(); });
-    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.onTelemetry = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.onTelemetry = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; };
+    return () => { modem.onStatus = undefined; modem.onCallState = undefined; modem.onTelemetry = undefined; modem.dispose(); modemRef.current = null; localStation.onStatus = undefined; localStation.onConnectionChange = undefined; localStation.onTelemetry = undefined; localStation.dispose(); localStationRef.current = null; directoryRef.current = null; mainMenuRef.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clock, tariff, terminal]);
   useEffect(() => { modemRef.current?.setAutoRedial(autoRedial); }, [autoRedial]);
@@ -264,13 +258,32 @@ export default function App() {
   }, []);
 
   function resetInput() { setInput(''); echoedInputRef.current = ''; }
-  function showMainMenu() {
+  function showMainMenu(index?: number) {
     screenModeRef.current = 'main';
-    terminal.clear(); terminal.write(`\x1b[37;44m ずっとパソコン通信 Ver ${APP_VERSION}                         Copyright (C) 1996 ZUTTO \x1b[0m\r\n\r\n`);
-    terminal.write('                     \x1b[30;46m　メイン・メニュー　\x1b[0m\r\n\r\n');
-    terminal.write('                     1　センターの呼び出し\r\n                     2　通信パラメータの設定\r\n                     3　ターミナル・モード\r\n                     4　ノート・パッド\r\n                     5　ディスク・ユーティリティ\r\n                     6　MS-DOS コマンドへ\r\n                     7　終　了\r\n\r\n');
-    const countText = directoryLoadStateRef.current === 'ready' ? `${centersRef.current.length}局` : '---';
-    terminal.write(` 登録センター: ${countText}　　　　　　　　　使用する電話回線: ダイアル(10)\r\n 番号を選択してください > `); resetInput();
+    if (typeof index === 'number') {
+      mainMenuRef.current?.setSelectedIndex(index);
+    }
+    mainMenuRef.current?.render();
+    resetInput();
+  }
+  function executeMainMenuCommand(rawCommand: string) {
+    const command = rawCommand.trim();
+    const lower = command.toLowerCase();
+    if (lower === '1') {
+      if (directoryLoadStateRef.current === 'ready') { directoryRef.current?.show(); setDirectoryOpen(true); }
+      else if (directoryLoadStateRef.current === 'loading') { openDirectoryWhenReadyRef.current = true; showDirectoryLoading(); }
+      else showDirectoryError();
+    } else if (lower === '1r') {
+      startHostRegeneration();
+    } else if (lower === '3') {
+      showTerminalMode();
+    } else if (command !== '') {
+      mainMenuRef.current?.setSelectedByKey(command);
+      terminal.write('\r\n 現在この項目は未実装です。\r\n\r\n');
+      showMainMenu();
+    } else {
+      showMainMenu();
+    }
   }
   function showTerminalMode() {
     screenModeRef.current = 'terminal';
@@ -304,6 +317,7 @@ export default function App() {
   }
   function startHostRegeneration() {
     screenModeRef.current = 'regenerating';
+    setDirectoryGenerating(true);
     showDirectoryLoading();
     resetWorldHosts(wsURL).then(generated => {
       const merged = mergeCenters(presetCentersRef.current, generated);
@@ -311,6 +325,7 @@ export default function App() {
       setDirectoryCount(merged.length);
       setDirectoryStatus(`センター情報読込完了 (${merged.length}局)`);
       directoryRef.current?.setNotice('');
+      setDirectoryGenerating(false);
       if (screenModeRef.current === 'regenerating') {
         screenModeRef.current = 'main';
         directoryRef.current?.show();
@@ -319,6 +334,7 @@ export default function App() {
         directoryRef.current?.refresh();
       }
     }).catch(() => {
+      setDirectoryGenerating(false);
       if (screenModeRef.current === 'regenerating') {
         screenModeRef.current = 'main';
         showDirectoryError();
@@ -330,14 +346,103 @@ export default function App() {
   function change(e: React.ChangeEvent<HTMLInputElement>) { if (directoryRef.current?.isOpen()) return; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); }
   function compositionStart() { composingRef.current = true; followLiveInput(); }
   function compositionEnd(e: React.CompositionEvent<HTMLInputElement>) { composingRef.current = false; followLiveInput(); const next = e.currentTarget.value; syncTerminalInput(next); setInput(next); suppressEnterRef.current = true; window.setTimeout(() => { suppressEnterRef.current = false; }, 0); }
-  function routeCommand(raw: string) { const upper = raw.trim().toUpperCase(), station = localStationRef.current; if (station?.isConnected()) { station.submitLine(raw); return; } if (station?.isDialing()) { if (upper === 'ATH') station.hangup(true); return; } let localMode: DialMode | null = null; if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone'; else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse'; else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode; if (localMode) { lastDialWasLocalRef.current = true; lastLocalDialModeRef.current = localMode; station?.dial(localMode, commSettings); return; } if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) { station?.dial(lastLocalDialModeRef.current, commSettings); return; } if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false; modemRef.current?.submitLine(raw); }
+  function hangUp() {
+    if (localStationRef.current?.isConnected() || localStationRef.current?.isDialing()) {
+      localStationRef.current.hangup(true);
+      return;
+    }
+    modemRef.current?.hangup();
+  }
+  function navigateHistory(direction: -1 | 1) {
+    const history = commandHistoryRef.current;
+    if (history.length === 0) return;
+    if (direction === -1) {
+      if (commandHistoryIndexRef.current === -1) {
+        commandHistoryIndexRef.current = history.length - 1;
+      } else if (commandHistoryIndexRef.current > 0) {
+        commandHistoryIndexRef.current--;
+      }
+    } else {
+      if (commandHistoryIndexRef.current !== -1) {
+        if (commandHistoryIndexRef.current < history.length - 1) {
+          commandHistoryIndexRef.current++;
+        } else {
+          commandHistoryIndexRef.current = -1;
+          syncTerminalInput('');
+          resetInput();
+          return;
+        }
+      } else {
+        return;
+      }
+    }
+    const cmd = history[commandHistoryIndexRef.current];
+    syncTerminalInput(cmd);
+    setInput(cmd);
+  }
+  function routeCommand(raw: string) {
+    const upper = raw.trim().toUpperCase(), station = localStationRef.current;
+    if (upper === 'ATH') {
+      hangUp();
+      return;
+    }
+    if (station?.isConnected()) { station.submitLine(raw); return; }
+    if (station?.isDialing()) { return; }
+    let localMode: DialMode | null = null;
+    if (upper === `ATDT${LOCAL_TEST_NUMBER}`) localMode = 'tone';
+    else if (upper === `ATDP${LOCAL_TEST_NUMBER}`) localMode = 'pulse';
+    else if (upper === `ATD${LOCAL_TEST_NUMBER}`) localMode = commSettings.defaultDialMode;
+    if (localMode) {
+      lastDialWasLocalRef.current = true;
+      lastLocalDialModeRef.current = localMode;
+      station?.dial(localMode, commSettings);
+      return;
+    }
+    if ((upper === 'ATDL' || upper === 'A/') && lastDialWasLocalRef.current) {
+      station?.dial(lastLocalDialModeRef.current, commSettings);
+      return;
+    }
+    if (upper.startsWith('ATDT') || upper.startsWith('ATDP') || /^ATD\d/.test(upper)) lastDialWasLocalRef.current = false;
+    modemRef.current?.submitLine(raw);
+  }
   function keyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (directoryRef.current?.isOpen()) { directoryRef.current.handleKey(e.key); e.preventDefault(); return; }
+    if (directoryRef.current?.isOpen()) {
+      if (e.key === 'ArrowLeft') { directoryRef.current.handleKey('PageUp'); e.preventDefault(); return; }
+      if (e.key === 'ArrowRight') { directoryRef.current.handleKey('PageDown'); e.preventDefault(); return; }
+      directoryRef.current.handleKey(e.key);
+      e.preventDefault();
+      return;
+    }
     const native = e.nativeEvent as KeyboardEvent;
-    if (e.key === 'Escape' && !activeCall && !localTestConnected) {
-      if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
-      if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating' || openDirectoryWhenReadyRef.current === false) showMainMenu();
-      e.preventDefault(); return;
+    if (e.key === 'Escape') {
+      if (!activeCall && !localTestConnected) {
+        if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
+        if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating' || openDirectoryWhenReadyRef.current === false) showMainMenu();
+        e.preventDefault(); return;
+      } else {
+        if (input.length > 0) {
+          syncTerminalInput('');
+          resetInput();
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+    if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        resetInput();
+        mainMenuRef.current?.handleKey(e.key);
+        return;
+      }
+    } else if (screenModeRef.current === 'terminal' || activeCall || localTestConnected) {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (commandHistoryRef.current.length > 0) {
+          e.preventDefault();
+          navigateHistory(e.key === 'ArrowUp' ? -1 : 1);
+          return;
+        }
+      }
     }
     if (e.key !== 'Enter') return;
     if (composingRef.current || native.isComposing || suppressEnterRef.current) { e.preventDefault(); return; }
@@ -352,32 +457,90 @@ export default function App() {
     terminal.write('\r\n');
     const raw = input;
     const command = raw.trim();
+    if (raw.length > 0) {
+      commandHistoryRef.current.push(raw);
+      commandHistoryIndexRef.current = -1;
+    }
     resetInput();
     if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
-      const lower = command.toLowerCase();
-      if (lower === '1') {
-        if (directoryLoadStateRef.current === 'ready') { directoryRef.current?.show(); setDirectoryOpen(true); }
-        else if (directoryLoadStateRef.current === 'loading') { openDirectoryWhenReadyRef.current = true; showDirectoryLoading(); }
-        else showDirectoryError();
-      } else if (lower === '1r') {
-        startHostRegeneration();
-      } else if (command === '3') {
-        showTerminalMode();
-      } else if (command !== '') {
-        terminal.write('\r\n 現在この項目は未実装です。\r\n\r\n');
-        showMainMenu();
-      } else {
-        showMainMenu();
-      }
+      const selectedKey = mainMenuRef.current?.getSelectedItem().key ?? '1';
+      const targetCommand = command !== '' ? command : selectedKey;
+      executeMainMenuCommand(targetCommand);
     } else {
       routeCommand(raw);
     }
   }
-  function softKey(key: string) { directoryRef.current?.handleKey(key); }
+  function softKey(key: string) {
+    if (key === 'HangUp') {
+      hangUp();
+      return;
+    }
+    if (directoryRef.current?.isOpen()) {
+      if (key === 'ArrowLeft') {
+        directoryRef.current.handleKey('PageUp');
+        return;
+      }
+      if (key === 'ArrowRight') {
+        directoryRef.current.handleKey('PageDown');
+        return;
+      }
+      directoryRef.current.handleKey(key);
+      return;
+    }
+    if (key === 'Escape') {
+      if (openDirectoryWhenReadyRef.current) openDirectoryWhenReadyRef.current = false;
+      if (!activeCall && !localTestConnected) {
+        if (screenModeRef.current === 'terminal' || screenModeRef.current === 'regenerating') {
+          showMainMenu();
+        } else {
+          resetInput();
+        }
+      } else {
+        if (input.length > 0) {
+          syncTerminalInput('');
+          resetInput();
+        } else {
+          routeCommand('\x1b');
+        }
+      }
+      return;
+    }
+    if (key === 'Enter') {
+      submitInput();
+      return;
+    }
+    if (!activeCall && !localTestConnected && screenModeRef.current === 'main') {
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        resetInput();
+        mainMenuRef.current?.handleKey(key);
+        return;
+      }
+    } else if (screenModeRef.current === 'terminal' || activeCall || localTestConnected) {
+      if (key === 'ArrowUp' || key === 'ArrowDown') {
+        navigateHistory(key === 'ArrowUp' ? -1 : 1);
+        return;
+      }
+      if (key === 'ArrowLeft') {
+        if (input.length > 0) {
+          const next = input.slice(0, -1);
+          syncTerminalInput(next);
+          setInput(next);
+        }
+        return;
+      }
+    }
+  }
   function dialCenter(center: RegisteredCenter) { screenModeRef.current = 'terminal'; const command = `${center.dialMode === 'pulse' ? 'ATDP' : 'ATDT'}${center.phone}`; terminal.write(`${command}\r\n`); routeCommand(command); resetInput(); }
   function audition(baud: number) { try { setAudioStatus(`SYNTHESIZING ${baud}bps...`); const run = playHandshake(baud); setLastHandshake(run); setAudioStatus(`PLAYING ${baud}bps`); } catch (error) { setAudioStatus(`AUDIO ERROR: ${error instanceof Error ? error.message : String(error)}`); } }
   function setting<K extends keyof CommSettings>(key: K, value: CommSettings[K]) { setCommSettings(current => ({ ...current, [key]: value })); }
 
+  const isCallingOrConnected = Boolean(
+    activeCall ||
+    localTestConnected ||
+    modemTelemetry.phase !== 'idle' ||
+    modemTelemetry.oh ||
+    modemTelemetry.cd
+  );
   const runningCost = activeCall ? tariff.chargeYen(activeCall.phone, activeCall.connectedAt, worldNow) : 0, cost = completedCost + runningCost, teleho = tariff.isTelehodaiWindow(worldNow), registeredCall = activeCall && tariff.isTelehodaiCall(activeCall.phone, worldNow), framing = `${commSettings.dataBits}${commSettings.parity === 'none' ? 'N' : commSettings.parity === 'even' ? 'E' : 'O'}${commSettings.stopBits}`;
   const generationTraceVisible = activeCall?.capabilities.generationTrace === true && !standaloneLine;
   const activeCenter = activeCall ? centersRef.current.find(center => center.phone === activeCall.phone) : undefined;
@@ -400,7 +563,7 @@ export default function App() {
       {desktopHostName && <span className="desktop-host-name">{desktopHostName}</span>}
       <span className="desktop-world-clock">{desktopLocation}　・　{formatWorldDate(worldNow)}</span>
       <span className="desktop-modem-display" hidden={modemStatusMode === 'off'}>
-        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning} />
+        <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
       </span>
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--desktop${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)}>{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <button type="button" className="desktop-menu-toggle" aria-label="通信メニュー" aria-expanded={desktopMenuOpen} onClick={() => setDesktopMenuOpen(open => !open)}>
@@ -419,7 +582,7 @@ export default function App() {
           <span>自動再接続</span>
           <button type="button" aria-pressed={autoRedial} onClick={() => setAutoRedial(value => !value)}>{autoRedial ? 'ON' : 'OFF'}</button>
         </div>
-        <button type="button" className="desktop-menu-action" onClick={() => { setDesktopMenuOpen(false); routeCommand('ATH'); }}>電話を切る</button>
+        <button type="button" className="desktop-menu-action" onClick={() => { setDesktopMenuOpen(false); hangUp(); }}>電話を切る</button>
         <div className="desktop-menu-section">
           <span>画面サイズ</span>
           <button type="button" aria-pressed={terminalScreenMode === 'variable'} onClick={() => { setTerminalScreenMode('variable'); setDesktopMenuOpen(false); }}>80桁 × 可変行</button>
@@ -439,16 +602,18 @@ export default function App() {
       {generationTraceVisible && <button type="button" className={`generation-trace-link generation-trace-link--mobile${traceRunning ? ' generation-trace-link--running' : ''}`} onClick={() => setTraceOpen(true)} aria-label="生成ログを開く">{traceRunning ? '生成中…' : '生成ログ'}</button>}
       <span className="mobile-statusbar__stats">{mobileElapsed}&nbsp;&nbsp;¥{mobileSessionCost}</span>
     </div>
-    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning} />
+    <ModemStatusDisplay mode={modemStatusMode} telemetry={modemTelemetry} dteBaud={commSettings.dteBaud} generating={traceRunning || directoryGenerating} />
     <section className="screen-wrap"><TerminalCanvas
       ref={terminalCanvasRef}
       terminal={terminal}
       keyboardActive={commandFocused}
-      bottomControlsActive={directoryOpen}
+      bottomControlsActive={true}
       screenMode={terminalScreenMode}
       modemStatusMode={modemStatusMode}
       onModemStatusModeChange={setModemStatusMode}
       buildInfo={buildInfoProps}
+      onHangUp={hangUp}
+      isCallingOrConnected={isCallingOrConnected}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,
@@ -460,11 +625,31 @@ export default function App() {
         onBlur: () => setCommandFocused(false),
       }}
     /></section>
-    {directoryOpen && <nav className="directory-softkeys" aria-label="センターリスト操作">
-      <button type="button" onClick={() => softKey('ArrowUp')}>▲<small>上</small></button><button type="button" onClick={() => softKey('ArrowDown')}>▼<small>下</small></button>
-      <button type="button" onClick={() => softKey('PageUp')}>◀<small>前頁</small></button><button type="button" onClick={() => softKey('PageDown')}>▶<small>次頁</small></button>
-      <button type="button" className="softkey-call" onClick={() => softKey('Enter')}>CALL<small>呼出</small></button><button type="button" onClick={() => softKey('Escape')}>ESC<small>戻る</small></button>
-    </nav>}
+    <nav className="mobile-softkeys directory-softkeys" aria-label="専用ソフトキー">
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('Escape')}>
+        ESC<small>戻る</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowUp')}>
+        ▲<small>上</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowDown')}>
+        ▼<small>下</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowLeft')}>
+        ◀<small>{directoryOpen ? '前頁' : '左'}</small>
+      </button>
+      <button type="button" onPointerDown={e => e.preventDefault()} onClick={() => softKey('ArrowRight')}>
+        ▶<small>{directoryOpen ? '次頁' : '右'}</small>
+      </button>
+      <button
+        type="button"
+        className={directoryOpen ? 'softkey-call' : 'softkey-enter'}
+        onPointerDown={e => e.preventDefault()}
+        onClick={() => softKey('Enter')}
+      >
+        {directoryOpen ? 'CALL' : 'RET'}<small>{directoryOpen ? '呼出' : '送出'}</small>
+      </button>
+    </nav>
     <footer className="desktop-statusbar" aria-label="通信状況">
       <span className="desktop-statusbar__separator" />
       <span className="desktop-statusbar__group">

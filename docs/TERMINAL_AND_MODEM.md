@@ -202,7 +202,7 @@ Do not regress this by tying BBS runtime lifetime directly to one WebSocket obje
 
 ## Telephone network
 
-Long-term BUSY behavior should reflect logical line occupancy, NPC schedules, popularity, line count, time/day, events, and host policy.
+Long-term BUSY behavior should reflect logical line occupancy, NPC schedules, popularity, line count, time/day, events, and host policy. Since spec 015, a dial is BUSY when residents and other callers hold every logical line at that world time (see `docs/WORLD_SIMULATION.md` "Lines and presence"); the CONNECT line number is the lowest free line.
 
 A world-generation lease or bounded generation capacity may also make a line temporarily unavailable when admitting the call would require conflicting or over-budget materialization. In that case `BUSY` is an intentional form of runtime backpressure, not a fabricated random failure.
 

@@ -40,12 +40,15 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	if strings.TrimSpace(req.ParentSubject) != "" || strings.TrimSpace(req.ParentBody) != "" {
 		parent = fmt.Sprintf("subject=%s\nbody:\n%s", strings.TrimSpace(req.ParentSubject), strings.TrimSpace(req.ParentBody))
 	}
-	additional := make([]string, 0, 2)
+	additional := make([]string, 0, 3)
 	if requiredReferent != "" && !strings.Contains(subject, requiredReferent) {
 		additional = append(additional, "本文で示すcanonical referent: "+requiredReferent)
 	}
 	if quote := strings.TrimSpace(req.QuoteText); quote != "" {
 		additional = append(additional, "引用資料（引用時は原文を > 付きで使用）:\n"+quote)
+	}
+	if rel := strings.TrimSpace(req.RelationshipContext); rel != "" {
+		additional = append(additional, "相手との関係性:\n"+rel)
 	}
 	extra := "(追加なし)"
 	if len(additional) > 0 {
@@ -75,6 +78,15 @@ canonical Situation / thread facts:
 %s
 
 この記事を書いている本人の自然な文章にしてください。投稿目的と人物の書き方を材料に、確定済みの出来事・対象・親記事の文脈を表現します。読者には件名や投稿者が表示されています。
+
+文体の指針:
+- 1996年当時の草の根パソコン通信（趣味サークルや部室のような親しみやすさ）の空気感で書いてください。
+- 業務連絡やフリマのような過度に堅苦しい定型敬語（「おめでとうございます」「ご相談させてください」の連打など）は避け、会話としての生きた口語表現を使ってください。
+- 投稿者の文体特徴や感情に合わせて、適度に口語の崩し（「〜ですねー」「〜かも」「おおっ」等）や当時の感情表現（(笑)、(^^;、(爆) 等）を自然に交えてください。
+- 相手との関係性（初対面か、親しい常連仲間か）に応じた自然な距離感で応じてください。
+- 返信の際、親記事の文章に言及したい部分がある場合は、必要に応じて本文冒頭などに「>」を付けて自然に引用し、それに対する返信を続けてください。結びの挨拶（「よろしくお願いします」等）だけの引用や機械的な全文引用は避け、言及したい核心部分だけを引用するか、引用なしで直接返答しても構いません。
+- 当時の80桁端末（全角40文字画面）で読みやすいよう、1行の長さは全角30〜35文字程度を目安とし、句点（。）やキリの良い文節で自然に改行を入れてください。改行を入れずに画面端で機械的に折り返される長大な行や、逆に15文字前後の極端に細切れなポエム調改行の多用は避けてください。
+
 時代: %s
 本文の目安: %d〜%d文字
 時代背景: %s

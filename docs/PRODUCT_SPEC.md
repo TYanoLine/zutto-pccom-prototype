@@ -111,7 +111,11 @@ Instead the world engine decides statistically:
 
 Reading without replying is normal. No response at all is normal. A response the next day is normal. NPC-to-NPC conversation should continue without involving the human.
 
-Opinions are persistent facts. Do not let a human statement silently rewrite a persona's opinion simply because the LLM tends to agree with users.
+Opinions are persistent facts. Do not let a human statement silently rewrite a persona's opinion simply because the LLM tends to agree with users. Opinions may change only through an evidenced, bounded, versioned world event that applies the same rules to human and NPC speakers.
+
+### Interactions have consequences
+
+Board posts and replies, mail, chat, telegrams and SYSOP actions all leave persistent consequences in the world, regardless of who performed them. Residents who observed an interaction may later remember it, treat the other person differently, follow up on an answered question, reply to a mail days later, carry a chat topic to a board, or let it drop. Private channels stay private unless a resident chooses to disclose. These consequences are decided by the world engine, not by the LLM and not by whether the human was involved. See `docs/sdd/SDD_005_CROSS_CHANNEL_INTERACTION_FEEDBACK.md`.
 
 ## Observation-driven world advancement
 
@@ -152,6 +156,8 @@ Some personas can spam, troll, argue, impersonate, misuse escape codes or break 
 The cultural/knowledge ceiling is 1996. Later products, slang and events must not leak into NPC knowledge.
 
 The real Japan clock may drive time-of-day behavior and Telehodai windows, while the calendar is mapped into the 1996 world. Keep `WorldClock` abstract so tests can jump between 22:59, 23:00 and 08:00.
+
+The world calendar follows the real month and day from a configurable base year (spec 015): a world based on 1996 and started in 2026 runs thirty years behind the real calendar and crosses New Year with it. Holidays and seasonal periods come from source-backed calendar data (`docs/research/CALENDAR_1996.md`).
 
 Inactive hosts are not simulated continuously. Catch them up lazily using coarse events and materialize detailed posts only when needed. Normal production catch-up is observation-driven and limited to relevant scopes; continuous background LLM simulation of the entire world is not a requirement.
 

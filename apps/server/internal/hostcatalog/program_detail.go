@@ -17,6 +17,29 @@ const erikaKProgramID = "erika-k"
 type ErikaKDetail struct {
 	Texts  ErikaKTexts   `yaml:"texts"`
 	Boards []ErikaKBoard `yaml:"boards"`
+	// Chat is the station's wording of the telegram and chat screens (spec
+	// 016). Without it the program keeps its placeholder screen.
+	Chat *ErikaKChat `yaml:"chat"`
+}
+
+// ErikaKChat is the station's own wording of Erika-K's telegram (CALL) and chat
+// screens. The program prints the rows, prompts and the lines that announce
+// people; the station writes the headings, the menus and the notices. The
+// rooms themselves (numbers and capacities) are the shared detail.chat_rooms.
+type ErikaKChat struct {
+	CallMenu ErikaKCallMenu `yaml:"call_menu"`
+	// ChatMenu is every line of the room menu, rules and headings included.
+	ChatMenu []string `yaml:"chat_menu"`
+	// RoomNotices are the lines shown on entering a room, by room number.
+	RoomNotices map[int][]string `yaml:"room_notices"`
+}
+
+// ErikaKCallMenu is the telegram screen: a title, the menu lines (rules
+// included) and the one-line hint above the CALL prompt.
+type ErikaKCallMenu struct {
+	Title string   `yaml:"title"`
+	Lines []string `yaml:"lines"`
+	Hint  string   `yaml:"hint"`
 }
 
 // ErikaKTexts are named parts of Erika-K's screens that the station writes
@@ -100,6 +123,22 @@ func validateErikaKDetail(d *ErikaKDetail) error {
 	checkText("texts.main_menu_title", d.Texts.MainMenuTitle, false)
 	checkText("texts.goodbye", d.Texts.Goodbye, false)
 
+	if c := d.Chat; c != nil {
+		checkText("chat.call_menu.title", c.CallMenu.Title, false)
+		for i, line := range c.CallMenu.Lines {
+			checkText(fmt.Sprintf("chat.call_menu.lines[%d]", i), line, false)
+		}
+		checkText("chat.call_menu.hint", c.CallMenu.Hint, false)
+		for i, line := range c.ChatMenu {
+			checkText(fmt.Sprintf("chat.chat_menu[%d]", i), line, false)
+		}
+		for room, lines := range c.RoomNotices {
+			for i, line := range lines {
+				checkText(fmt.Sprintf("chat.room_notices[%d][%d]", room, i), line, false)
+			}
+		}
+	}
+
 	defined := make(map[string]bool, len(d.Boards))
 	for _, b := range d.Boards {
 		if boardPathPattern.MatchString(b.Path) {
@@ -142,6 +181,28 @@ func validateErikaKDetail(d *ErikaKDetail) error {
 		}
 		if math.IsNaN(b.VerifiedReferentRate) || b.VerifiedReferentRate < 0 || b.VerifiedReferentRate > 1 {
 			add(field+".verified_referent_rate", fmt.Errorf("%v must be between 0 and 1", b.VerifiedReferentRate))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// validateErikaKChatRooms checks that the chat screens refer to rooms the
+// station defines in detail.chat_rooms.
+func validateErikaKChatRooms(c *ErikaKChat, rooms []ChatRoom) error {
+	if c == nil {
+		return nil
+	}
+	if len(rooms) == 0 {
+		return errors.New("needs detail.chat_rooms")
+	}
+	known := make(map[int]bool, len(rooms))
+	for _, r := range rooms {
+		known[r.Number] = true
+	}
+	var errs []error
+	for room := range c.RoomNotices {
+		if !known[room] {
+			errs = append(errs, fmt.Errorf("room_notices: room %d is not in detail.chat_rooms", room))
 		}
 	}
 	return errors.Join(errs...)

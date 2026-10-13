@@ -30,6 +30,7 @@ func HostFromDescriptor(d hostcatalog.HostDescriptor) Host {
 		ANSI:           d.Traits.ANSI,
 		GuestAllowed:   d.Traits.GuestAllowed,
 		TelehoFriendly: d.Traits.TelehoFriendly,
+		OperatingHours: d.Traits.OperatingHours,
 		Debug:          d.Debug,
 		Generation:     d.GenerationFlags,
 	}

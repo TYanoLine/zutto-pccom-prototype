@@ -57,6 +57,8 @@ type VirtualModemOptions = {
   setTimeout?: typeof globalThis.setTimeout;
   clearTimeout?: typeof globalThis.clearTimeout;
   audio?: VirtualModemAudio;
+  // Sent with a dial so the server can tell the same user across calls.
+  callerKey?: string;
 };
 
 export type CallState = { phone: string; baud: number; capabilities: HostCapabilities } | null;
@@ -101,6 +103,7 @@ export class VirtualModem {
   private commSettings: CommSettings = { ...DEFAULT_COMM_SETTINGS };
   private readonly socketFactory: (url: string) => ModemSocket;
   private readonly dialDelayMs: number;
+  private readonly callerKey?: string;
   private readonly serialTickMs: number;
   private readonly offlineBusyExtraMs: number;
   private readonly remoteConnectGraceMs: number;
@@ -121,6 +124,7 @@ export class VirtualModem {
   ) {
     this.socketFactory = options.socketFactory ?? (socketURL => new WebSocket(socketURL));
     this.dialDelayMs = options.dialDelayMs ?? 650;
+    this.callerKey = options.callerKey;
     this.serialTickMs = options.serialTickMs ?? 16;
     this.offlineBusyExtraMs = options.offlineBusyExtraMs ?? 850;
     this.remoteConnectGraceMs = options.remoteConnectGraceMs ?? 45_000;
@@ -369,7 +373,10 @@ export class VirtualModem {
     this.dialTimer = this.schedule(() => {
       this.dialTimer = undefined;
       if (!this.pendingDial || this.pendingDial !== pending || !this.dialing) return;
-      if (this.send({ type: 'dial', phone: pending.phone, attempt: pending.attempt })) {
+      const dial = this.callerKey
+        ? { type: 'dial', phone: pending.phone, attempt: pending.attempt, caller_key: this.callerKey }
+        : { type: 'dial', phone: pending.phone, attempt: pending.attempt };
+      if (this.send(dial)) {
         this.pendingDial = undefined;
       } else if (this.url) {
         this.scheduleRemoteReconnect();

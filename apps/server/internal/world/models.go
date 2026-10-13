@@ -21,6 +21,9 @@ type Host struct {
 	ANSI           bool    `json:"ansi"`
 	GuestAllowed   bool    `json:"guest_allowed"`
 	TelehoFriendly bool    `json:"teleho_friendly"`
+	// OperatingHours is the station's answering window ["HH:MM", "HH:MM"];
+	// zero means always open. Copied from the immutable host definition.
+	OperatingHours [2]string `json:"-"`
 	// Role is an operational label copied from the host definition
 	// ("experiment", "test", ...). It is only a label: debug and experimental
 	// behavior follows the explicit Debug and Generation flags below, never the
@@ -134,10 +137,63 @@ type Post struct {
 	ParentID        int64      `json:"parent_id,omitempty"`
 	Author          string     `json:"author"`
 	AuthorPersonaID string     `json:"author_persona_id,omitempty"`
+	AuthorMemberID  string     `json:"author_member_id,omitempty"`
 	Subject         string     `json:"subject"`
 	Intent          PostIntent `json:"intent,omitempty"`
 	Body            string     `json:"body"`
 	CreatedAt       time.Time  `json:"created_at"`
+
+	// AuthorHumanID is the human who wrote the post (spec 019). Author and
+	// AuthorMemberID keep the login ID shown when it was written.
+	AuthorHumanID string `json:"author_human_id,omitempty"`
+}
+
+// ActorRef uniquely identifies an actor in the world: a persona, a human
+// (member, by human ID) or a person as residents know them (login, by login
+// ID). See spec 019.
+type ActorRef struct {
+	Kind string `json:"kind"` // "persona" | "member" | "login"
+	ID   string `json:"id"`   // persona_id, human ID or login ID
+}
+
+func (a ActorRef) IsZero() bool {
+	return a.Kind == "" && a.ID == ""
+}
+
+func (a ActorRef) String() string {
+	if a.IsZero() {
+		return ""
+	}
+	return a.Kind + ":" + a.ID
+}
+
+// InteractionEvent is an append-only record of a dynamic interaction in the world.
+type InteractionEvent struct {
+	EventID           string     `json:"event_id"`
+	HostID            string     `json:"host_id"`
+	Channel           string     `json:"channel"` // "board_root", "board_reply", "mail", "chat_utterance"
+	Actor             ActorRef   `json:"actor"`
+	AudienceScope     string     `json:"audience_scope"` // e.g. "public_board:<host_id>:<board_id>"
+	AddressedTo       []ActorRef `json:"addressed_to,omitempty"`
+	RespondsToEventID string     `json:"responds_to_event_id,omitempty"`
+	ContentRef        string     `json:"content_ref"` // e.g. post_id "1001"
+	OccurredAt        time.Time  `json:"occurred_at"`
+	SourceKind        string     `json:"source_kind"` // "npc_world_selected", "human_authored"
+
+	// ActorLogin is a human actor's login ID on the record. AddressedLogins
+	// follows AddressedTo in order, empty for a resident (spec 019).
+	ActorLogin      string   `json:"actor_login,omitempty"`
+	AddressedLogins []string `json:"addressed_logins,omitempty"`
+}
+
+// RelationshipEdge records directional interaction history between two actors.
+type RelationshipEdge struct {
+	HostID            string    `json:"host_id"`
+	FromActor         ActorRef  `json:"from_actor"`
+	ToActor           ActorRef  `json:"to_actor"`
+	BoardReplyCount   int       `json:"board_reply_count"`
+	LastInteractionAt time.Time `json:"last_interaction_at"`
+	LastEventID       string    `json:"last_event_id"`
 }
 
 type Persona struct {
@@ -176,4 +232,30 @@ type PersonaFact struct {
 	Value          string    `json:"value"`
 	MaterializedAt time.Time `json:"materialized_at"`
 	SourceKind     string    `json:"source_kind,omitempty"`
+}
+
+// ChatRoom is a chat room of a station: a world resource, the same for every
+// host program. Its on-screen wording belongs to the host program's section of
+// the station definition. See spec 016.
+type ChatRoom struct {
+	Number   int     `json:"number"`
+	Capacity int     `json:"capacity"` // 0 = unlimited
+	Weight   float64 `json:"weight"`   // relative choice weight; a fictional tuning value
+}
+
+// Full reports whether n people fill the room.
+func (r ChatRoom) Full(n int) bool { return r.Capacity > 0 && n >= r.Capacity }
+
+// ChatRoomsOf returns the chat rooms of a station definition. The rooms are
+// part of the immutable definition, so they are kept with the host detail
+// rather than in Host, which stays a comparable value.
+func ChatRoomsOf(detail hostcatalog.PresetDetail) []ChatRoom {
+	if len(detail.ChatRooms) == 0 {
+		return nil
+	}
+	out := make([]ChatRoom, len(detail.ChatRooms))
+	for i, r := range detail.ChatRooms {
+		out[i] = ChatRoom{Number: r.Number, Capacity: r.Capacity, Weight: r.Weight}
+	}
+	return out
 }

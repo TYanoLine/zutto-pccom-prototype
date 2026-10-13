@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"zutto-pccom/apps/server/internal/actormemory"
 	"zutto-pccom/apps/server/internal/historicalkb"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
@@ -105,13 +106,7 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 		return selected, true, false, joinDevelopmentDiagnostics("error stage=setup detail=world engine or materializer unavailable", contextStats.String())
 	}
 
-	var persona *world.Persona
-	if ps, ok := r.Base.(world.PersonaStore); ok && selected.AuthorPersonaID != "" {
-		if p, found := ps.PersonaByID(selected.AuthorPersonaID); found {
-			copy := p
-			persona = &copy
-		}
-	}
+	persona := r.resolvePersona(host, selected.AuthorPersonaID, selected.Author)
 
 	topicLabel := strings.TrimSpace(selected.Subject)
 	if topicLabel == "" {
@@ -160,25 +155,41 @@ func (r *Repository) materializeArticleBodyOnce(host world.Host, board world.Boa
 	renderIntent := selected.Intent
 	renderIntent.RenderContext = r.materializationArticleWorkerContext(host, board, selected)
 	req := BoardMaterializationRequest{
-		Host:             host,
-		BoardID:          board.ID,
-		BoardTopic:       boardTopic,
+		Host:                host,
+		BoardID:             board.ID,
+		BoardTopic:          boardTopic,
 		FreeformFromSubject: freeform,
-		WorldDate:        selected.CreatedAt.Format("2006-01-02"),
-		Persona:          persona,
-		Intent:           renderIntent,
-		CanonicalSubject: canonicalSubject,
+		WorldDate:           selected.CreatedAt.Format("2006-01-02"),
+		AuthorHandle:        selected.Author,
+		Persona:             persona,
+		Intent:              renderIntent,
+		CanonicalSubject:    canonicalSubject,
 	}
 	req = r.prepareBoardComposition(req, selected)
+	if req.ParentPost != nil && req.RelationshipContext == "" {
+		req.RelationshipContext = r.materializationRelationshipContext(host, selected, req.ParentPost)
+	}
 	var posts []world.Post
 	var usage GenerationUsage
 	for attempt := 0; attempt < 2; attempt++ {
 		posts = nil
 		usage = GenerationUsage{}
-		if materializer, ok := r.Materializer.(usageAwareMaterializer); ok {
+		mat := r.Materializer
+		if lm, ok := mat.(LLMMaterializer); ok {
+			if lm.ActorMemoryStore == nil {
+				if src, ok := r.Base.(actormemory.Source); ok {
+					lm.ActorMemoryStore = src
+				}
+			}
+			if lm.ActorMemoryIndex == nil {
+				lm.ActorMemoryIndex = r.ActorMemoryIndex()
+			}
+			mat = lm
+		}
+		if materializer, ok := mat.(usageAwareMaterializer); ok {
 			posts, usage, err = materializer.GenerateBoardPostsWithUsage(ctx, req, decision)
 		} else {
-			posts, err = r.Materializer.GenerateBoardPosts(ctx, req, decision)
+			posts, err = mat.GenerateBoardPosts(ctx, req, decision)
 		}
 		if err == nil && len(posts) > 0 && strings.TrimSpace(posts[0].Body) != "" {
 			break
@@ -344,3 +355,35 @@ func joinDevelopmentDiagnostics(parts ...string) string {
 	}
 	return strings.Join(out, " ")
 }
+
+func (r *Repository) materializationRelationshipContext(host world.Host, selected world.Post, parentPost *world.Post) string {
+	if parentPost == nil {
+		return ""
+	}
+	authorRef := world.PostKnownAs(selected)
+	targetRef := world.PostKnownAs(*parentPost)
+	targetName := parentPost.Author
+	if targetName == "" {
+		targetName = "相手"
+	}
+
+	replyCount := 0
+	if !authorRef.IsZero() && !targetRef.IsZero() {
+		if relStore, ok := r.Base.(world.RelationshipStore); ok {
+			if edge, found := relStore.GetRelationship(host.ID, authorRef, targetRef); found {
+				replyCount += edge.BoardReplyCount
+			}
+			if reverseEdge, found := relStore.GetRelationship(host.ID, targetRef, authorRef); found {
+				replyCount += reverseEdge.BoardReplyCount
+			}
+		}
+	}
+
+	if replyCount == 0 {
+		return fmt.Sprintf("相手（%s）とは初めてのやり取り（初対面）です。最低限のネチケットを守りつつ、同じ掲示板の仲間として親しみやすく接してください。", targetName)
+	} else if replyCount >= 2 {
+		return fmt.Sprintf("相手（%s）とは以前から掲示板で何度もやり取りしている気心の知れた常連仲間です。堅苦しい挨拶は抜きにして、趣味サークルのようなフランクなノリで話してください。", targetName)
+	}
+	return fmt.Sprintf("相手（%s）とは以前にもやり取りしたことがある仲間です。親しみのある自然なトーンで接してください。", targetName)
+}
+

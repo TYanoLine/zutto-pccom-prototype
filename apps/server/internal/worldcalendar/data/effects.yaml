@@ -1,0 +1,12 @@
+# Effects of calendar keys on the likelihood that a resident starts a call.
+# These are FICTIONAL TUNING VALUES for the simulation, not historical
+# statistics. `hours` is [from, to) in hours of the keyed day; 24 and above
+# continue into the next day. An empty `lifestyle` applies to everyone.
+- {when: year_end_new_year, factor: 0.75}
+- {when: year_end_new_year, lifestyle: [secondary_student, university_student], factor: 1.3}
+- {when: new_years_eve, hours: [23, 25], factor: 1.6}
+- {when: christmas_eve, hours: [18, 24], factor: 0.75}
+- {when: obon, factor: 0.8}
+- {when: school_summer, lifestyle: [secondary_student, university_student], use_holiday_profile: true}
+- {when: school_winter, lifestyle: [secondary_student, university_student], use_holiday_profile: true}
+- {when: school_spring, lifestyle: [secondary_student, university_student], use_holiday_profile: true}
