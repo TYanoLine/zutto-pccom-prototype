@@ -17,14 +17,58 @@ import './terminalFit.css';
 
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
-const HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
-const FULL_WIDTH_FONT = '16px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+export type TerminalFontProfile = 'default' | 'pc98';
+export type TerminalFontMode = 'auto' | 'pc98' | 'default';
 
-export function terminalGlyphPaintStyle(ch: string) {
+export const PC98_FONT_FAMILY = '"TS PC98", "天翔 PC98"';
+
+export const DEFAULT_HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
+export const DEFAULT_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+
+export const PC98_HALF_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
+export const PC98_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+
+export function isLocalPc98FontAvailable(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    const sample = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+
+    ctx.font = '72px monospace';
+    const fallbackMono = ctx.measureText(sample).width;
+    ctx.font = '72px sans-serif';
+    const fallbackSans = ctx.measureText(sample).width;
+
+    for (const name of ['TS PC98', '天翔 PC98']) {
+      ctx.font = `72px "${name}", monospace`;
+      const widthMono = ctx.measureText(sample).width;
+      if (Math.abs(widthMono - fallbackMono) > 1) return true;
+
+      ctx.font = `72px "${name}", sans-serif`;
+      const widthSans = ctx.measureText(sample).width;
+      if (Math.abs(widthSans - fallbackSans) > 1) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+export function terminalGlyphPaintStyle(ch: string, profile: TerminalFontProfile = 'default') {
   const fullWidth = isFullWidth(ch);
+  if (profile === 'pc98') {
+    return {
+      fullWidth,
+      font: fullWidth ? PC98_FULL_WIDTH_FONT : PC98_HALF_WIDTH_FONT,
+      glyphWidth: fullWidth ? 16 : 8,
+      yOffset: 0,
+    } as const;
+  }
   return {
     fullWidth,
-    font: fullWidth ? FULL_WIDTH_FONT : HALF_WIDTH_FONT,
+    font: fullWidth ? DEFAULT_FULL_WIDTH_FONT : DEFAULT_HALF_WIDTH_FONT,
     glyphWidth: fullWidth ? 16 : 8,
     yOffset: fullWidth ? 0 : 1,
   } as const;
@@ -90,6 +134,15 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     typeof window === 'undefined' ? 1 : terminalBackingScale(window.devicePixelRatio),
   );
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
+  const [fontMode, setFontMode] = useState<TerminalFontMode>('auto');
+  const [detectedPc98, setDetectedPc98] = useState(false);
+
+  useEffect(() => {
+    setDetectedPc98(isLocalPc98FontAvailable());
+  }, []);
+
+  const activeFontProfile: TerminalFontProfile =
+    fontMode === 'pc98' ? 'pc98' : fontMode === 'default' ? 'default' : detectedPc98 ? 'pc98' : 'default';
   const layoutRowsRef = useRef(terminal.height);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
@@ -373,7 +426,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         const px = x * 8;
         const py = y * 16;
         ctx.fillStyle = PALETTE[cell.fg] ?? '#aaa';
-        const glyphStyle = terminalGlyphPaintStyle(cell.ch);
+        const glyphStyle = terminalGlyphPaintStyle(cell.ch, activeFontProfile);
         const glyphCenter = px + glyphStyle.glyphWidth / 2;
         const glyphY = py + glyphStyle.yOffset;
 
@@ -535,6 +588,12 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             <button type="button" aria-pressed={modemStatusMode === 'lamps'} onClick={() => { onModemStatusModeChange('lamps'); setFunctionMenuOpen(false); }}>ランプ</button>
             <button type="button" aria-pressed={modemStatusMode === 'digital'} onClick={() => { onModemStatusModeChange('digital'); setFunctionMenuOpen(false); }}>デジタル</button>
             <button type="button" aria-pressed={modemStatusMode === 'off'} onClick={() => { onModemStatusModeChange('off'); setFunctionMenuOpen(false); }}>OFF</button>
+          </div>
+          <span className="terminal-function-section-label">フォント{detectedPc98 ? ' (天翔PC98検出)' : ''}</span>
+          <div className="terminal-function-mode-row">
+            <button type="button" aria-pressed={fontMode === 'auto'} onClick={() => { setFontMode('auto'); setFunctionMenuOpen(false); }}>自動</button>
+            <button type="button" aria-pressed={fontMode === 'pc98'} onClick={() => { setFontMode('pc98'); setFunctionMenuOpen(false); }}>天翔PC98</button>
+            <button type="button" aria-pressed={fontMode === 'default'} onClick={() => { setFontMode('default'); setFunctionMenuOpen(false); }}>標準</button>
           </div>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current - 12); setFunctionMenuOpen(false); }}>履歴↓</button>
