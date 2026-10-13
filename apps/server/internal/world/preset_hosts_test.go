@@ -14,11 +14,10 @@ func TestPresetHostsMatchHistoricalFixtures(t *testing.T) {
 		{
 			ID: "hakata-canal-net", Role: "experiment", Phone: "0920000196", Name: "HAKATA CANAL NET", Region: "福岡県福岡市", Software: "絵理香K版", SoftwareID: "erika-k", Lines: 3, Popularity: .58, MaxBaud: 14400, Members: 326, FoundedOn: "1994-11-03", ANSI: false, GuestAllowed: true, TelehoFriendly: true,
 			Debug: hostcatalog.DebugFlags{
-				ResetArticlesOnConnect: true,
-				GenerationTrace:        true,
-				ContentLog:             true,
-				HTTPEndpoints:          true,
-				Snapshot:               true,
+				GenerationTrace: true,
+				ContentLog:      true,
+				HTTPEndpoints:   true,
+				Snapshot:        true,
 			},
 			Generation: hostcatalog.GenerationFlags{FreeformBody: true},
 		},

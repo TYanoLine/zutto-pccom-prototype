@@ -360,8 +360,8 @@ func (r *Repository) materializationRelationshipContext(host world.Host, selecte
 	if parentPost == nil {
 		return ""
 	}
-	authorRef := actorRefFromPost(selected)
-	targetRef := actorRefFromPost(*parentPost)
+	authorRef := world.PostKnownAs(selected)
+	targetRef := world.PostKnownAs(*parentPost)
 	targetName := parentPost.Author
 	if targetName == "" {
 		targetName = "相手"
@@ -385,16 +385,5 @@ func (r *Repository) materializationRelationshipContext(host world.Host, selecte
 		return fmt.Sprintf("相手（%s）とは以前から掲示板で何度もやり取りしている気心の知れた常連仲間です。堅苦しい挨拶は抜きにして、趣味サークルのようなフランクなノリで話してください。", targetName)
 	}
 	return fmt.Sprintf("相手（%s）とは以前にもやり取りしたことがある仲間です。親しみのある自然なトーンで接してください。", targetName)
-}
-
-func actorRefFromPost(p world.Post) world.ActorRef {
-	if p.AuthorPersonaID != "" {
-		return world.ActorRef{Kind: "persona", ID: p.AuthorPersonaID}
-	} else if p.AuthorMemberID != "" {
-		return world.ActorRef{Kind: "member", ID: p.AuthorMemberID}
-	} else if p.Author != "" {
-		return world.ActorRef{Kind: "member", ID: p.Author}
-	}
-	return world.ActorRef{}
 }
 

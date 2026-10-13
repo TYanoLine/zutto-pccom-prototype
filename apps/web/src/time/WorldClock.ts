@@ -64,6 +64,39 @@ export class Japan1996WorldClock implements WorldClock {
   }
 }
 
+// The base year belongs to the world, not to the deployment (see the server's
+// worldclock.CurrentWorldBaseYear). Until worlds are created per user or group,
+// the single world uses these values; they are not read from the environment.
+export const CURRENT_WORLD_BASE_YEAR = 1996;
+export const CURRENT_WORLD_START_REAL_YEAR = 2026;
+
+// CalendarWorldClock follows the server's worldclock.CalendarClock: the world's
+// base year corresponds to the real year the world was started, and that many
+// years are subtracted from the real Japanese wall clock. Month, day and time
+// of day are kept, and the world crosses New Year with the real calendar.
+// Like Japan1996WorldClock, the returned Date encodes world wall-clock fields as UTC.
+export class CalendarWorldClock implements WorldClock {
+  private readonly source: DateSource;
+  private readonly yearOffset: number;
+
+  constructor(baseYear = CURRENT_WORLD_BASE_YEAR, startRealYear = CURRENT_WORLD_START_REAL_YEAR, source: DateSource = () => new Date()) {
+    if (baseYear > startRealYear) {
+      throw new Error(`World base year ${baseYear} is after the start real year ${startRealYear}`);
+    }
+    this.source = source;
+    this.yearOffset = startRealYear - baseYear;
+  }
+
+  now(): Date {
+    const sourceNow = this.source();
+    const real = japanParts(sourceNow);
+    return new Date(Date.UTC(
+      real.year - this.yearOffset, real.month - 1, real.day,
+      real.hour, real.minute, real.second, sourceNow.getMilliseconds(),
+    ));
+  }
+}
+
 export class FixedWorldClock implements WorldClock {
   constructor(private value: Date) {}
 

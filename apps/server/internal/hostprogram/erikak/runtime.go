@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"zutto-pccom/apps/server/internal/hostcatalog"
 	"zutto-pccom/apps/server/internal/world"
@@ -22,6 +21,21 @@ type Runtime struct {
 	subject   string
 	detail    hostcatalog.ErikaKDetail
 	catalog   boardCatalog
+	// callID and line identify the caller's own logical line (spec 015).
+	callID string
+	line   int
+	baud   int
+	// humanID is the user across calls (spec 019).
+	humanID string
+	// chat is the telegram and chat screen state (spec 016, chat.go).
+	chat chatState
+}
+
+// SetCallInfo records the caller's call, line and speed for WHO, and who the
+// caller is.
+func (r *Runtime) SetCallInfo(info world.CallInfo) {
+	r.callID, r.humanID = info.CallID, info.HumanID
+	r.line, r.baud = info.Line, info.Baud
 }
 
 func New(host world.Host, store world.Store) *Runtime {
@@ -79,6 +93,11 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 		r.handle = trimRunes(line, 16)
 		if strings.EqualFold(r.handle, "GUEST") {
 			r.handle = "GUEST"
+		}
+		if lines, ok := r.Store.(world.LineOccupancy); ok && r.callID != "" {
+			lines.SetHumanCallHandle(r.callID, r.handle)
+		}
+		if r.handle == "GUEST" {
 			return r.finishLogin(), false
 		}
 		r.state = "login_password"
@@ -107,9 +126,10 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			BoardID:        r.boardPath,
 			Author:         r.handle,
 			AuthorMemberID: r.handle,
+			AuthorHumanID:  r.humanID,
 			Subject:        r.subject,
 			Body:           line,
-			CreatedAt:      time.Now(),
+			CreatedAt:      world.WorldNowOf(r.Store),
 		})
 		r.threadID = p.ID
 		r.state = "thread"
@@ -147,11 +167,12 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 			ParentID:       root.ID,
 			Author:         r.handle,
 			AuthorMemberID: r.handle,
+			AuthorHumanID:  r.humanID,
 			// Erika-K's append is represented by the parent/root relationship;
 			// the append itself has no independently displayed subject.
 			Subject:   "",
 			Body:      line,
-			CreatedAt: time.Now(),
+			CreatedAt: world.WorldNowOf(r.Store),
 		})
 		r.state = "thread"
 		return "\r\nアペンドしました。\r\n" + r.renderThread(r.threadID), false
@@ -172,6 +193,14 @@ func (r *Runtime) HandleLine(line string) (output string, disconnect bool) {
 		return r.handleSimpleMenu(line, "mail")
 	case "chat":
 		return r.handleSimpleMenu(line, "chat")
+	case "call":
+		return r.handleCall(line)
+	case "telegram_body":
+		return r.handleTelegramBody(line)
+	case "chat_menu":
+		return r.handleChatMenu(line)
+	case "chat_room":
+		return r.handleChatRoom(line)
 	case "junk":
 		return r.handleSimpleMenu(line, "junk")
 	case "mode":
@@ -241,6 +270,10 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 		if !r.canUseFeature(FeatureTelegramChat) {
 			return r.featureUnavailable()
 		}
+		if r.detail.Chat != nil {
+			r.state = "call"
+			return r.renderCallScreen(), false
+		}
 		r.state = "chat"
 		return r.renderChatMenu(), false
 	case "5", "JUNK":
@@ -307,7 +340,17 @@ func (r *Runtime) handleMain(line string) (string, bool) {
 		if !r.canUseFeature(FeatureTelegramChat) {
 			return r.featureUnavailable()
 		}
-		return fmt.Sprintf("\r\n〖使用状態表示〗\r\nLINE 1  SYSOP     14400\r\nLINE 2  MARI       9600\r\nLINE 3  %-10s ONLINE\r\n\r\nMAIN MENU --> ", r.handle), false
+		var b strings.Builder
+		b.WriteString("\r\n〖使用状態表示〗\r\n")
+		for _, u := range r.lineUsers() {
+			if u.self {
+				fmt.Fprintf(&b, "LINE %d  %s ONLINE\r\n", u.line, padRunes(u.handle, 10))
+			} else {
+				fmt.Fprintf(&b, "LINE %d  %s%5d\r\n", u.line, padRunes(u.handle, 10), u.baud)
+			}
+		}
+		b.WriteString("\r\nMAIN MENU --> ")
+		return b.String(), false
 	case "MEMB":
 		if !r.canUseFeature(FeatureMemberList) {
 			return r.featureUnavailable()
@@ -548,7 +591,11 @@ func (r *Runtime) handleSimpleMenu(line, menu string) (string, bool) {
 			return r.renderChatMenu(), false
 		}
 		if upper == "WHO" {
-			return fmt.Sprintf("\r\nLINE1 SYSOP  LINE2 MARI  LINE3 %s\r\n\r\n(C) CHAT [M]=MENU [?]=HELP --> ", r.handle), false
+			var cells []string
+			for _, u := range r.lineUsers() {
+				cells = append(cells, fmt.Sprintf("LINE%d %s", u.line, u.handle))
+			}
+			return "\r\n" + strings.Join(cells, "  ") + "\r\n\r\n(C) CHAT [M]=MENU [?]=HELP --> ", false
 		}
 		if strings.HasPrefix(upper, "CALL") {
 			return "\r\n*** 電報を送信しました ***\r\n\r\n(C) CHAT [M]=MENU [?]=HELP --> ", false
@@ -1160,4 +1207,39 @@ func runeCellWidth(r rune) int {
 		return 1
 	}
 	return 2
+}
+
+type lineUser struct {
+	line   int
+	handle string
+	baud   int
+	self   bool
+}
+
+// lineUsers lists who holds the station's lines now, from the world's
+// observed presence (spec 015). Without presence only the caller is shown.
+func (r *Runtime) lineUsers() []lineUser {
+	var out []lineUser
+	selfShown := false
+	if observer, ok := r.Store.(world.PresenceObserver); ok {
+		for _, s := range observer.ObservePresenceNow(r.Host) {
+			u := lineUser{line: s.Line, handle: s.Handle, baud: s.Baud}
+			if r.isMyCall(s) {
+				u.self, u.handle = true, r.handle
+				selfShown = true
+			}
+			if u.handle == "" {
+				u.handle = "GUEST"
+			}
+			out = append(out, u)
+		}
+	}
+	if !selfShown {
+		line := r.line
+		if line == 0 {
+			line = 1
+		}
+		out = append(out, lineUser{line: line, handle: r.handle, self: true})
+	}
+	return out
 }

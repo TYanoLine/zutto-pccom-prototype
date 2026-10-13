@@ -280,6 +280,136 @@ Generation/update leases and bounded processing capacity may also temporarily ma
 
 Time-of-day, popularity, member schedules, special events, and Telehodai windows can influence occupancy.
 
+Since spec 015 this is implemented for hosts whose store supports presence
+(`internal/presence`, `worldrepo/presence.go`). Who is on a host's lines at a
+world time is computed deterministically, without an LLM, from 10-minute call
+windows over the last four hours. Each resident's chance to call is a product of
+independent layers: `ActivityPattern`, a lifestyle daily rhythm (weekday or
+holiday), Telehodai registration for that host (with a rush right after 23:00
+and hang-ups before 08:00), a phone line shared with the family, a night-owl
+factor, the calendar (`internal/worldcalendar`), and the station's optional
+`operating_hours`. Every coefficient is a fictional tuning value, not a
+historical statistic. Calls are placed on the lowest free line; a resident who
+finds every line taken simply got BUSY.
+
+The computation itself saves nothing. When a caller observes it (a dial's
+BUSY/CONNECT or a WHO screen), the resident sessions and their connection
+profile facts (`presence.*` persona facts) are stored and never rewritten; later
+computations keep them. Human calls hold a line from CONNECT until hang-up or
+reconnect-grace expiry, and are kept as history when they end. Stores without
+presence keep the earlier probabilistic BUSY model.
+
+### Within a call: chat rooms and line messages (spec 016)
+
+This policy is host-independent. Each host program realizes it with its own
+screens; Erika-K's telegram and chat screens are the first realization (see
+`docs/host-programs/erika-k.md`). No layer assumes a number of lines: the line
+count, the rooms and their capacities come from the station definition.
+
+- **What a resident does within a call** is a plan of segments in a shared
+  vocabulary, `world.CallState`: `login` (the first two minutes), `idle`,
+  `paging` (at the screen for sending line messages, just before a chat) and
+  `chat` (in a room). Host programs map it to their own labels (Erika-K:
+  `paging` → `CALL`, `chat` → `CHAT`). `internal/callplan` computes the plans
+  deterministically, without an LLM: a base intention from the resident's
+  lifestyle and sociability (`1 − LurkerTendency` and `ReplyTendency`), tripled
+  in Telehodai hours, adjusted by how crowded the room looks (counted from the
+  other calls' base intentions only, so the computation never recurses), and
+  never above a room's capacity. Every coefficient is a fictional tuning value.
+- **Humans never enter the computation.** A resident's plan is the same whether
+  or not a human is on the host or in the room.
+- **Observation fixes a plan.** The first time any part of a call's plan is
+  shown (a WHO row, a join or leave line), the whole plan is stored with the
+  presence session and never rewritten (`worldrepo/callplan.go`).
+- **Chat rooms** are a shared item of the station definition
+  (`detail.chat_rooms`: number, capacity with 0 for unlimited, and a choice
+  weight). A station without rooms has no chat. Residents enter rooms only
+  while the server can also give them words (`SetResidentChat`, on when a
+  language model is configured); otherwise their calls have no `chat` segments.
+- **Asynchronous output.** A host program may implement
+  `hostprogram.AsyncOutput`; the WebSocket layer polls it once a second with
+  the world time and sends what it returns. The program decides when an
+  interruption is appropriate (Erika-K: only inside a chat room).
+- **Records.** What a human says in a room is stored as a `world.ChatUtterance`
+  and entered in the interaction ledger (`chat_utterance`, audience
+  `chat_room:<host>:<room>`, addressed to the residents in the room at that
+  moment). A message a human sends to a line is a `world.LineMessage` with a
+  delivery time the host program decides (`line_message`, audience
+  `private:<host>`, addressed to the recipient). Both survive restarts with the
+  host snapshot.
+
+- **Who a human is (spec 019).** The system names a human by a *human ID*,
+  derived from a key the user's browser keeps, the same on every call and for
+  guests too. Every record of a human (posts, chat lines, line messages, the
+  ledger) also keeps the *login ID* shown at the time. Residents know a human
+  only by login ID: relationships, "acquaintance" checks, board events they
+  bring up and what their memory tools return use `login:<ID>`, never the
+  human ID. So a guest who later registers can say "that was me, as GUEST", a
+  user with two login IDs is two people to residents, and one who shows
+  another's login ID is that person to them. The shared login ID `GUEST` is
+  nobody a resident can know, so it builds no relationships. The key proves
+  nothing about who is typing. The key is a provisional stand-in while users are
+  not identified: once users sign in with an ID and password, the human ID
+  comes from that account instead, and the key goes away.
+
+- **Residents speaking (spec 017).** `internal/chatslot` decides, without an
+  LLM, each chance a resident has to say a line (a slot): `greet` on entering,
+  `welcome` someone who entered, `reply` to a line, `talk` on their own,
+  `farewell` before leaving, `sendoff` someone who says they are leaving, and
+  `news`, bringing up a recent board event (a post, or a reply to a post) of an
+  acquaintance in the room. At most one resident welcomes an entry, replies to
+  a line or brings up an event; a line that says its speaker is leaving gets
+  up to two send-offs instead of a reply. Silence is always possible. The
+  chances come from the persona, spec 013's relationship and whether a handle
+  was named; chains of replies, lines per minute and per hour are limited.
+  Every value is a fictional tuning value, set high for now while the chat is
+  being debugged.
+- **Lines exist only while observed.** Slots are computed and worded only for
+  times a caller is in the room (`ChatHost.EnterChatRoom` / `LeaveChatRoom`;
+  a stay with no poll for a minute counts as ended). Unheard conversation is
+  not a world fact. Polling a room (`ChatEvents`) returns the recorded lines
+  with the joins and leaves and starts writing the lines due within twenty
+  seconds; an optional `llm.ChatLineWriter` words a selected slot, and a
+  failed or rejected line is silence, never canned text. A recorded line is a
+  `world.ChatUtterance` with its slot and the line it answers, entered in the
+  ledger as `npc_world_selected`, and is never rewritten or placed in a window
+  already shown.
+
+- **Residents' telegrams (spec 018).** `internal/lineslot` decides, without an
+  LLM, each chance a resident has to send the human a telegram (a line
+  message): `answer`, a reply to a telegram the human sent that resident, and
+  `hail`, a message the resident sends on their own to someone they know.
+  Silence is always possible. The chance of an answer comes from the persona
+  and spec 013's relationship; at most one answer per telegram, only after the
+  telegram reached the resident (a resident in a room gets it when they leave)
+  and only while the resident still holds the line. A hail needs a resident
+  who knows the human, which is a login ID other than `GUEST` (spec 019) and a
+  relationship; it happens on the call or about a recent board event, at most
+  twice per resident per call. What the human wrote is never read when
+  deciding, so it cannot change who answers or when. Messages per hour and
+  per resident are limited; every value is a fictional tuning value, set high
+  for now while this is debugged.
+- **Telegrams exist only while the call is live.** `LineMessageHost.LineMessageEvents`
+  is how a host program asks for the telegrams due on its call; each call also
+  decides and starts writing the coming ones, while the human's call is in
+  progress. An optional `llm.LineMessageWriter` words a selected slot; a failed
+  or rejected message is silence. A recorded message is a `world.LineMessage`
+  with its slot and the message it answers, entered in the ledger as
+  `npc_world_selected`, and is never rewritten. The host program moves its
+  window forward only when it could show what it got.
+
+Implemented: residents' states on the lines, joins and leaves in chat rooms,
+the human's own utterances and line messages as world records, residents
+speaking in rooms, and residents' telegrams to the human.
+
+Planned, not implemented yet: chat and telegrams updating relationships, and
+residents posting and replying while they are on line. Who is active keeps changing: members log off when their call
+ends, which simply frees the line, and others connect in later windows. Chat
+partners and the authors of such activity are chosen from the presence computed
+above, never invented because the human is there; the World decides whether
+each one speaks, posts, or does nothing, and an LLM only words an action that
+was selected (see SDD-005 section 3.4).
+
 ## Moderation
 
 Misbehavior can occur: spam, arguments, impersonation, local-rule violations, escape-code abuse, etc. SYSOP personality and local policy determine warnings, deletion, read-only restrictions, temporary suspension, or removal. The human-controlled member is subject to the same local rules.
@@ -287,3 +417,18 @@ Misbehavior can occur: spam, arguments, impersonation, local-rule violations, es
 ## Time
 
 Use a `WorldClock` abstraction. Real Japan time can drive time-of-day behavior while dates map into the 1996 world. Tests should be able to jump across important boundaries such as 22:59, 23:00, and 08:00.
+
+Since spec 015 the default clock follows the real calendar. Each world has a
+base year that corresponds to the real year in which the world was started; the
+world time is the real Japanese time minus that many years. Month, day and time
+of day match the real calendar, restarts do not move the world date, and the
+world crosses New Year together with the real calendar (real 2027-01-01 is
+1997-01-01). The base year is a property of the world, chosen when the world is
+created (worlds are planned per user or group; the allowed range is not decided
+yet). It is not a deployment setting. Until per-world creation exists, the single
+world uses base year 1996 started in 2026 (`worldclock.CurrentWorldBaseYear` on
+the server, `CURRENT_WORLD_BASE_YEAR` in the web client). An explicit
+`WORLD_DATE` / `VITE_WORLD_DATE` keeps the older fixed-origin development clock.
+
+Known limitation: a real 29 February that maps onto a common world year is
+normalized to 1 March, so that world day occurs twice (first in real 2028).

@@ -55,3 +55,32 @@ func TestBusyProbabilityTelehodaiRushBoundary(t *testing.T) {
 		})
 	}
 }
+
+// fakeLines is a LineOccupancy stand-in that reports a fixed answer.
+type fakeLines struct {
+	world.Store
+	line  int
+	free  bool
+	dials int
+}
+
+func (f *fakeLines) DialLine(world.Host, time.Time) (int, bool)         { f.dials++; return f.line, f.free }
+func (f *fakeLines) BeginHumanCall(world.Host, string, string, int) (int, bool) { return f.line, f.free }
+func (f *fakeLines) SetHumanCallHandle(string, string)                  {}
+func (f *fakeLines) EndHumanCall(string)                                {}
+
+func TestDialUsesLineOccupancy(t *testing.T) {
+	at := time.Date(1996, 10, 15, 23, 10, 0, 0, time.FixedZone("JST", 9*60*60))
+	full := &fakeLines{Store: world.NewMemoryStore(), free: false}
+	if got := New(full, fixedClock{now: at}).Dial("0920000196", 1); got.Result != Busy || full.dials != 1 {
+		t.Fatalf("full lines: %+v dials=%d", got, full.dials)
+	}
+	free := &fakeLines{Store: world.NewMemoryStore(), line: 3, free: true}
+	if got := New(free, fixedClock{now: at}).Dial("0920000196", 1); got.Result != Connect || got.Line != 3 {
+		t.Fatalf("free line: %+v", got)
+	}
+	// The BUSY-test fixture keeps its fixed behavior.
+	if got := New(full, fixedClock{now: at}).Dial("0459999999", 5); got.Result != Connect {
+		t.Fatalf("busy fixture attempt 5 = %+v", got)
+	}
+}

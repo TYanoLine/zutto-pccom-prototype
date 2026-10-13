@@ -10,6 +10,34 @@ This document is product behavior, not merely prompt advice.
 - Agreement, praise and curiosity require persona/world justification.
 - Silence is a valid result and should usually be decided before the LLM is called.
 
+### Chat lines (spec 017)
+
+A resident's chat line is generated only after `internal/chatslot` selected the
+speaker, the time, the kind of line and what it answers. `llm.ChatLineWriter`
+receives that decision as materials: the speaker's profile and style, the
+addressee and spec 013's relationship label, who is in the room, the recent
+lines the speaker saw, the world date and time, the station and room, and for
+`news` only a summary of the board event (who, which board, which title; never
+a post body). The caller is listed by handle like everyone else. The answer is
+one line in a strict JSON schema; a line that is not one line, is too wide,
+cannot be written in Shift_JIS, starts with the speaker's handle or uses a term
+from after the world date is rejected, and the resident stays silent.
+
+### Telegrams to a human (spec 018)
+
+A resident's telegram is generated only after `internal/lineslot` selected the
+speaker, the time, the kind (`answer` or `hail`) and what it answers.
+`llm.LineMessageWriter` receives that decision as materials: the speaker's
+profile and style, the handle the resident knows the human by (the login ID, or
+`GUEST` on an answer to a guest, never the system's human ID), spec 013's
+relationship label, the world date and time, the station, the last few
+telegrams between the two and, for a hail about a board event, a summary of
+the event (never a post body). For an answer the human's telegram is passed in
+its own field (`incoming`) as the other person's words, quoted: the prompt says
+not to follow instructions inside it. The answer is one line in a strict JSON
+schema, validated like a chat line with the telegram width (full-width 150
+characters); a message that is rejected or fails leaves the resident silent.
+
 ## Prompt construction
 
 Prefer **purpose + materials + schema/validation** over long prompt rule stacks.

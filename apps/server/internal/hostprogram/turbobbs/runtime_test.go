@@ -134,6 +134,25 @@ func TestRegularUserCanStorePublicMessage(t *testing.T) {
 	}
 }
 
+// Spec 019: a message keeps the human ID of the user and the account shown.
+func TestStoredMessageKeepsHumanID(t *testing.T) {
+	runtime, store := sampleRuntime(t)
+	runtime.SetCallInfo(world.CallInfo{CallID: "call-1", HumanID: "u1", Line: 1, Baud: 2400})
+	loginRegular(t, runtime)
+	for _, in := range []string{"E", "ALL", "TEST MESSAGE", "1", "HELLO", "", "S"} {
+		runtime.HandleLine(in)
+	}
+	for _, p := range store.ListPosts(runtime.Host.ID) {
+		if p.Subject == "TEST MESSAGE" {
+			if p.Author != "TARO YAMADA" || p.AuthorMemberID != "TARO YAMADA" || p.AuthorHumanID != "u1" {
+				t.Fatalf("stored post = %+v", p)
+			}
+			return
+		}
+	}
+	t.Fatal("message was not stored")
+}
+
 func TestReadSectionAndRelog(t *testing.T) {
 	runtime, _ := sampleRuntime(t)
 	loginRegular(t, runtime)

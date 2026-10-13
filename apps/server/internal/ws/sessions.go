@@ -3,6 +3,7 @@ package ws
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -12,8 +13,14 @@ import (
 
 const DefaultReconnectGrace = 60 * time.Second
 
+// ErrLineBusy means every logical line was taken between the dial decision
+// and the call registration; the caller should be told BUSY.
+var ErrLineBusy = errors.New("all host lines are in use")
+
 type CallSession struct {
-	ID                string
+	ID string
+	// HumanID is the user who made the call (spec 019).
+	HumanID           string
 	Host              world.Host
 	Baud              int
 	Line              int
@@ -24,12 +31,52 @@ type CallSession struct {
 	attached   bool
 	attachment uint64
 	expiry     *time.Timer
+
+	// mu serializes the runtime: a line from the caller and an asynchronous
+	// Poll never run at the same time (spec 016).
+	mu sync.Mutex
+}
+
+// HandleLine passes one input line to the host program.
+func (s *CallSession) HandleLine(line string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Runtime.HandleLine(line)
+}
+
+// Welcome returns the host program's first output after CONNECT.
+func (s *CallSession) Welcome() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Runtime.Welcome()
+}
+
+// Poll asks the host program for output that does not answer an input line.
+// Programs without asynchronous output return "".
+func (s *CallSession) Poll(now time.Time) string {
+	async, ok := s.Runtime.(hostprogram.AsyncOutput)
+	if !ok {
+		return ""
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return async.Poll(now)
 }
 
 type SessionManager struct {
 	mu             sync.Mutex
 	sessions       map[string]*CallSession
 	reconnectGrace time.Duration
+	// lines, when set, makes human calls hold a logical line from CONNECT
+	// until hang-up or expiry (spec 015).
+	lines world.LineOccupancy
+}
+
+// SetLineOccupancy registers human calls with the world's line occupancy.
+func (m *SessionManager) SetLineOccupancy(lines world.LineOccupancy) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.lines = lines
 }
 
 func NewSessionManager(reconnectGrace time.Duration) *SessionManager {
@@ -42,7 +89,7 @@ func NewSessionManager(reconnectGrace time.Duration) *SessionManager {
 	}
 }
 
-func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostprogram.Runtime) (*CallSession, uint64, error) {
+func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostprogram.Runtime, humanID string) (*CallSession, uint64, error) {
 	id, err := newSessionID()
 	if err != nil {
 		return nil, 0, err
@@ -51,8 +98,17 @@ func (m *SessionManager) Create(host world.Host, baud, line int, runtime hostpro
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if m.lines != nil {
+		held, ok := m.lines.BeginHumanCall(host, id, humanID, baud)
+		if !ok {
+			return nil, 0, ErrLineBusy
+		}
+		line = held
+	}
+
 	s := &CallSession{
 		ID:          id,
+		HumanID:     humanID,
 		Host:        host,
 		Baud:        baud,
 		Line:        line,
@@ -148,6 +204,9 @@ func (m *SessionManager) deleteLocked(s *CallSession) {
 		s.expiry = nil
 	}
 	delete(m.sessions, s.ID)
+	if m.lines != nil {
+		m.lines.EndHumanCall(s.ID)
+	}
 }
 
 func newSessionID() (string, error) {

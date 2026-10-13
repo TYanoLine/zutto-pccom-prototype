@@ -3,8 +3,7 @@
 A host whose preset sets `debug.reset_articles_on_connect: true` clears its
 generated articles on every new successful CONNECT during quality evaluation.
 This is an explicit per-host debug exception; it is not the persistent-world
-default, and a host without the flag is never reset. Today only the fictional
-HAKATA station (0920000196) opts in. Reset is refused while header or body
+default, and a host without the flag is never reset. Reset is refused while header or body
 generation is still running, and the CONNECT then fails with NO CARRIER rather
 than showing a mixed old/new sample.
 

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"zutto-pccom/apps/server/internal/actormemory"
@@ -83,6 +84,18 @@ type Repository struct {
 	// actor-scoped memory tool execution during prose materialization.
 	actorMemoryMu    sync.RWMutex
 	actorMemoryIndex *actormemory.Index
+
+	// residentChat lets residents enter chat rooms (spec 016 FR-004). It is
+	// off unless the server can also give them words.
+	residentChat atomic.Bool
+	// presenceWindows caches presence on the window grid for chat plans.
+	presenceWindows presenceWindowCache
+
+	// chatTalk is who watches each chat room and what residents' lines are
+	// being written (spec 017).
+	chatTalk chatTalk
+	// lineTalk is the residents' line messages to human callers (spec 018).
+	lineTalk lineTalk
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -157,6 +170,11 @@ func (r *Repository) SetWorldNow(now func() time.Time) {
 			r.bbsArticles.Now = r.currentWorldTime
 		}
 	}
+}
+
+// WorldNow implements world.WorldTimeSource.
+func (r *Repository) WorldNow() time.Time {
+	return r.currentWorldTime()
 }
 
 func (r *Repository) currentWorldTime() time.Time {
@@ -235,13 +253,10 @@ func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
 }
 
 func (r *Repository) recordPostInteraction(hostID string, p world.Post) {
-	var actor world.ActorRef
-	if p.AuthorPersonaID != "" {
-		actor = world.ActorRef{Kind: "persona", ID: p.AuthorPersonaID}
-	} else if p.AuthorMemberID != "" {
-		actor = world.ActorRef{Kind: "member", ID: p.AuthorMemberID}
-	} else if p.Author != "" {
-		actor = world.ActorRef{Kind: "member", ID: p.Author}
+	actor := world.PostActor(p)
+	var actorLogin string
+	if actor.Kind == world.ActorKindMember {
+		actorLogin = world.PostLogin(p)
 	}
 
 	sourceKind := "human_authored"
@@ -256,28 +271,29 @@ func (r *Repository) recordPostInteraction(hostID string, p world.Post) {
 
 	channel := "board_root"
 	var addressedTo []world.ActorRef
+	var addressedLogins []string
 	var respondsToEventID string
+	var knownFrom, knownTo world.ActorRef
 
 	if parentID != 0 {
 		channel = "board_reply"
 		respondsToEventID = fmt.Sprintf("post:%s:%d", hostID, parentID)
 
-		var parentAuthor world.ActorRef
 		for _, post := range r.Base.ListPosts(hostID) {
 			if post.ID == parentID {
-				if post.AuthorPersonaID != "" {
-					parentAuthor = world.ActorRef{Kind: "persona", ID: post.AuthorPersonaID}
-				} else if post.AuthorMemberID != "" {
-					parentAuthor = world.ActorRef{Kind: "member", ID: post.AuthorMemberID}
-				} else if post.Author != "" {
-					parentAuthor = world.ActorRef{Kind: "member", ID: post.Author}
+				if parent := world.PostActor(post); !parent.IsZero() {
+					addressedTo = []world.ActorRef{parent}
+					if parent.Kind == world.ActorKindMember {
+						addressedLogins = []string{world.PostLogin(post)}
+					} else {
+						addressedLogins = []string{""}
+					}
 				}
+				knownTo = world.PostKnownAs(post)
 				break
 			}
 		}
-		if !parentAuthor.IsZero() {
-			addressedTo = []world.ActorRef{parentAuthor}
-		}
+		knownFrom = world.PostKnownAs(p)
 	}
 
 	eventID := fmt.Sprintf("post:%s:%d", hostID, p.ID)
@@ -293,14 +309,18 @@ func (r *Repository) recordPostInteraction(hostID string, p world.Post) {
 		ContentRef:        strconv.FormatInt(p.ID, 10),
 		OccurredAt:        p.CreatedAt,
 		SourceKind:        sourceKind,
+		ActorLogin:        actorLogin,
+		AddressedLogins:   addressedLogins,
 	}
 
 	if ledgerStore, ok := r.Base.(world.InteractionLedgerStore); ok {
 		_ = ledgerStore.AppendInteractionEvent(event)
 	}
 
+	// Residents know people by login ID, so relationships are kept between the
+	// people they know; a guest is nobody they know (spec 019).
 	if channel == "board_reply" && len(addressedTo) > 0 {
-		toActor := addressedTo[0]
+		actor, toActor := knownFrom, knownTo
 		if !actor.IsZero() && !toActor.IsZero() {
 			if relStore, ok := r.Base.(world.RelationshipStore); ok {
 				edge, exists := relStore.GetRelationship(hostID, actor, toActor)

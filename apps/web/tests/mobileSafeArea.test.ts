@@ -35,4 +35,21 @@ describe('mobile safe-area layout', () => {
     expect(canvasRule).not.toContain('touch-action: pinch-zoom');
     expect(inputRule).not.toContain('touch-action: pinch-zoom');
   });
+
+  it('disables pull-to-refresh and rubber-band overscroll', () => {
+    const rootRule = styles.match(/html, body, #root \{([^}]*)\}/)?.[1];
+    const bodyRule = styles.match(/^body \{([^}]*)\}/m)?.[1];
+    const shellRule = styles.match(/^\.shell \{([^}]*)\}/m)?.[1];
+    const mobileStyles = styles.slice(styles.indexOf('@media (max-width: 680px), (pointer: coarse)'));
+    const mobileBodyRule = mobileStyles.match(/\bbody \{([^}]*)\}/)?.[1];
+    const mobileShellRule = mobileStyles.match(/\.shell \{([^}]*)\}/)?.[1];
+    const mobileViewportRule = mobileStyles.match(/\.terminal-viewport \{([^}]*)\}/)?.[1];
+
+    expect(rootRule).toContain('overscroll-behavior: none');
+    expect(bodyRule).toContain('overscroll-behavior: none');
+    expect(shellRule).toContain('overscroll-behavior: none');
+    expect(mobileBodyRule).toContain('overscroll-behavior: none');
+    expect(mobileShellRule).toContain('overscroll-behavior: none');
+    expect(mobileViewportRule).toContain('overscroll-behavior: none');
+  });
 });

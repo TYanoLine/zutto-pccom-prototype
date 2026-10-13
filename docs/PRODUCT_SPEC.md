@@ -157,6 +157,8 @@ The cultural/knowledge ceiling is 1996. Later products, slang and events must no
 
 The real Japan clock may drive time-of-day behavior and Telehodai windows, while the calendar is mapped into the 1996 world. Keep `WorldClock` abstract so tests can jump between 22:59, 23:00 and 08:00.
 
+The world calendar follows the real month and day from a configurable base year (spec 015): a world based on 1996 and started in 2026 runs thirty years behind the real calendar and crosses New Year with it. Holidays and seasonal periods come from source-backed calendar data (`docs/research/CALENDAR_1996.md`).
+
 Inactive hosts are not simulated continuously. Catch them up lazily using coarse events and materialize detailed posts only when needed. Normal production catch-up is observation-driven and limited to relevant scopes; continuous background LLM simulation of the entire world is not a requirement.
 
 ## Future real-machine target

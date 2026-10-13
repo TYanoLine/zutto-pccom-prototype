@@ -78,8 +78,10 @@ number appears in the configured Telehodai number list.
 
 ## Calendar handling
 
-World time is represented by `Japan1996WorldClock` as Japanese wall-clock
-fields encoded in UTC. Tariff code intentionally uses `getUTC*` accessors.
+World time is represented by `CalendarWorldClock` (or, when
+`VITE_WORLD_DATE` is set, the fixed-origin `Japan1996WorldClock`) as Japanese
+wall-clock fields encoded in UTC. Tariff code intentionally uses `getUTC*`
+accessors.
 
 Saturday, Sunday and Japanese public holidays use the NTT weekend/holiday
 daytime tariff. The 1996 holiday set follows the National Astronomical

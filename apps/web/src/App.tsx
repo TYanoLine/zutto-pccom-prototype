@@ -14,7 +14,7 @@ import { PseudoTariffService } from './billing/PseudoTariffService';
 import { ntt1996TariffTable } from './billing/pseudoTariffs';
 import { CALLER_LOCATION_PRESETS, loadCallerLocation, saveCallerLocation } from './billing/CallerLocation';
 import { addMonthlyCharge, getMonthKey, loadMonthlyTotal } from './billing/MonthlyBilling';
-import { Japan1996WorldClock } from './time/WorldClock';
+import { CalendarWorldClock, Japan1996WorldClock } from './time/WorldClock';
 import { playHandshake } from './audio/modemAudio';
 import { playDialSequence, playStandaloneBusySequence } from './audio/dialLineAudio';
 import type { DialMode } from './audio/dialLineAudio';
@@ -31,8 +31,10 @@ import {
   saveModemStatusDisplayMode,
 } from './modem/ModemStatusDisplay';
 import type { ModemStatusDisplayMode } from './modem/ModemStatusDisplay';
+import { getOrCreateCallerKey } from './modem/CallerKey';
 import './styles.css';
 import { GenerationInspector } from './debug/GenerationInspector';
+import { BBSResetDialog } from './debug/BBSResetDialog';
 
 const APP_VERSION = '0.28';
 const CLIENT_BUILD_COMMIT = (import.meta.env.VITE_BUILD_COMMIT as string | undefined) || 'unknown';
@@ -54,7 +56,9 @@ const isLocalHost = typeof window !== 'undefined' && (window.location.hostname =
 const wsURL = configuredWsURL || (isLocalHost ? 'ws://localhost:8080/ws' : '');
 const standaloneLine = wsURL.length === 0;
 const configuredWorldDate = (import.meta.env.VITE_WORLD_DATE as string | undefined)?.trim() ?? '';
-const worldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate) ? configuredWorldDate : '1996-08-26';
+// An explicit VITE_WORLD_DATE keeps the development fixed-origin clock;
+// otherwise the world follows the real calendar from its base year.
+const fixedWorldDate = /^\d{4}-\d{2}-\d{2}$/.test(configuredWorldDate) ? configuredWorldDate : '';
 const configuredTelehodaiNumbers = (import.meta.env.VITE_TELEHODAI_NUMBERS as string | undefined)?.trim();
 const telehodaiNumbers = (configuredTelehodaiNumbers || '0920000196').split(',').map((phone: string) => phone.trim()).filter(Boolean);
 const SETTINGS_KEY = 'zutto.commSettings.v1';
@@ -82,7 +86,7 @@ function formatElapsed(startedAt: Date | null, now: Date) {
 export default function App() {
   const terminal = useMemo(() => new TerminalCore(), []);
   const terminalCanvasRef = useRef<TerminalCanvasHandle | null>(null);
-  const clock = useMemo(() => new Japan1996WorldClock(worldDate), []);
+  const clock = useMemo(() => (fixedWorldDate ? new Japan1996WorldClock(fixedWorldDate) : new CalendarWorldClock()), []);
   const [callerLocation, setCallerLocation] = useState(loadCallerLocation);
   const [feePopoverOpen, setFeePopoverOpen] = useState(false);
   const [editingLocation, setEditingLocation] = useState(false);
@@ -129,6 +133,7 @@ export default function App() {
   const [commandFocused, setCommandFocused] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
   const [traceRunning, setTraceRunning] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [directoryGenerating, setDirectoryGenerating] = useState(true);
 
   useEffect(() => { (window as BootWindow).__zuttoBootOk?.(); }, []);
@@ -232,7 +237,8 @@ export default function App() {
       item => { executeMainMenuCommand(item.key); },
     );
     showMainMenu();
-    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : {});
+    const callerKey = getOrCreateCallerKey();
+    const modem = new VirtualModem(terminal, wsURL, standaloneLine ? { offlineBusyExtraMs: 0, callerKey, audio: { dial: playStandaloneBusySequence, busy: () => 0, handshake: playHandshake } } : { callerKey });
     modem.onStatus = setStatus;
     modem.onTelemetry = setModemTelemetry;
     modem.onCallState = call => {
@@ -679,6 +685,19 @@ export default function App() {
           <button type="button" aria-pressed={terminalScreenMode === 'variable'} onClick={() => { setTerminalScreenMode('variable'); setDesktopMenuOpen(false); }}>80桁 × 可変行</button>
           <button type="button" aria-pressed={terminalScreenMode === 'fixed25'} onClick={() => { setTerminalScreenMode('fixed25'); setDesktopMenuOpen(false); }}>80桁 × 25行固定</button>
         </div>
+        <div className="desktop-menu-section">
+          <span>デバッグ</span>
+          <button
+            type="button"
+            className="desktop-menu-action desktop-menu-action--debug"
+            onClick={() => {
+              setDesktopMenuOpen(false);
+              setResetDialogOpen(true);
+            }}
+          >
+            [DEBUG] 掲示板リセット…
+          </button>
+        </div>
         <BuildInfoPanel {...buildInfoProps} />
       </nav>}
     </header>
@@ -719,6 +738,7 @@ export default function App() {
       buildInfo={buildInfoProps}
       onHangUp={hangUp}
       isCallingOrConnected={isCallingOrConnected}
+      onOpenResetDialog={() => setResetDialogOpen(true)}
       keyboardInput={{
         value: input,
         readOnly: directoryOpen,
@@ -780,5 +800,12 @@ export default function App() {
       {!activeCall && !localTestConnected && <><details className="comm-panel"><summary>COMM SETTINGS / 通信設定</summary><div className="settings-summary">LINE {commSettings.lineBaud} / DTE {commSettings.dteBaud} / {framing} / {commSettings.flowControl.toUpperCase()}</div><div className="settings-grid"><label>MAX LINE SPEED<select value={commSettings.lineBaud} onChange={e => setting('lineBaud', Number(e.target.value) as CommSettings['lineBaud'])}><option value={2400}>2400 bps</option><option value={9600}>9600 bps</option><option value={14400}>14400 bps</option><option value={28800}>28800 bps</option></select></label></div></details><details className="debug-panel"><summary>DEBUG / MODEM AUDIO</summary><div className="audition-row">{([2400, 9600, 14400, 28800] as const).map(baud => <button key={baud} className="audition-btn" onClick={() => audition(baud)}>{baud}bps</button>)}</div><div className="audition-meta">AUDIO: {audioStatus}</div>{lastHandshake && <div className="audition-meta">RUN {lastHandshake.seed} / {lastHandshake.baud}bps</div>}</details></>}
     </aside>
     <GenerationInspector wsURL={wsURL} active={generationTraceVisible} open={traceOpen} onClose={() => setTraceOpen(false)} onRunningChange={setTraceRunning} />
+    <BBSResetDialog
+      wsURL={wsURL}
+      open={resetDialogOpen}
+      activePhone={activeCall?.phone}
+      activeHostName={desktopHostName}
+      onClose={() => setResetDialogOpen(false)}
+    />
   </main>;
 }

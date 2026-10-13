@@ -37,9 +37,22 @@ func main() {
 	if err != nil {
 		log.Fatalf("load Japan timezone: %v", err)
 	}
-	clock, err := worldclock.New(cfg.WorldDate, jst)
+	var clock worldclock.WorldClock
+	worldClockInfo := map[string]any{"mode": "calendar", "base_year": worldclock.CurrentWorldBaseYear, "start_real_year": worldclock.CurrentWorldStartRealYear}
+	if cfg.WorldDate != "" {
+		// An explicit WORLD_DATE keeps the development fixed-origin clock.
+		clock, err = worldclock.New(cfg.WorldDate, jst)
+		worldClockInfo = map[string]any{"mode": "fixed_origin", "world_date": cfg.WorldDate}
+	} else {
+		clock, err = worldclock.NewCalendar(jst, worldclock.CurrentWorldBaseYear, worldclock.CurrentWorldStartRealYear)
+	}
 	if err != nil {
 		log.Fatalf("create world clock: %v", err)
+	}
+	if cfg.WorldDate == "" {
+		// The rest of the startup wiring takes a date string; in calendar mode it
+		// is the world date at startup, as the fixed origin date was before.
+		cfg.WorldDate = clock.Now().Format(time.DateOnly)
 	}
 	sessions := wsserver.NewSessionManager(wsserver.DefaultReconnectGrace)
 	catalogGenerator := llm.CenterCatalogGenerator{Endpoint: cfg.AzureOpenAIEndpoint, APIKey: cfg.AzureOpenAIKey, Model: cfg.AzureOpenAIModel}
@@ -121,6 +134,16 @@ func main() {
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
 	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
+	// Residents enter chat rooms only when the server can also give them words
+	// (spec 016 FR-004); without a model the rooms stay empty.
+	runtimeStore.SetResidentChat(cfg.AzureOpenAIKey != "")
+	if cfg.AzureOpenAIKey != "" {
+		// What residents say in a room while a caller is there (spec 017).
+		runtimeStore.SetChatLineWriter(azureOpenAIRenderer)
+		// Telegrams residents send a caller, in answer or on their own (spec 018).
+		runtimeStore.SetLineMessageWriter(azureOpenAIRenderer)
+	}
+	sessions.SetLineOccupancy(runtimeStore)
 	network := telephone.New(runtimeStore, clock)
 
 	generateNames := func(ctx context.Context, count int) ([]string, error) {
@@ -206,51 +229,7 @@ func main() {
 		return true
 	}
 
-	resetBBSArticles := func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "no-store")
-		if cfg.DebugResetToken == "" || subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Zutto-Debug-Token")), []byte(cfg.DebugResetToken)) != 1 {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "debug BBS reset requires DEBUG_RESET_TOKEN"})
-			return
-		}
-		if r.Method != http.MethodPost {
-			w.Header().Set("Allow", "POST")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "POST only"})
-			return
-		}
-		phone := strings.TrimSpace(r.URL.Query().Get("phone"))
-		// Public test deployment safety: expose the generic reset machinery only
-		// for hosts whose definition opts in with debug.http_endpoints. An unknown
-		// number and a host without the flag get the same answer on purpose.
-		host, err := runtimeStore.HostByPhone(phone)
-		if err != nil || !host.Debug.HTTPEndpoints {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "debug reset is not enabled for this host"})
-			return
-		}
-		if runtimeStore.MaterializationObservationRunning(host.ID) {
-			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "BBS observation/generation is still running; retry after it completes"})
-			return
-		}
-		removed, kept, ok := runtimeStore.ResetBBSGeneratedArticles(host)
-		if !ok {
-			w.WriteHeader(http.StatusConflict)
-			_ = json.NewEncoder(w).Encode(map[string]any{"error": "shared BBS article reset unavailable"})
-			return
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"ok":                      true,
-			"phone":                   phone,
-			"host_id":                 host.ID,
-			"removed_generated_posts": removed,
-			"kept_posts":              kept,
-			"kept":                    "seed/user history + boards + personas + host program configuration",
-			"next":                    "visit a board again to run a fresh shared-engine catch-up batch",
-		})
-	}
+	resetBBSArticles := newBBSResetHandler(cfg.DebugResetToken, store, runtimeStore)
 
 	bbsSample := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -545,7 +524,7 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "world_date": cfg.WorldDate, "world_clock": worldClockInfo, "time": clock.Now(), "persistent_worlds": catalogStore != nil, "historical_research": historyStore != nil, "historical_knowledge": historyStore != nil, "historical_references_enabled": postMaterializer.HistoricalReferencesEnabled, "debug_log_bbs_article_details": cfg.DebugLogBBSArticleDetails, "world_repository": true, "world_post_renderer": "azure-openai-article-worker-with-jev-title-advisor", "azure_openai_model": cfg.AzureOpenAIModel, "azure_openai_configured": cfg.AzureOpenAIEndpoint != "" && cfg.AzureOpenAIKey != "", "jev_model": cfg.JevModel, "jev_configured": cfg.JevKey != "", "jev_world_write_advisor": cfg.JevKey != "", "jev_world_behavior_advisor": cfg.JevKey != "", "jev_title_advisor": cfg.JevKey != "", "debug_reset": cfg.DebugResetToken != ""})
 	})
 
 	srv := &http.Server{Addr: cfg.Addr, Handler: cors(mux), ReadHeaderTimeout: 5 * time.Second}

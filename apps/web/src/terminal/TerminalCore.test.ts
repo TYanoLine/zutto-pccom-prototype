@@ -52,3 +52,13 @@ describe('TerminalCore scrollback', () => {
     expect(rowText(terminal.viewportRows(0)[0])).toBe('');
   });
 });
+
+describe('TerminalCore control characters', () => {
+  it('ignores BEL without drawing a cell or moving the cursor', () => {
+    const terminal = new TerminalCore();
+    terminal.write('AB\x07\x07C\r\n#01 X>hi\x07\r\n');
+
+    expect(rowText(terminal.viewportRows(0)[0])).toBe('ABC');
+    expect(rowText(terminal.viewportRows(0)[1])).toBe('#01 X>hi');
+  });
+});

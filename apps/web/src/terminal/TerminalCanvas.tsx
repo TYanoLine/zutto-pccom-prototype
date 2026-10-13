@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type {
   ChangeEventHandler,
   CompositionEventHandler,
@@ -8,23 +8,110 @@ import type {
   PointerEvent as ReactPointerEvent,
   WheelEvent as ReactWheelEvent,
 } from 'react';
-import { isFullWidth, type TerminalCore } from './TerminalCore';
+import { isFullWidth, type Cell, type TerminalCore } from './TerminalCore';
 import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
 import { BuildInfoPanel } from '../build/BuildInfoPanel';
 import type { BuildInfoPanelProps } from '../build/BuildInfoPanel';
 import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 import './terminalFit.css';
 
+/**
+ * PC-98 text GDC (NEC uPD7220 Master GDC) cursor blink interval in milliseconds.
+ * In historical PC-9801 standard text mode (24.83 kHz horizontal / ~56.42 Hz vertical refresh),
+ * the default blink rate (BR = 16, resulting in 2 * BR = 32 video frames on / 32 frames off)
+ * yields 32 frames / 56.422 Hz ~= 567 ms on and 567 ms off (~1.134 s full cycle, ~0.88 Hz).
+ */
+export const PC98_CURSOR_BLINK_INTERVAL_MS = 567;
+
+export function terminalCursorWidth(cell?: Pick<Cell, 'ch'>): number {
+  return cell && isFullWidth(cell.ch) ? 16 : 8;
+}
+
+// The cursor covers the whole character cell (100% height). The insert-mode
+// 40% form is not implemented yet, so every cursor is a full cell block.
+export function terminalCursorRect(cursorX: number, cursorY: number, cell?: Pick<Cell, 'ch'>) {
+  return { x: cursorX * 8, y: cursorY * 16, width: terminalCursorWidth(cell), height: 16 };
+}
+
 const PALETTE = ['#000000', '#aa0000', '#00aa00', '#aa5500', '#0000aa', '#aa00aa', '#00aaaa', '#aaaaaa'];
 
-const HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
-const FULL_WIDTH_FONT = '16px "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+export type TerminalFontProfile = 'default' | 'pc98';
+export type TerminalFontMode = 'auto' | 'pc98' | 'default';
 
-export function terminalGlyphPaintStyle(ch: string) {
+export const PC98_FONT_FAMILY = '"TS PC98", "天翔 PC98"';
+export const RETRO_FONT_FAMILY = '"TS PC98", "天翔 PC98", "DotGothic16"';
+
+export const DEFAULT_HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
+export const DEFAULT_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "DotGothic16", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+
+export const PC98_HALF_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "DotGothic16", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
+export const PC98_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "DotGothic16", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+
+export function isLocalPc98FontAvailable(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    const sample = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+
+    ctx.font = '72px monospace';
+    const fallbackMono = ctx.measureText(sample).width;
+    ctx.font = '72px sans-serif';
+    const fallbackSans = ctx.measureText(sample).width;
+
+    for (const name of ['TS PC98', '天翔 PC98']) {
+      ctx.font = `72px "${name}", monospace`;
+      const widthMono = ctx.measureText(sample).width;
+      if (Math.abs(widthMono - fallbackMono) > 1) return true;
+
+      ctx.font = `72px "${name}", sans-serif`;
+      const widthSans = ctx.measureText(sample).width;
+      if (Math.abs(widthSans - fallbackSans) > 1) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+export function isDotGothicAvailable(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    if (document.fonts?.check && document.fonts.check('16px "DotGothic16"')) {
+      return true;
+    }
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    const sample = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+    ctx.font = '72px monospace';
+    const fallbackMono = ctx.measureText(sample).width;
+    ctx.font = '72px "DotGothic16", monospace';
+    const targetMono = ctx.measureText(sample).width;
+    return Math.abs(targetMono - fallbackMono) > 1;
+  } catch {
+    return false;
+  }
+}
+
+export function isRetroDotFontAvailable(): boolean {
+  return isLocalPc98FontAvailable() || isDotGothicAvailable();
+}
+
+export function terminalGlyphPaintStyle(ch: string, profile: TerminalFontProfile = 'default') {
   const fullWidth = isFullWidth(ch);
+  if (profile === 'pc98') {
+    return {
+      fullWidth,
+      font: fullWidth ? PC98_FULL_WIDTH_FONT : PC98_HALF_WIDTH_FONT,
+      glyphWidth: fullWidth ? 16 : 8,
+      yOffset: 0,
+    } as const;
+  }
   return {
     fullWidth,
-    font: fullWidth ? FULL_WIDTH_FONT : HALF_WIDTH_FONT,
+    font: fullWidth ? DEFAULT_FULL_WIDTH_FONT : DEFAULT_HALF_WIDTH_FONT,
     glyphWidth: fullWidth ? 16 : 8,
     yOffset: fullWidth ? 0 : 1,
   } as const;
@@ -59,6 +146,7 @@ type TerminalCanvasProps = {
   buildInfo: BuildInfoPanelProps;
   onHangUp?: () => void;
   isCallingOrConnected?: boolean;
+  onOpenResetDialog?: () => void;
 };
 
 export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasProps>(function TerminalCanvas(
@@ -73,6 +161,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     buildInfo,
     onHangUp,
     isCallingOrConnected = false,
+    onOpenResetDialog,
   },
   forwardedRef,
 ) {
@@ -90,6 +179,26 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     typeof window === 'undefined' ? 1 : terminalBackingScale(window.devicePixelRatio),
   );
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
+  const [cursorVisible, setCursorVisible] = useState(true);
+  const cursorBlinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fontMode, setFontMode] = useState<TerminalFontMode>('auto');
+  const [detectedPc98, setDetectedPc98] = useState(false);
+  const [detectedDotGothic, setDetectedDotGothic] = useState(false);
+
+  useEffect(() => {
+    const syncFontStatus = () => {
+      setDetectedPc98(isLocalPc98FontAvailable());
+      setDetectedDotGothic(isDotGothicAvailable());
+    };
+    syncFontStatus();
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(syncFontStatus).catch(() => {});
+    }
+  }, []);
+
+  const hasRetroFont = detectedPc98 || detectedDotGothic;
+  const activeFontProfile: TerminalFontProfile =
+    fontMode === 'pc98' ? 'pc98' : fontMode === 'default' ? 'default' : hasRetroFont ? 'pc98' : 'default';
   const layoutRowsRef = useRef(terminal.height);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
@@ -99,7 +208,60 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const pointerRemainderRef = useRef(0);
   const pointerTravelRef = useRef(0);
 
+  const clearCursorBlinkTimer = useCallback(() => {
+    if (cursorBlinkTimerRef.current !== null) {
+      clearTimeout(cursorBlinkTimerRef.current);
+      cursorBlinkTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleCursorBlink = useCallback((nextVisible: boolean) => {
+    clearCursorBlinkTimer();
+
+    // Respect reduced-motion preferences: keep cursor steadily visible without blinking.
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setCursorVisible(true);
+      return;
+    }
+
+    // Pause blinking when page is hidden to conserve power and CPU cycles.
+    if (typeof document !== 'undefined' && document.hidden) {
+      setCursorVisible(true);
+      return;
+    }
+
+    cursorBlinkTimerRef.current = setTimeout(() => {
+      setCursorVisible(nextVisible);
+      scheduleCursorBlink(!nextVisible);
+    }, PC98_CURSOR_BLINK_INTERVAL_MS);
+  }, [clearCursorBlinkTimer]);
+
+  const resetCursorBlink = useCallback(() => {
+    setCursorVisible(true);
+    scheduleCursorBlink(false);
+  }, [scheduleCursorBlink]);
+
+  useEffect(() => {
+    resetCursorBlink();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearCursorBlinkTimer();
+        setCursorVisible(true);
+      } else {
+        resetCursorBlink();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      clearCursorBlinkTimer();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [resetCursorBlink, clearCursorBlinkTimer]);
+
   useEffect(() => terminal.subscribe(() => {
+    resetCursorBlink();
     const previousLength = previousScrollbackLengthRef.current;
     const nextLength = terminal.scrollbackLength;
     const added = Math.max(0, nextLength - previousLength);
@@ -117,7 +279,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     setHistoryOffset(scrollOffsetRef.current);
     draw();
     if (keyboardActive) window.requestAnimationFrame(ensureCursorVisible);
-  }), [terminal, keyboardActive]);
+  }), [terminal, keyboardActive, resetCursorBlink]);
   useEffect(() => { draw(); });
 
   useEffect(() => {
@@ -373,7 +535,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         const px = x * 8;
         const py = y * 16;
         ctx.fillStyle = PALETTE[cell.fg] ?? '#aaa';
-        const glyphStyle = terminalGlyphPaintStyle(cell.ch);
+        const glyphStyle = terminalGlyphPaintStyle(cell.ch, activeFontProfile);
         const glyphCenter = px + glyphStyle.glyphWidth / 2;
         const glyphY = py + glyphStyle.yOffset;
 
@@ -388,11 +550,13 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     }
 
     // The live cursor has no meaning while looking back through history.
-    if (scrollOffsetRef.current === 0) {
+    if (scrollOffsetRef.current === 0 && cursorVisible) {
       ctx.globalAlpha = 0.65;
       ctx.fillStyle = '#aaaaaa';
       const cursorY = terminal.viewportCursorY(displayedRows);
-      ctx.fillRect(terminal.cursorX * 8, cursorY * 16 + 14, 8, 2);
+      const currentCell = terminal.cells[terminal.cursorY]?.[terminal.cursorX];
+      const cursor = terminalCursorRect(terminal.cursorX, cursorY, currentCell);
+      ctx.fillRect(cursor.x, cursor.y, cursor.width, cursor.height);
       ctx.globalAlpha = 1;
     }
     positionKeyboardProxy();
@@ -463,7 +627,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }
 
   return (
-    <div className={`terminal-display terminal-display--${display} terminal-display--rows-${screenMode}`}>
+    <div className={`terminal-display terminal-display--${display} terminal-display--rows-${screenMode}${keyboardActive ? ' terminal-display--focused' : ''}`}>
       <nav className="terminal-tools" aria-label="端末表示">
         <button type="button" aria-pressed={display === 'readable'} onClick={() => setDisplay('readable')}>文字拡大</button>
         <button type="button" aria-pressed={display === 'fit'} onClick={() => setDisplay('fit')}>全体表示</button>
@@ -472,7 +636,13 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         <button type="button" onClick={() => setScrollOffset(0)} disabled={historyOffset === 0}>最新</button>
       </nav>
       <div className="terminal-viewport-shell">
-        <div ref={viewportRef} className="terminal-viewport" tabIndex={0} aria-label="端末画面。左右にスクロールできます">
+        <div
+          ref={viewportRef}
+          className={`terminal-viewport${keyboardActive ? ' terminal-viewport--focused' : ''}`}
+          tabIndex={0}
+          aria-label="端末画面。左右にスクロールできます"
+          onClick={e => { if (e.detail > 0 && window.matchMedia('(min-width: 681px) and (pointer: fine)').matches) focusKeyboardProxy(); }}
+        >
           <canvas
             ref={ref}
             width={640 * backingScale}
@@ -495,10 +665,22 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
           type="text"
           value={keyboardInput.value}
           readOnly={keyboardInput.readOnly}
-          onChange={keyboardInput.onChange}
-          onKeyDown={keyboardInput.onKeyDown}
-          onCompositionStart={keyboardInput.onCompositionStart}
-          onCompositionEnd={keyboardInput.onCompositionEnd}
+          onChange={e => {
+            resetCursorBlink();
+            keyboardInput.onChange(e);
+          }}
+          onKeyDown={e => {
+            resetCursorBlink();
+            keyboardInput.onKeyDown(e);
+          }}
+          onCompositionStart={e => {
+            resetCursorBlink();
+            keyboardInput.onCompositionStart(e);
+          }}
+          onCompositionEnd={e => {
+            resetCursorBlink();
+            keyboardInput.onCompositionEnd(e);
+          }}
           onFocus={event => { setFunctionMenuOpen(false); keyboardInput.onFocus(event); }}
           onBlur={keyboardInput.onBlur}
           onPointerDown={pointerDown}
@@ -530,6 +712,12 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             <button type="button" aria-pressed={modemStatusMode === 'digital'} onClick={() => { onModemStatusModeChange('digital'); setFunctionMenuOpen(false); }}>デジタル</button>
             <button type="button" aria-pressed={modemStatusMode === 'off'} onClick={() => { onModemStatusModeChange('off'); setFunctionMenuOpen(false); }}>OFF</button>
           </div>
+          <span className="terminal-function-section-label">フォント{detectedPc98 ? ' (天翔PC98)' : detectedDotGothic ? ' (DotGothic16)' : ''}</span>
+          <div className="terminal-function-mode-row">
+            <button type="button" aria-pressed={fontMode === 'auto'} onClick={() => { setFontMode('auto'); setFunctionMenuOpen(false); }}>自動</button>
+            <button type="button" aria-pressed={fontMode === 'pc98'} onClick={() => { setFontMode('pc98'); setFunctionMenuOpen(false); }}>ドット</button>
+            <button type="button" aria-pressed={fontMode === 'default'} onClick={() => { setFontMode('default'); setFunctionMenuOpen(false); }}>標準</button>
+          </div>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current - 12); setFunctionMenuOpen(false); }}>履歴↓</button>
           <button type="button" onClick={() => { setScrollOffset(0); setFunctionMenuOpen(false); }} disabled={historyOffset === 0}>最新</button>
@@ -537,6 +725,18 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             <summary>バージョン情報</summary>
             <BuildInfoPanel {...buildInfo} />
           </details>
+          {onOpenResetDialog && (
+            <button
+              type="button"
+              className="terminal-function-debug"
+              onClick={() => {
+                setFunctionMenuOpen(false);
+                onOpenResetDialog();
+              }}
+            >
+              [DEBUG] 掲示板リセット…
+            </button>
+          )}
           {onHangUp && (
             <button
               type="button"

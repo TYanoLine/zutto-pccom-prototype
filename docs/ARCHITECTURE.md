@@ -144,8 +144,8 @@ subjects.
 
 An explicit leaf-board read realizes at most ten initial root headers with
 lazy article bodies. Returning to an already populated board index reuses
-committed headers rather than requesting additional titles. The current HAKATA
-quality-evaluation configuration deliberately clears articles on every new
+committed headers rather than requesting additional titles. A host configured
+with `debug.reset_articles_on_connect` deliberately clears articles on every new
 successful CONNECT, but never changes titles merely because an article is read.
 All historical host runtime commands, prompts and append representation remain
 owned by the individual host program.
@@ -341,8 +341,8 @@ Current code intentionally still has shortcuts, including:
 - simplified terminal/ANSI behavior
 - atmospheric rather than fully historical telephone tariffs
 - Azure OpenAI provider boundary present but AI not yet part of normal host posting behavior
-- human posts stored with a handle string only (no member ID, no annotated intent), so they cannot yet be the subject of observations or relationships
-- mail and chat/telegram menus are fixed placeholder text with no persistence; no interaction ledger, relationship edges or open loops exist yet
+ - human posts keep the user's human ID and the login ID shown (spec 019) but no annotated intent; residents know a human only by login ID, and the shared guest login ID `GUEST` is nobody they can know; sign-up and password checks do not exist, so any ID is accepted
+- mail menus are fixed placeholder text with no persistence; telegram and chat screens exist only for stations whose definition has an `erika_k.chat` section (spec 016), and residents do not yet speak in rooms or answer telegrams; no interaction ledger, relationship edges or open loops exist yet
 - body-render context passes same-board "related posts" without an actor-observation filter (duplicate-topic hint only; to be replaced by the SDD-005 projection)
 
 These shortcuts are adapter/prototype boundaries and must not become domain rules.

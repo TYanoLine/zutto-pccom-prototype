@@ -143,6 +143,8 @@ export class TerminalCore {
       return;
     }
     if (ch === '\b') { this.autoWrapped = false; this.backspace(); return; }
+    // BEL (0x07) is a bell, not a glyph: it occupies no cell and moves nothing.
+    if (ch === '\x07') return;
 
     const cp = ch.codePointAt(0) ?? 0;
     const w = terminalCellWidth(ch);

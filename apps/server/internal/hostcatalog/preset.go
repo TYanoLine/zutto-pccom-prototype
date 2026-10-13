@@ -53,6 +53,10 @@ type presetTraits struct {
 	ANSI           *bool `yaml:"ansi"`
 	GuestAllowed   *bool `yaml:"guest_allowed"`
 	TelehoFriendly *bool `yaml:"teleho_friendly"`
+	// OperatingHours is optional: ["HH:MM", "HH:MM"] when the station answers
+	// calls only part of the day (the end may be after midnight). Absent means
+	// always open.
+	OperatingHours []string `yaml:"operating_hours"`
 }
 
 type presetDial struct {
@@ -67,6 +71,8 @@ type presetDial struct {
 type PresetDetail struct {
 	Welcome string        `yaml:"welcome"`
 	ErikaK  *ErikaKDetail `yaml:"erika_k"`
+	// ChatRooms is shared by every host program; empty means no chat rooms.
+	ChatRooms []ChatRoom `yaml:"chat_rooms"`
 }
 
 // Preset is a validated preset file. Unspecified optional values stay nil/empty
@@ -91,6 +97,7 @@ type Preset struct {
 	ANSI           *bool
 	GuestAllowed   *bool
 	TelehoFriendly *bool
+	OperatingHours [2]string // zero = always open
 
 	DialMode string
 	Dial     DialBehavior
@@ -197,11 +204,17 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 	if err != nil {
 		errs = append(errs, fmt.Errorf("%s: %w", file, err))
 	}
+	if h.Traits.OperatingHours != nil {
+		add("host.traits.operating_hours", CheckOperatingHours(h.Traits.OperatingHours))
+	}
+
+	add("detail.chat_rooms", validateChatRooms(f.Detail.ChatRooms))
 	if f.Detail.ErikaK != nil {
 		if h.Program != erikaKProgramID {
 			add("detail.erika_k", fmt.Errorf("is only valid for host.program %q", erikaKProgramID))
 		}
 		add("detail.erika_k", validateErikaKDetail(f.Detail.ErikaK))
+		add("detail.erika_k.chat", validateErikaKChatRooms(f.Detail.ErikaK.Chat, f.Detail.ChatRooms))
 	}
 
 	if len(errs) > 0 {
@@ -226,6 +239,7 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 		ANSI:            h.Traits.ANSI,
 		GuestAllowed:    h.Traits.GuestAllowed,
 		TelehoFriendly:  h.Traits.TelehoFriendly,
+		OperatingHours:  operatingHours(h.Traits.OperatingHours),
 		DialMode:        dialMode,
 		Dial:            dial,
 		Debug:           f.Debug,
@@ -290,10 +304,17 @@ func (p Preset) Descriptor() (HostDescriptor, error) {
 		FoundedOn:       p.FoundedOn,
 		Popularity:      *p.Popularity,
 		Members:         *p.Members,
-		Traits:          Traits{ANSI: *p.ANSI, GuestAllowed: *p.GuestAllowed, TelehoFriendly: *p.TelehoFriendly},
+		Traits:          Traits{ANSI: *p.ANSI, GuestAllowed: *p.GuestAllowed, TelehoFriendly: *p.TelehoFriendly, OperatingHours: p.OperatingHours},
 		DialMode:        p.DialMode,
 		Dial:            p.Dial,
 		Debug:           p.Debug,
 		GenerationFlags: p.GenerationFlags,
 	}, nil
+}
+
+func operatingHours(h []string) [2]string {
+	if len(h) != 2 {
+		return [2]string{}
+	}
+	return [2]string{h[0], h[1]}
 }
