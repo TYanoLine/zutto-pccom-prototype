@@ -5,8 +5,8 @@ body { min-height: 100vh; overflow: hidden; overscroll-behavior: none; backgroun
 .shell { position: relative; display: flex; flex-direction: column; width: 100%; height: 100vh; height: 100dvh; min-height: 0; margin: 0; padding: 0; overflow: hidden; overscroll-behavior: none; background: #090909; touch-action: manipulation; }
 .titlebar, .statusbar { display: none; }
 .desktop-topbar { position: relative; z-index: 8; display: flex; flex: 0 0 60px; min-width: 0; align-items: center; gap: 18px; padding: 0 24px 0 32px; border-bottom: 1px solid #363636; color: #e4e1db; background: #111; }
-.desktop-host-name { flex: 0 1 230px; min-width: 130px; overflow: hidden; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.desktop-world-clock { flex: 1 1 auto; min-width: 0; overflow: hidden; color: #bdbab5; font: 13px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.desktop-host-name { flex: 0 1 auto; min-width: 0; overflow: hidden; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.desktop-world-clock { flex: 0 0 auto; min-width: 0; margin-left: auto; overflow: hidden; color: #bdbab5; font: 15px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .desktop-modem-display { display: flex; flex: 0 0 auto; align-items: center; padding-left: 18px; border-left: 1px solid #444; }
 .desktop-modem-display[hidden] { display: none; }
 .desktop-topbar .mobile-modem-status { display: flex; width: auto; flex: 0 0 auto; border: 0; background: transparent; }
@@ -83,11 +83,24 @@ body { min-height: 100vh; overflow: hidden; overscroll-behavior: none; backgroun
 .terminal-tools, .terminal-hint, .terminal-live-return, .terminal-function-toggle, .terminal-function-menu { display: none; }
 .terminal-input-proxy { position: absolute; z-index: 3; min-width: 8px; min-height: 16px; margin: 0; padding: 0; border: 0; border-radius: 0; outline: 0; overflow: hidden; pointer-events: none; font: 16px/16px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: transparent; -webkit-text-fill-color: transparent; caret-color: transparent !important; background: transparent; box-shadow: none; appearance: none; -webkit-appearance: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .terminal-input-proxy::selection { color: transparent; background: transparent; }
-.desktop-statusbar { display: flex; flex: 0 0 44px; min-width: 0; align-items: center; justify-content: flex-end; padding: 0 32px; border-top: 1px solid #383838; color: #d7d4cf; background: #111; font: 12px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
+.desktop-statusbar { display: flex; flex: 0 0 44px; min-width: 0; align-items: center; justify-content: flex-end; padding: 0 32px; border-top: 1px solid #383838; color: #d7d4cf; background: #111; font: 15px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-variant-numeric: tabular-nums; }
 .desktop-statusbar__separator { flex: 0 0 1px; height: 24px; margin-right: 20px; background: #555; }
-.desktop-statusbar__group { display: flex; flex: 0 0 410px; align-items: center; justify-content: space-between; gap: 12px; white-space: nowrap; }
+.desktop-statusbar__group { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 24px; white-space: nowrap; }
 .desktop-statusbar__online { color: #e2ad4c; }
 .desktop-statusbar__offline { overflow: hidden; color: #aaa; text-overflow: ellipsis; }
+.desktop-statusbar__fee-wrap { position: relative; display: inline-flex; align-items: center; }
+.desktop-statusbar__fee-btn { background: transparent; border: 0; color: inherit; font: inherit; padding: 2px 4px; margin: -2px -4px; border-radius: 3px; cursor: pointer; text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+.desktop-statusbar__fee-btn:hover { color: #fff; background: #222; }
+.fee-popover { position: absolute; bottom: calc(100% + 10px); right: 0; z-index: 50; padding: 8px 12px; background: #1c1c1c; border: 1px solid #555; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.65); font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; color: #eee; white-space: nowrap; }
+.fee-popover__content { display: flex; flex-direction: column; gap: 6px; }
+.fee-popover__row, .fee-popover__edit { display: flex; align-items: center; gap: 8px; }
+.fee-popover__row--sub { font-size: 12px; color: #bbb; border-top: 1px solid #3a3a3a; padding-top: 5px; }
+.fee-popover__change-btn { background: transparent; border: 0; color: #e2ad4c; font: inherit; font-weight: 600; cursor: pointer; padding: 0 2px; text-decoration: underline; }
+.fee-popover__change-btn:hover { color: #f5c76c; }
+.fee-popover__close-btn { background: transparent; border: 0; color: #888; font: inherit; cursor: pointer; padding: 0 3px; margin-left: 2px; }
+.fee-popover__close-btn:hover { color: #eee; }
+.fee-popover__label { display: inline-flex; align-items: center; gap: 4px; font: inherit; }
+.fee-popover__select { background: #2b2b2b; border: 1px solid #666; border-radius: 3px; color: #eee; font: inherit; padding: 3px 6px; }
 .quick-help, .directory-softkeys, .mobile-softkeys { display: none; }
 .dev-shortcuts { display: none !important; }
 code { color: #ddd; }

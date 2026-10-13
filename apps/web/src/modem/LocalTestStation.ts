@@ -190,7 +190,7 @@ export class LocalTestStation {
     if (wasActive) this.onConnectionChange?.(false);
     this.emitTelemetry();
     if (showResult && wasActive) this.terminal.write('\r\nNO CARRIER\r\n');
-    if (wasActive) this.onStatus?.('STANDALONE / MODEM IDLE');
+    if (wasActive) this.onStatus?.('オフライン');
   }
 
   dispose(): void {
