@@ -12,7 +12,7 @@ Baseline display target:
 - 16-color-era presentation
 - full-width / half-width handling
 - box drawing
-- cursor blink and terminal beep
+- cursor blink (~567ms on/off interval, 32 frames @ 56.42Hz PC-98 GDC baseline) and terminal beep
 - host-dependent ANSI/ESC usage
 
 Long-term terminal implementation should favor a controlled Canvas 2D cell buffer over DOM-heavy rendering so byte-oriented terminal behavior remains deterministic.
@@ -111,7 +111,11 @@ colors, full-width continuation cells, cursor positions, and host commands.
   element is fully transparent as a composited layer (in addition to transparent
   text/caret/selection styles), so iOS-native caret or selection decorations do
   not leak through at positions unrelated to the emulated terminal cursor. The
-  Canvas cursor is the only visible cursor. The input uses a real 16px font and
+  Canvas cursor is the only visible cursor, blinking at the historical PC-98 GDC
+  rate (~567ms on/off, ~0.88Hz, 50% duty cycle) and adapting width to half-width (8px)
+  or full-width (16px) character cells. Reduced-motion preferences keep the cursor
+  steady, background tabs pause blinking to conserve power, and typing resets the
+  visible phase immediately. The input uses a real 16px font and
   the same command routing, IME composition guard and Enter handling as physical
   keyboard input. Desktop keeps the cursor-sized proxy and click-to-focus
   behavior.
