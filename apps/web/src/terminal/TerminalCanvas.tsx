@@ -21,12 +21,13 @@ export type TerminalFontProfile = 'default' | 'pc98';
 export type TerminalFontMode = 'auto' | 'pc98' | 'default';
 
 export const PC98_FONT_FAMILY = '"TS PC98", "天翔 PC98"';
+export const RETRO_FONT_FAMILY = '"TS PC98", "天翔 PC98", "DotGothic16"';
 
 export const DEFAULT_HALF_WIDTH_FONT = '13px ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
-export const DEFAULT_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+export const DEFAULT_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "DotGothic16", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
 
-export const PC98_HALF_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
-export const PC98_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
+export const PC98_HALF_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "DotGothic16", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Hiragino Sans", "Yu Gothic", monospace';
+export const PC98_FULL_WIDTH_FONT = '16px "TS PC98", "天翔 PC98", "DotGothic16", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif';
 
 export function isLocalPc98FontAvailable(): boolean {
   if (typeof document === 'undefined') return false;
@@ -54,6 +55,30 @@ export function isLocalPc98FontAvailable(): boolean {
     return false;
   }
   return false;
+}
+
+export function isDotGothicAvailable(): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    if (document.fonts?.check && document.fonts.check('16px "DotGothic16"')) {
+      return true;
+    }
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    const sample = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+    ctx.font = '72px monospace';
+    const fallbackMono = ctx.measureText(sample).width;
+    ctx.font = '72px "DotGothic16", monospace';
+    const targetMono = ctx.measureText(sample).width;
+    return Math.abs(targetMono - fallbackMono) > 1;
+  } catch {
+    return false;
+  }
+}
+
+export function isRetroDotFontAvailable(): boolean {
+  return isLocalPc98FontAvailable() || isDotGothicAvailable();
 }
 
 export function terminalGlyphPaintStyle(ch: string, profile: TerminalFontProfile = 'default') {
@@ -136,13 +161,22 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const [functionMenuOpen, setFunctionMenuOpen] = useState(false);
   const [fontMode, setFontMode] = useState<TerminalFontMode>('auto');
   const [detectedPc98, setDetectedPc98] = useState(false);
+  const [detectedDotGothic, setDetectedDotGothic] = useState(false);
 
   useEffect(() => {
-    setDetectedPc98(isLocalPc98FontAvailable());
+    const syncFontStatus = () => {
+      setDetectedPc98(isLocalPc98FontAvailable());
+      setDetectedDotGothic(isDotGothicAvailable());
+    };
+    syncFontStatus();
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(syncFontStatus).catch(() => {});
+    }
   }, []);
 
+  const hasRetroFont = detectedPc98 || detectedDotGothic;
   const activeFontProfile: TerminalFontProfile =
-    fontMode === 'pc98' ? 'pc98' : fontMode === 'default' ? 'default' : detectedPc98 ? 'pc98' : 'default';
+    fontMode === 'pc98' ? 'pc98' : fontMode === 'default' ? 'default' : hasRetroFont ? 'pc98' : 'default';
   const layoutRowsRef = useRef(terminal.height);
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
@@ -589,10 +623,10 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
             <button type="button" aria-pressed={modemStatusMode === 'digital'} onClick={() => { onModemStatusModeChange('digital'); setFunctionMenuOpen(false); }}>デジタル</button>
             <button type="button" aria-pressed={modemStatusMode === 'off'} onClick={() => { onModemStatusModeChange('off'); setFunctionMenuOpen(false); }}>OFF</button>
           </div>
-          <span className="terminal-function-section-label">フォント{detectedPc98 ? ' (天翔PC98検出)' : ''}</span>
+          <span className="terminal-function-section-label">フォント{detectedPc98 ? ' (天翔PC98)' : detectedDotGothic ? ' (DotGothic16)' : ''}</span>
           <div className="terminal-function-mode-row">
             <button type="button" aria-pressed={fontMode === 'auto'} onClick={() => { setFontMode('auto'); setFunctionMenuOpen(false); }}>自動</button>
-            <button type="button" aria-pressed={fontMode === 'pc98'} onClick={() => { setFontMode('pc98'); setFunctionMenuOpen(false); }}>天翔PC98</button>
+            <button type="button" aria-pressed={fontMode === 'pc98'} onClick={() => { setFontMode('pc98'); setFunctionMenuOpen(false); }}>ドット</button>
             <button type="button" aria-pressed={fontMode === 'default'} onClick={() => { setFontMode('default'); setFunctionMenuOpen(false); }}>標準</button>
           </div>
           <button type="button" onClick={() => { setScrollOffset(scrollOffsetRef.current + 12); setFunctionMenuOpen(false); }}>履歴↑</button>

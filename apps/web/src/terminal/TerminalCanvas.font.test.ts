@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLocalPc98FontAvailable, terminalGlyphPaintStyle } from './TerminalCanvas';
+import { isDotGothicAvailable, isLocalPc98FontAvailable, isRetroDotFontAvailable, terminalGlyphPaintStyle } from './TerminalCanvas';
 
 describe('terminal fixed-cell glyph rendering', () => {
   it('uses an 8px natural-width font profile for half-width text without Canvas maxWidth squeezing', () => {
@@ -18,6 +18,7 @@ describe('terminal fixed-cell glyph rendering', () => {
     expect(japanese.yOffset).toBe(0);
     expect(japanese.font).toContain('16px');
     expect(japanese.font).toContain('TS PC98');
+    expect(japanese.font).toContain('DotGothic16');
     expect(japanese.font).toContain('Hiragino');
   });
 
@@ -29,6 +30,7 @@ describe('terminal fixed-cell glyph rendering', () => {
     expect(latin.font).toContain('16px');
     expect(latin.font).toContain('TS PC98');
     expect(latin.font).toContain('天翔 PC98');
+    expect(latin.font).toContain('DotGothic16');
 
     const japanese = terminalGlyphPaintStyle('福', 'pc98');
     expect(japanese.fullWidth).toBe(true);
@@ -37,6 +39,7 @@ describe('terminal fixed-cell glyph rendering', () => {
     expect(japanese.font).toContain('16px');
     expect(japanese.font).toContain('TS PC98');
     expect(japanese.font).toContain('天翔 PC98');
+    expect(japanese.font).toContain('DotGothic16');
   });
 
   it('keeps ASCII box drawing in one half-width cell', () => {
@@ -45,7 +48,9 @@ describe('terminal fixed-cell glyph rendering', () => {
     expect(terminalGlyphPaintStyle('#', 'pc98').glyphWidth).toBe(8);
   });
 
-  it('safely checks local font availability without throwing in test environment', () => {
+  it('safely checks font availability without throwing in test environment', () => {
     expect(typeof isLocalPc98FontAvailable()).toBe('boolean');
+    expect(typeof isDotGothicAvailable()).toBe('boolean');
+    expect(typeof isRetroDotFontAvailable()).toBe('boolean');
   });
 });
