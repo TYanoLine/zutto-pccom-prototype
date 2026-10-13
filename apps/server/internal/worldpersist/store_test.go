@@ -190,7 +190,7 @@ func TestStorePersistsWorldButNeverRestoresTheHostDefinition(t *testing.T) {
 		t.Fatalf("host definition was restored from snapshot: got=%+v want name=%q lines=%d", gotHost, seedName, seedLines)
 	}
 	// The flags are part of the definition too, so they survive a restore.
-	if !gotHost.Debug.Snapshot || !gotHost.Debug.ResetArticlesOnConnect {
+	if !gotHost.Debug.Snapshot || gotHost.Debug.ResetArticlesOnConnect {
 		t.Fatalf("host flags were lost on restore: %+v", gotHost.Debug)
 	}
 

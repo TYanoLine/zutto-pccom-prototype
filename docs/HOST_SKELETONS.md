@@ -21,8 +21,9 @@ The current distributions for host-program family, line count, founding date, po
 
 The host-program family labels name historically researched families, but their present selection weights are not historically validated. Replace the weights when primary or strong secondary evidence is available. Host-program-specific menus, commands, board models, mail, chat, file transfer, unread tracking, and other behavior remain responsibilities of separate host runtimes; the skeleton must not create a fictional shared host UI.
 
-## HAKATA generator-evaluation exception
+## Generator-evaluation reset exception
 
-Successful reconnects temporarily reset this fixed station's article sample,
-allowing repeated quality checks. Other persistent-world data and hosts are not
-reset through that station-specific mechanism.
+Successful reconnects can temporarily reset an evaluation station's article sample
+when configured with `debug.reset_articles_on_connect: true`, allowing repeated
+quality checks. Other persistent-world data and hosts without the flag are not
+reset through that mechanism.

@@ -22,13 +22,11 @@ func (s *debugPrepareStore) PrepareDebugBBSConnection(world.Host) (int, int, boo
 
 func TestPrepareDebugBBSConnectionRunsOnlyForHostsThatOptIn(t *testing.T) {
 	base := world.NewMemoryStore()
-	// The HAKATA preset opts in with debug.reset_articles_on_connect.
-	optedIn, err := base.HostByPhone("0920000196")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !optedIn.Debug.ResetArticlesOnConnect {
-		t.Fatal("test fixture: the HAKATA preset must enable debug.reset_articles_on_connect")
+	optedIn := world.Host{
+		ID:    "opted-in-test",
+		Phone: "0450000011",
+		Name:  "OPTED IN BBS",
+		Debug: hostcatalog.DebugFlags{ResetArticlesOnConnect: true},
 	}
 	other := world.Host{ID: "other-test", Phone: "0450000010", Name: "OTHER TEST BBS"}
 	store := &debugPrepareStore{MemoryStore: base, removed: 5, kept: 920, ok: true}
@@ -54,6 +52,17 @@ func TestPrepareDebugBBSConnectionFollowsTheFlag(t *testing.T) {
 	base := world.NewMemoryStore()
 	store := &debugPrepareStore{MemoryStore: base, ok: true}
 
+	hakata, err := base.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hakata.Debug.ResetArticlesOnConnect {
+		t.Fatal("HAKATA must not enable debug.reset_articles_on_connect")
+	}
+	if !prepareDebugBBSConnection(store, hakata) || store.calls != 0 {
+		t.Fatalf("HAKATA without the reset flag triggered reset: calls=%d", store.calls)
+	}
+
 	sameIdentityNoFlag := world.Host{ID: "hakata-canal-net", Phone: "0920000196"}
 	if !prepareDebugBBSConnection(store, sameIdentityNoFlag) || store.calls != 0 {
 		t.Fatalf("a host without the flag was reset: calls=%d", store.calls)
@@ -74,9 +83,10 @@ func TestPrepareDebugBBSConnectionFollowsTheFlag(t *testing.T) {
 
 func TestPrepareDebugBBSConnectionFailsClosedWhenResetUnavailable(t *testing.T) {
 	base := world.NewMemoryStore()
-	optedIn, err := base.HostByPhone("0920000196")
-	if err != nil {
-		t.Fatal(err)
+	optedIn := world.Host{
+		ID:    "opted-in-test",
+		Phone: "0450000011",
+		Debug: hostcatalog.DebugFlags{ResetArticlesOnConnect: true},
 	}
 	store := &debugPrepareStore{MemoryStore: base, ok: false}
 	if prepareDebugBBSConnection(store, optedIn) {

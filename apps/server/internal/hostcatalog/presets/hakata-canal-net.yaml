@@ -5,7 +5,7 @@
 # Its resident definition is in the `population:` block.
 schema: 1
 key: hakata-canal-net
-revision: 5
+revision: 6
 listed: true
 role: experiment
 
@@ -24,7 +24,6 @@ host:
 
 # Evaluation behavior. Every flag is opt-in and off when omitted.
 debug:
-  reset_articles_on_connect: true
   generation_trace: true
   content_log: true
   http_endpoints: true

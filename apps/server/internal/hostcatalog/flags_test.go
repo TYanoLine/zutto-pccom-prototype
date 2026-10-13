@@ -89,7 +89,7 @@ func TestEmbeddedPresetFlags(t *testing.T) {
 	for _, p := range presets {
 		seen[p.Key] = true
 		if p.Key == "hakata-canal-net" {
-			want := DebugFlags{ResetArticlesOnConnect: true, GenerationTrace: true, ContentLog: true, HTTPEndpoints: true, Snapshot: true}
+			want := DebugFlags{GenerationTrace: true, ContentLog: true, HTTPEndpoints: true, Snapshot: true}
 			if p.Debug != want || !p.GenerationFlags.FreeformBody {
 				t.Errorf("hakata-canal-net must opt in to its evaluation behavior: %+v %+v", p.Debug, p.GenerationFlags)
 			}
