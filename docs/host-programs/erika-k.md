@@ -61,19 +61,21 @@ This section states the **target specification** for the Erika-K runtime. Where 
    - 根拠: `garakuta_A-00005.html` の板 90 は、記事 1〜20 が欠番なしで並んでいる（1995 年）。
    - 未確認: 他の局・他の版で、板ごとに採番するかどうか。
 
-2. **削除時の欠番** (Fictional reconstruction / Design decision)
-   - 削除された記事の番号は欠番として残し、後の記事に詰めて振り直さない。
-   - 根拠: 史料に削除後の番号の振る舞いは記録されていない。欠番にするのは、番号の再利用による混乱を避けるための設計上の決定である。
+2. **削除時の欠番と、採番器の保存** (Fictional reconstruction / Design decision)
+   - 削除された記事・返信の番号は欠番として残し、後の番号に詰めて振り直さない。
+   - 採番は「最後に発行した番号 + 1」で、残っている記事から計算しない。
+   - 根拠: 史料に削除後の番号の振る舞いは記録されていない。設計上の決定である（spec 020 の判断事項）。
    - 未確認: 絵理香K版の削除時の番号の扱い。
 
-3. **アペンドには記事番号を振らない** (Likely / Confirmed structure)
-   - アペンドは親記事の下の子として並び、独立した記事番号を持たない。表示上は親の番号に従い、`アペ 1`、`アペ 2` のように並べる。
-   - アペンドの内部 ID は、記事番号とは別に発行する（保存と参照のため）。
-   - 根拠: `garakuta_B-00032.html` の `APPEND 板 記事` の行は、親記事の番号を参照している（既存の「アペンドは子として並ぶ」記述と整合）。
+3. **返信（アペンド）は、親記事の中で番号を振る** (Design decision / Confirmed structure)
+   - アペンドは親記事の下の子として並ぶ。記事番号は持たず、親記事ごとの返信番号（`アペ 1`、`アペ 2`…）を持つ。返信番号は記事番号の系列とは独立している。
+   - 返信を削除したときは、その返信番号を欠番として残す。
+   - 返信番号は表示（`アペ n`）に使う。`BR` は記事番号だけを受け付け、返信番号による指定は行わない。
+   - 根拠: `garakuta_B-00032.html` の `APPEND 板 記事` の行は、親記事の番号を参照している（既存の「アペンドは子として並ぶ」記述と整合）。返信番号の系列は、利用者の判断（spec 020、判断事項 3）による。
 
 **Interpretation note:** 元の指示にあった「版互具形態」は、記事番号の採番体系を指すものとして扱った。
 
-**Known divergence (to be implemented):** The current runtime uses one store-wide post counter for root posts, appends, and other boards, so numbers are not per-board and appends consume numbers. This section does not describe the current behaviour.
+**Known divergence (to be implemented, spec 020):** The current runtime uses one store-wide post counter for root posts, appends, and other boards, so numbers are not per-board and appends consume numbers. This section does not describe the current behaviour.
 
 ## Account ID / handle research
 

@@ -24,6 +24,7 @@
 | 017 | chat-utterances（チャット室での住民の発言、絵理香K版での具現化） |
 | 018 | line-message-replies（電報への返信と、住民からの電報。絵理香K版での具現化） |
 | 019 | human-identity（人間の利用者の識別子と、住民から見たログイン ID の区別） |
+| 020 | erika-k-article-numbering（Erika-K の記事番号を板ごとの連番にし、アペンドには記事番号を振らない） |
 
 ## フォルダの構成
 
