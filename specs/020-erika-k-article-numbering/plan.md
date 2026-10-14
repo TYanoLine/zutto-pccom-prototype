@@ -1,4 +1,4 @@
-# Plan: Erika-K の記事番号の板ごとの採番
+# Plan: Erika-K の記事番号と返信番号の採番
 
 対応する spec: `specs/020-erika-k-article-numbering/spec.md`
 
@@ -7,111 +7,134 @@
 | 項目 | 現状（読んだコード） | 場所 |
 |---|---|---|
 | 投稿の内部 ID | 店舗全体で 1 つのカウンタ（`s.next++`） | `apps/server/internal/world/store.go` の `MemoryStore.AddPost`（L365 付近）、`worldpersist/store.go` の `AddPost`（L159 付近）、`worldrepo/repository.go` の `AddPost`（L243 付近） |
-| 投稿の保存 | スナップショットに `next_post_id` と投稿の配列 | `apps/server/internal/world/development_snapshot.go`（L20、L71、L102〜124） |
+| 保存 | スナップショットに `next_post_id` と投稿の配列 | `apps/server/internal/world/development_snapshot.go`（L20、L71、L102〜124） |
 | 投稿の型 | `world.Post`（`ID`、`BoardID`、`ParentID` など） | `apps/server/internal/world/models.go` L134〜149 |
+| 任意の機能の受け渡し | `HostDetailStore` のように、任意のインターフェースを型アサーションで使う | `apps/server/internal/world/store.go` L18〜20、L22〜 |
 | 一覧の番号 | `p.ID` を `%4d` で表示 | `apps/server/internal/hostprogram/erikak/runtime.go` の `renderBoardIndex`（L720 付近〜、L750 付近） |
 | 投稿完了の番号 | `MSG No.%d を登録しました`、`p.ID` | `runtime.go` の `new_body`（L120〜137） |
 | アペンド | `ParentID: root.ID` で `AddPost`（内部 ID を消費） | `runtime.go` の `append_body`（L155〜178） |
-| 番号による指定 | `rootPost(id)` が `p.ID == id` で引く | `runtime.go` L1081〜1088。呼び出し 11 箇所（`grep -n "rootPost(" runtime.go`） |
-| 生成された記事 | `BoardActivityState` から、番号の順に `catchUpInitial` で `AddPost` | `apps/server/internal/bbsengine/engine.go`（L205〜260 付近）。共有エンジン |
-| 活動計画 | `TotalRoots` を持つ。返信の順番は `totalRoots-roots+1+i` | `apps/server/internal/worldrepo/board_activity.go`、`bbsengine/engine.go` |
+| 番号による指定 | `rootPost(id)` が `p.ID == id` で引く | `runtime.go` L1081〜1088。呼び出し 11 箇所 |
+| 生成された記事 | 共有エンジン `bbsengine` が `AddPost` する | `apps/server/internal/bbsengine/engine.go`（`catchUpInitial`、L205〜260 付近）。共有 |
+| 既存のリセット | debug 用。シードと利用者の投稿を残す | `apps/server/internal/worldrepo/bbs_article_reset.go`（`ResetBBSGeneratedArticles`） |
 
-**分類**: 採番の変更は、Erika-K の表示と指定にだけ影響させる。共有の `Post` と共有エンジンは、後方互換な任意フィールドと、
-Erika-K から渡される番号だけを扱う。他のホストは番号を持たない（0）ままにする（spec FR-009）。
+**分類**: 採番は Erika-K の表示と指定にだけ使う。共有の `Post` と共有エンジンは、後方互換な任意フィールドと、
+Erika-K から渡される採番の関数だけを扱う。他のホストは番号を持たない（0）ままにする（spec FR-009）。
 
 ## 設計
 
-### 1. 記事番号のフィールド
+### 1. 投稿のフィールド
 
-`world.Post` に、任意のフィールドを 1 つ足す。
+`world.Post` に、任意のフィールドを 2 つ足す。
 
 ```go
-// BoardNo is the article number a host program shows within its board (spec 020).
-// Zero means the host does not number posts this way. Replies never carry one.
+// BoardNo is the article number a Erika-K board shows (spec 020). Zero means
+// the host does not number posts this way. Replies leave it zero.
 BoardNo int64 `json:"board_no,omitempty"`
+// ReplyNo is the number of a reply within its parent article (spec 020). Zero
+// for articles and for hosts that do not number replies this way.
+ReplyNo int64 `json:"reply_no,omitempty"`
 ```
 
-- 既存の JSON には無いので、既存データは `0` として読める。
-- `omitempty` なので、他のホストの保存形式は変わらない。
+既存の JSON には無いので、既存データは 0 として読める。`omitempty` なので、他のホストの保存形式は変わらない。
 
-### 2. 番号の割り当て（記事の作成時）
+### 2. 採番器（保存する、残存記事から計算しない）
 
-記事番号は、記事を作るときに決め、以後は変えない。割り当ては Erika-K の中で行う（共有の採番器は変えない）。
+採番器の値は、残っている記事から計算せず、**発行の履歴として保存する**。
+
+- `world.Store` の任意機能として `BoardNumberStore` を定義する（`HostDetailStore` と同じ形）。
+
+  ```go
+  // BoardNumberStore issues per-board article numbers and per-parent reply numbers
+  // (spec 020). Issued values are never decreased, even when posts are removed.
+  type BoardNumberStore interface {
+      NextBoardNo(hostID, boardID string) int64
+      NextReplyNo(hostID string, parentID int64) int64
+  }
+  ```
+
+- 実装: `MemoryStore`（`world/store.go`）と `worldpersist.Store`（`worldpersist/store.go`）。
+  - 保存キーは `hostID|boardID`（記事番号）と `hostID|parentID`（返信番号）。値は「最後に発行した番号」。
+  - スナップショットに `board_numbers`（`map[string]int64`）として書き出す（`development_snapshot.go`）。
+  - 読み込み時、この項目が無い保存データは空として読む（0 から始まる）。
+- 採番は `NextBoardNo` が「+1 して返す」形にする。ロックは既存の `s.mu` を使う。
+- 記事の作成（`AddPost`）とは別の操作にする。記事を作る側が、採番してから `BoardNo` を入れて `AddPost` する。
+
+### 3. 記事番号と返信番号の割り当て
 
 | 作られ方 | 割り当て |
 |---|---|
-| 生成された記事（`catchUpInitial`） | `BoardActivityState.TotalRoots - roots + 1 + i`。返信の順番（`ThreadReplyCount` の ordinal）と同じ値 |
-| 人間の記事（`new_body`） | `max(TotalRoots, その板の既存の BoardNo の最大) + 1`（spec 未決事項 2 の提案） |
-| 人間のアペンド（`append_body`） | 割り当てない（0）。`ParentID` で親に結びつける |
-| 生成された返信 | 割り当てない（0） |
+| 利用者の記事（`new_body`） | `BoardNo = NextBoardNo(host, board)` |
+| ペルソナの記事・生成された記事（共有エンジン） | 共有エンジンに採番の関数を任意で渡す。Erika-K だけが `NextBoardNo` を渡す。既定は何もしない |
+| 利用者の返信（`append_body`） | `ReplyNo = NextReplyNo(host, parentID)`。`ParentID: root.ID` |
+| ペルソナの返信・生成された返信 | 同じく `NextReplyNo`。共有エンジンに関数を任意で渡す |
 
-- 「その板の既存の BoardNo の最大」は、`ListPosts(host)` を板と `ParentID == 0` で絞って求める。
-  削除は無いので、最大 + 1 は欠番を作らない。削除の操作を入れるときは、番号を消さずに残すこと（spec FR-004）。
-- 生成された記事への割り当ては、共有エンジンに「番号を付ける関数」を渡す形にする。
-  Erika-K 以外のホストは、関数を渡さず、番号は 0 のままにする。
+- 採番器の値は、記事（返信）が作られた時点で 1 度だけ進む。作成に失敗したら、採番は進めない
+  （採番と `AddPost` の順序は、実装時に失敗の扱いを揃える。PR に書く）。
 
-### 3. 番号による指定
+### 4. 番号による指定
 
-- `rootPost(id)` を `rootPostByNo(boardPath, no)` に変える（板と記事番号で引く）。
-- `BR n` と `A n`（`handleBoard`、`handleBoard` の `A ` 形式）の `n` は、板の記事番号として解決する。
+- `rootPost(id)` を `rootPostByNo(boardPath, no)` に変える（`ParentID == 0`、`BoardID == boardPath`、`BoardNo == no`）。
+- 返信の指定は、親の記事番号と返信番号（構文は spec 未決事項 1、提案 `/`）。`rootPostByNo` で親を引き、その子で `ReplyNo` を引く。
+- `BR n` と `A n` の `n` は、板の記事番号として解決する。
 - 解決できない場合は、既存の文言（`そのMSGはありません。`）のまま。
 
-### 4. 表示
+### 5. 表示
 
 - 一覧の番号列は `BoardNo`。`%4d` の幅は変えない。
-- `MSG No.%d を登録しました` と `MSG No.%d へアペンドします` の番号は、`BoardNo`（アペンドは親の `BoardNo`）。
+- `MSG No.%d を登録しました` は `BoardNo`。
+- アペンドの見出しは、`アペ n`（`ReplyNo`）。現状の `appendNo` の連番を、`ReplyNo` に置き換える。
 - `ap/ref` 列の数え方（`appendCountFrom`）は変えない。
 
-### 5. 保存データの既存の記事（spec 未決事項 1）
+### 6. 既存の記事のリセット（spec 判断事項 1、未決事項 2）
 
-提案どおりに進める場合:
+- 対象: Erika-K の局の記事（保存データのうち、その局の `Post`）。他のホスト、局の定義、利用者の情報には触れない。
+- 採番器（`board_numbers`）は、リセット後 0 から始める。
+- 既存の debug 用のリセット（`ResetBBSGeneratedArticles`）は使わない。シードと利用者の投稿を残すため、目的が違う。
+- 方法と適用の契機は、未決事項 2 の確認後に決める。提案: 保存データのバージョンを上げ、読み込み時に Erika-K の記事を消す一度きりの処理。
 
-- 読み込み後、`BoardNo == 0` の記事（`ParentID == 0` のもの）に、板ごとに内部 ID の順で番号を補う。
-  生成された記事（計画上の番号を持つ）が先にある板では、計画上の `TotalRoots` の後ろから続ける。
-- 補った番号は、次の保存で書き出される。
-- この変更の影響は、既存の HAKATA の番号が一度だけ変わること。Erika-K 以外には影響しない。
+### 7. 遅延生成の帰結
 
-この方針は仕様の判断事項である。実装前に確認する。確認されなければ、補完は行わず、番号が 0 の記事は
-一覧で内部 ID を表示するが、それは仕様の正しい表示ではないことを PR に書く。
+板を初めて開くと過去の記事が作られる（遅延生成）。判断事項 2 により、その記事の番号は、作られた時点の採番器の続きになる。
+日付の順と番号の順が一致しない板が生じうる。spec の「注意」に記載のとおり、これは仕様の帰結であり、実装では直さない。
 
 ## 変更するファイル
 
 | ファイル | 変更 |
 |---|---|
-| `apps/server/internal/world/models.go` | `Post.BoardNo` を追加（任意、`omitempty`） |
-| `apps/server/internal/hostprogram/erikak/runtime.go` | 番号の割り当て（人間の記事）、`rootPostByNo`、一覧と `MSG No.` の表示、`BR n` と `A n` の解決 |
-| `apps/server/internal/hostprogram/erikak/numbering.go`（新規） | 板ごとの次の番号、番号の補完（読み込み後）、既存の記事の判定 |
-| `apps/server/internal/bbsengine/engine.go` | 生成された記事に番号を付ける関数を、任意で受け取る（既定は何もしない） |
-| `apps/server/internal/hostprogram/erikak/golden_test.go` | 金型テストの追加（既存の金型は変えない） |
-| `apps/server/internal/hostprogram/erikak/numbering_test.go`（新規） | US1〜US3 のテスト |
-| `apps/server/internal/hostprogram/erikak/testdata/*.json`（新規の金型） | 変更前に生成する |
+| `apps/server/internal/world/models.go` | `Post.BoardNo`、`Post.ReplyNo` を追加（任意、`omitempty`） |
+| `apps/server/internal/world/store.go` | `BoardNumberStore` インターフェース、`MemoryStore` の実装 |
+| `apps/server/internal/worldpersist/store.go` | `BoardNumberStore` の実装（保存と読み込み） |
+| `apps/server/internal/world/development_snapshot.go` | `board_numbers` の保存と読み込み |
+| `apps/server/internal/hostprogram/erikak/runtime.go` | 利用者の記事と返信の採番、`rootPostByNo`、一覧と `MSG No.` の表示、`アペ n`、`BR n` と `A n` の解決、返信の指定 |
+| `apps/server/internal/hostprogram/erikak/numbering.go`（新規） | 採番の呼び出しをまとめる関数、返信の指定の解析 |
+| `apps/server/internal/bbsengine/engine.go` | 生成された記事と返信に採番の関数を任意で渡す（既定は何もしない） |
+| `apps/server/internal/hostprogram/erikak/golden_numbering_test.go`（新規） | 金型テスト |
+| `apps/server/internal/hostprogram/erikak/numbering_test.go`（新規） | US1〜US5 のテスト |
+| `apps/server/internal/hostprogram/erikak/testdata/numbering_golden.json`（新規） | 変更前に生成する |
+| 既存のリセットの処理（新規） | 未決事項 2 の確認後に決める |
 | `specs/020-erika-k-article-numbering/verification.md`（新規） | 実装した人が書く記録 |
-| `docs/host-programs/erika-k.md` | 仕様の節に、実装済みの状態と「保存データの扱い」の結果を追記 |
+| `docs/host-programs/erika-k.md` | 仕様の節を、判断事項の結果に合わせて更新 |
 
 ## 金型の方針
 
-- 変更前のコードで、次を金型として記録する（実装より前にコミット）。
-  - HAKATA の板の一覧（全板。`renderBoardIndex` の出力）
-  - 数件の記事を書き込んだあとの、板の一覧と記事の表示
-  - `BR n` と `A n` の応答（既存の番号で）
-- 変更後、金型との差分は **番号の列のみ** であることを、テストで確認する。
-  具体的には、差分の各行について、一覧の番号の欄だけが変わっていることを確かめる。
-  番号以外の欄（日付、投稿者、件名、`ap/ref`、本文、罫線）は 1 バイトも変わらない。
+- 変更前のコードで、HAKATA の板の一覧、数件の記事と返信の表示、`BR n` と `A n` の応答を金型として記録する（実装より前にコミット）。
+- 変更後、金型との差分は、番号の列（記事番号、アペンドの見出し）と、リセットによる内容だけであることを、テストで確認する。
 - 金型ファイルは、変更後に書き換えない（AGENTS.md の方針）。
 
 ## 検証
 
-- 金型テスト（上記、差分は番号列のみ）。
-- US1〜US3 の Independent Test（`numbering_test.go`）。
+- 金型テスト（上記、差分は番号の列とリセットの内容だけ）。
+- US1〜US5 の Independent Test（`numbering_test.go`）。
 - `go -C apps/server build ./...`、`go -C apps/server vet ./...`、`go -C apps/server test ./...`。
-- 手動確認は、局の画面で板の一覧を開き、番号が板ごとに続くことを確かめる（実施できれば）。
+- 手動確認は、局の画面で板の一覧を開き、番号が板ごとに続くこと、返信の番号が親の中で続くことを確かめる（実施できれば）。
 
 ## リスクと対策
 
 | リスク | 対策 |
 |---|---|
-| 生成された記事の番号と、人間の記事の番号が重なる | 人間の記事は `TotalRoots` より後ろから始める（上の表）。テストで確認 |
-| 共有エンジンの変更で、他のホストの番号や順序が変わる | 番号を付ける関数は任意。Erika-K 以外には渡さない。他のホストのテストを全件通す |
-| 既存の HAKATA の番号が変わる | 未決事項 1 で確認してから実装する |
+| 採番器の値が、保存されずに再起動で戻る | 採番器を snapshot に保存し、読み込みのテストで確認（US4 の前提） |
+| 採番と `AddPost` の間で失敗し、番号が欠ける | 採番は記事が作られた後の 1 度だけ。失敗時の扱いを PR に書く。欠番は仕様上許容される |
+| 共有エンジンの変更で、他のホストの番号や順序が変わる | 採番の関数は任意。Erika-K 以外には渡さない。他のホストのテストを全件通す |
 | `rootPost` の呼び出し 11 箇所で、番号と内部 ID を取り違える | 呼び出しをすべて読み、`rootPostByNo` に置き換える。`grep` で残りを確認する |
+| リセットで、Erika-K 以外の記事を消す | 対象の判定を Erika-K の局に限り、テストで他の局の記事が残ることを確認する |
 | 金型を実装後に作り直してしまう | 金型のコミットを実装より前に置き、`git log` で確認する（tasks.md） |
