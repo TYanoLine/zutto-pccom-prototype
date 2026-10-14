@@ -15,7 +15,6 @@
 | アペンド | `ParentID: root.ID` で `AddPost`（内部 ID を消費） | `runtime.go` の `append_body`（L155〜178） |
 | 番号による指定 | `rootPost(id)` が `p.ID == id` で引く | `runtime.go` L1081〜1088。呼び出し 11 箇所 |
 | 生成された記事 | 共有エンジン `bbsengine` が `AddPost` する | `apps/server/internal/bbsengine/engine.go`（`catchUpInitial`、L205〜260 付近）。共有 |
-| 既存のリセット | debug 用。シードと利用者の投稿を残す | `apps/server/internal/worldrepo/bbs_article_reset.go`（`ResetBBSGeneratedArticles`） |
 
 **分類**: 採番は Erika-K の表示と指定にだけ使う。共有の `Post` と共有エンジンは、後方互換な任意フィールドと、
 Erika-K から渡される採番の関数だけを扱う。他のホストは番号を持たない（0）ままにする（spec FR-009）。
@@ -74,7 +73,7 @@ ReplyNo int64 `json:"reply_no,omitempty"`
 ### 4. 番号による指定
 
 - `rootPost(id)` を `rootPostByNo(boardPath, no)` に変える（`ParentID == 0`、`BoardID == boardPath`、`BoardNo == no`）。
-- 返信の指定は、親の記事番号と返信番号（構文は spec 未決事項 1、提案 `/`）。`rootPostByNo` で親を引き、その子で `ReplyNo` を引く。
+- 返信の指定は、親の記事番号と返信番号（構文は spec 未決事項 1）。`rootPostByNo` で親を引き、その子で `ReplyNo` を引く。
 - `BR n` と `A n` の `n` は、板の記事番号として解決する。
 - 解決できない場合は、既存の文言（`そのMSGはありません。`）のまま。
 
@@ -85,17 +84,14 @@ ReplyNo int64 `json:"reply_no,omitempty"`
 - アペンドの見出しは、`アペ n`（`ReplyNo`）。現状の `appendNo` の連番を、`ReplyNo` に置き換える。
 - `ap/ref` 列の数え方（`appendCountFrom`）は変えない。
 
-### 6. 既存の記事のリセット（spec 判断事項 1、未決事項 2）
+### 6. 既存の記事（本仕様の範囲外）
 
-- 対象: Erika-K の局の記事（保存データのうち、その局の `Post`）。他のホスト、局の定義、利用者の情報には触れない。
-- 採番器（`board_numbers`）は、リセット後 0 から始める。
-- 既存の debug 用のリセット（`ResetBBSGeneratedArticles`）は使わない。シードと利用者の投稿を残すため、目的が違う。
-- 方法と適用の契機は、未決事項 2 の確認後に決める。提案: 保存データのバージョンを上げ、読み込み時に Erika-K の記事を消す一度きりの処理。
+既存の記事のリセットは、別の手段で行う。本仕様は、採番器が空の状態（0）から始まることを前提にする。
 
 ### 7. 遅延生成の帰結
 
-板を初めて開くと過去の記事が作られる（遅延生成）。判断事項 2 により、その記事の番号は、作られた時点の採番器の続きになる。
-日付の順と番号の順が一致しない板が生じうる。spec の「注意」に記載のとおり、これは仕様の帰結であり、実装では直さない。
+板を初めて開くと過去の記事が作られる（遅延生成）。判断事項 1 により、その記事の番号は、作られた時点の採番器の続きになる。
+日付の順と番号の順が一致しない板が生じうる。spec の「注意」の表に具体例を記載した。これは仕様の帰結であり、実装では直さない。
 
 ## 変更するファイル
 
@@ -111,19 +107,18 @@ ReplyNo int64 `json:"reply_no,omitempty"`
 | `apps/server/internal/hostprogram/erikak/golden_numbering_test.go`（新規） | 金型テスト |
 | `apps/server/internal/hostprogram/erikak/numbering_test.go`（新規） | US1〜US5 のテスト |
 | `apps/server/internal/hostprogram/erikak/testdata/numbering_golden.json`（新規） | 変更前に生成する |
-| 既存のリセットの処理（新規） | 未決事項 2 の確認後に決める |
 | `specs/020-erika-k-article-numbering/verification.md`（新規） | 実装した人が書く記録 |
 | `docs/host-programs/erika-k.md` | 仕様の節を、判断事項の結果に合わせて更新 |
 
 ## 金型の方針
 
 - 変更前のコードで、HAKATA の板の一覧、数件の記事と返信の表示、`BR n` と `A n` の応答を金型として記録する（実装より前にコミット）。
-- 変更後、金型との差分は、番号の列（記事番号、アペンドの見出し）と、リセットによる内容だけであることを、テストで確認する。
+- 変更後、金型との差分は、番号の列（記事番号、アペンドの見出し）だけであることを、テストで確認する。
 - 金型ファイルは、変更後に書き換えない（AGENTS.md の方針）。
 
 ## 検証
 
-- 金型テスト（上記、差分は番号の列とリセットの内容だけ）。
+- 金型テスト（上記、差分は番号の列だけ）。
 - US1〜US5 の Independent Test（`numbering_test.go`）。
 - `go -C apps/server build ./...`、`go -C apps/server vet ./...`、`go -C apps/server test ./...`。
 - 手動確認は、局の画面で板の一覧を開き、番号が板ごとに続くこと、返信の番号が親の中で続くことを確かめる（実施できれば）。
@@ -136,5 +131,4 @@ ReplyNo int64 `json:"reply_no,omitempty"`
 | 採番と `AddPost` の間で失敗し、番号が欠ける | 採番は記事が作られた後の 1 度だけ。失敗時の扱いを PR に書く。欠番は仕様上許容される |
 | 共有エンジンの変更で、他のホストの番号や順序が変わる | 採番の関数は任意。Erika-K 以外には渡さない。他のホストのテストを全件通す |
 | `rootPost` の呼び出し 11 箇所で、番号と内部 ID を取り違える | 呼び出しをすべて読み、`rootPostByNo` に置き換える。`grep` で残りを確認する |
-| リセットで、Erika-K 以外の記事を消す | 対象の判定を Erika-K の局に限り、テストで他の局の記事が残ることを確認する |
 | 金型を実装後に作り直してしまう | 金型のコミットを実装より前に置き、`git log` で確認する（tasks.md） |
