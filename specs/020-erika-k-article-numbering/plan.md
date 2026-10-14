@@ -58,7 +58,7 @@ type PlanWindow struct {
 ```
 
 - **N と最初の投稿日**: 既存の活動計画の式（`planBoardActivity` の `totalRoots` と `OpenedOn`）から算出する。
-  算出の時刻は、確定の時刻（spec 未決事項 1）とする。確定の後は再計算しない。
+  算出の時刻は、板一覧の表示時刻とする（spec「計画の確定の時点」）。確定の後は再計算しない。
 - **窓**: 板の累積の活動量の曲線（会員数の積分 × 人気度 × 板の活動量）を、N 等分した区間にする。
   記事 k の窓は、累積の活動量が `(k-1)/N` から `k/N` までに対応する時刻の範囲とする。
   これにより、記事の間隔は板の活動の大きさと矛盾しない。
@@ -117,7 +117,7 @@ type PlanWindow struct {
 
 LLM が決めた日付は、次を満たすまで保存しない。
 
-- `OpenedOn` 以上、確定時刻以下。
+- `OpenedOn` 以上、板一覧の表示時刻以下。
 - 記事 k の窓の中。
 - 記事 k-1 の日付より後（単調増加）。
 
@@ -131,7 +131,7 @@ LLM が決めた日付は、次を満たすまで保存しない。
 | `apps/server/internal/world/store.go` | `BoardNumberStore` インターフェース、`MemoryStore` の実装 |
 | `apps/server/internal/worldpersist/store.go` | `BoardNumberStore` の実装（保存と読み込み） |
 | `apps/server/internal/world/development_snapshot.go` | `board_plans`、`board_numbers`、`reply_numbers` の保存と読み込み |
-| `apps/server/internal/worldrepo/board_activity.go` | 計画の算出（N と `OpenedOn`、窓）。確定時刻を引数で受け取る形にする |
+| `apps/server/internal/worldrepo/board_activity.go` | 計画の算出（N と `OpenedOn`、窓）。板一覧の表示時刻を引数で受け取る形にする |
 | `apps/server/internal/hostprogram/erikak/runtime.go` | 利用者の記事と返信の採番、`rootPostByNo`、一覧と `MSG No.` の表示、`アペ N`、`BR n` と `A n` の解決 |
 | `apps/server/internal/hostprogram/erikak/numbering.go`（新規） | 採番の呼び出し、計画の日付の検証、窓の中央値の代替 |
 | `apps/server/internal/bbsengine/engine.go` | 生成された記事に、計画の番号と日付を任意で渡す（既定は何もしない） |
