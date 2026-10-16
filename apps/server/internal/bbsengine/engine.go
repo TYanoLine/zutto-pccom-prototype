@@ -262,11 +262,145 @@ func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board worl
 	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas)
 }
 
+// MaterializeDueReactions creates header-only reply posts for any PlannedReaction
+// on board whose DueAt <= worldNow and MaterializedPostID == 0. It is idempotent
+// and never calls the LLM BatchPlanner.
+func (e *Engine) MaterializeDueReactions(host world.Host, board world.Board, now time.Time) int {
+	if e == nil || e.Store == nil || strings.TrimSpace(host.ID) == "" || strings.TrimSpace(board.ID) == "" {
+		return 0
+	}
+	planStore, ok := e.Store.(world.ReactionPlanStore)
+	if !ok {
+		return 0
+	}
+	plans := planStore.ListReactionPlans(host.ID, board.ID)
+	if len(plans) == 0 {
+		return 0
+	}
+	allPosts := e.Store.ListPosts(host.ID)
+	postsByID := make(map[int64]world.Post, len(allPosts))
+	byEventID := make(map[string]world.Post)
+	for _, p := range allPosts {
+		postsByID[p.ID] = p
+		if p.Intent.ProducerEventID != "" {
+			byEventID[p.Intent.ProducerEventID] = p
+		}
+	}
+	personaByID := map[string]world.Persona{}
+	if ps, ok := e.Store.(personaSource); ok {
+		for _, p := range ps.ListHostPersonas(host.ID) {
+			personaByID[p.ID] = p
+		}
+	}
+
+	created := 0
+	for _, plan := range plans {
+		targetPost, exists := postsByID[plan.TargetPostID]
+		if !exists {
+			continue
+		}
+		changed := false
+		for i := range plan.Replies {
+			rep := &plan.Replies[i]
+			if rep.MaterializedPostID != 0 {
+				continue
+			}
+			if rep.DueAt.After(now) {
+				continue
+			}
+			eventID := fmt.Sprintf("react:%d:%d", plan.TargetPostID, rep.Index)
+			if existing, dup := byEventID[eventID]; dup {
+				rep.MaterializedPostID = existing.ID
+				changed = true
+				continue
+			}
+
+			persona, hasP := personaByID[rep.PersonaID]
+			handle := strings.TrimSpace(persona.Handle)
+			if !hasP || handle == "" {
+				handle = rep.PersonaID
+			}
+
+			proposedSubject := defaultReplySubject(targetPost.Subject)
+			parentID := targetPost.ID
+			subject := proposedSubject
+			if e.ReplyProjector != nil {
+				if projected, err := e.ReplyProjector.ProjectReply(host, targetPost, proposedSubject); err == nil {
+					parentID = projected.ParentID
+					subject = strings.TrimSpace(projected.Subject)
+				}
+			}
+
+			topics := world.ExtractPostTopics(targetPost, world.DefaultLexicon())
+			topicStr := targetPost.Intent.Topic
+			if topicStr == "" && len(topics) > 0 {
+				topicStr = topics[0]
+			}
+			if topicStr == "" {
+				topicStr = strings.TrimSpace(targetPost.Subject)
+			}
+			summary := fmt.Sprintf("%sの投稿「%s」に対する%sからの返信", targetPost.Author, targetPost.Subject, handle)
+
+			saved := e.Store.AddPost(host.ID, world.Post{
+				BoardID:         board.ID,
+				ParentID:        parentID,
+				Author:          handle,
+				AuthorPersonaID: rep.PersonaID,
+				Subject:         subject,
+				Body:            "",
+				CreatedAt:       rep.DueAt,
+				Intent: world.PostIntent{
+					Action:           ActionWorldCatchup,
+					AnchorKey:        targetPost.Intent.AnchorKey,
+					CauseKind:        "persona_reaction",
+					DiscourseMode:    "reply",
+					SourcePostID:     targetPost.ID,
+					RespondsToPostID: targetPost.ID,
+					ProducerEventID:  eventID,
+					Topic:            topicStr,
+					Topics:           topics,
+					SituationKind:    "reply",
+					SituationSummary: summary,
+					SituationFacts: []string{
+						fmt.Sprintf("responds_to_post_id=%d", targetPost.ID),
+						"world_adopted_summary=" + summary,
+					},
+				},
+			})
+			rep.MaterializedPostID = saved.ID
+			postsByID[saved.ID] = saved
+			byEventID[eventID] = saved
+			changed = true
+			created++
+		}
+		if changed {
+			planStore.SaveReactionPlan(host.ID, plan)
+		}
+	}
+	return created
+}
+
+func defaultReplySubject(parentSubject string) string {
+	s := strings.TrimSpace(parentSubject)
+	if s == "" {
+		return "Re:"
+	}
+	upper := strings.ToUpper(s)
+	if strings.HasPrefix(upper, "RE:") || strings.HasPrefix(upper, "RE^") {
+		return s
+	}
+	return "Re: " + s
+}
+
 func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
-	if e == nil || e.Store == nil || e.Planner == nil {
+	if e == nil || e.Store == nil {
 		return nil
 	}
 	now := e.currentTime()
+	e.MaterializeDueReactions(host, board, now)
+	if e.Planner == nil {
+		return nil
+	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	cursor := latestCursor(boardPosts)
 	if !ignoreCadence && !cursor.IsZero() {
