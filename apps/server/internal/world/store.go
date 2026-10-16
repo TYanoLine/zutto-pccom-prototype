@@ -71,6 +71,13 @@ type BoardActivityStateStore interface {
 	ListBoardActivityStates(hostID string) []BoardActivityState
 }
 
+// ReactionPlanStore persists deterministic reaction plans per host and target post.
+type ReactionPlanStore interface {
+	ReactionPlan(hostID string, targetPostID int64) (ReactionPlan, bool)
+	SaveReactionPlan(hostID string, plan ReactionPlan)
+	ListReactionPlans(hostID, boardID string) []ReactionPlan
+}
+
 // PostBatchStore is an optional persistence optimization for a canonical batch
 // whose posts have already been fully planned/validated. The in-memory world
 // mutations remain visible immediately; a snapshot-backed store may defer its
@@ -262,6 +269,7 @@ type MemoryStore struct {
 	hosts         map[string]Host
 	boards        map[string][]Board
 	boardActivity map[string]map[string]BoardActivityState
+	reactionPlans map[string]map[int64]ReactionPlan
 	posts         map[string][]Post
 	personas      map[string]Persona
 	personaFacts  map[string][]PersonaFact
@@ -290,6 +298,7 @@ func NewMemoryStore() *MemoryStore {
 		hosts:         map[string]Host{},
 		boards:        map[string][]Board{},
 		boardActivity: map[string]map[string]BoardActivityState{},
+		reactionPlans: map[string]map[int64]ReactionPlan{},
 		posts:         map[string][]Post{},
 		personas:      map[string]Persona{},
 		personaFacts:  map[string][]PersonaFact{},
@@ -389,6 +398,7 @@ func (s *MemoryStore) ClearHostPosts(hostID string) int {
 	defer s.mu.Unlock()
 	count := len(s.posts[hostID])
 	delete(s.posts, hostID)
+	delete(s.reactionPlans, hostID)
 	return count
 }
 func (s *MemoryStore) ReplaceHostPosts(hostID string, posts []Post) int {
@@ -439,6 +449,47 @@ func (s *MemoryStore) ListBoardActivityStates(hostID string) []BoardActivityStat
 	out := make([]BoardActivityState, 0, len(states))
 	for _, state := range states {
 		out = append(out, state)
+	}
+	return out
+}
+
+func cloneReactionPlan(plan ReactionPlan) ReactionPlan {
+	out := plan
+	if len(plan.Replies) > 0 {
+		out.Replies = make([]PlannedReaction, len(plan.Replies))
+		copy(out.Replies, plan.Replies)
+	}
+	return out
+}
+
+func (s *MemoryStore) ReactionPlan(hostID string, targetPostID int64) (ReactionPlan, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	plan, ok := s.reactionPlans[hostID][targetPostID]
+	if !ok {
+		return ReactionPlan{}, false
+	}
+	return cloneReactionPlan(plan), true
+}
+
+func (s *MemoryStore) SaveReactionPlan(hostID string, plan ReactionPlan) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.reactionPlans[hostID] == nil {
+		s.reactionPlans[hostID] = map[int64]ReactionPlan{}
+	}
+	s.reactionPlans[hostID][plan.TargetPostID] = cloneReactionPlan(plan)
+}
+
+func (s *MemoryStore) ListReactionPlans(hostID, boardID string) []ReactionPlan {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	plans := s.reactionPlans[hostID]
+	out := make([]ReactionPlan, 0, len(plans))
+	for _, plan := range plans {
+		if boardID == "" || plan.BoardID == boardID {
+			out = append(out, cloneReactionPlan(plan))
+		}
 	}
 	return out
 }
