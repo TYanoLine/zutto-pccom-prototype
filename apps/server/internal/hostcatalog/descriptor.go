@@ -100,6 +100,17 @@ type GenerationFlags struct {
 	FreeformBody bool `yaml:"freeform_body"`
 }
 
+// StationRhythm holds optional station-level rhythm parameters from the preset.
+type StationRhythm struct {
+	MemberMix    map[string]float64 `yaml:"member_mix" json:"member_mix,omitempty"`
+	LineCapacity int                `yaml:"line_capacity" json:"line_capacity,omitempty"`
+}
+
+// BoardRhythm holds optional board-level rhythm overrides from the preset.
+type BoardRhythm struct {
+	MemberMix map[string]float64 `yaml:"member_mix" json:"member_mix,omitempty"`
+}
+
 // DefaultTraits is the trait set for hosts that have no trait data. It is a
 // stopgap until traits are generated as part of the host skeleton.
 func DefaultTraits() Traits { return Traits{GuestAllowed: true, TelehoFriendly: true} }

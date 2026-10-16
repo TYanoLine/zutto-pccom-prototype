@@ -464,18 +464,41 @@ func PlanReactions(in PlanInput) ReactionPlan {
 		return plan
 	}
 
+	lex := in.Lexicon
+	if lex == nil {
+		lex = DefaultLexicon()
+	}
+	rhythmLayers := in.RhythmLayers
+	if len(rhythmLayers) == 0 {
+		rhythmLayers = DefaultRhythmLayers()
+	}
+	boardPrior := in.BoardPrior
+	if len(boardPrior) == 0 && len(in.Board.Topics) > 0 {
+		boardPrior = in.Board.Topics
+	}
+	memberMix := in.MemberMix
+	if len(memberMix) == 0 {
+		if len(in.Board.Rhythm.MemberMix) > 0 {
+			memberMix = in.Board.Rhythm.MemberMix
+		} else if sr := StationRhythmForHost(in.Host.ID); len(sr.MemberMix) > 0 {
+			memberMix = sr.MemberMix
+		} else {
+			memberMix = DefaultMemberMix()
+		}
+	}
+
 	topics := append([]string(nil), in.Topics...)
-	topics = append(topics, ExtractPostTopics(in.TargetPost, in.Lexicon)...)
-	topicWeights := ArticleTopicWeights(in.BoardPrior, topics, in.Lexicon, in.Salience, plannedAt)
+	topics = append(topics, ExtractPostTopics(in.TargetPost, lex)...)
+	topicWeights := ArticleTopicWeights(boardPrior, topics, lex, in.Salience, plannedAt)
 
 	archByPersona := make(map[string]string, len(in.Personas))
 	for _, p := range in.Personas {
-		archByPersona[p.ID] = AssignArchetype(p, in.FactsByPersona[p.ID], in.MemberMix)
+		archByPersona[p.ID] = AssignArchetype(p, in.FactsByPersona[p.ID], memberMix)
 	}
 
 	// Candidate pool: top K personas by activity × rhythm at plannedAt (plan 2 & 4.3).
 	candidatesPool := selectCandidatePersonas(in.Personas, func(p Persona) float64 {
-		r := ComposeRhythm(in.RhythmLayers, RhythmContext{
+		r := ComposeRhythm(rhythmLayers, RhythmContext{
 			Host:      in.Host,
 			Board:     in.Board,
 			Persona:   p,
@@ -495,7 +518,7 @@ func PlanReactions(in PlanInput) ReactionPlan {
 		ParentPersonaID:  in.Thread.ParentPersonaID,
 		LastPersonaID:    in.Thread.LastPersonaID,
 		PriorReplyCounts: make(map[string]int, len(in.Thread.PriorReplyCounts)),
-		IsNewcomerPost:   in.Thread.IsNewcomerPost,
+		IsNewcomerPost:   in.Thread.IsNewcomerPost || in.Board.WelcomesNewcomers,
 		Relationship:     in.Thread.Relationship,
 	}
 	for k, v := range in.Thread.PriorReplyCounts {
@@ -526,7 +549,7 @@ func PlanReactions(in PlanInput) ReactionPlan {
 			} else {
 				rel = Relevance(p, in.FactsByPersona[p.ID], topicWeights)
 			}
-			rhythm := ComposeRhythm(in.RhythmLayers, RhythmContext{
+			rhythm := ComposeRhythm(rhythmLayers, RhythmContext{
 				Host:      in.Host,
 				Board:     in.Board,
 				Persona:   p,
@@ -550,9 +573,9 @@ func PlanReactions(in PlanInput) ReactionPlan {
 		chosenPersona := personaByID[chosenID]
 		chosenArch := archByPersona[chosenID]
 		var rFunc RhythmFunc
-		if len(in.RhythmLayers) > 0 {
+		if len(rhythmLayers) > 0 {
 			rFunc = func(t time.Time) float64 {
-				return ComposeRhythm(in.RhythmLayers, RhythmContext{
+				return ComposeRhythm(rhythmLayers, RhythmContext{
 					Host:      in.Host,
 					Board:     in.Board,
 					Persona:   chosenPersona,

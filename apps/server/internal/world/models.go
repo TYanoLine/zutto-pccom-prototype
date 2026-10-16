@@ -51,7 +51,10 @@ type Board struct {
 	// host-program default. When positive, title planning keeps this approximate
 	// share of roots available for historically verified named referents while
 	// retaining enough claim-free candidates to complete the board safely.
-	VerifiedReferentRate float64 `json:"verified_referent_rate,omitempty"`
+	VerifiedReferentRate float64                `json:"verified_referent_rate,omitempty"`
+	Topics               map[string]float64     `json:"topics,omitempty"`
+	WelcomesNewcomers    bool                   `json:"welcomes_newcomers,omitempty"`
+	Rhythm               hostcatalog.BoardRhythm `json:"rhythm,omitempty"`
 }
 
 // BoardActivityState is the cheap world-layer existence plan for one board.

@@ -36,6 +36,17 @@ func HostFromDescriptor(d hostcatalog.HostDescriptor) Host {
 	}
 }
 
+// StationRhythmForHost returns the station's preset StationRhythm, if any.
+func StationRhythmForHost(hostID string) hostcatalog.StationRhythm {
+	if hostID == "" {
+		return hostcatalog.StationRhythm{}
+	}
+	if detail, ok := loadPresetData().details[hostID]; ok {
+		return detail.Rhythm
+	}
+	return hostcatalog.StationRhythm{}
+}
+
 type presetData struct {
 	hosts       []Host
 	populations map[string]hostcatalog.Population

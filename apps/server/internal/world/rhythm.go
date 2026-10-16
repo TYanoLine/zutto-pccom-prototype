@@ -329,7 +329,13 @@ func (l stationCongestionLayer) Factor(ctx RhythmContext) float64 {
 	if !isPeak {
 		return 1.0
 	}
-	lineCap := l.cfg.StationCongestion.DefaultLineCapacity
+	lineCap := StationRhythmForHost(ctx.Host.ID).LineCapacity
+	if lineCap <= 0 {
+		lineCap = ctx.Host.Lines
+	}
+	if lineCap <= 0 {
+		lineCap = l.cfg.StationCongestion.DefaultLineCapacity
+	}
 	if lineCap <= 0 {
 		lineCap = 2
 	}
@@ -337,6 +343,8 @@ func (l stationCongestionLayer) Factor(ctx RhythmContext) float64 {
 		if l.cfg.StationCongestion.SingleLinePeakDamping > 0 {
 			return l.cfg.StationCongestion.SingleLinePeakDamping
 		}
+	} else if lineCap >= 4 && l.cfg.StationCongestion.MultiLinePeakBoost > 0 {
+		return l.cfg.StationCongestion.MultiLinePeakBoost
 	}
 	return 1.0
 }

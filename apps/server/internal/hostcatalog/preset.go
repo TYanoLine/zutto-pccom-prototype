@@ -26,6 +26,7 @@ type presetFile struct {
 	Dial       presetDial        `yaml:"dial"`
 	Debug      DebugFlags        `yaml:"debug"`
 	Generation GenerationFlags   `yaml:"generation"`
+	Rhythm     StationRhythm     `yaml:"rhythm"`
 	Population *presetPopulation `yaml:"population"`
 	Detail     PresetDetail      `yaml:"detail"`
 }
@@ -42,6 +43,7 @@ type presetHost struct {
 	Popularity    *float64      `yaml:"popularity"`
 	Members       *int          `yaml:"members"`
 	Traits        presetTraits  `yaml:"traits"`
+	Rhythm        StationRhythm `yaml:"rhythm"`
 }
 
 type presetRegion struct {
@@ -72,7 +74,8 @@ type PresetDetail struct {
 	Welcome string        `yaml:"welcome"`
 	ErikaK  *ErikaKDetail `yaml:"erika_k"`
 	// ChatRooms is shared by every host program; empty means no chat rooms.
-	ChatRooms []ChatRoom `yaml:"chat_rooms"`
+	ChatRooms []ChatRoom    `yaml:"chat_rooms"`
+	Rhythm    StationRhythm `yaml:"rhythm"`
 }
 
 // Preset is a validated preset file. Unspecified optional values stay nil/empty
@@ -105,6 +108,7 @@ type Preset struct {
 	// Debug and GenerationFlags are opt-in per host; absent means off.
 	Debug           DebugFlags
 	GenerationFlags GenerationFlags
+	Rhythm          StationRhythm
 	// Population describes the resident members; nil means the host has none.
 	Population *Population
 
@@ -208,6 +212,16 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 		add("host.traits.operating_hours", CheckOperatingHours(h.Traits.OperatingHours))
 	}
 
+	rhythm := f.Rhythm
+	if len(rhythm.MemberMix) == 0 && rhythm.LineCapacity == 0 {
+		rhythm = h.Rhythm
+	}
+	if len(rhythm.MemberMix) == 0 && rhythm.LineCapacity == 0 {
+		rhythm = f.Detail.Rhythm
+	}
+	f.Detail.Rhythm = rhythm
+	add("rhythm", validateStationRhythm(rhythm))
+
 	add("detail.chat_rooms", validateChatRooms(f.Detail.ChatRooms))
 	if f.Detail.ErikaK != nil {
 		if h.Program != erikaKProgramID {
@@ -244,6 +258,7 @@ func ParsePreset(file string, data []byte, o Options) (Preset, error) {
 		Dial:            dial,
 		Debug:           f.Debug,
 		GenerationFlags: f.Generation,
+		Rhythm:          rhythm,
 		Population:      population,
 		Detail:          f.Detail,
 	}, nil
