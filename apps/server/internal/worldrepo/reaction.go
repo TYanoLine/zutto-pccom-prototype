@@ -1,7 +1,9 @@
 package worldrepo
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"strings"
 
 	"zutto-pccom/apps/server/internal/hostprogram"
@@ -66,6 +68,36 @@ func (r *Repository) planHumanPostReactions(hostID string, saved world.Post) {
 		plannedAt = r.currentWorldTime()
 	}
 
+	lex := world.DefaultLexicon()
+	extractedTopics := world.ExtractPostTopics(saved, lex)
+	advisor := r.getReactionAdvisor()
+	if len(extractedTopics) == 0 && advisor != nil {
+		if tagged, err := advisor.TagTopics(context.Background(), saved); err != nil {
+			log.Printf("BBS reaction advisor topic tagging failed (fallback to untagged): host=%s post=%d err=%v", hostID, saved.ID, err)
+		} else if len(tagged) > 0 {
+			var norm []string
+			seen := map[string]bool{}
+			for _, t := range tagged {
+				nk := world.NormalizeTopicKey(t)
+				if nk == "" || seen[nk] {
+					continue
+				}
+				seen[nk] = true
+				norm = append(norm, nk)
+				if len(norm) >= 5 {
+					break
+				}
+			}
+			extractedTopics = norm
+		}
+	}
+	if len(extractedTopics) > 0 && len(saved.Intent.Topics) == 0 {
+		saved.Intent.Topics = append([]string(nil), extractedTopics...)
+		if updater, ok := r.Base.(world.PostUpdater); ok {
+			_, _ = updater.UpdatePost(hostID, saved)
+		}
+	}
+
 	in := world.PlanInput{
 		Host:           host,
 		Board:          board,
@@ -76,9 +108,32 @@ func (r *Repository) planHumanPostReactions(hostID string, saved world.Post) {
 		Personas:       personas,
 		FactsByPersona: factsByPersona,
 		BoardPrior:     board.Topics,
-		Lexicon:        world.DefaultLexicon(),
+		Topics:         extractedTopics,
+		Lexicon:        lex,
 		RhythmLayers:   world.DefaultRhythmLayers(),
 		Thread:         threadState,
+	}
+
+	if advisor != nil {
+		candidates := world.CandidatePoolForPlan(in)
+		if len(candidates) > 0 {
+			rawAdvices, err := advisor.AdviseReactors(context.Background(), world.AdviceRequest{
+				WorldDate:  plannedAt.Format("2006-01-02"),
+				Host:       host,
+				Board:      board,
+				Post:       saved,
+				Candidates: candidates,
+			})
+			if err != nil {
+				log.Printf("BBS reaction advisor prior failed (fallback to neutral): host=%s post=%d err=%v", hostID, saved.ID, err)
+			} else if len(rawAdvices) > 0 {
+				quantized := make(map[string]float64, len(rawAdvices))
+				for pid, v := range rawAdvices {
+					quantized[pid] = world.QuantizeAdvice(v)
+				}
+				in.Advices = quantized
+			}
+		}
 	}
 
 	plan := world.PlanReactions(in)

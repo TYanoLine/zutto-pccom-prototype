@@ -1,6 +1,7 @@
 package world
 
 import (
+	"context"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -102,6 +103,64 @@ type PlanInput struct {
 	MemberMix          map[string]float64
 	Thread             ThreadState
 	Advices            map[string]float64
+}
+
+// AdviceRequest is the input to ReactionAdvisor.AdviseReactors (plan 4.7).
+type AdviceRequest struct {
+	WorldDate  string
+	Host       Host
+	Board      Board
+	Post       Post
+	Candidates []Persona
+}
+
+// ReactionAdvisor is an optional plug-in for tagging open-vocabulary topics
+// on untagged human posts and supplying a bounded prior score in [0, 1] for
+// candidate reactors (plan 4.7). When nil (the default), Advice = 1.0.
+type ReactionAdvisor interface {
+	TagTopics(ctx context.Context, post Post) ([]string, error)
+	AdviseReactors(ctx context.Context, req AdviceRequest) (map[string]float64, error)
+}
+
+// CandidatePoolForPlan returns the deterministic top-K candidate persona pool
+// (capped at ReactionCandidateCap) for a PlanInput so an optional
+// ReactionAdvisor can query priors for those candidates in a single batch.
+func CandidatePoolForPlan(in PlanInput) []Persona {
+	if len(in.Personas) == 0 {
+		return nil
+	}
+	plannedAt := in.PlannedAt
+	if plannedAt.IsZero() {
+		plannedAt = in.TargetPost.CreatedAt
+	}
+	rhythmLayers := in.RhythmLayers
+	if len(rhythmLayers) == 0 {
+		rhythmLayers = DefaultRhythmLayers()
+	}
+	memberMix := in.MemberMix
+	if len(memberMix) == 0 {
+		if len(in.Board.Rhythm.MemberMix) > 0 {
+			memberMix = in.Board.Rhythm.MemberMix
+		} else if sr := StationRhythmForHost(in.Host.ID); len(sr.MemberMix) > 0 {
+			memberMix = sr.MemberMix
+		} else {
+			memberMix = DefaultMemberMix()
+		}
+	}
+	archByPersona := make(map[string]string, len(in.Personas))
+	for _, p := range in.Personas {
+		archByPersona[p.ID] = AssignArchetype(p, in.FactsByPersona[p.ID], memberMix)
+	}
+	return selectCandidatePersonas(in.Personas, func(p Persona) float64 {
+		r := ComposeRhythm(rhythmLayers, RhythmContext{
+			Host:      in.Host,
+			Board:     in.Board,
+			Persona:   p,
+			Archetype: archByPersona[p.ID],
+			At:        plannedAt,
+		})
+		return PersonaActivityWeight(p.ActivityPattern, p.LurkerTendency) * r
+	}, ReactionCandidateCap, in.Thread.StarterPersonaID)
 }
 
 // NormalizeTopicKey normalizes an open-vocabulary topic key to lowercase

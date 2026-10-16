@@ -134,6 +134,11 @@ func main() {
 	runtimeStore.SetFreeformBody(cfg.GenerationFreeformBody)
 	runtimeStore.SetTitleVariants(titleVariantsEnabled)
 	runtimeStore.SetWorldNow(clock.Now)
+	if cfg.ReactionAdvisorEnabled && worldEngine.BehaviorAdvisor != nil {
+		runtimeStore.SetReactionAdvisor(worldrepo.BehaviorReactionAdvisor{
+			Behavior: worldEngine.BehaviorAdvisor,
+		})
+	}
 	// Residents enter chat rooms only when the server can also give them words
 	// (spec 016 FR-004); without a model the rooms stay empty.
 	runtimeStore.SetResidentChat(cfg.AzureOpenAIKey != "")

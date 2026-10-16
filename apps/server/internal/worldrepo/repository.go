@@ -96,6 +96,9 @@ type Repository struct {
 	chatTalk chatTalk
 	// lineTalk is the residents' line messages to human callers (spec 018).
 	lineTalk lineTalk
+
+	reactionAdvisorMu sync.RWMutex
+	reactionAdvisor   world.ReactionAdvisor
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {

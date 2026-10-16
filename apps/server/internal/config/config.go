@@ -17,6 +17,7 @@ type Config struct {
 	AzureOpenAIAPI              string
 	JevKey                      string
 	JevModel                    string
+	ReactionAdvisorEnabled      bool
 	WorldDate                   string
 	HistoricalReferencesEnabled                  bool
 	DebugLogBBSArticleDetails                    bool
@@ -44,6 +45,7 @@ func Load() Config {
 		AzureOpenAIAPI:              os.Getenv("AZURE_OPENAI_API"),
 		JevKey:                      jevKey,
 		JevModel:                    env("JEV_MODEL", "jev-latest"),
+		ReactionAdvisorEnabled:      envBool("REACTION_ADVISOR_ENABLED", false),
 		WorldDate:                   strings.TrimSpace(os.Getenv("WORLD_DATE")),
 		HistoricalReferencesEnabled:                envBool("HISTORICAL_REFERENCES_ENABLED", false),
 		DebugLogBBSArticleDetails:                  envBool("DEBUG_LOG_BBS_ARTICLE_DETAILS", false),

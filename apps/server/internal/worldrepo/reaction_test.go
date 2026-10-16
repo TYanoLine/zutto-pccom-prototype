@@ -415,3 +415,168 @@ func TestMaterializedReactionBodyGeneratesOnDemand(t *testing.T) {
 		t.Fatalf("expected non-empty body after WaitForArticleBody")
 	}
 }
+
+type fakeBehaviorAdvisor struct {
+	calls int
+	last  worldengine.BehaviorAdviceRequest
+	err   error
+	score float64
+}
+
+func (f *fakeBehaviorAdvisor) AdviseBehavior(_ context.Context, req worldengine.BehaviorAdviceRequest) (worldengine.BehaviorAdviceDecision, error) {
+	f.calls++
+	f.last = req
+	if f.err != nil {
+		return worldengine.BehaviorAdviceDecision{}, f.err
+	}
+	probs := make(map[string]worldengine.BehaviorProbabilities, len(req.Personas))
+	for _, p := range req.Personas {
+		for _, b := range req.Boards {
+			probs[worldengine.BehaviorPairKey(p.ID, b.ID)] = worldengine.BehaviorProbabilities{
+				Reply: f.score,
+			}
+		}
+	}
+	return worldengine.BehaviorAdviceDecision{Probabilities: probs}, nil
+}
+
+func TestReactionAdvisorEnabledDisabledAndFailedModes(t *testing.T) {
+	now := time.Date(1996, 5, 10, 23, 30, 0, 0, time.FixedZone("JST", 9*3600))
+
+	// 1. Disabled (default nil) vs Failing advisor produce identical deterministic plans.
+	baseDisabled := world.NewMemoryStore()
+	repoDisabled := New(baseDisabled, nil, panicMaterializer{}, "1996-05-10")
+	repoDisabled.SetWorldNow(func() time.Time { return now })
+
+	baseFailed := world.NewMemoryStore()
+	repoFailed := New(baseFailed, nil, panicMaterializer{}, "1996-05-10")
+	repoFailed.SetWorldNow(func() time.Time { return now })
+	failingBeh := &fakeBehaviorAdvisor{err: fmt.Errorf("jev timeout")}
+	repoFailed.SetReactionAdvisor(BehaviorReactionAdvisor{
+		Behavior: failingBeh,
+		TopicTagger: func(context.Context, world.Post) ([]string, error) {
+			return nil, fmt.Errorf("tagger timeout")
+		},
+	})
+
+	host, _ := repoDisabled.HostByPhone("0920000196")
+	_, _ = repoFailed.HostByPhone("0920000196")
+	board := repoDisabled.resolveBoardByID(host, "60/1")
+
+	var planDisabled, planFailed world.ReactionPlan
+	for i := 0; i < 20; i++ {
+		pD := repoDisabled.AddPost(host.ID, world.Post{
+			BoardID:   board.ID,
+			Author:    "GUEST",
+			Subject:   fmt.Sprintf("昨日の出来事 %d", i),
+			Body:      "ちょっと珍しいことがありました。",
+			CreatedAt: now,
+		})
+		pF := repoFailed.AddPost(host.ID, world.Post{
+			BoardID:   board.ID,
+			Author:    "GUEST",
+			Subject:   fmt.Sprintf("昨日の出来事 %d", i),
+			Body:      "ちょっと珍しいことがありました。",
+			CreatedAt: now,
+		})
+		planDisabled, _ = baseDisabled.ReactionPlan(host.ID, pD.ID)
+		planFailed, _ = baseFailed.ReactionPlan(host.ID, pF.ID)
+		if len(planDisabled.Replies) > 0 {
+			break
+		}
+	}
+	if len(planDisabled.Replies) == 0 || len(planDisabled.Replies) != len(planFailed.Replies) {
+		t.Fatalf("expected matching non-empty plans for disabled (%d) and failed (%d) advisor", len(planDisabled.Replies), len(planFailed.Replies))
+	}
+	for i := range planDisabled.Replies {
+		if planDisabled.Replies[i].PersonaID != planFailed.Replies[i].PersonaID ||
+			!planDisabled.Replies[i].DueAt.Equal(planFailed.Replies[i].DueAt) {
+			t.Fatalf("expected failed advisor to fall back identically to disabled advisor at reply %d", i)
+		}
+	}
+
+	// 2. Enabled advisor: tags untagged posts only, queries top-K candidates in 1 call, and quantizes advice to 0.05.
+	baseEnabled := world.NewMemoryStore()
+	repoEnabled := New(baseEnabled, nil, panicMaterializer{}, "1996-05-10")
+	repoEnabled.SetWorldNow(func() time.Time { return now })
+	_, _ = repoEnabled.HostByPhone("0920000196")
+	tagCalls := 0
+	beh := &fakeBehaviorAdvisor{score: 0.774} // quantizes to 0.75
+	repoEnabled.SetReactionAdvisor(BehaviorReactionAdvisor{
+		Behavior: beh,
+		TopicTagger: func(_ context.Context, post world.Post) ([]string, error) {
+			tagCalls++
+			return []string{"Custom_Topic_96", "PC98"}, nil
+		},
+	})
+
+	// Tagged post (lexicon matches "PC-98") -> TopicTagger must NOT be called.
+	taggedPost := repoEnabled.AddPost(host.ID, world.Post{
+		BoardID:   board.ID,
+		Author:    "GUEST",
+		Subject:   "PC-98のメモリ増設",
+		Body:      "PC-9821にメモリを増設しました。",
+		CreatedAt: now,
+	})
+	if tagCalls != 0 {
+		t.Fatalf("expected TopicTagger not to be called when lexicon matched, got %d calls", tagCalls)
+	}
+	if beh.calls != 1 {
+		t.Fatalf("expected 1 batch AdviseBehavior call for post %d, got %d", taggedPost.ID, beh.calls)
+	}
+	if len(beh.last.Personas) > world.ReactionCandidateCap {
+		t.Fatalf("expected candidate count <= %d, got %d", world.ReactionCandidateCap, len(beh.last.Personas))
+	}
+
+	// Untagged post (no lexicon match) -> TopicTagger IS called once and saved to Post.Intent.Topics.
+	var untaggedPost world.Post
+	var planEnabled world.ReactionPlan
+	for i := 0; i < 20; i++ {
+		beforeTag := tagCalls
+		untaggedPost = repoEnabled.AddPost(host.ID, world.Post{
+			BoardID:   board.ID,
+			Author:    "GUEST",
+			Subject:   fmt.Sprintf("テスト記録 (%d)", i),
+			Body:      "これは検証用の無関係な文章です。",
+			CreatedAt: now,
+		})
+		if tagCalls != beforeTag+1 {
+			t.Fatalf("expected TopicTagger to be called once for untagged post, got delta %d", tagCalls-beforeTag)
+		}
+		var ok bool
+		if planEnabled, ok = baseEnabled.ReactionPlan(host.ID, untaggedPost.ID); ok && len(planEnabled.Replies) > 0 {
+			break
+		}
+	}
+	for _, p := range baseEnabled.ListPosts(host.ID) {
+		if p.ID == untaggedPost.ID {
+			if len(p.Intent.Topics) == 0 || p.Intent.Topics[0] != "custom_topic_96" {
+				t.Fatalf("expected tagged open-vocabulary topic saved on post, got %+v", p.Intent.Topics)
+			}
+		}
+	}
+	for _, rep := range planEnabled.Replies {
+		if rep.Advice != 0.75 {
+			t.Fatalf("expected quantized advice 0.75 saved in plan, got %v", rep.Advice)
+		}
+	}
+
+	// 3. Bounded influence (SC-008): advice cannot overturn a strong deterministic weight gap (> (1+beta)/(1-beta) = 2.33x).
+	pStrong := world.Persona{
+		ID:              "strong",
+		ActivityPattern: "regular",
+		ReplyTendency:   0.90,
+	}
+	pWeak := world.Persona{
+		ID:              "weak",
+		ActivityPattern: "lurker",
+		LurkerTendency:  0.80,
+		ReplyTendency:   0.10,
+	}
+	wStrongWithMinAdvice := world.ReactionWeight(pStrong, 0.95, 1.0, world.AdviceMultiplier(0.0), world.ThreadState{}, 1)
+	wWeakWithMaxAdvice := world.ReactionWeight(pWeak, 0.05, 1.0, world.AdviceMultiplier(1.0), world.ThreadState{}, 1)
+	if !(wStrongWithMinAdvice > wWeakWithMaxAdvice) {
+		t.Fatalf("SC-008 violation: max advice overturned strong deterministic weight (%f <= %f)", wStrongWithMinAdvice, wWeakWithMaxAdvice)
+	}
+}
+
