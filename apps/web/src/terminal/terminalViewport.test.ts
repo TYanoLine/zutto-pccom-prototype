@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import { desktopTerminalRows, isVisualViewportZoomed, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 
 describe('desktop terminal viewport', () => {
   it('preserves 80x25 proportions in short wide viewports and centers by fitting height', () => {
@@ -11,6 +11,17 @@ describe('desktop terminal viewport', () => {
 });
 
 describe('mobile terminal viewport', () => {
+  it('detects visual viewport pinch zoom', () => {
+    expect(isVisualViewportZoomed(null)).toBe(false);
+    expect(isVisualViewportZoomed(undefined)).toBe(false);
+    expect(isVisualViewportZoomed({ scale: 1 })).toBe(false);
+    expect(isVisualViewportZoomed({ scale: 1.005 })).toBe(false);
+    expect(isVisualViewportZoomed({ scale: 1.02 })).toBe(true);
+    expect(isVisualViewportZoomed({ scale: 1.5 })).toBe(true);
+    expect(isVisualViewportZoomed({ scale: 0.95 })).toBe(true);
+    expect(isVisualViewportZoomed({ scale: Number.NaN })).toBe(false);
+  });
+
   it('uses the visible keyboard viewport without reserving a command dock', () => {
     expect(terminalViewportHeight(400, 80, 330)).toBe(246);
     expect(terminalViewportHeight(400, 300, 330)).toBe(96);
