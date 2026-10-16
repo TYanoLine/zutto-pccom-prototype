@@ -12,7 +12,7 @@ import { isFullWidth, type Cell, type TerminalCore } from './TerminalCore';
 import type { ModemStatusDisplayMode } from '../modem/ModemStatusDisplay';
 import { BuildInfoPanel } from '../build/BuildInfoPanel';
 import type { BuildInfoPanelProps } from '../build/BuildInfoPanel';
-import { desktopTerminalRows, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
+import { desktopTerminalRows, isVisualViewportZoomed, mobileTerminalRows, terminalBackingScale, terminalCursorTargetScrollTop, terminalViewportHeight } from './terminalViewport';
 import './terminalFit.css';
 
 /**
@@ -251,6 +251,8 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const scrollOffsetRef = useRef(0);
   const previousScrollbackLengthRef = useRef(terminal.scrollbackLength);
   const activePointerIdRef = useRef<number | null>(null);
+  const activeTouchPointersRef = useRef<Set<number>>(new Set());
+  const isMultiTouchGestureRef = useRef(false);
   const pointerLastYRef = useRef(0);
   const pointerLastXRef = useRef(0);
   const pointerRemainderRef = useRef(0);
@@ -398,6 +400,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 
   function syncMobileRows() {
     if (!isMobilePresentation()) return;
+    if (isMultiTouchGestureRef.current || isVisualViewportZoomed(window.visualViewport)) return;
     if (display !== 'fit') {
       updateLayoutRows(terminal.height);
       return;
@@ -479,11 +482,12 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 
   function ensureCursorVisible() {
     if (!keyboardActive || !isMobilePresentation()) return;
+    const visualViewport = window.visualViewport;
+    if (isVisualViewportZoomed(visualViewport)) return;
     const viewport = viewportRef.current;
     const canvas = ref.current;
     if (!viewport || !canvas) return;
 
-    const visualViewport = window.visualViewport;
     const visualBottom = visualViewport
       ? visualViewport.offsetTop + visualViewport.height
       : window.innerHeight;
@@ -620,6 +624,26 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
 
   function pointerDown(e: ReactPointerEvent<HTMLElement>) {
     if (e.pointerType === 'mouse') return;
+    if (e.pointerType === 'touch') {
+      activeTouchPointersRef.current.add(e.pointerId);
+      if (activeTouchPointersRef.current.size > 1) {
+        isMultiTouchGestureRef.current = true;
+        if (activePointerIdRef.current !== null) {
+          if (e.currentTarget.hasPointerCapture(activePointerIdRef.current)) {
+            try {
+              e.currentTarget.releasePointerCapture(activePointerIdRef.current);
+            } catch {
+              // ignore
+            }
+          }
+          activePointerIdRef.current = null;
+          pointerRemainderRef.current = 0;
+          pointerTravelRef.current = 0;
+        }
+        return;
+      }
+    }
+    if (isMultiTouchGestureRef.current || isVisualViewportZoomed(window.visualViewport)) return;
     if (activePointerIdRef.current !== null) return;
     activePointerIdRef.current = e.pointerId;
     pointerLastYRef.current = e.clientY;
@@ -629,7 +653,15 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }
 
   function pointerMove(e: ReactPointerEvent<HTMLElement>) {
-    if (activePointerIdRef.current !== e.pointerId || e.pointerType === 'mouse') return;
+    if (e.pointerType === 'mouse') return;
+    if (
+      isMultiTouchGestureRef.current ||
+      activeTouchPointersRef.current.size > 1 ||
+      isVisualViewportZoomed(window.visualViewport)
+    ) {
+      return;
+    }
+    if (activePointerIdRef.current !== e.pointerId) return;
     const canvas = ref.current;
     if (!canvas) return;
 
@@ -642,7 +674,11 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
     const dragX = pointerLastXRef.current - e.clientX;
     pointerTravelRef.current += Math.abs(dragPixels) + Math.abs(dragX);
     if (pointerTravelRef.current >= 8 && !e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.setPointerCapture(e.pointerId);
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
     }
     if (viewportRef.current) viewportRef.current.scrollLeft += dragX;
     pointerLastXRef.current = e.clientX;
@@ -658,19 +694,36 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   }
 
   function finishPointer(e: ReactPointerEvent<HTMLElement>) {
-    activePointerIdRef.current = null;
-    pointerRemainderRef.current = 0;
-    pointerTravelRef.current = 0;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.pointerType === 'touch') {
+      activeTouchPointersRef.current.delete(e.pointerId);
+      if (activeTouchPointersRef.current.size === 0) {
+        isMultiTouchGestureRef.current = false;
+      }
+    }
+    if (activePointerIdRef.current === e.pointerId) {
+      activePointerIdRef.current = null;
+      pointerRemainderRef.current = 0;
+      pointerTravelRef.current = 0;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        try {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (activeTouchPointersRef.current.size === 0) {
+      activePointerIdRef.current = null;
+      pointerRemainderRef.current = 0;
+      pointerTravelRef.current = 0;
+    }
   }
 
   function pointerEnd(e: ReactPointerEvent<HTMLElement>) {
-    if (activePointerIdRef.current !== e.pointerId) return;
     finishPointer(e);
   }
 
   function pointerCancel(e: ReactPointerEvent<HTMLElement>) {
-    if (activePointerIdRef.current !== e.pointerId) return;
     finishPointer(e);
   }
 

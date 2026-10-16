@@ -48,6 +48,13 @@ export function mobileTerminalRows(
 }
 
 
+export function isVisualViewportZoomed(visualViewport?: { scale: number } | null): boolean {
+  if (!visualViewport || typeof visualViewport.scale !== 'number' || !Number.isFinite(visualViewport.scale)) {
+    return false;
+  }
+  return Math.abs(visualViewport.scale - 1) > 0.01;
+}
+
 export function terminalBackingScale(devicePixelRatio: number) {
   if (!Number.isFinite(devicePixelRatio) || devicePixelRatio <= 1) return 1;
   // 2x is enough to remove most fit-mode raster stair-stepping without
