@@ -109,6 +109,7 @@ type PostIntent struct {
 	ArticleDetailsMaterialized bool `json:"article_details_materialized,omitempty"`
 
 	Topic            string   `json:"topic,omitempty"`
+	Topics           []string `json:"topics,omitempty"`
 	Motivation       string   `json:"motivation,omitempty"`
 	Stance           string   `json:"stance,omitempty"`
 	Goal             string   `json:"goal,omitempty"`

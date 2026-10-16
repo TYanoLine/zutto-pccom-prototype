@@ -653,6 +653,9 @@ func ExtractPostTopics(post Post, lex *Lexicon) []string {
 		seen[nk] = true
 		out = append(out, nk)
 	}
+	for _, t := range post.Intent.Topics {
+		add(t)
+	}
 	if post.Intent.AnchorKey != "" {
 		add(post.Intent.AnchorKey)
 	}

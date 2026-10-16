@@ -176,6 +176,7 @@ func cloneFloatMap(in map[string]float64) map[string]float64 {
 }
 
 func clonePost(post Post) Post {
+	post.Intent.Topics = append([]string(nil), post.Intent.Topics...)
 	post.Intent.SituationFacts = append([]string(nil), post.Intent.SituationFacts...)
 	post.Intent.Claims = append([]string(nil), post.Intent.Claims...)
 	post.Intent.RespondsToClaims = append([]string(nil), post.Intent.RespondsToClaims...)
