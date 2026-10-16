@@ -18,6 +18,7 @@ func TestPresetHostsMatchHistoricalFixtures(t *testing.T) {
 				ContentLog:      true,
 				HTTPEndpoints:   true,
 				Snapshot:        true,
+				BypassBusy:      true,
 			},
 			Generation: hostcatalog.GenerationFlags{FreeformBody: true},
 		},

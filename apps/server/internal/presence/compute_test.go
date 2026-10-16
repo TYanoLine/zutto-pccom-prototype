@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"zutto-pccom/apps/server/internal/hostcatalog"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldcalendar"
 )
@@ -118,3 +119,60 @@ func TestPresenceHistogram(t *testing.T) {
 		t.Log(line)
 	}
 }
+
+func TestFreeLineBypassBusy(t *testing.T) {
+	hostNormal := world.Host{ID: "h", Lines: 2}
+	hostBypass := world.Host{ID: "h", Lines: 2, Debug: hostcatalog.DebugFlags{BypassBusy: true}}
+
+	persona1 := world.PresenceSession{HostID: "h", Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}, Line: 1}
+	persona2 := world.PresenceSession{HostID: "h", Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "p2"}, Line: 2}
+
+	// 1. When both lines are held by personas, normal host has no free line.
+	sessions := []world.PresenceSession{persona1, persona2}
+	if line, ok := FreeLine(hostNormal, sessions); ok {
+		t.Fatalf("normal host should be busy, got line %d", line)
+	}
+
+	// 2. Host with BypassBusy returns a line held by a persona.
+	line, ok := FreeLine(hostBypass, sessions)
+	if !ok || line != 1 {
+		t.Fatalf("bypass host should allow preempting a persona line, got %d %v", line, ok)
+	}
+
+	// 3. If line 1 is held by a human and line 2 is held by a persona, bypass returns line 2.
+	human1 := world.PresenceSession{HostID: "h", Actor: world.ActorRef{Kind: world.ActorKindMember, ID: "user1"}, Line: 1}
+	line, ok = FreeLine(hostBypass, []world.PresenceSession{human1, persona2})
+	if !ok || line != 2 {
+		t.Fatalf("bypass host should return line 2 not held by human, got %d %v", line, ok)
+	}
+
+	// 4. If all lines are held by humans, even bypass host reports no free line.
+	human2 := world.PresenceSession{HostID: "h", Actor: world.ActorRef{Kind: world.ActorKindMember, ID: "user2"}, Line: 2}
+	if line, ok = FreeLine(hostBypass, []world.PresenceSession{human1, human2}); ok {
+		t.Fatalf("bypass host cannot preempt humans, got line %d", line)
+	}
+
+	// 5. In Compute, when a live human call is on line 1, persona observed on line 1 is dropped.
+	ts := at("1996-10-15 23:30")
+	storedP1 := world.PresenceSession{HostID: "h", Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "p1"}, Handle: "P1", Line: 1, Start: ts.Add(-10 * time.Minute), End: ts.Add(20 * time.Minute)}
+	storedP2 := world.PresenceSession{HostID: "h", Actor: world.ActorRef{Kind: world.ActorKindPersona, ID: "p2"}, Handle: "P2", Line: 2, Start: ts.Add(-10 * time.Minute), End: ts.Add(20 * time.Minute)}
+	liveHuman := world.HumanCall{CallID: "c1", HumanID: "user1", HostID: "h", Line: 1, Start: ts.Add(-time.Minute)}
+
+	computed := Compute(Input{
+		Host:     hostBypass,
+		Personas: testPersonas(300),
+		Observed: []world.PresenceSession{storedP1, storedP2},
+		Humans:   []world.HumanCall{liveHuman},
+	}, ts).Sessions
+
+	if len(computed) != 2 {
+		t.Fatalf("expected exactly 2 sessions on 2 lines, got %d", len(computed))
+	}
+	if computed[0].Actor.Kind != world.ActorKindMember || computed[0].Line != 1 {
+		t.Fatalf("line 1 should belong to human call, got %+v", computed[0])
+	}
+	if computed[1].Line != 2 {
+		t.Fatalf("line 2 should be occupied, got %+v", computed[1])
+	}
+}
+

@@ -84,3 +84,17 @@ func TestDialUsesLineOccupancy(t *testing.T) {
 		t.Fatalf("busy fixture attempt 5 = %+v", got)
 	}
 }
+
+func TestDialBypassBusyProbabilistic(t *testing.T) {
+	at := time.Date(1996, 10, 15, 23, 10, 0, 0, time.FixedZone("JST", 9*60*60))
+	store := world.NewMemoryStore()
+	n := New(store, fixedClock{now: at})
+	// 0920000196 has BypassBusy: true
+	for attempt := 1; attempt <= 10; attempt++ {
+		got := n.Dial("0920000196", attempt)
+		if got.Result != Connect {
+			t.Fatalf("attempt %d failed to connect with BypassBusy: %+v", attempt, got)
+		}
+	}
+}
+

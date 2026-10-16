@@ -66,6 +66,9 @@ func (n *Network) dialAt(phone string, at time.Time, attempt int) DialResult {
 
 	// Stores without line occupancy keep the earlier probabilistic model.
 	p := busyProbability(host, at)
+	if host.Debug.BypassBusy {
+		p = 0
+	}
 	// Deterministic-ish per 10-second bucket + attempt; repeated redial changes outcome.
 	bucket := at.Unix() / 10
 	r := stableUnit(phone, bucket, int64(attempt))

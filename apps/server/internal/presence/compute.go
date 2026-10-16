@@ -53,6 +53,21 @@ func FreeLine(host world.Host, sessions []world.PresenceSession) (int, bool) {
 			return line, true
 		}
 	}
+	if host.Debug.BypassBusy {
+		// When busy is bypassed for evaluation stations, allow connecting on a
+		// line not currently held by another human call.
+		humanUsed := map[int]bool{}
+		for _, s := range sessions {
+			if s.Actor.Kind != world.ActorKindPersona {
+				humanUsed[s.Line] = true
+			}
+		}
+		for line := 1; line <= Lines(host); line++ {
+			if !humanUsed[line] {
+				return line, true
+			}
+		}
+	}
 	return 0, false
 }
 
@@ -97,10 +112,20 @@ func Compute(in Input, t time.Time) Result {
 	var assigned []world.PresenceSession
 	observedByPersona := map[string][]world.PresenceSession{}
 	for _, s := range in.Observed {
-		assigned = append(assigned, s)
 		if s.Actor.Kind == world.ActorKindPersona {
+			clash := false
+			for _, h := range in.Humans {
+				if h.Line == s.Line && overlaps(s, h.Session()) {
+					clash = true
+					break
+				}
+			}
+			if clash {
+				continue
+			}
 			observedByPersona[s.Actor.ID] = append(observedByPersona[s.Actor.ID], s)
 		}
+		assigned = append(assigned, s)
 	}
 	for _, h := range in.Humans {
 		assigned = append(assigned, h.Session())

@@ -28,6 +28,7 @@ debug:
   content_log: true
   http_endpoints: true
   snapshot: true
+  bypass_busy: true
 
 generation:
   freeform_body: true

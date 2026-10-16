@@ -181,6 +181,7 @@ flags, never by a phone number, an ID or the role. The role is only a label.
 | `debug.content_log` | Logs committed generated headers and bodies. | `DEBUG_LOG_GENERATED_CONTENT` (process-wide) |
 | `debug.http_endpoints` | Lets `/api/debug/bbs/reset` and `/api/debug/bbs/sample` act on the host. An unknown number and a host without the flag get the same answer. | `DEBUG_RESET_TOKEN` |
 | `debug.snapshot` | Stores the host's world state (boards, posts, memberships, personas, persona facts) as one JSON snapshot in Postgres so it survives a restart. A development stopgap until the world is stored in normalized tables. It never stores or restores the host definition. | `DATABASE_URL` |
+| `debug.bypass_busy` | Allows incoming human calls to connect even when all lines are occupied by residents, preempting a resident line so that evaluation stations can be dialed and debugged during peak Telehodai hours. | nothing |
 | `generation.freeform_body` | Title-led prose experiment for article bodies. | `GENERATION_FREEFORM_BODY` (process-wide) |
 
 The three process-wide switches were renamed from `DEBUG_LOG_HAKATA_GENERATED`,

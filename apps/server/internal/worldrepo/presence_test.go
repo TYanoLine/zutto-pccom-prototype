@@ -194,3 +194,60 @@ func TestErikaKWHOThroughRepository(t *testing.T) {
 		t.Fatalf("login did not record the handle: %+v", call)
 	}
 }
+
+func TestBypassBusyEvaluationStation(t *testing.T) {
+	repo, _, host := presenceTestRepo(t, time.Time{})
+	if !host.Debug.BypassBusy {
+		t.Fatal("hakata-canal-net preset must have Debug.BypassBusy = true")
+	}
+
+	// Peak Telehodai rush time: 23:10 on a weekday.
+	now := time.Date(1996, 10, 15, 23, 10, 0, 0, time.FixedZone("JST", 9*60*60))
+	repo.SetWorldNow(func() time.Time { return now })
+
+	// When all lines are filled with personas:
+	// A normal host without BypassBusy must get BUSY.
+	normalHost := host
+	normalHost.Debug.BypassBusy = false
+	if _, ok := repo.DialLine(normalHost, now); ok {
+		t.Fatal("normal host at peak Telehodai must be BUSY when all lines are filled")
+	}
+
+	// But an evaluation host with BypassBusy connects successfully!
+	line, ok := repo.DialLine(host, now)
+	if !ok {
+		t.Fatal("host with BypassBusy must connect even during peak Telehodai")
+	}
+	if line < 1 || line > host.Lines {
+		t.Fatalf("assigned line %d out of bounds [1, %d]", line, host.Lines)
+	}
+
+	humanLine, ok := repo.BeginHumanCall(host, "call-eval", "user-1", 14400)
+	if !ok || humanLine != line {
+		t.Fatalf("BeginHumanCall failed or line mismatched: line=%d, ok=%v, want %d", humanLine, ok, line)
+	}
+
+	// Observe presence now with human online:
+	who := repo.ObservePresenceNow(host)
+	if len(who) > host.Lines {
+		t.Fatalf("total sessions %d exceeds host lines %d", len(who), host.Lines)
+	}
+
+	seenLines := map[int]string{}
+	foundHuman := false
+	for _, s := range who {
+		if prev, exists := seenLines[s.Line]; exists {
+			t.Fatalf("duplicate line %d: %s and %s", s.Line, prev, s.Actor)
+		}
+		seenLines[s.Line] = s.Actor.String()
+		if s.Line == humanLine && s.Actor.Kind == world.ActorKindMember {
+			foundHuman = true
+		}
+	}
+	if !foundHuman {
+		t.Fatalf("human call not found on assigned line %d in %v", humanLine, who)
+	}
+
+	repo.EndHumanCall("call-eval")
+}
+

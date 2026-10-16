@@ -27,6 +27,7 @@ func TestPresetFlagsAreParsedIntoTheDescriptor(t *testing.T) {
 		"  content_log: true\n" +
 		"  http_endpoints: true\n" +
 		"  snapshot: true\n" +
+		"  bypass_busy: true\n" +
 		"generation:\n" +
 		"  freeform_body: true\n"
 	p, err := ParsePreset("sample-bbs.yaml", []byte(src), Options{})
@@ -37,7 +38,7 @@ func TestPresetFlagsAreParsedIntoTheDescriptor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantDebug := DebugFlags{ResetArticlesOnConnect: true, GenerationTrace: true, ContentLog: true, HTTPEndpoints: true, Snapshot: true}
+	wantDebug := DebugFlags{ResetArticlesOnConnect: true, GenerationTrace: true, ContentLog: true, HTTPEndpoints: true, Snapshot: true, BypassBusy: true}
 	if d.Debug != wantDebug || !d.GenerationFlags.FreeformBody {
 		t.Fatalf("flags not carried into the descriptor: %+v %+v", d.Debug, d.GenerationFlags)
 	}
@@ -54,6 +55,7 @@ func TestPresetFlagsAreIndependent(t *testing.T) {
 		"content log":      {"debug:\n  content_log: true\n", DebugFlags{ContentLog: true}},
 		"http endpoints":   {"debug:\n  http_endpoints: true\n", DebugFlags{HTTPEndpoints: true}},
 		"snapshot":         {"debug:\n  snapshot: true\n", DebugFlags{Snapshot: true}},
+		"bypass busy":      {"debug:\n  bypass_busy: true\n", DebugFlags{BypassBusy: true}},
 	} {
 		p, err := ParsePreset("sample-bbs.yaml", []byte(samplePreset+tc.block), Options{})
 		if err != nil {
@@ -89,7 +91,7 @@ func TestEmbeddedPresetFlags(t *testing.T) {
 	for _, p := range presets {
 		seen[p.Key] = true
 		if p.Key == "hakata-canal-net" {
-			want := DebugFlags{GenerationTrace: true, ContentLog: true, HTTPEndpoints: true, Snapshot: true}
+			want := DebugFlags{GenerationTrace: true, ContentLog: true, HTTPEndpoints: true, Snapshot: true, BypassBusy: true}
 			if p.Debug != want || !p.GenerationFlags.FreeformBody {
 				t.Errorf("hakata-canal-net must opt in to its evaluation behavior: %+v %+v", p.Debug, p.GenerationFlags)
 			}
