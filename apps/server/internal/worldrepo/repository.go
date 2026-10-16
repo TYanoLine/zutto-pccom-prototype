@@ -243,6 +243,7 @@ func (r *Repository) ActorMemoryIndex() *actormemory.Index {
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
 	saved := r.Base.AddPost(hostID, p)
 	r.recordPostInteraction(hostID, saved)
+	r.planHumanPostReactions(hostID, saved)
 	r.indexerMu.RLock()
 	ix := r.indexer
 	r.indexerMu.RUnlock()
