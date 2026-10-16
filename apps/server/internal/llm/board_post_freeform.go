@@ -27,6 +27,9 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
     }
     if persona == "" { persona = "(追加プロフィールなし)" }
     intent, requiredReferent := extractArticleReferentControl(req.PostIntent)
+    if len(req.ThreadContext) > 0 {
+        intent = stripLegacyThreadContext(intent)
+    }
     var extra []string
     if strings.TrimSpace(intent) != "" {
         extra = append(extra, "記事の起点となる確定情報（矛盾させず、すべてを説明する必要はありません）:\n"+strings.TrimSpace(intent))
@@ -34,7 +37,12 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
     if requiredReferent != "" && !strings.Contains(subject, requiredReferent) {
         extra = append(extra, "この記事の確定済み参照対象: "+requiredReferent)
     }
-    if parent := strings.TrimSpace(req.ParentBody); parent != "" || strings.TrimSpace(req.ParentSubject) != "" {
+    if len(req.ThreadContext) > 0 {
+        extra = append(extra, formatThreadContext(req.ThreadContext))
+        if parent := strings.TrimSpace(req.ParentBody); parent != "" || strings.TrimSpace(req.ParentSubject) != "" {
+            extra = append(extra, fmt.Sprintf("直接の返信先（あなたが返信する対象）:\n件名: %s\n本文:\n%s", strings.TrimSpace(req.ParentSubject), parent))
+        }
+    } else if parent := strings.TrimSpace(req.ParentBody); parent != "" || strings.TrimSpace(req.ParentSubject) != "" {
         extra = append(extra, fmt.Sprintf("返信先（この記事の著者が応じる相手の文章）:\n件名: %s\n本文:\n%s", strings.TrimSpace(req.ParentSubject), parent))
     }
     if quote := strings.TrimSpace(req.QuoteText); quote != "" {
@@ -62,7 +70,8 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
 
 この記事を書いている本人の自然な文章にしてください。件名、投稿目的と人物の書き方を材料に、会員が自分の言葉で書いた本文にしてください。確定済みの世界事実や返信先の文章と矛盾させず、細部の言い回しや文章の展開は自由です。
 当時の趣味系BBSらしい親しみやすい生きた口語表現（〜ですねー、〜かも等）や、適度な感情表現 (笑)、(^^; などを交え、相手との関係性に応じた自然な距離感で語ってください。
-返信の際、親記事の文章に言及したい部分がある場合は、必要に応じて本文冒頭などに「>」を付けて自然に引用し、それに対する返信を続けてください。結びの挨拶（「よろしくお願いします」等）だけの引用や機械的な全文引用は避け、言及したい核心部分だけを引用するか、引用なしで直接返答しても構いません。
+スレッドに先行する他の発言や返信がある場合は、スレッド全体の会話の流れを踏まえて自然に書き込んでください。先行する他の返信者と同じ定型的な挨拶を単にオウム返しするのではなく、既に挨拶や発言が交わされている場の空気を感じ取り、先行発言者の話題に触れたり、自分の個性を出したりして、自然な会話のキャッチボールやつながりを意識してください。
+返信の際、親記事や先行発言の文章に言及したい部分がある場合は、必要に応じて本文冒頭などに「>」を付けて自然に引用し、それに対する返信を続けてください。結びの挨拶（「よろしくお願いします」等）だけの引用や機械的な全文引用は避け、言及したい核心部分だけを引用するか、引用なしで直接返答しても構いません。
 当時の80桁端末（全角40文字画面）で読みやすいよう、1行の長さは全角30〜35文字程度を目安とし、句点（。）やキリの良い文節で自然に改行を入れてください。改行を入れずに画面端で機械的に折り返される長大な行や、逆に15文字前後の極端に細切れなポエム調改行の多用は避けてください。
 時代: %s
 本文の目安: %d〜%d文字

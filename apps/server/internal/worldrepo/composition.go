@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"strings"
+	"zutto-pccom/apps/server/internal/llm"
 	"zutto-pccom/apps/server/internal/world"
 	"zutto-pccom/apps/server/internal/worldengine"
 )
@@ -37,6 +38,40 @@ func (r *Repository) prepareBoardComposition(req BoardMaterializationRequest, se
 				parent := candidate
 				req.ParentPost = &parent
 				break
+			}
+		}
+	}
+	if len(req.ThreadContext) == 0 && (!world.IsSemanticRoot(selected) || req.Kind == worldengine.PostKindReply) {
+		preds := r.materializationThreadPredecessors(req.Host.ID, req.BoardID, selected)
+		if len(preds) > 0 {
+			threadCtx := make([]llm.ThreadPostContext, 0, len(preds))
+			for _, pred := range preds {
+				body := strings.TrimSpace(pred.Body)
+				if body == "" {
+					body = strings.TrimSpace(pred.Intent.SituationSummary)
+				}
+				threadCtx = append(threadCtx, llm.ThreadPostContext{
+					PostID:  pred.ID,
+					Author:  pred.Author,
+					Subject: pred.Subject,
+					Body:    body,
+					IsRoot:  world.IsSemanticRoot(pred),
+				})
+			}
+			req.ThreadContext = threadCtx
+		} else if req.ParentPost != nil {
+			body := strings.TrimSpace(req.ParentPost.Body)
+			if body == "" {
+				body = strings.TrimSpace(req.ParentPost.Intent.SituationSummary)
+			}
+			req.ThreadContext = []llm.ThreadPostContext{
+				{
+					PostID:  req.ParentPost.ID,
+					Author:  req.ParentPost.Author,
+					Subject: req.ParentPost.Subject,
+					Body:    body,
+					IsRoot:  world.IsSemanticRoot(*req.ParentPost),
+				},
 			}
 		}
 	}

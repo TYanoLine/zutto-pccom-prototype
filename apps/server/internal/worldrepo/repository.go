@@ -45,6 +45,7 @@ type BoardMaterializationRequest struct {
 	QuoteText                  string
 	RelationshipContext        string
 	BodyMinChars, BodyMaxChars int
+	ThreadContext              []llm.ThreadPostContext
 }
 
 type Repository struct {
