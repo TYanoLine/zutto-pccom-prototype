@@ -90,6 +90,10 @@ type DebugFlags struct {
 	// stored in normalized Postgres tables, and it never stores the host
 	// definition: that always comes from the preset.
 	Snapshot bool `yaml:"snapshot"`
+	// BypassBusy allows incoming human calls to connect even when all lines
+	// are occupied by residents, preempting a resident line so that evaluation
+	// stations can be dialed and debugged during peak Telehodai hours.
+	BypassBusy bool `yaml:"bypass_busy"`
 }
 
 // GenerationFlags select experimental generation behavior for one host.
