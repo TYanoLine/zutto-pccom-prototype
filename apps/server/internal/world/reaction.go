@@ -129,12 +129,25 @@ func ArticleTopicWeights(boardPrior map[string]float64, topics []string, lex *Le
 		}
 	}
 
-	keys := map[string]bool{}
+	expandedPrior := map[string]float64{}
 	for k, v := range boardPrior {
 		nk := NormalizeTopicKey(k)
-		if nk != "" && v > 0 {
-			keys[nk] = true
+		if nk == "" || v <= 0 {
+			continue
 		}
+		if v > expandedPrior[nk] {
+			expandedPrior[nk] = v
+		}
+		for _, b := range lex.Broader(nk) {
+			if bv := v * ReactionBroaderShare; bv > expandedPrior[b] {
+				expandedPrior[b] = bv
+			}
+		}
+	}
+
+	keys := map[string]bool{}
+	for k := range expandedPrior {
+		keys[k] = true
 	}
 	for k := range tag {
 		keys[k] = true
@@ -177,13 +190,7 @@ func ArticleTopicWeights(boardPrior map[string]float64, topics []string, lex *Le
 	rawWeights := make(map[string]float64, len(keys))
 	total := 0.0
 	for k := range keys {
-		prior := 0.0
-		for pk, pv := range boardPrior {
-			if NormalizeTopicKey(pk) == k && pv > 0 {
-				prior = pv
-				break
-			}
-		}
+		prior := expandedPrior[k]
 		t := tag[k]
 		if prior <= 0 {
 			if t <= 0 {
@@ -192,7 +199,7 @@ func ArticleTopicWeights(boardPrior map[string]float64, topics []string, lex *Le
 			prior = 1.0
 		}
 		var factor float64
-		if len(boardPrior) == 0 && t > 0 && t < 1.0 {
+		if len(expandedPrior) == 0 && t > 0 && t < 1.0 {
 			// Propagate broader topics at half the direct topic weight when no board prior is set.
 			factor = (1.0 + ReactionTagWeightBoost) * t
 		} else {

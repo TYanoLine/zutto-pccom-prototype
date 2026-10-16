@@ -52,7 +52,7 @@ func (r *Repository) planHumanPostReactions(hostID string, saved world.Post) {
 	allBoardPosts := filterBoard(r.Base.ListPosts(hostID), saved.BoardID)
 	ordinal := r.nextReactionOrdinal(host, board, allBoardPosts)
 	replyRate := board.ReplyRate
-	if replyRate <= 0 {
+	if replyRate <= 0 && board.Name == "" {
 		if state, ok := r.BoardActivity(host, board); ok && state.ReplyRate > 0 {
 			replyRate = state.ReplyRate
 		} else {
@@ -278,17 +278,18 @@ func (r *Repository) materializeDueReactions(host world.Host, board world.Board)
 				Body:            "",
 				CreatedAt:       rep.DueAt,
 				Intent: world.PostIntent{
-					Action:           "persona-reaction",
-					AnchorKey:        targetPost.Intent.AnchorKey,
-					CauseKind:        "persona_reaction",
-					DiscourseMode:    "reply",
-					SourcePostID:     targetPost.ID,
-					RespondsToPostID: targetPost.ID,
-					ProducerEventID:  eventID,
-					Topic:            topicStr,
-					Topics:           topics,
-					SituationKind:    "reply",
-					SituationSummary: summary,
+					Action:                     "persona-reaction",
+					AnchorKey:                  targetPost.Intent.AnchorKey,
+					CauseKind:                  "persona_reaction",
+					DiscourseMode:              "reply",
+					SourcePostID:               targetPost.ID,
+					RespondsToPostID:           targetPost.ID,
+					ProducerEventID:            eventID,
+					Topic:                      topicStr,
+					Topics:                     topics,
+					SituationKind:              "reply",
+					SituationSummary:           summary,
+					ArticleDetailsMaterialized: true,
 					SituationFacts: []string{
 						fmt.Sprintf("responds_to_post_id=%d", targetPost.ID),
 						"world_adopted_summary=" + summary,

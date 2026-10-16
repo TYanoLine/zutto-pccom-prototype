@@ -359,8 +359,9 @@ func (e *Engine) MaterializeDueReactions(host world.Host, board world.Board, now
 					ProducerEventID:  eventID,
 					Topic:            topicStr,
 					Topics:           topics,
-					SituationKind:    "reply",
-					SituationSummary: summary,
+					SituationKind:              "reply",
+					SituationSummary:           summary,
+					ArticleDetailsMaterialized: true,
 					SituationFacts: []string{
 						fmt.Sprintf("responds_to_post_id=%d", targetPost.ID),
 						"world_adopted_summary=" + summary,
