@@ -115,3 +115,39 @@ func TestExtractArticleReferentControlPreservesOtherFacts(t *testing.T) {
 		t.Fatalf("unexpected cleaned intent: %q", intent)
 	}
 }
+
+func TestBuildBoardPostPromptRendersThreadContextAndFlowGuidance(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		FreeformFromSubject: false,
+		BoardTopic:          "交流板",
+		WorldDate:           "1996-05-10",
+		AuthorHandle:        "KEN",
+		ParentSubject:       "モデム買いました",
+		ParentBody:          "28.8kbpsのモデムを購入しました。",
+		ThreadContext: []ThreadPostContext{
+			{
+				Author:  "TOM",
+				Subject: "モデム買いました",
+				Body:    "28.8kbpsのモデムを購入しました。",
+				IsRoot:  true,
+			},
+			{
+				Author: "SALLY",
+				Body:   "速くて快適ですよね！私も先月乗り換えました。",
+				IsRoot: false,
+			},
+		},
+	})
+	for _, want := range []string{
+		"スレッドの文脈（これまでの発言の流れ・時系列）:",
+		"[1] 発言者: TOM (親記事/スレッド起点) / 件名: モデム買いました",
+		"[2] 発言者: SALLY",
+		"直接の返信先:\nsubject=モデム買いました",
+		"スレッドに先行する他の発言や返信がある場合は、スレッド全体の会話の流れを踏まえて自然に書き込んでください。",
+		"先行する他の返信者と同じ定型的な挨拶を単にオウム返しするのではなく",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("missing %q in standard prompt:\n%s", want, prompt)
+		}
+	}
+}

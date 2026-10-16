@@ -100,3 +100,45 @@ func TestBuildBoardPostPromptIncludesTerminalLineLayoutGuidance(t *testing.T) {
 	}
 }
 
+func TestFreeformPromptRendersThreadContextChronologically(t *testing.T) {
+	prompt := BuildBoardPostPrompt(BoardPostRequest{
+		FreeformFromSubject: true,
+		BoardTopic:          "新人歓迎・自己紹介",
+		WorldDate:           "1996-02-04",
+		AuthorHandle:        "MEG.N",
+		ParentSubject:       "新しく参加した方、気軽にどうぞ（SHIN）",
+		ParentBody:          "はじめまして、SHINです。新しく参加されたみなさん、ようこそ！",
+		ThreadContext: []ThreadPostContext{
+			{
+				PostID:  2119,
+				Author:  "SHIN",
+				Subject: "新しく参加した方、気軽にどうぞ（SHIN）",
+				Body:    "はじめまして、SHINです。新しく参加されたみなさん、ようこそ！",
+				IsRoot:  true,
+			},
+			{
+				PostID:  2120,
+				Author:  "MEG.M",
+				Body:    "SHINさん、はじめまして。MEG.Mです。歓迎の言葉、ありがとうございます。",
+				IsRoot:  false,
+			},
+		},
+		PostIntent: "確定した状況: MEG.N が SHIN の件名「新しく参加した方、気軽にどうぞ（SHIN）」の少し前の記事へ返信する\nこれまでの会話:\nTHREAD CONTEXT (canonical article content only):\n[SHIN] 新しく参加した方、気軽にどうぞ（SHIN）\n[MEG.M] 歓迎の言葉、ありがとうございます。",
+	})
+	for _, want := range []string{
+		"スレッドの文脈（これまでの発言の流れ・時系列）:",
+		"[1] 発言者: SHIN (親記事/スレッド起点) / 件名: 新しく参加した方、気軽にどうぞ（SHIN）",
+		"[2] 発言者: MEG.M",
+		"直接の返信先（あなたが返信する対象）:",
+		"スレッドに先行する他の発言や返信がある場合は、スレッド全体の会話の流れを踏まえて自然に書き込んでください。",
+		"先行する他の返信者と同じ定型的な挨拶を単にオウム返しするのではなく",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("missing %q in prompt:\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, "THREAD CONTEXT (canonical article content only)") {
+		t.Fatalf("legacy raw thread context not stripped from intent:\n%s", prompt)
+	}
+}
+

@@ -25,6 +25,14 @@ type TokenUsage struct {
 	Model             string
 }
 
+type ThreadPostContext struct {
+	PostID  int64  `json:"post_id,omitempty"`
+	Author  string `json:"author"`
+	Subject string `json:"subject,omitempty"`
+	Body    string `json:"body"`
+	IsRoot  bool   `json:"is_root,omitempty"`
+}
+
 type BoardPostRequest struct {
 	HostName         string
 	HostRegion       string
@@ -46,6 +54,7 @@ type BoardPostRequest struct {
 	RelationshipContext string
 	BodyMinChars        int
 	BodyMaxChars        int
+	ThreadContext       []ThreadPostContext
 }
 
 type BoardPostDraft struct {

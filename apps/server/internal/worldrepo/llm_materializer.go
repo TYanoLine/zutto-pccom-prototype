@@ -101,6 +101,7 @@ func (m LLMMaterializer) GenerateBoardPostsWithUsage(ctx context.Context, req Bo
 		RelationshipContext: req.RelationshipContext,
 		BodyMinChars:        req.BodyMinChars,
 		BodyMaxChars:        req.BodyMaxChars,
+		ThreadContext:       req.ThreadContext,
 	}
 
 	if m.ToolModel != nil && m.ActorMemoryStore != nil && req.Persona != nil {

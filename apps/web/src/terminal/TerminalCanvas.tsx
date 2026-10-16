@@ -99,21 +99,63 @@ export function isRetroDotFontAvailable(): boolean {
   return isLocalPc98FontAvailable() || isDotGothicAvailable();
 }
 
-export function terminalGlyphPaintStyle(ch: string, profile: TerminalFontProfile = 'default') {
+/**
+ * Measures whether the active retro font is shifted downward by browser/OS font metrics
+ * when drawn with textBaseline = 'top' (e.g. WebKit Bug #226334 / CoreText + DotGothic16
+ * where hhea ascent of 1.16em pushes glyphs ~4.5px below the cell ceiling).
+ * Returns a negative offset in pixels to align the rendered glyph with the historical 16px cell.
+ */
+export function measureRetroFontYOffset(font: string = PC98_FULL_WIDTH_FONT): number {
+  if (typeof document === 'undefined') return 0;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return 0;
+
+    ctx.font = font;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('■', 0, 0);
+
+    const img = ctx.getImageData(0, 0, 32, 32);
+    const data = img.data;
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 32; x++) {
+        if (data[(y * 32 + x) * 4 + 3] > 64) {
+          // If first visible row is pushed down beyond row 1, shift up by that amount
+          // so the glyph starts flush at the historical cell ceiling (y = 0).
+          return y > 1 ? -y : 0;
+        }
+      }
+    }
+  } catch {
+    return 0;
+  }
+  return 0;
+}
+
+export function terminalGlyphPaintStyle(
+  ch: string,
+  profile: TerminalFontProfile = 'default',
+  retroYOffset = 0,
+) {
   const fullWidth = isFullWidth(ch);
   if (profile === 'pc98') {
     return {
       fullWidth,
       font: fullWidth ? PC98_FULL_WIDTH_FONT : PC98_HALF_WIDTH_FONT,
       glyphWidth: fullWidth ? 16 : 8,
-      yOffset: 0,
+      yOffset: retroYOffset,
     } as const;
   }
   return {
     fullWidth,
     font: fullWidth ? DEFAULT_FULL_WIDTH_FONT : DEFAULT_HALF_WIDTH_FONT,
     glyphWidth: fullWidth ? 16 : 8,
-    yOffset: fullWidth ? 0 : 1,
+    yOffset: fullWidth ? retroYOffset : 1,
   } as const;
 }
 
@@ -184,11 +226,17 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
   const [fontMode, setFontMode] = useState<TerminalFontMode>('auto');
   const [detectedPc98, setDetectedPc98] = useState(false);
   const [detectedDotGothic, setDetectedDotGothic] = useState(false);
+  const [retroYOffset, setRetroYOffset] = useState(0);
+  const retroYOffsetRef = useRef(0);
+  retroYOffsetRef.current = retroYOffset;
 
   useEffect(() => {
     const syncFontStatus = () => {
       setDetectedPc98(isLocalPc98FontAvailable());
       setDetectedDotGothic(isDotGothicAvailable());
+      const offset = measureRetroFontYOffset();
+      setRetroYOffset(offset);
+      retroYOffsetRef.current = offset;
     };
     syncFontStatus();
     if (typeof document !== 'undefined' && document.fonts) {
@@ -535,7 +583,7 @@ export const TerminalCanvas = forwardRef<TerminalCanvasHandle, TerminalCanvasPro
         const px = x * 8;
         const py = y * 16;
         ctx.fillStyle = PALETTE[cell.fg] ?? '#aaa';
-        const glyphStyle = terminalGlyphPaintStyle(cell.ch, activeFontProfile);
+        const glyphStyle = terminalGlyphPaintStyle(cell.ch, activeFontProfile, retroYOffsetRef.current);
         const glyphCenter = px + glyphStyle.glyphWidth / 2;
         const glyphY = py + glyphStyle.yOffset;
 
