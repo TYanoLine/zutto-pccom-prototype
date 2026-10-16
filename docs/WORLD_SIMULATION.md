@@ -190,6 +190,16 @@ The local simulation remains the majority prior. Jev contributes a bounded minor
 
 Advisory responses are transient operational inputs, not canonical world state. Jev probabilities are quantized to 0.05 steps before entering deterministic sampling so small provider jitter does not routinely alter retry outcomes. Once a resulting action is materialized, the database remains canonical. A future general production world engine should persist or otherwise version advisor snapshots across retry-sensitive simulation leases if advisory decisions extend beyond this bounded development materialization path.
 
+### Persona reactions and ReactionAdvisor (Spec 008)
+
+The planning of reactions/replies to human and NPC posts is completely self-contained within local deterministic statistical and probabilistic models (`PlanReactions`, `ReactionWeight`, `PickReactor`, the 6-layer rhythm engine, and the 1996 open lexicon). It requires zero LLM calls and zero network dependencies.
+
+An advisory model may optionally be attached via the `ReactionAdvisor` interface (`ReactionAdvisorEnabled`, which is **disabled by default**, `nil`):
+1. **Topic tagging fallback**: Only if deterministic lexicon scanning and anchored context fail to extract any topic from a human post, the advisor is consulted once to infer open-vocabulary topic tags.
+2. **Prior probability advice**: The advisor can provide a reply prior for top-$K$ candidates in a single batch call. The score is quantized in steps of 0.05 and blended as a bounded minority weight ($1 + \beta \cdot (\text{advice} - 0.5) \cdot 2$, with $\beta \le 0.4$), so it cannot overturn strong deterministic persona weights (SC-008).
+
+If the advisor is disabled, times out, or fails, the reaction planner falls back transparently and idempotently to neutral priors ($1.0$), ensuring simulation integrity and reproducible outcomes.
+
 ### World-selected roots and canonical subject stability
 
 The shared production pipeline uses only Situation-first planning: World fixes
