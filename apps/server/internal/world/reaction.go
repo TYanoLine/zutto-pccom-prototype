@@ -99,38 +99,6 @@ type RhythmLayer interface {
 	Factor(ctx RhythmContext) float64
 }
 
-// TopicEntry defines matching words and broader parent topic keys for one
-// open-vocabulary topic key.
-type TopicEntry struct {
-	Words   []string `yaml:"words" json:"words,omitempty"`
-	Broader []string `yaml:"broader" json:"broader,omitempty"`
-}
-
-// Lexicon holds open-vocabulary topic cues and broader-topic relations.
-type Lexicon struct {
-	Topics   map[string]TopicEntry `yaml:"topics" json:"topics,omitempty"`
-	Salience []Salience            `yaml:"salience" json:"salience,omitempty"`
-}
-
-// Broader returns the broader parent topic keys registered for topic.
-func (l *Lexicon) Broader(topic string) []string {
-	if l == nil || len(l.Topics) == 0 {
-		return nil
-	}
-	key := NormalizeTopicKey(topic)
-	entry, ok := l.Topics[key]
-	if !ok || len(entry.Broader) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(entry.Broader))
-	for _, b := range entry.Broader {
-		if nb := NormalizeTopicKey(b); nb != "" {
-			out = append(out, nb)
-		}
-	}
-	return out
-}
-
 // PlanInput bundles all deterministic inputs needed by PlanReactions.
 type PlanInput struct {
 	Host           Host
@@ -723,40 +691,6 @@ func ExtractPostTopics(post Post, lex *Lexicon) []string {
 		}
 	}
 	return out
-}
-
-// Match returns topic keys whose words appear in text. Full implementation is
-// provided in lexicon.go.
-func (l *Lexicon) Match(text string) []string {
-	if l == nil || len(l.Topics) == 0 || strings.TrimSpace(text) == "" {
-		return nil
-	}
-	lower := strings.ToLower(text)
-	keys := make([]string, 0, len(l.Topics))
-	for k := range l.Topics {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var matched []string
-	seen := map[string]bool{}
-	for _, k := range keys {
-		entry := l.Topics[k]
-		for _, w := range entry.Words {
-			w = strings.TrimSpace(w)
-			if w == "" {
-				continue
-			}
-			if strings.Contains(lower, strings.ToLower(w)) {
-				nk := NormalizeTopicKey(k)
-				if nk != "" && !seen[nk] {
-					seen[nk] = true
-					matched = append(matched, nk)
-				}
-				break
-			}
-		}
-	}
-	return matched
 }
 
 // ComposeRhythm multiplies the factors of all layers in log-space and clamps to
