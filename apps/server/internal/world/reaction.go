@@ -83,22 +83,6 @@ type Weighted struct {
 // RhythmFunc returns a persona's relative activity factor at world time t.
 type RhythmFunc func(t time.Time) float64
 
-// RhythmContext is the input to a single RhythmLayer.
-type RhythmContext struct {
-	Host      Host
-	Board     Board
-	Persona   Persona
-	Archetype string
-	At        time.Time
-}
-
-// RhythmLayer is one independent multiplicative factor in a resident's
-// activity rhythm.
-type RhythmLayer interface {
-	Name() string
-	Factor(ctx RhythmContext) float64
-}
-
 // PlanInput bundles all deterministic inputs needed by PlanReactions.
 type PlanInput struct {
 	Host           Host
@@ -691,80 +675,4 @@ func ExtractPostTopics(post Post, lex *Lexicon) []string {
 		}
 	}
 	return out
-}
-
-// ComposeRhythm multiplies the factors of all layers in log-space and clamps to
-// [RhythmMinFactor, RhythmMaxFactor] (plan 4.5).
-func ComposeRhythm(layers []RhythmLayer, ctx RhythmContext) float64 {
-	if len(layers) == 0 {
-		return 1.0
-	}
-	logSum := 0.0
-	for _, layer := range layers {
-		if layer == nil {
-			continue
-		}
-		f := layer.Factor(ctx)
-		if math.IsNaN(f) || math.IsInf(f, 0) || f <= 0 {
-			continue
-		}
-		logSum += math.Log(f)
-	}
-	return clampFloat(math.Exp(logSum), RhythmMinFactor, RhythmMaxFactor)
-}
-
-// AssignArchetype deterministically assigns a lifestyle archetype from a
-// persona's confirmed facts/occupation or a hash of its ID against memberMix (plan 4.6).
-func AssignArchetype(p Persona, facts []PersonaFact, memberMix map[string]float64) string {
-	return assignArchetypeWithData(p, facts, memberMix, nil)
-}
-
-func assignArchetypeWithData(p Persona, facts []PersonaFact, memberMix map[string]float64, occMap map[string]string) string {
-	if len(occMap) > 0 {
-		for _, f := range facts {
-			if f.PersonaID != "" && p.ID != "" && f.PersonaID != p.ID {
-				continue
-			}
-			val := strings.ToLower(strings.TrimSpace(f.Value))
-			if val == "" {
-				continue
-			}
-			for kw, arch := range occMap {
-				if strings.Contains(val, strings.ToLower(kw)) {
-					return arch
-				}
-			}
-		}
-		if occ := strings.ToLower(strings.TrimSpace(p.Occupation)); occ != "" {
-			for kw, arch := range occMap {
-				if strings.Contains(occ, strings.ToLower(kw)) {
-					return arch
-				}
-			}
-		}
-	}
-	if len(memberMix) == 0 {
-		return "office"
-	}
-	keys := make([]string, 0, len(memberMix))
-	total := 0.0
-	for k, w := range memberMix {
-		if w > 0 {
-			keys = append(keys, k)
-			total += w
-		}
-	}
-	if total <= 0 || len(keys) == 0 {
-		return "office"
-	}
-	sort.Strings(keys)
-	u := reactionUnit("archetype", p.ID) * total
-	acc := 0.0
-	for _, k := range keys {
-		acc += memberMix[k]
-		if u <= acc {
-			return k
-		}
-	}
-	return keys[len(keys)-1]
 }

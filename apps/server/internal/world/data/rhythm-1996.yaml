@@ -1,0 +1,174 @@
+# 1996 Japanese PC communication rhythm layer tables.
+# All hourly multipliers, event boosts, and archetype weights below are fictional
+# simulation tuning values, not historical statistics.
+
+# 1. Telecom tariff / Telehodai layer (23:00-08:00 JST flat-rate window started Aug 1995)
+telecom_tariff:
+  telehodai_start: "1995-08-01"
+  hourly:
+    [1.45, 1.30, 1.15, 0.95, 0.85, 0.85, 0.90, 1.00, 0.72, 0.65, 0.65, 0.68, 0.82, 0.68, 0.65, 0.68, 0.72, 0.78, 0.85, 0.95, 1.05, 1.15, 1.25, 1.65]
+
+# 2. 1996 Japanese public holidays & seasonal periods
+holidays_1996:
+  - "1996-01-01" # 元日
+  - "1996-01-15" # 成人の日
+  - "1996-02-11" # 建国記念の日
+  - "1996-02-12" # 振替休日
+  - "1996-03-20" # 春分の日
+  - "1996-04-29" # みどりの日
+  - "1996-05-03" # 憲法記念日
+  - "1996-05-04" # 国民の休日
+  - "1996-05-05" # こどもの日
+  - "1996-05-06" # 振替休日
+  - "1996-07-20" # 海の日 (1996年初施行)
+  - "1996-09-15" # 敬老の日
+  - "1996-09-16" # 振替休日
+  - "1996-09-23" # 秋分の日
+  - "1996-10-10" # 体育の日
+  - "1996-11-03" # 文化の日
+  - "1996-11-04" # 振替休日
+  - "1996-11-23" # 勤労感謝の日
+  - "1996-12-23" # 天皇誕生日
+
+seasonal_windows:
+  - name: "new_year"
+    from: "1996-01-01"
+    to: "1996-01-03"
+    day_kind: "holiday"
+    factor: 1.20
+  - name: "golden_week"
+    from: "1996-04-29"
+    to: "1996-05-06"
+    day_kind: "holiday"
+    factor: 1.18
+  - name: "obon"
+    from: "1996-08-13"
+    to: "1996-08-16"
+    day_kind: "holiday"
+    factor: 1.15
+  - name: "year_end"
+    from: "1996-12-28"
+    to: "1996-12-31"
+    day_kind: "holiday"
+    factor: 1.22
+
+# 3. World events (overall traffic modulation during major 1996 events)
+world_events:
+  - name: "pokemon_release"
+    from: "1996-02-27"
+    to: "1996-03-10"
+    factor: 1.12
+  - name: "evangelion_finale"
+    from: "1996-03-27"
+    to: "1996-04-05"
+    factor: 1.18
+  - name: "nintendo64_launch"
+    from: "1996-06-23"
+    to: "1996-06-30"
+    factor: 1.15
+  - name: "atlanta_olympics"
+    from: "1996-07-19"
+    to: "1996-08-05"
+    factor: 1.10
+
+# 4. Lifestyle archetype x day_kind (weekday / saturday / holiday) x 24-hour curves
+default_member_mix:
+  student: 0.25
+  office: 0.40
+  shift: 0.12
+  homemaker: 0.10
+  night_owl: 0.13
+
+occupation_archetypes:
+  "学生": "student"
+  "大学生": "student"
+  "高校生": "student"
+  "専門学生": "student"
+  "院生": "student"
+  "会社員": "office"
+  "システムエンジニア": "office"
+  "プログラマ": "office"
+  "事務": "office"
+  "営業": "office"
+  "公務員": "office"
+  "教員": "office"
+  "主婦": "homemaker"
+  "主夫": "homemaker"
+  "家事": "homemaker"
+  "夜勤": "shift"
+  "シフト": "shift"
+  "看護師": "shift"
+  "運転手": "shift"
+  "警備": "shift"
+  "工場": "shift"
+  "店舗": "shift"
+  "フリーランス": "night_owl"
+  "自営業": "night_owl"
+  "デザイナ": "night_owl"
+  "ライタ": "night_owl"
+  "アルバイト": "night_owl"
+
+archetypes:
+  student:
+    weekday:
+      [1.30, 0.90, 0.45, 0.20, 0.10, 0.10, 0.20, 0.35, 0.25, 0.20, 0.20, 0.25, 0.35, 0.25, 0.25, 0.40, 0.75, 1.00, 1.15, 1.25, 1.35, 1.50, 1.65, 1.85]
+    saturday:
+      [1.50, 1.20, 0.75, 0.35, 0.15, 0.12, 0.18, 0.30, 0.45, 0.70, 0.95, 1.05, 1.05, 1.15, 1.25, 1.30, 1.35, 1.30, 1.25, 1.35, 1.45, 1.60, 1.75, 1.95]
+    holiday:
+      [1.55, 1.25, 0.80, 0.40, 0.18, 0.12, 0.15, 0.25, 0.50, 0.85, 1.15, 1.25, 1.20, 1.30, 1.40, 1.45, 1.40, 1.35, 1.30, 1.35, 1.45, 1.55, 1.65, 1.80]
+
+  office:
+    weekday:
+      [1.15, 0.65, 0.25, 0.10, 0.08, 0.10, 0.25, 0.40, 0.25, 0.18, 0.15, 0.18, 0.55, 0.20, 0.15, 0.15, 0.18, 0.25, 0.45, 0.75, 1.05, 1.35, 1.55, 1.80]
+    saturday:
+      [1.35, 0.95, 0.55, 0.25, 0.12, 0.10, 0.20, 0.35, 0.60, 0.85, 1.05, 1.15, 1.10, 1.15, 1.25, 1.30, 1.30, 1.25, 1.20, 1.25, 1.40, 1.55, 1.70, 1.90]
+    holiday:
+      [1.40, 1.00, 0.60, 0.28, 0.12, 0.10, 0.18, 0.35, 0.65, 0.95, 1.20, 1.30, 1.25, 1.35, 1.45, 1.45, 1.40, 1.30, 1.25, 1.30, 1.40, 1.50, 1.60, 1.75]
+
+  homemaker:
+    weekday:
+      [0.45, 0.20, 0.10, 0.08, 0.08, 0.15, 0.30, 0.40, 0.55, 0.95, 1.35, 1.45, 1.15, 1.40, 1.50, 1.35, 0.95, 0.55, 0.40, 0.50, 0.75, 1.05, 1.15, 0.95]
+    saturday:
+      [0.55, 0.30, 0.15, 0.10, 0.08, 0.12, 0.25, 0.35, 0.50, 0.75, 0.95, 1.05, 0.95, 1.10, 1.20, 1.15, 0.95, 0.65, 0.50, 0.60, 0.85, 1.10, 1.20, 1.05]
+    holiday:
+      [0.60, 0.35, 0.18, 0.10, 0.08, 0.12, 0.22, 0.35, 0.55, 0.80, 1.05, 1.15, 1.05, 1.20, 1.30, 1.25, 1.05, 0.70, 0.55, 0.65, 0.90, 1.15, 1.20, 1.00]
+
+  shift:
+    weekday:
+      [1.10, 1.05, 0.95, 0.85, 0.75, 0.70, 0.75, 0.85, 0.90, 0.95, 1.00, 1.05, 1.00, 1.05, 1.10, 1.10, 1.05, 1.00, 0.95, 0.95, 1.00, 1.05, 1.10, 1.15]
+    saturday:
+      [1.15, 1.10, 1.00, 0.85, 0.75, 0.70, 0.75, 0.85, 0.95, 1.00, 1.05, 1.10, 1.10, 1.15, 1.15, 1.15, 1.10, 1.05, 1.00, 1.00, 1.05, 1.10, 1.15, 1.20]
+    holiday:
+      [1.15, 1.10, 1.00, 0.85, 0.75, 0.70, 0.75, 0.85, 0.95, 1.05, 1.10, 1.15, 1.15, 1.20, 1.20, 1.15, 1.10, 1.05, 1.00, 1.00, 1.05, 1.10, 1.15, 1.20]
+
+  night_owl:
+    weekday:
+      [1.85, 1.95, 1.80, 1.45, 0.95, 0.45, 0.20, 0.12, 0.10, 0.12, 0.18, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95, 1.10, 1.25, 1.45, 1.70, 1.95]
+    saturday:
+      [1.95, 2.05, 1.90, 1.55, 1.05, 0.50, 0.25, 0.15, 0.12, 0.18, 0.30, 0.45, 0.60, 0.75, 0.85, 0.95, 1.00, 1.05, 1.10, 1.20, 1.35, 1.55, 1.80, 2.05]
+    holiday:
+      [2.00, 2.10, 1.95, 1.60, 1.10, 0.55, 0.25, 0.15, 0.15, 0.22, 0.38, 0.55, 0.70, 0.85, 0.95, 1.05, 1.10, 1.10, 1.15, 1.25, 1.40, 1.60, 1.80, 2.00]
+
+# 5. Station line capacity / congestion moderation during peak hours (23:00-00:59)
+station_congestion:
+  default_line_capacity: 2
+  single_line_peak_damping: 0.78
+  multi_line_peak_boost: 1.08
+
+# 6. Persona activity_pattern temporal dispersion
+activity_patterns:
+  regular:
+    off_peak_boost: 1.12
+    peak_boost: 1.05
+  active:
+    off_peak_boost: 1.00
+    peak_boost: 1.10
+  occasional:
+    off_peak_boost: 0.88
+    peak_boost: 1.15
+  lurker:
+    off_peak_boost: 0.80
+    peak_boost: 1.05
+  dormant:
+    off_peak_boost: 0.75
+    peak_boost: 1.00
