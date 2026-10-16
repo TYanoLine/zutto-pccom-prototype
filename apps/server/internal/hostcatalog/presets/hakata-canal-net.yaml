@@ -5,7 +5,7 @@
 # Its resident definition is in the `population:` block.
 schema: 1
 key: hakata-canal-net
-revision: 6
+revision: 7
 listed: true
 role: experiment
 
@@ -102,6 +102,7 @@ detail:
         activity_weight: 0.34
         reply_rate: 1.30
         retained_root_cap: 36
+        welcomes_newcomers: true
       - path: "3"
         name: "Ｑ＆Ａ（質問ボード）"
         scope: "会員が日常の具体的な疑問や困りごとを尋ねる一般質問板。地域生活、仕事・学校、買い物、交通、食事、趣味、局の使い方など分野は幅広い。"
@@ -171,6 +172,7 @@ detail:
         activity_weight: 1.00
         reply_rate: 1.45
         retained_root_cap: 54
+        topics: { local_life: 1.0, food: 0.6 }
       - path: "10/2"
         name: "オフ会連絡"
         scope: "この局の会員によるオフ会の開催提案と、局内で既に共有された集まりの日時・集合場所・参加可否・当日連絡・終了後の忘れ物。"
@@ -185,18 +187,21 @@ detail:
         reply_rate: 1.65
         retained_root_cap: 52
         verified_referent_rate: 0.10
+        topics: { games: 1.0 }
       - path: "20/2"
         name: "ＡＮＩＭＥ／ＭＡＮＧＡ"
         scope: "アニメ、漫画、関連する雑談や感想。ゲームやPC一般は主題にしない。"
         activity_weight: 0.64
         reply_rate: 1.55
         retained_root_cap: 44
+        topics: { anime: 1.0, books: 0.3 }
       - path: "60/1"
         name: "ＰＣ－９８／ＭＯＤＥＭ"
         scope: "PC-98系機種を使ったモデム接続、通信ソフト設定、回線や接続中の問題に関する具体的な相談と経験。"
         activity_weight: 0.84
         reply_rate: 1.95
         retained_root_cap: 50
+        topics: { pc98: 1.0, modem: 0.9, telecom: 0.8, computers: 0.7 }
         unread: true
       - path: "60/2"
         name: "Ｗｉｎｄｏｗｓ／ＤＯＳ"
@@ -204,12 +209,14 @@ detail:
         activity_weight: 0.74
         reply_rate: 1.85
         retained_root_cap: 48
+        topics: { windows95: 1.0, computers: 0.8 }
       - path: "60/3"
         name: "ＳＯＦＴＷＡＲＥ／ＤＡＴＡ"
         scope: "各種アプリケーションやツールの用途・使い方、ファイル形式、データの管理・交換についての情報交流。"
         activity_weight: 0.70
         reply_rate: 1.70
         retained_root_cap: 46
+        topics: { programming: 0.8, computers: 1.0 }
         unread: true
       - path: "68/1"
         name: "深夜雑談"
@@ -217,30 +224,36 @@ detail:
         activity_weight: 0.62
         reply_rate: 2.20
         retained_root_cap: 44
+        rhythm:
+          member_mix: { night_owl: 0.45, student: 0.30, office: 0.25 }
       - path: "70/1"
         name: "ＰＣ－９８"
         scope: "PC-98系機種の利用、設定、周辺機器、ソフト利用など。"
         activity_weight: 0.67
         reply_rate: 1.85
         retained_root_cap: 46
+        topics: { pc98: 1.0, computers: 0.8 }
       - path: "70/2"
         name: "ＤＯＳ／Ｖ"
         scope: "DOS/V・AT互換機側の利用、設定、周辺機器、ソフト利用など。"
         activity_weight: 0.48
         reply_rate: 1.55
         retained_root_cap: 38
+        topics: { dosv: 1.0, computers: 0.8 }
       - path: "80/1"
         name: "ＦＭ－ＴＯＷＮＳ"
         scope: "FM TOWNS利用者の機種・ソフト・周辺機器等の情報交換。"
         activity_weight: 0.31
         reply_rate: 1.35
         retained_root_cap: 30
+        topics: { retro_tech: 1.0, computers: 0.6 }
       - path: "80/2"
         name: "Forever with MSX"
         scope: "MSX利用者の機種・ソフト・周辺機器等の情報交換。"
         activity_weight: 0.28
         reply_rate: 1.40
         retained_root_cap: 28
+        topics: { retro_tech: 1.0, computers: 0.5 }
       - path: "80/3"
         name: "ワープロ"
         scope: "ワープロ専用機や文書作成・印刷等の利用情報。"
@@ -253,3 +266,5 @@ detail:
         activity_weight: 0.26
         reply_rate: 1.25
         retained_root_cap: 26
+        topics: { retro_tech: 1.0, computers: 0.5 }
+
