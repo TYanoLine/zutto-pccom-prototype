@@ -88,9 +88,9 @@ canonical Situation / thread facts:
 文体の指針:
 - 1996年当時の草の根パソコン通信（趣味サークルや部室のような親しみやすさ）の空気感で書いてください。
 - 業務連絡やフリマのような過度に堅苦しい定型敬語（「おめでとうございます」「ご相談させてください」の連打など）は避け、会話としての生きた口語表現を使ってください。
-- 投稿者の文体特徴や感情に合わせて、適度に口語の崩し（「〜ですねー」「〜かも」「おおっ」等）や当時の感情表現（(笑)、(^^;、(爆) 等）を自然に交えてください。
+- 口語の崩し方や当時の感情表現（(笑)、(^^;、(爆) 等）を使うか、どれを使うかは、投稿者の文体特徴に任せてください。特定の語尾や顔文字を全員が使う必要はありません。
 - 相手との関係性（初対面か、親しい常連仲間か）に応じた自然な距離感で応じてください。
-- スレッドに先行する他の発言や返信がある場合は、スレッド全体の会話の流れを踏まえて自然に書き込んでください。先行する他の返信者と同じ定型的な挨拶を単にオウム返しするのではなく、既に挨拶や発言が交わされている場の空気を感じ取り、先行発言者の話題に触れたり、自分の個性を出したりして、自然な会話のキャッチボールやつながりを意識してください。
+- スレッドに先行する他の発言や返信がある場合は、スレッド全体の会話の流れを踏まえて自然に書き込んでください。先行する他の返信者と同じ定型的な挨拶を単にオウム返しするのではなく、先行発言の言い換えや同意の繰り返しは避けてください。同意するだけで終わらず、自分の体験や具体的な事例、疑問、別の見方や反対意見、小さな訂正、少し脱線した余談など、この人らしく自然なものを自分で選んで加えてください。短い一言だけの返信でも、先行返信と結論が同じなら書かない部分があっても構いません。
 - 返信の際、親記事や先行発言の文章に言及したい部分がある場合は、必要に応じて本文冒頭などに「>」を付けて自然に引用し、それに対する返信を続けてください。結びの挨拶（「よろしくお願いします」等）だけの引用や機械的な全文引用は避け、言及したい核心部分だけを引用するか、引用なしで直接返答しても構いません。
 - 当時の80桁端末（全角40文字画面）で読みやすいよう、1行の長さは全角30〜35文字程度を目安とし、句点（。）やキリの良い文節で自然に改行を入れてください。改行を入れずに画面端で機械的に折り返される長大な行や、逆に15文字前後の極端に細切れなポエム調改行の多用は避けてください。
 
@@ -159,13 +159,43 @@ func truncateThreadBody(body string, maxRunes int) string {
 	return string(runes[:maxRunes]) + "..."
 }
 
+// threadContextRecentReplies bounds how many non-root predecessors are shown
+// verbatim. Showing every earlier reply lets a long thread collapse into
+// restatements of its first answer.
+const threadContextRecentReplies = 3
+
 func formatThreadContext(thread []ThreadPostContext) string {
 	if len(thread) == 0 {
 		return ""
 	}
+	keep := make([]bool, len(thread))
+	var others []int
+	for i, post := range thread {
+		if post.IsRoot || i == 0 {
+			keep[i] = true
+			continue
+		}
+		others = append(others, i)
+	}
+	omitted := 0
+	if len(others) > threadContextRecentReplies {
+		omitted = len(others) - threadContextRecentReplies
+		others = others[omitted:]
+	}
+	for _, i := range others {
+		keep[i] = true
+	}
 	var b strings.Builder
 	b.WriteString("スレッドの文脈（これまでの発言の流れ・時系列）:\n")
+	skippedNoted := false
 	for i, post := range thread {
+		if !keep[i] {
+			if !skippedNoted {
+				fmt.Fprintf(&b, "（間の返信 %d 件は省略。同様の趣旨の発言が続いています）\n\n", omitted)
+				skippedNoted = true
+			}
+			continue
+		}
 		role := ""
 		if post.IsRoot {
 			role = " (親記事/スレッド起点)"

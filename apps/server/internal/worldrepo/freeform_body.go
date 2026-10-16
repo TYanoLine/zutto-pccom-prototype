@@ -2,6 +2,7 @@ package worldrepo
 
 import (
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,13 +71,16 @@ func freeformPersonaSummary(p world.Persona) string {
 	} else if p.Age > 0 {
 		traits = append(traits, fmt.Sprintf("年齢: %d歳", p.Age))
 	}
-	if strings.TrimSpace(p.WritingStyle) != "" {
-		traits = append(traits, fmt.Sprintf("文体・口調: %s", strings.TrimSpace(p.WritingStyle)))
+	if style := strings.TrimSpace(p.WritingStyle); style != "" {
+		traits = append(traits, fmt.Sprintf("文体・口調: %s", style))
+	} else if voice := derivedVoice(p); voice != "" {
+		traits = append(traits, fmt.Sprintf("文体・口調: %s", voice))
 	}
+	// Nearly every resident has low Argumentativeness, so a "gentle, agreeable"
+	// line for the low end only made everyone sound alike; only the distinctive
+	// high end is described.
 	if p.Argumentativeness >= 0.7 {
 		traits = append(traits, "性格・傾向: 自分のこだわりや論理をはっきり述べる傾向がある")
-	} else if p.Argumentativeness > 0 && p.Argumentativeness <= 0.3 {
-		traits = append(traits, "性格・傾向: 穏やかで和やか。相手の意見に共感しやすく角を立てない")
 	}
 	if p.NewcomerOpenness >= 0.7 {
 		traits = append(traits, "態度: 初対面や新参者にも親切で歓迎的")
@@ -105,4 +109,51 @@ func freeformPersonaSummary(p world.Persona) string {
 		return strings.Join(traits, "\n") + "\n" + rawMeta
 	}
 	return rawMeta
+}
+
+
+// Dimensions of a resident's writing voice. A voice is a pure function of the
+// persona ID, so it is stable across regenerations and applies equally to
+// residents persisted before this existed; nothing is stored or mutated. Each
+// dimension is chosen by an independent slice of the hash so combinations vary.
+var (
+	voiceRegisters = []string{
+		"です・ます調を崩さない丁寧な書き方",
+		"です・ますを基本に、ところどころ砕ける",
+		"「〜だよ」「〜じゃないかな」など友人に話すような砕けた口調",
+		"ぶっきらぼうで言い切りが多い。愛想の言葉は少ない",
+		"控えめで「〜でしょうか」「〜かもしれません」と断定を避ける",
+		"くだけた常連口調で、ツッコミや軽い冗談を挟む",
+	}
+	voiceLengths = []string{
+		"文は短く切る。一言二言でも書き込む",
+		"普通の長さで、要点を順に書く",
+		"前置きや経緯をしっかり書いてから本題に入る",
+		"結論を先に書き、理由は後から短く足す",
+	}
+	voiceMarks = []string{
+		"顔文字や(笑)は使わない",
+		"(笑)をよく使う",
+		"(^^;や(^_^;)をときどき使う",
+		"感情表現は使っても(^^)程度で控えめ",
+		"文末の「！」や「…」で気持ちを出す",
+		"顔文字は使わず、言葉の選び方で感情を出す",
+	}
+)
+
+func derivedVoice(p world.Persona) string {
+	key := strings.TrimSpace(p.ID)
+	if key == "" {
+		key = strings.ToLower(strings.TrimSpace(p.Handle))
+	}
+	if key == "" {
+		return ""
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte("voice|" + key))
+	sum := h.Sum64()
+	return voiceRegisters[int(sum%uint64(len(voiceRegisters)))] + "。" +
+		voiceLengths[int((sum>>16)%uint64(len(voiceLengths)))] + "。" +
+		voiceMarks[int((sum>>32)%uint64(len(voiceMarks)))] + "。" +
+		"語尾や言い回しは他の人と揃えず、この人らしい癖を自分で決めてよい。"
 }
