@@ -444,3 +444,58 @@ func TestStorePersistsResidentLines(t *testing.T) {
 		t.Fatalf("old utterance = %+v", old)
 	}
 }
+
+func TestStorePersistsReactionPlans(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	store, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, _ := store.HostByPhone(genericPersistPhone)
+	plannedAt := time.Date(1996, 10, 15, 23, 30, 0, 0, time.UTC)
+	plan := world.ReactionPlan{
+		TargetPostID: 1005,
+		BoardID:      "4",
+		Ordinal:      3,
+		PlannedAt:    plannedAt,
+		Replies: []world.PlannedReaction{
+			{Index: 1, PersonaID: "p-1", DueAt: plannedAt.Add(12 * time.Minute), Advice: 0.65, MaterializedPostID: 1006},
+			{Index: 2, PersonaID: "p-2", DueAt: plannedAt.Add(35 * time.Minute)},
+		},
+	}
+	store.SaveReactionPlan(host.ID, plan)
+
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := restored.ReactionPlan(host.ID, 1005)
+	if !ok || got.BoardID != "4" || got.Ordinal != 3 || len(got.Replies) != 2 || got.Replies[0].MaterializedPostID != 1006 {
+		t.Fatalf("restored reaction plan = %+v (ok=%v)", got, ok)
+	}
+}
+
+func TestOldSnapshotWithoutReactionPlansStillLoads(t *testing.T) {
+	ctx := context.Background()
+	backend := &fakeBackend{}
+	base := newPersistBase()
+	host, _ := base.HostByPhone(genericPersistPhone)
+	snap, _ := base.DevelopmentSnapshot(genericPersistPhone)
+	data, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), `"reaction_plans"`) {
+		t.Fatal("an empty reaction_plans list must not appear in the snapshot")
+	}
+	backend.data = map[string][]byte{host.ID: data}
+	restored, err := newStore(ctx, newPersistBase(), []HostTarget{{Phone: genericPersistPhone}}, backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := restored.ListReactionPlans(host.ID, ""); len(got) != 0 {
+		t.Fatalf("reaction plans = %+v", got)
+	}
+}
+

@@ -64,16 +64,19 @@ type ErikaKTexts struct {
 // display order. Key and parent are derived from Path ("10/1" is board 1 under
 // forum 10).
 type ErikaKBoard struct {
-	Path                 string  `yaml:"path"`
-	Alias                string  `yaml:"alias"`
-	Name                 string  `yaml:"name"`
-	Hidden               bool    `yaml:"hidden"`
-	Scope                string  `yaml:"scope"`
-	RootAuthorPolicy     string  `yaml:"root_author_policy"`
-	ActivityWeight       float64 `yaml:"activity_weight"`
-	ReplyRate            float64 `yaml:"reply_rate"`
-	RetainedRootCap      int     `yaml:"retained_root_cap"`
-	VerifiedReferentRate float64 `yaml:"verified_referent_rate"`
+	Path                 string             `yaml:"path"`
+	Alias                string             `yaml:"alias"`
+	Name                 string             `yaml:"name"`
+	Hidden               bool               `yaml:"hidden"`
+	Scope                string             `yaml:"scope"`
+	RootAuthorPolicy     string             `yaml:"root_author_policy"`
+	ActivityWeight       float64            `yaml:"activity_weight"`
+	ReplyRate            float64            `yaml:"reply_rate"`
+	RetainedRootCap      int                `yaml:"retained_root_cap"`
+	VerifiedReferentRate float64            `yaml:"verified_referent_rate"`
+	Topics               map[string]float64 `yaml:"topics"`
+	WelcomesNewcomers    bool               `yaml:"welcomes_newcomers"`
+	Rhythm               BoardRhythm        `yaml:"rhythm"`
 	// Unread marks the board as having unread messages in the station's fixed
 	// prototype display, until real read state exists.
 	Unread bool `yaml:"unread"`
@@ -83,6 +86,40 @@ var (
 	boardPathPattern   = regexp.MustCompile(`^[0-9]+(/[0-9]+)*$`)
 	placeholderPattern = regexp.MustCompile(`\{[^}]*\}`)
 )
+
+func validateWeightMap(field, boardPath string, m map[string]float64) error {
+	if len(m) == 0 {
+		return nil
+	}
+	var errs []error
+	sum := 0.0
+	for k, w := range m {
+		if strings.TrimSpace(k) == "" {
+			errs = append(errs, fmt.Errorf("%s (board %q): empty key is not allowed", field, boardPath))
+			continue
+		}
+		if math.IsNaN(w) || math.IsInf(w, 0) || w < 0 {
+			errs = append(errs, fmt.Errorf("%s.%s (board %q): %v must not be negative", field, k, boardPath, w))
+			continue
+		}
+		sum += w
+	}
+	if len(errs) == 0 && sum <= 0 {
+		errs = append(errs, fmt.Errorf("%s (board %q): weight sum must be greater than 0", field, boardPath))
+	}
+	return errors.Join(errs...)
+}
+
+func validateStationRhythm(r StationRhythm) error {
+	var errs []error
+	if r.LineCapacity < 0 {
+		errs = append(errs, fmt.Errorf("line_capacity: %d must not be negative", r.LineCapacity))
+	}
+	if err := validateWeightMap("member_mix", "station", r.MemberMix); err != nil {
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
 
 // validateErikaKDetail checks the structure of an Erika-K detail. How wide a
 // line may be on screen is checked by the erikak package (ValidateDetail).
@@ -182,6 +219,8 @@ func validateErikaKDetail(d *ErikaKDetail) error {
 		if math.IsNaN(b.VerifiedReferentRate) || b.VerifiedReferentRate < 0 || b.VerifiedReferentRate > 1 {
 			add(field+".verified_referent_rate", fmt.Errorf("%v must be between 0 and 1", b.VerifiedReferentRate))
 		}
+		add(field+".topics", validateWeightMap("topics", b.Path, b.Topics))
+		add(field+".rhythm.member_mix", validateWeightMap("rhythm.member_mix", b.Path, b.Rhythm.MemberMix))
 	}
 	return errors.Join(errs...)
 }

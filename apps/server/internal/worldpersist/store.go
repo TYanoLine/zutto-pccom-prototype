@@ -252,6 +252,13 @@ func (s *Store) SaveBoardActivityState(hostID string, state world.BoardActivityS
 	s.MemoryStore.SaveBoardActivityState(hostID, state)
 }
 
+func (s *Store) SaveReactionPlan(hostID string, plan world.ReactionPlan) {
+	s.MemoryStore.SaveReactionPlan(hostID, plan)
+	if target, ok := s.targets[hostID]; ok {
+		s.persistTargetOrMarkBatchDirty(target)
+	}
+}
+
 func (s *Store) SavePersona(persona world.Persona) {
 	s.MemoryStore.SavePersona(persona)
 	// New personas are normally followed by AddMembership, which persists the
@@ -330,6 +337,7 @@ func (s *Store) ClearPersonaFacts(personaIDs []string) int {
 var (
 	_ world.InteractionLedgerStore = (*Store)(nil)
 	_ world.RelationshipStore      = (*Store)(nil)
+	_ world.ReactionPlanStore      = (*Store)(nil)
 )
 
 func (s *Store) AppendInteractionEvent(event world.InteractionEvent) error {

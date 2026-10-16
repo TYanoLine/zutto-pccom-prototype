@@ -13,6 +13,7 @@ type DevelopmentHostSnapshot struct {
 	Host          Host                     `json:"host"`
 	Boards        []Board                  `json:"boards"`
 	BoardActivity []BoardActivityState     `json:"board_activity,omitempty"`
+	ReactionPlans []ReactionPlan           `json:"reaction_plans,omitempty"`
 	Posts         []Post                   `json:"posts"`
 	Personas      []Persona                `json:"personas"`
 	PersonaFacts  map[string][]PersonaFact `json:"persona_facts"`
@@ -64,6 +65,7 @@ func (s *MemoryStore) DevelopmentSnapshot(phone string) (DevelopmentHostSnapshot
 		Host:          host,
 		Boards:        boards,
 		BoardActivity: s.listBoardActivityStatesLocked(host.ID),
+		ReactionPlans: s.listReactionPlansLocked(host.ID),
 		Posts:         posts,
 		Personas:      personas,
 		PersonaFacts:  facts,
@@ -96,6 +98,10 @@ func (s *MemoryStore) RestoreDevelopmentSnapshot(snapshot DevelopmentHostSnapsho
 	s.boardActivity[hostID] = map[string]BoardActivityState{}
 	for _, state := range snapshot.BoardActivity {
 		s.boardActivity[hostID][state.BoardID] = state
+	}
+	s.reactionPlans[hostID] = map[int64]ReactionPlan{}
+	for _, plan := range snapshot.ReactionPlans {
+		s.reactionPlans[hostID][plan.TargetPostID] = cloneReactionPlan(plan)
 	}
 
 	posts := make([]Post, len(snapshot.Posts))
@@ -139,6 +145,18 @@ func (s *MemoryStore) listBoardActivityStatesLocked(hostID string) []BoardActivi
 	return out
 }
 
+func (s *MemoryStore) listReactionPlansLocked(hostID string) []ReactionPlan {
+	plans := s.reactionPlans[hostID]
+	if len(plans) == 0 {
+		return nil
+	}
+	out := make([]ReactionPlan, 0, len(plans))
+	for _, plan := range plans {
+		out = append(out, cloneReactionPlan(plan))
+	}
+	return out
+}
+
 func clonePersona(persona Persona) Persona {
 	persona.EverydayContext = append([]string(nil), persona.EverydayContext...)
 	persona.Interests = cloneFloatMap(persona.Interests)
@@ -158,6 +176,7 @@ func cloneFloatMap(in map[string]float64) map[string]float64 {
 }
 
 func clonePost(post Post) Post {
+	post.Intent.Topics = append([]string(nil), post.Intent.Topics...)
 	post.Intent.SituationFacts = append([]string(nil), post.Intent.SituationFacts...)
 	post.Intent.Claims = append([]string(nil), post.Intent.Claims...)
 	post.Intent.RespondsToClaims = append([]string(nil), post.Intent.RespondsToClaims...)

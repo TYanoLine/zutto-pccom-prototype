@@ -184,19 +184,31 @@ func TestErikaKBoardFieldsAreChecked(t *testing.T) {
 		"negative reply":   {`{path: "1", name: "A", reply_rate: -1}`, "reply_rate"},
 		"negative cap":     {`{path: "1", name: "A", retained_root_cap: -1}`, "retained_root_cap"},
 		"referent too big": {`{path: "1", name: "A", verified_referent_rate: 1.5}`, "verified_referent_rate"},
+		"negative topic":   {`{path: "1", name: "A", topics: {computers: -0.5}}`, "topics"},
+		"zero sum topics":  {`{path: "1", name: "A", topics: {computers: 0, games: 0}}`, "topics"},
+		"negative mix":     {`{path: "1", name: "A", rhythm: {member_mix: {student: -0.2}}}`, "rhythm.member_mix"},
+		"zero sum mix":     {`{path: "1", name: "A", rhythm: {member_mix: {student: 0}}}`, "rhythm.member_mix"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			requireErikaKError(t, "\ndetail:\n  erika_k:\n    boards:\n      - "+tc.board+"\n", tc.want)
 		})
 	}
-	// The allowed edge values are accepted.
-	mustParseErikaK(t, `
+	// The allowed edge values and open-vocabulary topics are accepted.
+	d := mustParseErikaK(t, `
+rhythm:
+  line_capacity: 3
+  member_mix:
+    student: 0.30
+    office: 0.70
 detail:
   erika_k:
     boards:
-      - {path: "1", name: "A", root_author_policy: "sysop_only", verified_referent_rate: 1}
+      - {path: "1", name: "A", root_author_policy: "sysop_only", verified_referent_rate: 1, welcomes_newcomers: true, topics: {custom_open_topic_96: 0.8, local_life: 0.2}, rhythm: {member_mix: {night_owl: 0.6, student: 0.4}}}
       - {path: "2", name: "B", activity_weight: 0, reply_rate: 0, retained_root_cap: 0, verified_referent_rate: 0}
 `)
+	if !d.Boards[0].WelcomesNewcomers || d.Boards[0].Topics["custom_open_topic_96"] != 0.8 || d.Boards[0].Rhythm.MemberMix["night_owl"] != 0.6 {
+		t.Fatalf("board 0 reaction/rhythm fields not parsed: %+v", d.Boards[0])
+	}
 }
 
 func TestErikaKTextsRejectControlCharacters(t *testing.T) {

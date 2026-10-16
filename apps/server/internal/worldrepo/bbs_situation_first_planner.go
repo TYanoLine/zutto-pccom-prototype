@@ -359,16 +359,21 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 		if subject == "" {
 			return nil, fmt.Errorf("situation title planner omitted %s", seed.eventID)
 		}
+		topics := append([]string(nil), state.draft.Topics...)
+		if len(topics) > 5 {
+			topics = topics[:5]
+		}
 		out = append(out, bbsengine.PlannedPost{
-			SlotIndex:        seed.slot.Index,
-			Subject:          subject,
-			Topic:            state.draft.ObjectClass,
-			Motivation:       "world_selected_situation",
-			Goal:             productionPostGoal,
-			AnchorKey:        seed.anchorKey,
-			SituationKind:    seed.kind,
-			SituationSummary: state.summary,
-			SituationFacts:   state.facts,
+			SlotIndex:                  seed.slot.Index,
+			Subject:                    subject,
+			Topic:                      state.draft.ObjectClass,
+			Topics:                     topics,
+			Motivation:                 "world_selected_situation",
+			Goal:                       productionPostGoal,
+			AnchorKey:                  seed.anchorKey,
+			SituationKind:              seed.kind,
+			SituationSummary:           state.summary,
+			SituationFacts:             state.facts,
 			ArticleDetailsMaterialized: true,
 		})
 	}

@@ -96,6 +96,9 @@ type Repository struct {
 	chatTalk chatTalk
 	// lineTalk is the residents' line messages to human callers (spec 018).
 	lineTalk lineTalk
+
+	reactionAdvisorMu sync.RWMutex
+	reactionAdvisor   world.ReactionAdvisor
 }
 
 func New(base world.Store, engine EvidenceResolver, materializer Materializer, worldDate string) *Repository {
@@ -243,6 +246,7 @@ func (r *Repository) ActorMemoryIndex() *actormemory.Index {
 func (r *Repository) AddPost(hostID string, p world.Post) world.Post {
 	saved := r.Base.AddPost(hostID, p)
 	r.recordPostInteraction(hostID, saved)
+	r.planHumanPostReactions(hostID, saved)
 	r.indexerMu.RLock()
 	ix := r.indexer
 	r.indexerMu.RUnlock()

@@ -155,6 +155,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 	defer func() {
 		log.Printf("BBS timing: host=%s board=%s phase=header_materialize_total duration=%s", host.ID, board.ID, time.Since(started))
 	}()
+	r.materializeDueReactions(host, board)
 	// Real hosts share the World-owned on-demand BBS engine.
 
 	if r.sharedBBSArticleEngineEnabled(host) && r.bbsArticles != nil {
@@ -196,6 +197,7 @@ func (r *Repository) materializeObservedBoardHeaders(host world.Host, board worl
 // job. Callers that bypass CONNECT (tests/tools) safely start that one board on
 // demand.
 func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, board world.Board) ([]world.Post, error) {
+	r.materializeDueReactions(host, board)
 	// Existing canonical history is immediately readable for every real host.
 	// Background catch-up may add a new batch later, but host-program navigation
 	// never waits merely because the shared article engine is extending history.
@@ -224,6 +226,7 @@ func (r *Repository) WaitForBoardHeaders(ctx context.Context, host world.Host, b
 			return nil, ctx.Err()
 		}
 	}
+	r.materializeDueReactions(host, board)
 	return filterBoard(r.Base.ListPosts(host.ID), board.ID), nil
 }
 
@@ -248,6 +251,7 @@ func (r *Repository) forgetFailedBoardObservation(hostID, boardID string, job *o
 // first; the other waiter re-checks canonical state and then renders only what is
 // still missing. This preserves causal root->reply prose order.
 func (r *Repository) WaitForArticleBody(ctx context.Context, host world.Host, board world.Board, postID int64) (world.Post, bool, error) {
+	r.materializeDueReactions(host, board)
 	if _, err := r.WaitForBoardHeaders(ctx, host, board); err != nil {
 		return world.Post{}, false, err
 	}

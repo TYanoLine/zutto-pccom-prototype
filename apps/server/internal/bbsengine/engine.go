@@ -48,19 +48,20 @@ type BatchRequest struct {
 }
 
 type PlannedPost struct {
-	SlotIndex        int
-	Subject          string
-	Topic            string
-	Motivation       string
-	Stance           string
-	Goal             string
-	AnchorKey        string
-	DiscourseMode    string
-	SituationKind    string
-	SituationSummary string
-	SituationFacts   []string
+	SlotIndex                  int
+	Subject                    string
+	Topic                      string
+	Topics                     []string
+	Motivation                 string
+	Stance                     string
+	Goal                       string
+	AnchorKey                  string
+	DiscourseMode              string
+	SituationKind              string
+	SituationSummary           string
+	SituationFacts             []string
 	ArticleDetailsMaterialized bool
-	Claims           []string
+	Claims                     []string
 }
 
 type BatchPlanner interface {
@@ -155,7 +156,7 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUp(ctx, host, board, false, 0, 0, -1, nil)
+	return e.catchUp(ctx, host, board, false, 0, 0, 0, nil)
 }
 
 // CatchUpInitial materializes one batch immediately when this board has no
@@ -163,14 +164,68 @@ func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board
 // reset flows so testers can inspect the current generator without waiting for the
 // normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
 func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUpInitial(ctx, host, board, 0, 0, -1, nil)
+	return e.catchUpInitial(ctx, host, board, 0, 0, 0, nil)
 }
 
 // CatchUpInitialCount is the explicit-development variant of CatchUpInitial.
 // It lets generator-evaluation fixtures request a larger first materialization
 // without changing normal world cadence or MaxBatchSize.
 func (e *Engine) CatchUpInitialCount(ctx context.Context, host world.Host, board world.Board, count int) error {
-	return e.catchUpInitial(ctx, host, board, count, 0, -1, nil)
+	if count <= 0 {
+		return nil
+	}
+	if count == 1 {
+		return e.catchUpInitial(ctx, host, board, 1, 0, 0, nil)
+	}
+	quotas := quotasForTotalSlotTarget(host, board, count)
+	return e.catchUpInitial(ctx, host, board, len(quotas), 0, 0, quotas)
+}
+
+func quotasForTotalSlotTarget(host world.Host, board world.Board, totalSlots int) []int {
+	if totalSlots <= 0 {
+		return nil
+	}
+	replyRate := effectiveBoardReplyRate(board)
+	maxRepliesPerRoot := (totalSlots - 1) / 2
+	if maxRepliesPerRoot < 1 {
+		maxRepliesPerRoot = 1
+	}
+	var quotas []int
+	used := 0
+	totalReplies := 0
+	for used < totalSlots {
+		ordinal := len(quotas) + 1
+		used++ // 1 root slot
+		remaining := totalSlots - used
+		q := 0
+		if remaining > 0 && replyRate > 0 {
+			q = world.ThreadReplyCount(host.ID, board.ID, ordinal, replyRate)
+			if q > maxRepliesPerRoot {
+				q = maxRepliesPerRoot
+			}
+			if q > remaining {
+				q = remaining
+			}
+		}
+		quotas = append(quotas, q)
+		used += q
+		totalReplies += q
+	}
+	if totalReplies == 0 && len(quotas) >= 2 && replyRate > 0 {
+		quotas = quotas[:len(quotas)-1]
+		quotas[0] = 1
+	}
+	return quotas
+}
+
+func effectiveBoardReplyRate(board world.Board) float64 {
+	if board.RootAuthorPolicy == "sysop_only" && board.ReplyRate <= 0 {
+		return 0
+	}
+	if board.ReplyRate > 0 {
+		return board.ReplyRate
+	}
+	return 1.10
 }
 
 // CatchUpInitialRootHistoryCount is the explicit-development history variant.
@@ -182,7 +237,12 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 	if rootCount <= 0 {
 		return nil
 	}
-	return e.catchUpInitial(ctx, host, board, slotCountForRootTarget(rootCount), lookback, -1, nil)
+	replyRate := effectiveBoardReplyRate(board)
+	quotas := make([]int, rootCount)
+	for i := range quotas {
+		quotas[i] = world.ThreadReplyCount(host.ID, board.ID, i+1, replyRate)
+	}
+	return e.catchUpInitial(ctx, host, board, rootCount, lookback, 0, quotas)
 }
 
 // InteractiveInitialRootLimit bounds the title work required by a first
@@ -234,39 +294,203 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas)
 }
 
-func slotCountForRootTarget(rootCount int) int {
-	if rootCount <= 0 {
-		return 0
-	}
-	slots, roots := 0, 0
-	for roots < rootCount {
-		slots++
-		// planSlots uses every fourth event as a reply once an earlier root exists.
-		if slots%4 != 0 {
-			roots++
-		}
-	}
-	return slots
-}
-
 func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
-		if post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup {
-			return e.catchUp(ctx, host, board, false, 0, 0, -1, nil)
+		if (post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup) && post.Intent.CauseKind != "persona_reaction" {
+			return e.catchUp(ctx, host, board, false, 0, 0, 0, nil)
 		}
 	}
 	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas)
 }
 
+// MaterializeDueReactions creates header-only reply posts for any PlannedReaction
+// on board whose DueAt <= worldNow and MaterializedPostID == 0. It is idempotent
+// and never calls the LLM BatchPlanner.
+func (e *Engine) MaterializeDueReactions(host world.Host, board world.Board, now time.Time) int {
+	if e == nil || e.Store == nil || strings.TrimSpace(host.ID) == "" || strings.TrimSpace(board.ID) == "" {
+		return 0
+	}
+	planStore, ok := e.Store.(world.ReactionPlanStore)
+	if !ok {
+		return 0
+	}
+	plans := planStore.ListReactionPlans(host.ID, board.ID)
+	if len(plans) == 0 {
+		return 0
+	}
+	allPosts := e.Store.ListPosts(host.ID)
+	postsByID := make(map[int64]world.Post, len(allPosts))
+	byEventID := make(map[string]world.Post)
+	for _, p := range allPosts {
+		postsByID[p.ID] = p
+		if p.Intent.ProducerEventID != "" {
+			byEventID[p.Intent.ProducerEventID] = p
+		}
+	}
+	personaByID := map[string]world.Persona{}
+	for _, p := range e.personasForReactionPlanning(host, board, allPosts, now) {
+		personaByID[p.ID] = p
+	}
+
+	created := 0
+	for _, plan := range plans {
+		targetPost, exists := postsByID[plan.TargetPostID]
+		if !exists {
+			continue
+		}
+		changed := false
+		for i := range plan.Replies {
+			rep := &plan.Replies[i]
+			if rep.MaterializedPostID != 0 {
+				continue
+			}
+			if rep.DueAt.After(now) {
+				continue
+			}
+			eventID := fmt.Sprintf("react:%d:%d", plan.TargetPostID, rep.Index)
+			if existing, dup := byEventID[eventID]; dup {
+				rep.MaterializedPostID = existing.ID
+				changed = true
+				continue
+			}
+
+			persona, hasP := personaByID[rep.PersonaID]
+			handle := strings.TrimSpace(persona.Handle)
+			if !hasP || handle == "" {
+				handle = rep.PersonaID
+			}
+
+			parentID := targetPost.ID
+			subject := ""
+			if e.ReplyProjector != nil {
+				if projected, err := e.ReplyProjector.ProjectReply(host, targetPost, ""); err == nil {
+					parentID = projected.ParentID
+					subject = strings.TrimSpace(projected.Subject)
+				}
+			}
+
+			topics := world.ExtractPostTopics(targetPost, world.DefaultLexicon())
+			topicStr := targetPost.Intent.Topic
+			if topicStr == "" && len(topics) > 0 {
+				topicStr = topics[0]
+			}
+			if topicStr == "" {
+				topicStr = strings.TrimSpace(targetPost.Subject)
+			}
+			summary := fmt.Sprintf("%sの投稿「%s」に対する%sからの返信", targetPost.Author, targetPost.Subject, handle)
+
+			saved := e.Store.AddPost(host.ID, world.Post{
+				BoardID:         board.ID,
+				ParentID:        parentID,
+				Author:          handle,
+				AuthorPersonaID: rep.PersonaID,
+				Subject:         subject,
+				Body:            "",
+				CreatedAt:       rep.DueAt,
+				Intent: world.PostIntent{
+					Action:                     ActionWorldCatchup,
+					AnchorKey:                  targetPost.Intent.AnchorKey,
+					CauseKind:                  "persona_reaction",
+					DiscourseMode:              "reply",
+					SourcePostID:               targetPost.ID,
+					RespondsToPostID:           targetPost.ID,
+					ProducerEventID:            eventID,
+					Topic:                      topicStr,
+					Topics:                     topics,
+					SituationKind:              "reply",
+					SituationSummary:           summary,
+					ArticleDetailsMaterialized: true,
+					SituationFacts: []string{
+						fmt.Sprintf("responds_to_post_id=%d", targetPost.ID),
+						"world_adopted_summary=" + summary,
+					},
+				},
+			})
+			rep.MaterializedPostID = saved.ID
+			postsByID[saved.ID] = saved
+			byEventID[eventID] = saved
+			changed = true
+			created++
+		}
+		if changed {
+			planStore.SaveReactionPlan(host.ID, plan)
+		}
+	}
+	return created
+}
+
+func (e *Engine) personasForReactionPlanning(host world.Host, board world.Board, recent []world.Post, at time.Time) []world.Persona {
+	if source, ok := e.Store.(personaSource); ok {
+		if personas := source.ListHostPersonas(host.ID); len(personas) > 0 {
+			return personas
+		}
+	}
+	// Fallback: only used when PersonaStore has no resident personas for this host
+	// (e.g., synthetic unit-test hosts that only seed raw posts).
+	actors := e.actorRoster(host, board, recent, at)
+	out := make([]world.Persona, 0, len(actors))
+	for i, a := range actors {
+		id := a.personaID
+		if id == "" {
+			id = fmt.Sprintf("%s:actor-%02d", host.ID, i+1)
+		}
+		out = append(out, world.Persona{
+			ID:              id,
+			Handle:          a.handle,
+			ActivityPattern: "active",
+			ReplyTendency:   0.65,
+		})
+	}
+	return out
+}
+
+func (e *Engine) planReactionsForRoot(host world.Host, board world.Board, rootPost world.Post, ordinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact) {
+	if e == nil || e.Store == nil || !world.IsSemanticRoot(rootPost) {
+		return
+	}
+	planStore, ok := e.Store.(world.ReactionPlanStore)
+	if !ok {
+		return
+	}
+	if _, exists := planStore.ReactionPlan(host.ID, rootPost.ID); exists {
+		return
+	}
+	if len(personas) == 0 {
+		return
+	}
+	replyRate := effectiveBoardReplyRate(board)
+	plan := world.PlanReactions(world.PlanInput{
+		Host:           host,
+		Board:          board,
+		TargetPost:     rootPost,
+		Ordinal:        ordinal,
+		ReplyRate:      replyRate,
+		PlannedAt:      rootPost.CreatedAt,
+		Personas:       personas,
+		FactsByPersona: factsByPersona,
+		BoardPrior:     board.Topics,
+		Thread: world.ThreadState{
+			StarterPersonaID: rootPost.AuthorPersonaID,
+			ParentPersonaID:  rootPost.AuthorPersonaID,
+			LastPersonaID:    rootPost.AuthorPersonaID,
+		},
+	})
+	planStore.SaveReactionPlan(host.ID, plan)
+}
+
 func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
-	if e == nil || e.Store == nil || e.Planner == nil {
+	if e == nil || e.Store == nil {
 		return nil
 	}
 	now := e.currentTime()
+	e.MaterializeDueReactions(host, board, now)
+	if e.Planner == nil {
+		return nil
+	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	cursor := latestCursor(boardPosts)
 	if !ignoreCadence && !cursor.IsZero() {
@@ -341,6 +565,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		defer batchStore.EndPostBatch(host.ID)
 	}
 
+	var newRoots []world.Post
 	persistedBySlot := make(map[int]world.Post, len(slots))
 	for _, slot := range slots {
 		draft, ok := bySlot[slot.Index]
@@ -421,7 +646,11 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			discourseMode = "thread_start"
 		}
 
-		saved := e.Store.AddPost(host.ID, world.Post{
+		draftTopics := draft.Topics
+		if len(draftTopics) > 5 {
+			draftTopics = draftTopics[:5]
+		}
+		candidatePost := world.Post{
 			BoardID:         board.ID,
 			ParentID:        parentID,
 			Author:          slot.Author,
@@ -429,25 +658,54 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			Subject:         subject,
 			Body:            "",
 			Intent: world.PostIntent{
-				Action:           ActionWorldCatchup,
-				AnchorKey:        strings.TrimSpace(draft.AnchorKey),
-				CauseKind:        "board_activity_window",
-				DiscourseMode:    discourseMode,
-				SourcePostID:     responseToID,
-				SituationKind:    situationKind,
-				SituationSummary: draft.SituationSummary,
-				SituationFacts:   situationFacts,
+				Action:                     ActionWorldCatchup,
+				AnchorKey:                  strings.TrimSpace(draft.AnchorKey),
+				CauseKind:                  "board_activity_window",
+				DiscourseMode:              discourseMode,
+				SourcePostID:               responseToID,
+				SituationKind:              situationKind,
+				SituationSummary:           draft.SituationSummary,
+				SituationFacts:             situationFacts,
 				ArticleDetailsMaterialized: draft.ArticleDetailsMaterialized,
-				Topic:            draft.Topic,
-				Motivation:       draft.Motivation,
-				Stance:           draft.Stance,
-				Goal:             draft.Goal,
-				Claims:           append([]string(nil), draft.Claims...),
-				RespondsToPostID: responseToID,
+				Topic:                      draft.Topic,
+				Topics:                     append([]string(nil), draftTopics...),
+				Motivation:                 draft.Motivation,
+				Stance:                     draft.Stance,
+				Goal:                       draft.Goal,
+				Claims:                     append([]string(nil), draft.Claims...),
+				RespondsToPostID:           responseToID,
 			},
 			CreatedAt: slot.CreatedAt,
-		})
+		}
+		candidatePost.Intent.Topics = world.ExtractPostTopics(candidatePost, world.DefaultLexicon())
+		saved := e.Store.AddPost(host.ID, candidatePost)
 		persistedBySlot[slot.Index] = saved
+		if !isReply {
+			newRoots = append(newRoots, saved)
+		}
+	}
+
+	if len(replyQuotas) == 0 && len(newRoots) > 0 {
+		personas := e.personasForReactionPlanning(host, board, recent, now)
+		factsByPersona := map[string][]world.PersonaFact{}
+		if fs, ok := e.Store.(world.PersonaFactStore); ok {
+			for _, p := range personas {
+				if facts := fs.ListPersonaFacts(p.ID); len(facts) > 0 {
+					factsByPersona[p.ID] = facts
+				}
+			}
+		}
+		existingRoots := 0
+		for _, post := range boardPosts {
+			if world.IsSemanticRoot(post) {
+				existingRoots++
+				e.planReactionsForRoot(host, board, post, existingRoots, personas, factsByPersona)
+			}
+		}
+		for i, rootPost := range newRoots {
+			e.planReactionsForRoot(host, board, rootPost, existingRoots+i+1, personas, factsByPersona)
+		}
+		e.MaterializeDueReactions(host, board, now)
 	}
 	return nil
 }
@@ -503,7 +761,9 @@ func latestCursor(posts []world.Post) time.Time {
 		if post.CreatedAt.After(latestBaseline) {
 			latestBaseline = post.CreatedAt
 		}
-		if (post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup) && post.CreatedAt.After(latestGenerated) {
+		if (post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup) &&
+			post.Intent.CauseKind != "persona_reaction" &&
+			post.CreatedAt.After(latestGenerated) {
 			latestGenerated = post.CreatedAt
 		}
 	}
@@ -731,26 +991,23 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 		}
 		// Earlier roots in this same simulated window are valid reply targets even
 		// though their database IDs are assigned only during chronological commit.
-		// A preplanned board-history window may request an exact reply count;
-		// ordinary cadence batches retain the older one-in-four heuristic.
+		// Cadence batches and board-history windows schedule replies via
+		// PlanReactions / addThreadReplies rather than a fixed 1-in-4 rule;
+		// desiredReplies > 0 is retained only when an explicit reply count is requested.
 		shouldReply := false
-		if len(targets) > 0 {
-			if desiredReplies >= 0 {
-				if desiredReplies > count-1 {
-					desiredReplies = count - 1
+		if len(targets) > 0 && desiredReplies > 0 {
+			if desiredReplies > count-1 {
+				desiredReplies = count - 1
+			}
+			repliesSoFar := 0
+			for _, prior := range slots {
+				if prior.ReplyToPostID != 0 || prior.ReplyToSlotIndex != 0 {
+					repliesSoFar++
 				}
-				repliesSoFar := 0
-				for _, prior := range slots {
-					if prior.ReplyToPostID != 0 || prior.ReplyToSlotIndex != 0 {
-						repliesSoFar++
-					}
-				}
-				if i > 0 && desiredReplies > 0 {
-					expectedByNow := (i * desiredReplies) / (count - 1)
-					shouldReply = expectedByNow > repliesSoFar
-				}
-			} else {
-				shouldReply = (i+1)%4 == 0
+			}
+			if i > 0 {
+				expectedByNow := (i * desiredReplies) / (count - 1)
+				shouldReply = expectedByNow > repliesSoFar
 			}
 		}
 		// Staff-origin boards are a World-level actor constraint, not
@@ -790,11 +1047,22 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 
 // addThreadReplies places each root's replies after it in simulated time.
 // roots must be the root-only slots of planSlots in chronological order and
-// quotas[i] is the number of replies thread i drew. Replies follow their root
-// with a heavy-tailed delay (mostly within hours, sometimes the next day), the
-// thread starter occasionally comes back, and nobody answers their own post
-// twice in a row. The result is re-sorted chronologically and re-indexed.
+// quotas[i] is the number of replies thread i drew. When the store provides
+// resident personas (PersonaStore), reactor selection and reply timing use the
+// unified persona-reaction model (world.ReactionWeight, world.PickReactor,
+// world.ReactionDueAt). Fallback to actorRoster is permitted only for minimal
+// test fixtures that do not populate host personas.
 func (e *Engine) addThreadReplies(host world.Host, board world.Board, roots []Slot, quotas []int, now time.Time) []Slot {
+	var personas []world.Persona
+	if source, ok := e.Store.(personaSource); ok {
+		personas = source.ListHostPersonas(host.ID)
+	}
+	if len(personas) > 0 {
+		return e.addThreadRepliesWithPersonas(host, board, personas, roots, quotas, now)
+	}
+
+	// Fallback: only used when PersonaStore has no resident personas for this host
+	// (e.g., synthetic unit-test hosts that only seed raw posts).
 	actors := e.actorRoster(host, board, nil, now)
 	out := append([]Slot(nil), roots...)
 	for i, root := range roots {
@@ -841,6 +1109,93 @@ func (e *Engine) addThreadReplies(host world.Host, board world.Board, roots []Sl
 			})
 		}
 	}
+	return reindexChronologicalSlots(roots, out)
+}
+
+func (e *Engine) addThreadRepliesWithPersonas(host world.Host, board world.Board, personas []world.Persona, roots []Slot, quotas []int, now time.Time) []Slot {
+	personaByID := make(map[string]world.Persona, len(personas))
+	for _, p := range personas {
+		personaByID[p.ID] = p
+	}
+	factsByPersona := map[string][]world.PersonaFact{}
+	if fs, ok := e.Store.(world.PersonaFactStore); ok {
+		for _, p := range personas {
+			if facts := fs.ListPersonaFacts(p.ID); len(facts) > 0 {
+				factsByPersona[p.ID] = facts
+			}
+		}
+	}
+
+	out := append([]Slot(nil), roots...)
+	for i, root := range roots {
+		if i >= len(quotas) || quotas[i] <= 0 {
+			continue
+		}
+		quota := quotas[i]
+		var starterTopics []string
+		if starter, ok := personaByID[root.AuthorPersonaID]; ok {
+			for k, v := range starter.Interests {
+				if v >= 0.5 {
+					starterTopics = append(starterTopics, k)
+				}
+			}
+			sort.Strings(starterTopics)
+		}
+		syntheticRoot := world.Post{
+			ID:              int64(root.Index),
+			BoardID:         board.ID,
+			Author:          root.Author,
+			AuthorPersonaID: root.AuthorPersonaID,
+			CreatedAt:       root.CreatedAt,
+		}
+		plan := world.PlanReactions(world.PlanInput{
+			Host:               host,
+			Board:              board,
+			TargetPost:         syntheticRoot,
+			Ordinal:            root.Index,
+			ReplyRate:          board.ReplyRate,
+			ReplyCountOverride: &quota,
+			PlannedAt:          root.CreatedAt,
+			Personas:           personas,
+			FactsByPersona:     factsByPersona,
+			Topics:             starterTopics,
+			Thread: world.ThreadState{
+				StarterPersonaID: root.AuthorPersonaID,
+				ParentPersonaID:  root.AuthorPersonaID,
+				LastPersonaID:    root.AuthorPersonaID,
+			},
+		})
+		at := root.CreatedAt
+		for k, rep := range plan.Replies {
+			chosen := personaByID[rep.PersonaID]
+			handle := strings.TrimSpace(chosen.Handle)
+			if handle == "" {
+				handle = rep.PersonaID
+			}
+			dueAt := rep.DueAt
+			if !dueAt.Before(now) {
+				dueAt = now.Add(-time.Duration(len(plan.Replies)-k) * time.Minute)
+				if !dueAt.After(at) {
+					dueAt = at.Add(time.Minute)
+				}
+				if !dueAt.Before(now) {
+					dueAt = now.Add(-time.Second)
+				}
+			}
+			at = dueAt
+			out = append(out, Slot{
+				Author:           handle,
+				AuthorPersonaID:  rep.PersonaID,
+				CreatedAt:        dueAt,
+				ReplyToSlotIndex: root.Index,
+				ReplyToAuthor:    root.Author,
+			})
+		}
+	}
+	return reindexChronologicalSlots(roots, out)
+}
+
+func reindexChronologicalSlots(roots []Slot, out []Slot) []Slot {
 	// Keep root slots ahead of their replies when timestamps tie, then re-index.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	newIndex := make(map[int]int, len(roots))

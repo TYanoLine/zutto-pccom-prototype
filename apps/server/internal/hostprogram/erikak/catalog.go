@@ -20,6 +20,9 @@ type boardNode struct {
 	ReplyRate            float64
 	RetainedRootCap      int
 	VerifiedReferentRate float64
+	Topics               map[string]float64
+	WelcomesNewcomers    bool
+	Rhythm               hostcatalog.BoardRhythm
 	Unread               bool
 }
 
@@ -42,7 +45,24 @@ func boardCatalogFromDetail(d *hostcatalog.ErikaKDetail) boardCatalog {
 		if i := strings.LastIndex(path, "/"); i >= 0 {
 			key, parent = path[i+1:], path[:i]
 		}
-		out.Boards = append(out.Boards, boardNode{Path: path, Key: key, Parent: parent, Alias: b.Alias, Name: b.Name, Hidden: b.Hidden, SemanticScope: b.Scope, RootAuthorPolicy: b.RootAuthorPolicy, ActivityWeight: b.ActivityWeight, ReplyRate: b.ReplyRate, RetainedRootCap: b.RetainedRootCap, VerifiedReferentRate: b.VerifiedReferentRate, Unread: b.Unread})
+		out.Boards = append(out.Boards, boardNode{
+			Path:                 path,
+			Key:                  key,
+			Parent:               parent,
+			Alias:                b.Alias,
+			Name:                 b.Name,
+			Hidden:               b.Hidden,
+			SemanticScope:        b.Scope,
+			RootAuthorPolicy:     b.RootAuthorPolicy,
+			ActivityWeight:       b.ActivityWeight,
+			ReplyRate:            b.ReplyRate,
+			RetainedRootCap:      b.RetainedRootCap,
+			VerifiedReferentRate: b.VerifiedReferentRate,
+			Topics:               b.Topics,
+			WelcomesNewcomers:    b.WelcomesNewcomers,
+			Rhythm:               b.Rhythm,
+			Unread:               b.Unread,
+		})
 	}
 	return out
 }
@@ -70,5 +90,17 @@ func BoardByPath(boards []hostcatalog.ErikaKBoard, path string) (world.Board, bo
 }
 
 func worldBoard(node boardNode) world.Board {
-	return world.Board{ID: node.Path, Name: node.Name, SemanticScope: node.SemanticScope, RootAuthorPolicy: node.RootAuthorPolicy, ActivityWeight: node.ActivityWeight, ReplyRate: node.ReplyRate, RetainedRootCap: node.RetainedRootCap, VerifiedReferentRate: node.VerifiedReferentRate}
+	return world.Board{
+		ID:                   node.Path,
+		Name:                 node.Name,
+		SemanticScope:        node.SemanticScope,
+		RootAuthorPolicy:     node.RootAuthorPolicy,
+		ActivityWeight:       node.ActivityWeight,
+		ReplyRate:            node.ReplyRate,
+		RetainedRootCap:      node.RetainedRootCap,
+		VerifiedReferentRate: node.VerifiedReferentRate,
+		Topics:               node.Topics,
+		WelcomesNewcomers:    node.WelcomesNewcomers,
+		Rhythm:               node.Rhythm,
+	}
 }

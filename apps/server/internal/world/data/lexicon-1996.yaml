@@ -1,0 +1,191 @@
+# 1996 Japanese PC communication topic lexicon and salience definitions.
+# All weights and salience boosts are fictional simulation tuning values, not historical statistics.
+
+topics:
+  # 13 basic domains (population.go randomResidentInterests) + aliases
+  local:
+    words: ["地元", "街", "福岡", "博多", "天神", "地域", "近所", "散歩", "商店街"]
+    broader: []
+  chat:
+    words: ["雑談", "おしゃべり", "近況", "挨拶", "はじめまして", "こんばんは", "よろしく", "夜更かし", "眠い"]
+    broader: []
+  daily_life:
+    words: ["日常", "暮らし", "生活", "天気", "週末", "仕事", "学校", "引っ越し", "家事", "通勤"]
+    broader: []
+  local_life:
+    words: ["地元", "街", "天気", "通勤", "買い物", "商店街", "引っ越し", "暮らし", "近所", "散歩", "週末"]
+    broader: ["local", "daily_life"]
+  food:
+    words: ["料理", "グルメ", "ラーメン", "居酒屋", "定食", "カレー", "コーヒー", "喫茶店", "レシピ", "地酒", "屋台", "うどん"]
+    broader: ["local", "daily_life"]
+  shopping:
+    words: ["買い物", "ショップ", "セール", "特価", "中古", "ジャンク", "通販", "売ります", "買います", "市場"]
+    broader: ["local", "daily_life"]
+  transport:
+    words: ["交通", "電車", "バス", "JR", "西鉄", "地下鉄", "空港", "渋滞", "道路", "ドライブ", "車"]
+    broader: ["local", "daily_life"]
+  offline_meetings:
+    words: ["オフ会", "オフライン", "飲み会", "集合", "幹事", "二次会", "参加", "待ち合わせ"]
+    broader: ["local", "chat"]
+  music:
+    words: ["音楽", "CD", "バンド", "ギター", "シンセ", "DTM", "ライブ", "アルバム", "シングル"]
+    broader: []
+  games:
+    words: ["ゲーム", "RPG", "シューティング", "格闘ゲーム", "アーケード", "ゲーセン", "攻略", "セーブデータ"]
+    broader: []
+  anime_manga:
+    words: ["アニメ", "漫画", "マンガ", "声優", "OVA", "同人", "コミケ", "特撮"]
+    broader: []
+  anime:
+    words: ["アニメ", "漫画", "マンガ", "声優", "OVA", "同人", "コミケ", "特撮"]
+    broader: ["anime_manga"]
+  communications:
+    words: ["パソコン通信", "パソ通", "BBS", "ホスト", "草の根", "ニフティ", "NIFTY", "PC-VAN", "インターネット", "プロバイダ", "WWW", "ブラウザ", "Netscape", "電子メール", "モデム", "回線", "通信ソフト"]
+    broader: ["hardware", "software"]
+  telecom:
+    words: ["パソコン通信", "パソ通", "BBS", "ホスト", "草の根", "ニフティ", "NIFTY", "PC-VAN", "インターネット", "プロバイダ", "WWW", "ブラウザ", "Netscape", "電子メール"]
+    broader: ["communications", "computers"]
+  software:
+    words: ["ソフト", "ソフトウェア", "アプリ", "ツール", "エディタ", "OS", "Windows", "DOS", "プログラム", "フリーソフト", "シェアウェア"]
+    broader: []
+  hardware:
+    words: ["ハード", "ハードウェア", "パソコン", "PC", "自作", "CPU", "Pentium", "メモリ", "HDD", "マザーボード", "周辺機器", "ボード"]
+    broader: []
+  computers:
+    words: ["パソコン", "コンピュータ", "PC", "自作", "ハードウェア", "CPU", "Pentium", "メモリ", "HDD", "マザーボード"]
+    broader: ["hardware", "software"]
+  programming:
+    words: ["プログラミング", "プログラム", "ソース", "コンパイラ", "C言語", "BASIC", "アセンブラ", "アルゴリズム", "デバッグ", "Visual Basic", "Delphi"]
+    broader: ["computers", "software"]
+  books:
+    words: ["読書", "小説", "本", "文庫", "新刊", "SF", "ミステリ", "書店", "古本", "雑誌"]
+    broader: []
+  photography:
+    words: ["写真", "カメラ", "一眼レフ", "フィルム", "レンズ", "現像", "ポジ", "デジカメ"]
+    broader: []
+  cars:
+    words: ["車", "クルマ", "バイク", "ドライブ", "ツーリング", "タイヤ", "整備", "愛車", "マニュアル車"]
+    broader: ["transport"]
+  radio_audio:
+    words: ["ラジオ", "AM", "FM", "BCL", "アマチュア無線", "オーディオ", "アンプ", "スピーカー", "カセット", "MD", "深夜放送"]
+    broader: ["hardware", "music"]
+  retro_tech:
+    words: ["レトロ", "8ビット", "MSX", "X68000", "FM-TOWNS", "PC-88", "ポケコン", "真空管", "ジャンク"]
+    broader: ["computers", "hardware", "software"]
+
+  # 1996 specific hardware, OS, and telecom topics
+  pc98:
+    words: ["PC-98", "PC98", "9801", "9821", "98ノート", "Cバス", "一太郎", "国民機", "NEC"]
+    broader: ["computers", "hardware", "software"]
+  dosv:
+    words: ["DOS/V", "DOSV", "AT互換機", "IBM", "ThinkPad", "サウンドブラスター", "ISAバス", "PCI"]
+    broader: ["computers", "hardware", "software"]
+  windows95:
+    words: ["Windows 95", "Windows95", "Win95", "ウィンドウズ95", "Plus!", "スタートボタン", "レジストリ", "DirectX"]
+    broader: ["computers", "software"]
+  mac:
+    words: ["Macintosh", "Mac", "マック", "PowerMac", "Performa", "漢字Talk", "HyperCard", "Apple"]
+    broader: ["computers", "hardware", "software"]
+  os2:
+    words: ["OS/2", "Warp", "オブジェクトデスクトップ"]
+    broader: ["computers", "software"]
+  unix:
+    words: ["UNIX", "Linux", "FreeBSD", "Slackware", "XFree86", "Emacs", "vi", "シェル"]
+    broader: ["computers", "programming", "software"]
+  modem:
+    words: ["モデム", "28800", "28.8k", "14400", "33.6k", "ATコマンド", "ネゴシエーション", "RS-232C", "シリアルポート", "ZMODEM", "XMODEM"]
+    broader: ["telecom", "communications", "computers", "hardware"]
+  isdn:
+    words: ["ISDN", "INS64", "TA", "ターミナルアダプタ", "64kbps", "同期通信", "MN128"]
+    broader: ["telecom", "communications", "computers", "hardware"]
+  telehodai:
+    words: ["テレホーダイ", "テレホ", "23時", "1800円", "話し中", "リダイヤル", "深夜巡回", "NTT"]
+    broader: ["telecom", "communications", "local_life", "daily_life"]
+  midi:
+    words: ["MIDI", "SC-88", "SC-55", "MU80", "音源", "シーケンサー", "レコンポーザ", "FM音源", "GS音源", "XG音源"]
+    broader: ["music", "computers", "hardware", "software"]
+  akihabara:
+    words: ["秋葉原", "アキバ", "ラジオ会館", "秋月", "千石", "ソフマップ", "T-ZONE", "ラオックス", "パーツ屋"]
+    broader: ["computers", "hardware", "retro_tech", "local_life", "shopping"]
+  nihonbashi:
+    words: ["日本橋", "でんでんタウン", "五階百貨店", "J&P", "ニノミヤ"]
+    broader: ["computers", "hardware", "retro_tech", "local_life", "shopping"]
+  osu:
+    words: ["大須", "アメ横ビル", "第一アメ横", "グッドウィル", "コンプマート"]
+    broader: ["computers", "hardware", "retro_tech", "local_life", "shopping"]
+
+  # 1996 game hardware and major titles
+  saturn:
+    words: ["サターン", "セガサターン", "バーチャファイター", "ナイツ", "サクラ大戦", "パンツァードラグーン", "セガ"]
+    broader: ["games"]
+  playstation:
+    words: ["プレステ", "プレイステーション", "PS", "リッジレーサー", "鉄拳", "トバル", "バイオハザード", "アークザラッド"]
+    broader: ["games"]
+  nintendo64:
+    words: ["NINTENDO64", "ロクヨン", "N64", "スーパーマリオ64", "パイロットウイングス64", "64マリオ"]
+    broader: ["games"]
+  super_famicom:
+    words: ["スーファミ", "スーパーファミコン", "SFC", "ドラクエ6", "クロノトリガー", "聖戦の系譜", "スーパーマリオRPG"]
+    broader: ["games"]
+  gameboy:
+    words: ["ゲームボーイ", "GB", "ゲームボーイポケット", "通信ケーブル"]
+    broader: ["games"]
+  pokemon:
+    words: ["ポケモン", "ポケットモンスター", "ピカチュウ", "ミュウ", "赤・緑", "リザードン", "図鑑"]
+    broader: ["games", "gameboy"]
+  ff7:
+    words: ["FF7", "ファイナルファンタジーVII", "ファイナルファンタジー7", "スクウェア", "デジキューブ"]
+    broader: ["games", "playstation"]
+  tokimemo:
+    words: ["ときメモ", "ときめきメモリアル", "藤崎詩織", "コナミ"]
+    broader: ["games", "anime", "anime_manga"]
+
+  # 1996 anime, culture, and seasonal events
+  evangelion:
+    words: ["エヴァ", "エヴァンゲリオン", "綾波", "アスカ", "シンジ", "ネルフ", "使徒", "ガイナックス"]
+    broader: ["anime", "anime_manga"]
+  gundam:
+    words: ["ガンダム", "ガンダムW", "ガンダムX", "ガンプラ", "モビルスーツ"]
+    broader: ["anime", "anime_manga"]
+  slayers:
+    words: ["スレイヤーズ", "リナ＝インバース", "林原めぐみ", "ファンタジア文庫"]
+    broader: ["anime", "anime_manga", "books"]
+  jpop_96:
+    words: ["小室哲哉", "安室奈美恵", "globe", "スピッツ", "ミスチル", "Mr.Children", "PUFFY", "ラルク", "B'z", "ウルフルズ"]
+    broader: ["music"]
+  baseball:
+    words: ["プロ野球", "巨人", "イチロー", "オリックス", "ダイエー", "ホークス", "カープ", "タイガース", "ナイター", "メークドラマ"]
+    broader: ["local_life", "radio_audio"]
+  atlanta_olympics:
+    words: ["アトランタ五輪", "アトランタオリンピック", "オリンピック", "マイアミの奇跡", "金メダル", "有森裕子"]
+    broader: ["local_life"]
+
+salience:
+  - topic: pokemon
+    from: "1996-02-25"
+    to: "1996-04-15"
+    boost: 1.8
+  - topic: evangelion
+    from: "1996-03-15"
+    to: "1996-04-30"
+    boost: 2.0
+  - topic: nintendo64
+    from: "1996-06-20"
+    to: "1996-07-15"
+    boost: 2.2
+  - topic: atlanta_olympics
+    from: "1996-07-19"
+    to: "1996-08-06"
+    boost: 2.0
+  - topic: ff7
+    from: "1996-01-15"
+    to: "1996-12-31"
+    boost: 1.4
+  - topic: windows95
+    from: "1995-11-23"
+    to: "1996-06-30"
+    boost: 1.6
+  - topic: telehodai
+    from: "1995-08-01"
+    to: "1996-12-31"
+    boost: 1.3

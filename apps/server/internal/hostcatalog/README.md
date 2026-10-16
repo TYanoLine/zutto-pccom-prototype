@@ -149,6 +149,12 @@ empty or `sysop_only`, and the tuning values must not be negative
 (`verified_referent_rate` is 0 to 1). `unread: true` marks a board in the fixed
 prototype display.
 
+Optional reaction-planning and rhythm fields (Spec 008):
+- Station `rhythm:` (or `host.rhythm:`): optional `member_mix` (map of archetype -> non-negative weight, sum > 0 when present) and `line_capacity` (non-negative int).
+- Board `topics:`: optional map of open-vocabulary topic key -> non-negative weight (sum > 0 when present). Unknown topic keys are permitted without validation errors.
+- Board `welcomes_newcomers:`: optional bool marking an introduction/welcome board.
+- Board `rhythm.member_mix:`: optional board-specific lifestyle archetype mix override (non-negative weights, sum > 0 when present).
+
 Still in the host program: the standard "last access" line and the thanks line,
 and the prototype screens (`V`, `WHO`, `MEMB`, mail, files, `JUNK`).
 

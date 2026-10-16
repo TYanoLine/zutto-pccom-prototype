@@ -357,9 +357,17 @@ func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testin
 	if planner.calls != 1 {
 		t.Fatalf("planner calls=%d, want 1", planner.calls)
 	}
+
+	replyRate := effectiveBoardReplyRate(board)
+	wantReplies := 0
+	for i := 1; i <= 40; i++ {
+		wantReplies += world.ThreadReplyCount(host.ID, board.ID, i, replyRate)
+	}
+	wantSlots := 40 + wantReplies
+
 	req := planner.requests[0]
-	if got := len(req.Slots); got != 53 {
-		t.Fatalf("history slots=%d, want 53 for 40 roots + 13 replies", got)
+	if got := len(req.Slots); got != wantSlots {
+		t.Fatalf("history slots=%d, want %d for 40 roots + %d ThreadReplyCount replies", got, wantSlots, wantReplies)
 	}
 	if req.Since != now.Add(-lookback) {
 		t.Fatalf("history since=%s, want %s", req.Since, now.Add(-lookback))
@@ -376,11 +384,11 @@ func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testin
 			replies++
 		}
 	}
-	if roots != 40 || replies != 13 {
-		t.Fatalf("roots=%d replies=%d, want 40/13", roots, replies)
+	if roots != 40 || replies != wantReplies {
+		t.Fatalf("roots=%d replies=%d, want 40/%d", roots, replies, wantReplies)
 	}
-	if len(posts) != 53 {
-		t.Fatalf("posts=%d, want 53", len(posts))
+	if len(posts) != wantSlots {
+		t.Fatalf("posts=%d, want %d", len(posts), wantSlots)
 	}
 	if posts[0].CreatedAt.Sub(now.Add(-lookback)) <= 0 {
 		t.Fatalf("first post did not land inside historical lookback: %s", posts[0].CreatedAt)
@@ -405,6 +413,50 @@ func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testin
 		if post.Intent.RespondsToPostID != parent.ID || post.Intent.SourcePostID != parent.ID {
 			t.Fatalf("reply %d lost semantic response link: %+v", post.ID, post.Intent)
 		}
+		if post.AuthorPersonaID == "" {
+			t.Fatalf("reply %d missing AuthorPersonaID from persona reaction model", post.ID)
+		}
+	}
+}
+
+func TestCatchUpPlansReactionsForNewRootsAndSelectsTopicAlignedPersonas(t *testing.T) {
+	store := world.NewMemoryStore()
+	host, err := store.HostByPhone("0920000196")
+	if err != nil {
+		t.Fatal(err)
+	}
+	board := world.Board{
+		ID:        "60/1",
+		Name:      "ＰＣ－９８／ＭＯＤＥＭ",
+		ReplyRate: 1.5,
+		Topics:    map[string]float64{"pc98": 0.6, "modem": 0.4},
+	}
+	planner := &fakeBatchPlanner{}
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	engine := New(store, planner, func() time.Time { return now })
+
+	if err := engine.CatchUp(context.Background(), host, board); err != nil {
+		t.Fatal(err)
+	}
+	plans := store.ListReactionPlans(host.ID, board.ID)
+	if len(plans) == 0 {
+		t.Fatal("expected CatchUp to persist ReactionPlans for newly created root posts")
+	}
+
+	// Advance clock by 24h and call CatchUp again to ensure all pending replies materialize.
+	now = now.Add(24 * time.Hour)
+	if err := engine.CatchUp(context.Background(), host, board); err != nil {
+		t.Fatal(err)
+	}
+	posts := filterBoard(store.ListPosts(host.ID), board.ID)
+	replies := 0
+	for _, p := range posts {
+		if p.Intent.RespondsToPostID != 0 {
+			replies++
+		}
+	}
+	if replies == 0 {
+		t.Fatal("expected materialized reaction replies after advancing clock")
 	}
 }
 
