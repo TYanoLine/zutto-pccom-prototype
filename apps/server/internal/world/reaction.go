@@ -85,22 +85,23 @@ type RhythmFunc func(t time.Time) float64
 
 // PlanInput bundles all deterministic inputs needed by PlanReactions.
 type PlanInput struct {
-	Host           Host
-	Board          Board
-	TargetPost     Post
-	Ordinal        int
-	ReplyRate      float64
-	PlannedAt      time.Time
-	Personas       []Persona
-	FactsByPersona map[string][]PersonaFact
-	BoardPrior     map[string]float64
-	Topics         []string
-	Lexicon        *Lexicon
-	Salience       []Salience
-	RhythmLayers   []RhythmLayer
-	MemberMix      map[string]float64
-	Thread         ThreadState
-	Advices        map[string]float64
+	Host               Host
+	Board              Board
+	TargetPost         Post
+	Ordinal            int
+	ReplyRate          float64
+	ReplyCountOverride *int
+	PlannedAt          time.Time
+	Personas           []Persona
+	FactsByPersona     map[string][]PersonaFact
+	BoardPrior         map[string]float64
+	Topics             []string
+	Lexicon            *Lexicon
+	Salience           []Salience
+	RhythmLayers       []RhythmLayer
+	MemberMix          map[string]float64
+	Thread             ThreadState
+	Advices            map[string]float64
 }
 
 // NormalizeTopicKey normalizes an open-vocabulary topic key to lowercase
@@ -467,6 +468,9 @@ func PlanReactions(in PlanInput) ReactionPlan {
 		PlannedAt:    plannedAt,
 	}
 	n := ThreadReplyCount(in.Host.ID, in.Board.ID, ordinal, replyRate)
+	if in.ReplyCountOverride != nil {
+		n = *in.ReplyCountOverride
+	}
 	if n <= 0 || len(in.Personas) == 0 {
 		return plan
 	}

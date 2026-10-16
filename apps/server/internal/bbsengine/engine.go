@@ -925,11 +925,22 @@ func (e *Engine) planSlots(host world.Host, board world.Board, recent []world.Po
 
 // addThreadReplies places each root's replies after it in simulated time.
 // roots must be the root-only slots of planSlots in chronological order and
-// quotas[i] is the number of replies thread i drew. Replies follow their root
-// with a heavy-tailed delay (mostly within hours, sometimes the next day), the
-// thread starter occasionally comes back, and nobody answers their own post
-// twice in a row. The result is re-sorted chronologically and re-indexed.
+// quotas[i] is the number of replies thread i drew. When the store provides
+// resident personas (PersonaStore), reactor selection and reply timing use the
+// unified persona-reaction model (world.ReactionWeight, world.PickReactor,
+// world.ReactionDueAt). Fallback to actorRoster is permitted only for minimal
+// test fixtures that do not populate host personas.
 func (e *Engine) addThreadReplies(host world.Host, board world.Board, roots []Slot, quotas []int, now time.Time) []Slot {
+	var personas []world.Persona
+	if source, ok := e.Store.(personaSource); ok {
+		personas = source.ListHostPersonas(host.ID)
+	}
+	if len(personas) > 0 {
+		return e.addThreadRepliesWithPersonas(host, board, personas, roots, quotas, now)
+	}
+
+	// Fallback: only used when PersonaStore has no resident personas for this host
+	// (e.g., synthetic unit-test hosts that only seed raw posts).
 	actors := e.actorRoster(host, board, nil, now)
 	out := append([]Slot(nil), roots...)
 	for i, root := range roots {
@@ -976,6 +987,93 @@ func (e *Engine) addThreadReplies(host world.Host, board world.Board, roots []Sl
 			})
 		}
 	}
+	return reindexChronologicalSlots(roots, out)
+}
+
+func (e *Engine) addThreadRepliesWithPersonas(host world.Host, board world.Board, personas []world.Persona, roots []Slot, quotas []int, now time.Time) []Slot {
+	personaByID := make(map[string]world.Persona, len(personas))
+	for _, p := range personas {
+		personaByID[p.ID] = p
+	}
+	factsByPersona := map[string][]world.PersonaFact{}
+	if fs, ok := e.Store.(world.PersonaFactStore); ok {
+		for _, p := range personas {
+			if facts := fs.ListPersonaFacts(p.ID); len(facts) > 0 {
+				factsByPersona[p.ID] = facts
+			}
+		}
+	}
+
+	out := append([]Slot(nil), roots...)
+	for i, root := range roots {
+		if i >= len(quotas) || quotas[i] <= 0 {
+			continue
+		}
+		quota := quotas[i]
+		var starterTopics []string
+		if starter, ok := personaByID[root.AuthorPersonaID]; ok {
+			for k, v := range starter.Interests {
+				if v >= 0.5 {
+					starterTopics = append(starterTopics, k)
+				}
+			}
+			sort.Strings(starterTopics)
+		}
+		syntheticRoot := world.Post{
+			ID:              int64(root.Index),
+			BoardID:         board.ID,
+			Author:          root.Author,
+			AuthorPersonaID: root.AuthorPersonaID,
+			CreatedAt:       root.CreatedAt,
+		}
+		plan := world.PlanReactions(world.PlanInput{
+			Host:               host,
+			Board:              board,
+			TargetPost:         syntheticRoot,
+			Ordinal:            root.Index,
+			ReplyRate:          board.ReplyRate,
+			ReplyCountOverride: &quota,
+			PlannedAt:          root.CreatedAt,
+			Personas:           personas,
+			FactsByPersona:     factsByPersona,
+			Topics:             starterTopics,
+			Thread: world.ThreadState{
+				StarterPersonaID: root.AuthorPersonaID,
+				ParentPersonaID:  root.AuthorPersonaID,
+				LastPersonaID:    root.AuthorPersonaID,
+			},
+		})
+		at := root.CreatedAt
+		for k, rep := range plan.Replies {
+			chosen := personaByID[rep.PersonaID]
+			handle := strings.TrimSpace(chosen.Handle)
+			if handle == "" {
+				handle = rep.PersonaID
+			}
+			dueAt := rep.DueAt
+			if !dueAt.Before(now) {
+				dueAt = now.Add(-time.Duration(len(plan.Replies)-k) * time.Minute)
+				if !dueAt.After(at) {
+					dueAt = at.Add(time.Minute)
+				}
+				if !dueAt.Before(now) {
+					dueAt = now.Add(-time.Second)
+				}
+			}
+			at = dueAt
+			out = append(out, Slot{
+				Author:           handle,
+				AuthorPersonaID:  rep.PersonaID,
+				CreatedAt:        dueAt,
+				ReplyToSlotIndex: root.Index,
+				ReplyToAuthor:    root.Author,
+			})
+		}
+	}
+	return reindexChronologicalSlots(roots, out)
+}
+
+func reindexChronologicalSlots(roots []Slot, out []Slot) []Slot {
 	// Keep root slots ahead of their replies when timestamps tie, then re-index.
 	sort.SliceStable(out, func(i, j int) bool { return out[i].CreatedAt.Before(out[j].CreatedAt) })
 	newIndex := make(map[int]int, len(roots))
