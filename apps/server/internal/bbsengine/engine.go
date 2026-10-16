@@ -48,19 +48,20 @@ type BatchRequest struct {
 }
 
 type PlannedPost struct {
-	SlotIndex        int
-	Subject          string
-	Topic            string
-	Motivation       string
-	Stance           string
-	Goal             string
-	AnchorKey        string
-	DiscourseMode    string
-	SituationKind    string
-	SituationSummary string
-	SituationFacts   []string
+	SlotIndex                  int
+	Subject                    string
+	Topic                      string
+	Topics                     []string
+	Motivation                 string
+	Stance                     string
+	Goal                       string
+	AnchorKey                  string
+	DiscourseMode              string
+	SituationKind              string
+	SituationSummary           string
+	SituationFacts             []string
 	ArticleDetailsMaterialized bool
-	Claims           []string
+	Claims                     []string
 }
 
 type BatchPlanner interface {
@@ -645,7 +646,11 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			discourseMode = "thread_start"
 		}
 
-		saved := e.Store.AddPost(host.ID, world.Post{
+		draftTopics := draft.Topics
+		if len(draftTopics) > 5 {
+			draftTopics = draftTopics[:5]
+		}
+		candidatePost := world.Post{
 			BoardID:         board.ID,
 			ParentID:        parentID,
 			Author:          slot.Author,
@@ -663,6 +668,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 				SituationFacts:             situationFacts,
 				ArticleDetailsMaterialized: draft.ArticleDetailsMaterialized,
 				Topic:                      draft.Topic,
+				Topics:                     append([]string(nil), draftTopics...),
 				Motivation:                 draft.Motivation,
 				Stance:                     draft.Stance,
 				Goal:                       draft.Goal,
@@ -670,7 +676,9 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 				RespondsToPostID:           responseToID,
 			},
 			CreatedAt: slot.CreatedAt,
-		})
+		}
+		candidatePost.Intent.Topics = world.ExtractPostTopics(candidatePost, world.DefaultLexicon())
+		saved := e.Store.AddPost(host.ID, candidatePost)
 		persistedBySlot[slot.Index] = saved
 		if !isReply {
 			newRoots = append(newRoots, saved)

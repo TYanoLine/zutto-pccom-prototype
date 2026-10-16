@@ -203,6 +203,7 @@ type BBSWorldSituationDraft struct {
 	PostContent string   `json:"post_content"`
 	NoveltyKey  string   `json:"novelty_key"`
 	MustNot     []string `json:"must_not"`
+	Topics      []string `json:"topics,omitempty"`
 }
 
 type BBSWorldSituationProposalDraft struct {

@@ -707,7 +707,7 @@ func ExtractPostTopics(post Post, lex *Lexicon) []string {
 		}
 	}
 	if lex != nil {
-		for _, m := range lex.Match(post.Subject + "\n" + post.Body + "\n" + post.Intent.Topic + "\n" + post.Intent.AnchorKey) {
+		for _, m := range lex.Match(post.Subject + "\n" + post.Body + "\n" + post.Intent.Topic + "\n" + post.Intent.AnchorKey + "\n" + post.Intent.SituationSummary) {
 			add(m)
 		}
 	}
