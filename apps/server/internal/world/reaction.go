@@ -1,6 +1,13 @@
 package world
 
-import "time"
+import (
+	"fmt"
+	"hash/fnv"
+	"math"
+	"sort"
+	"strings"
+	"time"
+)
 
 // 以下の係数はすべて架空の調整値であり、歴史統計ではない。
 // All coefficients below are fictional simulation tuning values, not historical statistics.
@@ -75,3 +82,755 @@ type Weighted struct {
 
 // RhythmFunc returns a persona's relative activity factor at world time t.
 type RhythmFunc func(t time.Time) float64
+
+// RhythmContext is the input to a single RhythmLayer.
+type RhythmContext struct {
+	Host      Host
+	Board     Board
+	Persona   Persona
+	Archetype string
+	At        time.Time
+}
+
+// RhythmLayer is one independent multiplicative factor in a resident's
+// activity rhythm.
+type RhythmLayer interface {
+	Name() string
+	Factor(ctx RhythmContext) float64
+}
+
+// TopicEntry defines matching words and broader parent topic keys for one
+// open-vocabulary topic key.
+type TopicEntry struct {
+	Words   []string `yaml:"words" json:"words,omitempty"`
+	Broader []string `yaml:"broader" json:"broader,omitempty"`
+}
+
+// Lexicon holds open-vocabulary topic cues and broader-topic relations.
+type Lexicon struct {
+	Topics   map[string]TopicEntry `yaml:"topics" json:"topics,omitempty"`
+	Salience []Salience            `yaml:"salience" json:"salience,omitempty"`
+}
+
+// Broader returns the broader parent topic keys registered for topic.
+func (l *Lexicon) Broader(topic string) []string {
+	if l == nil || len(l.Topics) == 0 {
+		return nil
+	}
+	key := NormalizeTopicKey(topic)
+	entry, ok := l.Topics[key]
+	if !ok || len(entry.Broader) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(entry.Broader))
+	for _, b := range entry.Broader {
+		if nb := NormalizeTopicKey(b); nb != "" {
+			out = append(out, nb)
+		}
+	}
+	return out
+}
+
+// PlanInput bundles all deterministic inputs needed by PlanReactions.
+type PlanInput struct {
+	Host           Host
+	Board          Board
+	TargetPost     Post
+	Ordinal        int
+	ReplyRate      float64
+	PlannedAt      time.Time
+	Personas       []Persona
+	FactsByPersona map[string][]PersonaFact
+	BoardPrior     map[string]float64
+	Topics         []string
+	Lexicon        *Lexicon
+	Salience       []Salience
+	RhythmLayers   []RhythmLayer
+	MemberMix      map[string]float64
+	Thread         ThreadState
+	Advices        map[string]float64
+}
+
+// NormalizeTopicKey normalizes an open-vocabulary topic key to lowercase
+// without surrounding whitespace.
+func NormalizeTopicKey(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.ReplaceAll(s, " ", "_")
+	return s
+}
+
+// ArticleTopicWeights computes normalized topic weights T_a(x) for an article
+// from the board's prior distribution, the article's topic tags (including
+// broader propagation from lex), and date-bounded salience boosts (plan 4.1).
+func ArticleTopicWeights(boardPrior map[string]float64, topics []string, lex *Lexicon, salience []Salience, on time.Time) map[string]float64 {
+	tag := map[string]float64{}
+	for _, raw := range topics {
+		k := NormalizeTopicKey(raw)
+		if k == "" {
+			continue
+		}
+		tag[k] = 1.0
+		for _, b := range lex.Broader(k) {
+			if tag[b] < ReactionBroaderShare {
+				tag[b] = ReactionBroaderShare
+			}
+		}
+	}
+
+	keys := map[string]bool{}
+	for k, v := range boardPrior {
+		nk := NormalizeTopicKey(k)
+		if nk != "" && v > 0 {
+			keys[nk] = true
+		}
+	}
+	for k := range tag {
+		keys[k] = true
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+
+	var salList []Salience
+	if lex != nil && len(lex.Salience) > 0 {
+		salList = append(salList, lex.Salience...)
+	}
+	if len(salience) > 0 {
+		salList = append(salList, salience...)
+	}
+	dateStr := ""
+	if !on.IsZero() {
+		dateStr = on.Format("2006-01-02")
+	}
+	salBoost := func(topic string) float64 {
+		if dateStr == "" || len(salList) == 0 {
+			return 1.0
+		}
+		b := 1.0
+		for _, s := range salList {
+			if NormalizeTopicKey(s.Topic) != topic || s.Boost <= 0 {
+				continue
+			}
+			if s.From != "" && dateStr < s.From {
+				continue
+			}
+			if s.To != "" && dateStr > s.To {
+				continue
+			}
+			b *= s.Boost
+		}
+		return b
+	}
+
+	rawWeights := make(map[string]float64, len(keys))
+	total := 0.0
+	for k := range keys {
+		prior := 0.0
+		for pk, pv := range boardPrior {
+			if NormalizeTopicKey(pk) == k && pv > 0 {
+				prior = pv
+				break
+			}
+		}
+		t := tag[k]
+		if prior <= 0 {
+			if t <= 0 {
+				continue
+			}
+			prior = 1.0
+		}
+		var factor float64
+		if len(boardPrior) == 0 && t > 0 && t < 1.0 {
+			// Propagate broader topics at half the direct topic weight when no board prior is set.
+			factor = (1.0 + ReactionTagWeightBoost) * t
+		} else {
+			factor = 1.0 + ReactionTagWeightBoost*t
+		}
+		w := prior * factor * salBoost(k)
+		if w > 0 {
+			rawWeights[k] = w
+			total += w
+		}
+	}
+	if total <= 0 {
+		return nil
+	}
+	for k, w := range rawWeights {
+		rawWeights[k] = w / total
+	}
+	return rawWeights
+}
+
+// Relevance computes R(p,a) in [0, 1] as the overlap between an article's
+// normalized topic weights and a persona's interests, opinions, and confirmed
+// PersonaFact topics (plan 4.2).
+func Relevance(p Persona, facts []PersonaFact, weights map[string]float64) float64 {
+	if len(weights) == 0 {
+		return 0
+	}
+	personaTopics := map[string]float64{}
+	for k, v := range p.Interests {
+		nk := NormalizeTopicKey(k)
+		if nk == "" || v <= 0 {
+			continue
+		}
+		if cv := clamp01(v); cv > personaTopics[nk] {
+			personaTopics[nk] = cv
+		}
+	}
+	for k, v := range p.Opinions {
+		nk := NormalizeTopicKey(k)
+		if nk == "" {
+			continue
+		}
+		if cv := clamp01(math.Abs(v)); cv > personaTopics[nk] {
+			personaTopics[nk] = cv
+		}
+	}
+	for _, f := range facts {
+		if f.PersonaID != "" && p.ID != "" && f.PersonaID != p.ID {
+			continue
+		}
+		nk := NormalizeTopicKey(f.Topic)
+		if nk == "" {
+			continue
+		}
+		if ReactionFactTopicWeight > personaTopics[nk] {
+			personaTopics[nk] = ReactionFactTopicWeight
+		}
+	}
+	if len(personaTopics) == 0 {
+		return 0
+	}
+	sum := 0.0
+	for k, tw := range weights {
+		if tw <= 0 {
+			continue
+		}
+		nk := NormalizeTopicKey(k)
+		if pw, ok := personaTopics[nk]; ok && pw > 0 {
+			sum += tw * pw
+		}
+	}
+	return clamp01(sum)
+}
+
+// PersonaActivityWeight returns the baseline activity weight for a persona's
+// activity pattern and lurker tendency.
+func PersonaActivityWeight(pattern string, lurker float64) float64 {
+	var base float64
+	switch strings.ToLower(strings.TrimSpace(pattern)) {
+	case "regular":
+		base = 1.00
+	case "active":
+		base = 0.82
+	case "occasional":
+		base = 0.56
+	case "lurker":
+		base = 0.05
+	case "dormant":
+		base = 0.015
+	default:
+		base = 0.48
+	}
+	if lurker > 0 {
+		base *= 1.0 - 0.50*clamp01(lurker)
+	}
+	return base
+}
+
+// ReactionWeight computes the sampling weight w(p) for candidate p on the k-th
+// reply (1-based) of a thread (plan 4.3).
+func ReactionWeight(p Persona, rel, rhythm, advice float64, st ThreadState, k int) float64 {
+	if p.ID != "" {
+		if st.LastPersonaID != "" && p.ID == st.LastPersonaID {
+			return 0
+		}
+		if st.ParentPersonaID != "" && p.ID == st.ParentPersonaID {
+			// At k == 1, or when ParentPersonaID is not a returning thread starter,
+			// the parent post's author cannot reply to themselves.
+			isReturningStarter := k >= 2 && st.StarterPersonaID != "" && p.ID == st.StarterPersonaID && st.LastPersonaID != ""
+			if !isReturningStarter {
+				return 0
+			}
+		}
+	}
+	if rhythm <= 0 {
+		rhythm = 1.0
+	}
+	if advice <= 0 {
+		advice = 1.0
+	}
+
+	activity := PersonaActivityWeight(p.ActivityPattern, p.LurkerTendency) * rhythm
+	relTerm := math.Pow(ReactionEpsilon+clamp01(rel), ReactionAlpha)
+	replyTerm := ReactionDelta + clamp01(p.ReplyTendency)
+
+	stateMult := 1.0
+	if p.ID != "" && len(st.PriorReplyCounts) > 0 {
+		if n := st.PriorReplyCounts[p.ID]; n > 0 {
+			stateMult *= math.Pow(ReactionRepeatDecay, float64(n))
+		}
+	}
+	if k >= 2 && p.Argumentativeness > 0 {
+		stateMult *= 1.0 + ReactionArgumentFactor*clamp01(p.Argumentativeness)
+	}
+	if st.IsNewcomerPost && p.NewcomerOpenness > 0 {
+		stateMult *= 1.0 + ReactionNewcomerFactor*clamp01(p.NewcomerOpenness)
+	}
+	if k >= 2 && p.ID != "" && st.StarterPersonaID != "" && p.ID == st.StarterPersonaID {
+		stateMult *= ReactionThreadStarterMult
+	}
+	relEdge := st.Relationship
+	if relEdge <= 0 {
+		relEdge = ReactionRelationNeutral
+	}
+	stateMult *= relEdge
+
+	w := activity * relTerm * replyTerm * stateMult * advice
+	if w <= 0 || math.IsNaN(w) || math.IsInf(w, 0) {
+		return 0
+	}
+	return w
+}
+
+// PickReactor deterministically selects one persona from candidates using
+// Efraimidis-Spirakis weighted sampling without replacement (plan 4.4).
+func PickReactor(seed string, candidates []Weighted) (personaID string, ok bool) {
+	bestLogKey := math.Inf(-1)
+	bestID := ""
+	for _, c := range candidates {
+		if c.PersonaID == "" || c.Weight <= 0 || math.IsNaN(c.Weight) {
+			continue
+		}
+		u := reactionUnit(seed, c.PersonaID)
+		// ln(u^(1/w)) = ln(u) / w, strictly monotonic with u^(1/w) and free of underflow.
+		logKey := math.Log(u) / c.Weight
+		if bestID == "" || logKey > bestLogKey || (logKey == bestLogKey && c.PersonaID < bestID) {
+			bestLogKey = logKey
+			bestID = c.PersonaID
+		}
+	}
+	if bestID == "" {
+		return "", false
+	}
+	return bestID, true
+}
+
+func patternDelayScale(pattern string) float64 {
+	switch strings.ToLower(strings.TrimSpace(pattern)) {
+	case "regular":
+		return 0.85
+	case "active":
+		return 1.00
+	case "occasional":
+		return 1.25
+	case "lurker":
+		return 1.60
+	case "dormant":
+		return 2.00
+	default:
+		return 1.00
+	}
+}
+
+// ReactionDueAt computes the scheduled timestamp for the k-th reply by
+// advancing a heavy-tailed effective delay along the cumulative rhythm
+// integral Λ(t) = ∫ Rhythm(p, s) ds starting at from (plan 4.5).
+func ReactionDueAt(seed string, from time.Time, r RhythmFunc, pattern string, k int) time.Time {
+	u := reactionUnit(seed, fmt.Sprintf("gap|%d", k))
+	if u < 0.002 {
+		u = 0.002
+	}
+	effMinutes := ReactionBaseDelayMinutes * math.Pow(u, ReactionDelayTailExponent) * patternDelayScale(pattern)
+	effDur := time.Duration(effMinutes * float64(time.Minute))
+	if effDur < ReactionMinDelay {
+		effDur = ReactionMinDelay
+	}
+	if effDur > ReactionMaxEffectiveDelay {
+		effDur = ReactionMaxEffectiveDelay
+	}
+	if r == nil {
+		return from.Add(effDur)
+	}
+
+	remainingSec := effDur.Seconds()
+	cur := from
+	const sliceSec = 10 * 60.0 // 10-minute integration slices
+	maxSteps := 14 * 24 * 6    // guard: 14 days
+	for step := 0; step < maxSteps && remainingSec > 0; step++ {
+		rate := r(cur)
+		if math.IsNaN(rate) || rate <= 0 {
+			rate = 1.0
+		}
+		rate = clampFloat(rate, RhythmMinFactor, RhythmMaxFactor)
+		effSlice := sliceSec * rate
+		if effSlice >= remainingSec {
+			realSec := remainingSec / rate
+			cur = cur.Add(time.Duration(realSec * float64(time.Second)))
+			remainingSec = 0
+			break
+		}
+		remainingSec -= effSlice
+		cur = cur.Add(time.Duration(sliceSec * float64(time.Second)))
+	}
+	if !cur.After(from) {
+		cur = from.Add(ReactionMinDelay)
+	}
+	return cur
+}
+
+// QuantizeAdvice rounds an advice score in [0, 1] to the nearest 0.05 increment (plan 4.7).
+func QuantizeAdvice(v float64) float64 {
+	v = clamp01(v)
+	return math.Round(v/ReactionAdviceQuantum) * ReactionAdviceQuantum
+}
+
+// AdviceMultiplier converts a quantized advice score in [0, 1] into its bounded
+// weight multiplier 1 + β*(advice - 0.5)*2 with β <= 0.4 (plan 4.7).
+func AdviceMultiplier(quantized float64) float64 {
+	q := clamp01(quantized)
+	return 1.0 + ReactionAdviceBeta*(q-0.5)*2.0
+}
+
+// PlanReactions computes the complete deterministic ReactionPlan for a post (plan 2 & 4).
+func PlanReactions(in PlanInput) ReactionPlan {
+	plannedAt := in.PlannedAt
+	if plannedAt.IsZero() {
+		plannedAt = in.TargetPost.CreatedAt
+	}
+	ordinal := in.Ordinal
+	replyRate := in.ReplyRate
+	plan := ReactionPlan{
+		TargetPostID: in.TargetPost.ID,
+		BoardID:      in.Board.ID,
+		Ordinal:      ordinal,
+		PlannedAt:    plannedAt,
+	}
+	n := ThreadReplyCount(in.Host.ID, in.Board.ID, ordinal, replyRate)
+	if n <= 0 || len(in.Personas) == 0 {
+		return plan
+	}
+
+	topics := append([]string(nil), in.Topics...)
+	topics = append(topics, ExtractPostTopics(in.TargetPost, in.Lexicon)...)
+	topicWeights := ArticleTopicWeights(in.BoardPrior, topics, in.Lexicon, in.Salience, plannedAt)
+
+	archByPersona := make(map[string]string, len(in.Personas))
+	for _, p := range in.Personas {
+		archByPersona[p.ID] = AssignArchetype(p, in.FactsByPersona[p.ID], in.MemberMix)
+	}
+
+	// Candidate pool: top K personas by activity × rhythm at plannedAt (plan 2 & 4.3).
+	candidatesPool := selectCandidatePersonas(in.Personas, func(p Persona) float64 {
+		r := ComposeRhythm(in.RhythmLayers, RhythmContext{
+			Host:      in.Host,
+			Board:     in.Board,
+			Persona:   p,
+			Archetype: archByPersona[p.ID],
+			At:        plannedAt,
+		})
+		return PersonaActivityWeight(p.ActivityPattern, p.LurkerTendency) * r
+	}, ReactionCandidateCap, in.Thread.StarterPersonaID)
+
+	personaByID := make(map[string]Persona, len(candidatesPool))
+	for _, p := range candidatesPool {
+		personaByID[p.ID] = p
+	}
+
+	st := ThreadState{
+		StarterPersonaID: in.Thread.StarterPersonaID,
+		ParentPersonaID:  in.Thread.ParentPersonaID,
+		LastPersonaID:    in.Thread.LastPersonaID,
+		PriorReplyCounts: make(map[string]int, len(in.Thread.PriorReplyCounts)),
+		IsNewcomerPost:   in.Thread.IsNewcomerPost,
+		Relationship:     in.Thread.Relationship,
+	}
+	for k, v := range in.Thread.PriorReplyCounts {
+		st.PriorReplyCounts[k] = v
+	}
+	if st.ParentPersonaID == "" && in.TargetPost.AuthorPersonaID != "" {
+		st.ParentPersonaID = in.TargetPost.AuthorPersonaID
+	}
+	if st.StarterPersonaID == "" && in.TargetPost.ParentID == 0 && in.TargetPost.AuthorPersonaID != "" {
+		st.StarterPersonaID = in.TargetPost.AuthorPersonaID
+	}
+
+	curTime := in.TargetPost.CreatedAt
+	if curTime.IsZero() {
+		curTime = plannedAt
+	}
+
+	replies := make([]PlannedReaction, 0, n)
+	for k := 1; k <= n; k++ {
+		seed := fmt.Sprintf("%s|%s|%d|%d|%d", in.Host.ID, in.Board.ID, in.TargetPost.ID, ordinal, k)
+		isWildcard := reactionUnit(seed, "wildcard") < ReactionWildcard
+
+		weighted := make([]Weighted, 0, len(candidatesPool))
+		for _, p := range candidatesPool {
+			var rel float64
+			if isWildcard {
+				rel = 0.5
+			} else {
+				rel = Relevance(p, in.FactsByPersona[p.ID], topicWeights)
+			}
+			rhythm := ComposeRhythm(in.RhythmLayers, RhythmContext{
+				Host:      in.Host,
+				Board:     in.Board,
+				Persona:   p,
+				Archetype: archByPersona[p.ID],
+				At:        curTime,
+			})
+			adviceMult := 1.0
+			if rawAdv, ok := in.Advices[p.ID]; ok {
+				adviceMult = AdviceMultiplier(QuantizeAdvice(rawAdv))
+			}
+			w := ReactionWeight(p, rel, rhythm, adviceMult, st, k)
+			if w > 0 {
+				weighted = append(weighted, Weighted{PersonaID: p.ID, Weight: w})
+			}
+		}
+
+		chosenID, ok := PickReactor(seed, weighted)
+		if !ok {
+			break
+		}
+		chosenPersona := personaByID[chosenID]
+		chosenArch := archByPersona[chosenID]
+		var rFunc RhythmFunc
+		if len(in.RhythmLayers) > 0 {
+			rFunc = func(t time.Time) float64 {
+				return ComposeRhythm(in.RhythmLayers, RhythmContext{
+					Host:      in.Host,
+					Board:     in.Board,
+					Persona:   chosenPersona,
+					Archetype: chosenArch,
+					At:        t,
+				})
+			}
+		}
+		dueAt := ReactionDueAt(seed+"|"+chosenID, curTime, rFunc, chosenPersona.ActivityPattern, k)
+		var qAdv float64
+		if rawAdv, ok := in.Advices[chosenID]; ok {
+			qAdv = QuantizeAdvice(rawAdv)
+		}
+		replies = append(replies, PlannedReaction{
+			Index:     k,
+			PersonaID: chosenID,
+			DueAt:     dueAt,
+			Advice:    qAdv,
+		})
+
+		curTime = dueAt
+		st.LastPersonaID = chosenID
+		st.PriorReplyCounts[chosenID]++
+	}
+	plan.Replies = replies
+	return plan
+}
+
+func selectCandidatePersonas(personas []Persona, scoreFn func(Persona) float64, capLimit int, ensureID string) []Persona {
+	if capLimit <= 0 || len(personas) <= capLimit {
+		out := make([]Persona, len(personas))
+		copy(out, personas)
+		return out
+	}
+	type scored struct {
+		p     Persona
+		score float64
+	}
+	ranked := make([]scored, len(personas))
+	for i, p := range personas {
+		ranked[i] = scored{p: p, score: scoreFn(p)}
+	}
+	sort.SliceStable(ranked, func(i, j int) bool {
+		if ranked[i].score == ranked[j].score {
+			return ranked[i].p.ID < ranked[j].p.ID
+		}
+		return ranked[i].score > ranked[j].score
+	})
+	out := make([]Persona, 0, capLimit+1)
+	hasEnsure := false
+	for i := 0; i < capLimit && i < len(ranked); i++ {
+		out = append(out, ranked[i].p)
+		if ensureID != "" && ranked[i].p.ID == ensureID {
+			hasEnsure = true
+		}
+	}
+	if ensureID != "" && !hasEnsure {
+		for i := capLimit; i < len(ranked); i++ {
+			if ranked[i].p.ID == ensureID {
+				out = append(out, ranked[i].p)
+				break
+			}
+		}
+	}
+	return out
+}
+
+func reactionUnit(seed, salt string) float64 {
+	h := fnv.New64a()
+	_, _ = fmt.Fprintf(h, "%s|%s|react-v1", seed, salt)
+	return (float64(h.Sum64()%1000000) + 0.5) / 1000000.0
+}
+
+func clamp01(v float64) float64 {
+	return clampFloat(v, 0, 1)
+}
+
+func clampFloat(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
+}
+
+// ExtractPostTopics extracts deterministic topic keys from a post's structured
+// intent and lexicon matches without calling an LLM.
+func ExtractPostTopics(post Post, lex *Lexicon) []string {
+	var out []string
+	seen := map[string]bool{}
+	add := func(k string) {
+		nk := NormalizeTopicKey(k)
+		if nk == "" || seen[nk] {
+			return
+		}
+		seen[nk] = true
+		out = append(out, nk)
+	}
+	if post.Intent.AnchorKey != "" {
+		add(post.Intent.AnchorKey)
+	}
+	if post.Intent.Topic != "" {
+		add(post.Intent.Topic)
+	}
+	for _, ref := range post.Intent.ProducerReferents {
+		add(ref)
+	}
+	for _, fact := range post.Intent.SituationFacts {
+		if strings.HasPrefix(fact, "referent:") {
+			add(strings.TrimPrefix(fact, "referent:"))
+		} else if strings.HasPrefix(fact, "object_class=") {
+			add(strings.TrimPrefix(fact, "object_class="))
+		}
+	}
+	if lex != nil {
+		for _, m := range lex.Match(post.Subject + "\n" + post.Body + "\n" + post.Intent.Topic + "\n" + post.Intent.AnchorKey) {
+			add(m)
+		}
+	}
+	return out
+}
+
+// Match returns topic keys whose words appear in text. Full implementation is
+// provided in lexicon.go.
+func (l *Lexicon) Match(text string) []string {
+	if l == nil || len(l.Topics) == 0 || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	lower := strings.ToLower(text)
+	keys := make([]string, 0, len(l.Topics))
+	for k := range l.Topics {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var matched []string
+	seen := map[string]bool{}
+	for _, k := range keys {
+		entry := l.Topics[k]
+		for _, w := range entry.Words {
+			w = strings.TrimSpace(w)
+			if w == "" {
+				continue
+			}
+			if strings.Contains(lower, strings.ToLower(w)) {
+				nk := NormalizeTopicKey(k)
+				if nk != "" && !seen[nk] {
+					seen[nk] = true
+					matched = append(matched, nk)
+				}
+				break
+			}
+		}
+	}
+	return matched
+}
+
+// ComposeRhythm multiplies the factors of all layers in log-space and clamps to
+// [RhythmMinFactor, RhythmMaxFactor] (plan 4.5).
+func ComposeRhythm(layers []RhythmLayer, ctx RhythmContext) float64 {
+	if len(layers) == 0 {
+		return 1.0
+	}
+	logSum := 0.0
+	for _, layer := range layers {
+		if layer == nil {
+			continue
+		}
+		f := layer.Factor(ctx)
+		if math.IsNaN(f) || math.IsInf(f, 0) || f <= 0 {
+			continue
+		}
+		logSum += math.Log(f)
+	}
+	return clampFloat(math.Exp(logSum), RhythmMinFactor, RhythmMaxFactor)
+}
+
+// AssignArchetype deterministically assigns a lifestyle archetype from a
+// persona's confirmed facts/occupation or a hash of its ID against memberMix (plan 4.6).
+func AssignArchetype(p Persona, facts []PersonaFact, memberMix map[string]float64) string {
+	return assignArchetypeWithData(p, facts, memberMix, nil)
+}
+
+func assignArchetypeWithData(p Persona, facts []PersonaFact, memberMix map[string]float64, occMap map[string]string) string {
+	if len(occMap) > 0 {
+		for _, f := range facts {
+			if f.PersonaID != "" && p.ID != "" && f.PersonaID != p.ID {
+				continue
+			}
+			val := strings.ToLower(strings.TrimSpace(f.Value))
+			if val == "" {
+				continue
+			}
+			for kw, arch := range occMap {
+				if strings.Contains(val, strings.ToLower(kw)) {
+					return arch
+				}
+			}
+		}
+		if occ := strings.ToLower(strings.TrimSpace(p.Occupation)); occ != "" {
+			for kw, arch := range occMap {
+				if strings.Contains(occ, strings.ToLower(kw)) {
+					return arch
+				}
+			}
+		}
+	}
+	if len(memberMix) == 0 {
+		return "office"
+	}
+	keys := make([]string, 0, len(memberMix))
+	total := 0.0
+	for k, w := range memberMix {
+		if w > 0 {
+			keys = append(keys, k)
+			total += w
+		}
+	}
+	if total <= 0 || len(keys) == 0 {
+		return "office"
+	}
+	sort.Strings(keys)
+	u := reactionUnit("archetype", p.ID) * total
+	acc := 0.0
+	for _, k := range keys {
+		acc += memberMix[k]
+		if u <= acc {
+			return k
+		}
+	}
+	return keys[len(keys)-1]
+}
