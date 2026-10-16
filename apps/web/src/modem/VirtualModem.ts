@@ -416,6 +416,13 @@ export class VirtualModem {
   }
 
   private handleServer(msg: ServerMessage) {
+    if (msg.type === 'ping') {
+      this.send({ type: 'pong' });
+      return;
+    }
+    if (msg.type === 'pong') {
+      return;
+    }
     if (msg.type === 'terminal' && msg.text) {
       // Servers are allowed to send their welcome screen immediately after
       // accepting the call.  A real terminal cannot see those bytes until the
