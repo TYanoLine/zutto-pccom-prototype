@@ -116,6 +116,10 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
+	keepaliveDone := make(chan struct{})
+	defer close(keepaliveDone)
+	go keepaliveLoop(ctx, keepaliveDone, KeepaliveInterval, send)
+
 	for {
 		typ, data, err := conn.Read(ctx)
 		if err != nil {
@@ -257,8 +261,35 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			attachment = 0
 			_ = send(serverMessage{Type: "carrier", Result: "off"})
 
+		case "ping":
+			_ = send(serverMessage{Type: "pong"})
+
+		case "pong":
+			// Keepalive response from client; connection is active.
+
 		default:
 			_ = send(serverMessage{Type: "error", Text: fmt.Sprintf("unknown type %q", msg.Type)})
+		}
+	}
+}
+
+// KeepaliveInterval is how often an idle connection is sent a keepalive ping message
+// to prevent reverse proxy/NAT idle timeouts (such as Render's ~55s timeout).
+const KeepaliveInterval = 15 * time.Second
+
+func keepaliveLoop(ctx context.Context, done <-chan struct{}, interval time.Duration, send func(serverMessage) error) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-done:
+			return
+		case <-ticker.C:
+			if err := send(serverMessage{Type: "ping"}); err != nil {
+				return
+			}
 		}
 	}
 }

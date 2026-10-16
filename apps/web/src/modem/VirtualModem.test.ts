@@ -414,4 +414,38 @@ describe('VirtualModem standalone lifecycle', () => {
 
     modem.dispose();
   });
+
+  it('responds with pong when receiving server ping keepalive', () => {
+    const sockets: FakeSocket[] = [];
+    const modem = new VirtualModem(new TerminalCore(), 'ws://test', {
+      socketFactory: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      audio: silentAudio,
+    });
+
+    modem.submitLine('ATDT0920000196');
+    sockets[0].open();
+    vi.runOnlyPendingTimers();
+    sockets[0].receive({
+      type: 'dial_result',
+      result: 'connect',
+      baud: 14400,
+      session_id: 'session-1',
+    });
+
+    const sentBefore = sockets[0].sent.length;
+    sockets[0].receive({ type: 'ping' });
+    expect(sockets[0].sent.length).toBe(sentBefore + 1);
+    expect(JSON.parse(sockets[0].sent[sockets[0].sent.length - 1])).toEqual({ type: 'pong' });
+
+    // Server pong message should be safely ignored
+    sockets[0].receive({ type: 'pong' });
+    expect(sockets[0].sent.length).toBe(sentBefore + 1);
+
+    modem.dispose();
+  });
 });
+
