@@ -202,7 +202,15 @@ func TestTelegramToAFreeOrOwnLineIsAnError(t *testing.T) {
 	w, host := newChatWorld(4)
 	rt := loggedInChatRuntime(t, w, host)
 	rt.HandleLine("4")
-	for _, input := range []string{"4", "1", "9", "*", "P"} {
+	out, _ := rt.HandleLine("4")
+	if !strings.HasPrefix(out, "その回線番号には誰もいません。\r\n") || !strings.HasSuffix(out, "CALL> ->") || rt.state != "call" {
+		t.Fatalf("free line: %q (state %s)", out, rt.state)
+	}
+	out, _ = rt.HandleLine("1")
+	if !strings.HasPrefix(out, "自分自身には電報を送れません。\r\n") || !strings.HasSuffix(out, "CALL> ->") || rt.state != "call" {
+		t.Fatalf("own line: %q (state %s)", out, rt.state)
+	}
+	for _, input := range []string{"9", "*", "P"} {
 		out, _ := rt.HandleLine(input)
 		if !strings.HasPrefix(out, "? COMMAND ERROR\r\n") || !strings.HasSuffix(out, "CALL> ->") || rt.state != "call" {
 			t.Fatalf("%q: %q (state %s)", input, out, rt.state)
@@ -211,7 +219,7 @@ func TestTelegramToAFreeOrOwnLineIsAnError(t *testing.T) {
 	if len(w.sent) != 0 {
 		t.Fatalf("messages were sent: %+v", w.sent)
 	}
-	out, _ := rt.HandleLine("2")
+	out, _ = rt.HandleLine("2")
 	if !strings.Contains(out, "電報をどうぞ") {
 		t.Fatal(out)
 	}

@@ -222,8 +222,7 @@ placeholder screen.
   per user there (○, み, 火, ...) whose meaning is unknown.
 - Speeds below 14,400 bps are shown the same way (`9K-...`). The log's `[52]`
   and `TERMINAL` entries are not reproduced.
-- A telegram to a free line, to one's own line, or with `*`, `P`, `S` and the
-  other menu letters answers `? COMMAND ERROR`, as does an unknown or full room.
+- A telegram to a free line answers `その回線番号には誰もいません。`, and to one's own line answers `自分自身には電報を送れません。`. A telegram with `*`, `P`, `S` and other unhandled menu letters or out-of-range line numbers answers `? COMMAND ERROR`, as does an unknown or full room.
 - An empty telegram body returns to the hint and `CALL> ->`.
 - No blank line before join/leave lines (the log has both forms) and no
   trailing spaces on WHO rows.
