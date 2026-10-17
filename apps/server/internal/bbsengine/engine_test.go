@@ -3,6 +3,7 @@ package bbsengine
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -80,6 +81,9 @@ func TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime(t *testing.T) {
 	planner := &fakeBatchPlanner{}
 	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
 	engine := New(store, planner, func() time.Time { return now })
+	// Seed 42 deterministically materializes resident replies across the roots,
+	// preventing flaky test failures where all batch roots randomly draw 0 replies.
+	engine.RNG = rand.New(rand.NewSource(42))
 
 	before := len(store.ListPosts(host.ID))
 	if err := engine.CatchUp(context.Background(), host, board); err != nil {

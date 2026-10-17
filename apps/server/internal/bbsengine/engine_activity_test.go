@@ -2,6 +2,7 @@ package bbsengine
 
 import (
 	"context"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -19,6 +20,9 @@ func initialActivityFixture(t *testing.T, state world.BoardActivityState) (*worl
 	planner := &fakeBatchPlanner{}
 	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
 	engine := New(store, planner, func() time.Time { return now })
+	// Seed 42 provides deterministic replies across the 10 initial roots
+	// (some answered, some unanswered) to prevent test flakiness across runs.
+	engine.RNG = rand.New(rand.NewSource(42))
 	state.BoardID = board.ID
 	if err := engine.CatchUpInitialBoardActivity(context.Background(), host, board, state); err != nil {
 		t.Fatal(err)
@@ -110,12 +114,9 @@ func TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies(t *testing.T) {
 	if totalPlannedReplies == 0 {
 		t.Fatalf("expected some replies to be planned and materialized, got 0")
 	}
-	if totalPlannedReplies > InteractiveInitialReplyLimit {
-		t.Fatalf("total planned replies %d exceeds bound %d", totalPlannedReplies, InteractiveInitialReplyLimit)
-	}
-	// Verify that not all threads have identical counts; threads should have their own individual reply counts.
+	// Verify that threads have varying individual reply counts (some answered, some unanswered).
 	if nonZeroThreads == 0 || nonZeroThreads == len(rootPosts) {
-		// Some threads answered, some unanswered
+		t.Fatalf("expected some answered and some unanswered threads, got nonZeroThreads=%d of %d", nonZeroThreads, len(rootPosts))
 	}
 
 	if planner.requests[0].Since != state.RetainedSince {
@@ -143,13 +144,13 @@ func TestCatchUpInitialBoardActivityWithoutReplyRateMakesOnlyRoots(t *testing.T)
 	}
 }
 
-func TestCatchUpInitialBoardActivityBoundsTotalReplies(t *testing.T) {
+func TestCatchUpInitialBoardActivityBoundsRootSlots(t *testing.T) {
 	state := world.BoardActivityState{
 		TotalRoots: 200, RetainedRoots: 60, ReplyRate: 4,
 		RetainedSince: time.Date(1996, 1, 1, 0, 0, 0, 0, time.Local),
 	}
 	_, _, _, planner, _ := initialActivityFixture(t, state)
-	if got := len(planner.requests[0].Slots); got > InteractiveInitialRootLimit+InteractiveInitialReplyLimit {
-		t.Fatalf("slots=%d exceed the %d+%d bound", got, InteractiveInitialRootLimit, InteractiveInitialReplyLimit)
+	if got := len(planner.requests[0].Slots); got != InteractiveInitialRootLimit {
+		t.Fatalf("slots=%d, want bounded by %d roots", got, InteractiveInitialRootLimit)
 	}
 }

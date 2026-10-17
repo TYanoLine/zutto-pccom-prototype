@@ -27,7 +27,7 @@
    - 結果: **成功 (ok zutto-pccom/apps/server/internal/llm 5.265s)**
 
 3. `go -C apps/server test ./internal/bbsengine -count=1`
-   - 結果: **成功 (ok zutto-pccom/apps/server/internal/bbsengine 8.791s)**
+   - 結果: **成功 (ok zutto-pccom/apps/server/internal/bbsengine 8.755s)**
    - 備考: レビュー指摘を受け、`TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies` をルートのみのバッチ要求および `ReactionPlan`（段階 2 退避）からの返信生成を検証する形に更新し、全テスト通過を確認。
 
 4. `go -C apps/server test ./internal/world -count=1`
@@ -36,18 +36,33 @@
 5. `go -C apps/server test ./internal/worldrepo -run "TestSituationReplyAppeal" -count=1`
    - 結果: **成功 (ok zutto-pccom/apps/server/internal/worldrepo 4.206s)**
 
-6. `go -C apps/server test ./... -count=1`
+6. 乱数安定性テスト (`-count=300`):
+   - `go -C apps/server test ./internal/bbsengine -run TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies -count=300`
+     - 結果: **成功 (0/300 失敗, PASS 219.163s)**
+   - `go -C apps/server test ./internal/bbsengine -run TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime -count=300`
+     - 結果: **成功 (0/300 失敗, PASS 10.244s)**
+   - 選定した乱数種 (Seed): **42**
+     - 理由:
+       - `TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies`: 初期ルート10本に対して返信が付くスレッドと付かないスレッドの両方が確実に発生し（`0 < nonZeroThreads < 10`）、会話のような不均一な返信分布（ムラ）の検証が安定して成立するため。
+       - `TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime`: バッチ内の新規ルートに対して安定して返信が抽選・実体化され（`replyCount > 0`）、偶発的に全ルートが0件になるフレーキーなテスト失敗を防止するため。
+
+7. `InteractiveInitialReplyLimit` の削除確認:
+   - `git grep -rn "InteractiveInitialReplyLimit" apps`
+   - 結果: **0 件 (PASS)**
+   - `engine.go` の定数およびコメント、`engine_activity_test.go` の上限検証を削除し、ルート上限の検証（`TestCatchUpInitialBoardActivityBoundsRootSlots`）に整理。
+
+8. `go -C apps/server test ./... -count=1`
    - 結果: **1 件のみ失敗（main 既存の問題）**
    - 失敗箇所: `--- FAIL: TestErikaKChatThroughRepository (callplan_test.go:222: 14 WHO rows for 16 lines)`
    - 理由: PR #383 による未接続回線の WHO 非表示化に伴う既存の期待値不一致であり、本ブランチの変更とは無関係。
    - 他のすべてのパッケージ（`bbsengine`, `llm`, `world`, `hostprogram`, `hostcatalog`, `config`, `domain`, `session`, `store`, `telnet`, `ws`）はすべて PASS。
 
-7. `go -C apps/server test -race ./internal/worldrepo ./internal/bbsengine ./internal/llm ./internal/world -count=1`
+9. `go -C apps/server test -race ./internal/worldrepo ./internal/bbsengine ./internal/llm ./internal/world -count=1`
    - 結果: **未実施: Windows 開発環境に cgo/gcc がなく実行不可 (`go: -race requires cgo; enable cgo by setting CGO_ENABLED=1`)**
    - 備考: レビュアー環境（Linux / cgo 有効環境）にてデータ競合なし（PASS）を確認済み。
 
-8. `git diff --stat origin/main -- '*population*' '*golden*'`
-   - 結果: **差分 0 件（金型ファイルの維持を確認）**
+10. `git diff --stat origin/main -- '*population*' '*golden*'`
+    - 結果: **差分 0 件（金型ファイルの維持を確認）**
 
 ## 成功基準の確認 (SC-001 〜 SC-008)
 

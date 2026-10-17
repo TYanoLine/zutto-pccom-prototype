@@ -280,17 +280,12 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 // describes the complete retained history; unseen articles are not fabricated.
 const InteractiveInitialRootLimit = 10
 
-// InteractiveInitialReplyLimit bounds the reply headers added to a first
-// board-index observation, on top of InteractiveInitialRootLimit roots.
-const InteractiveInitialReplyLimit = 30
-
 // CatchUpInitialBoardActivity materializes only enough headers for the current
 // 10-line board index: at most InteractiveInitialRootLimit of the newest
 // retained roots, each with the replies its own thread drew according to
 // qualitative reply appeal. Many threads are unanswered and a few run long, so
-// the board looks like a conversation rather than an even trickle. The total
-// is bounded by InteractiveInitialReplyLimit. The coarse World-selected
-// activity state remains unchanged.
+// the board looks like a conversation rather than an even trickle. The coarse
+// World-selected activity state remains unchanged.
 func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Host, board world.Board, state world.BoardActivityState) error {
 	if state.RetainedRoots <= 0 {
 		return nil
