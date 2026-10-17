@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"unicode/utf8"
 )
@@ -18,14 +19,17 @@ var ErrBBSWorldSituationOutputTruncated = errors.New("BBS Situation output token
 
 // BBSRootDraft is the canonical micro-situation and title candidates behind one root post.
 type BBSRootDraft struct {
-	EventID     string   `json:"event_id"`
-	ObjectClass string   `json:"object_class"`
-	Occurrence  string   `json:"occurrence"`
-	PostContent string   `json:"post_content"`
-	NoveltyKey  string   `json:"novelty_key"`
-	MustNot     []string `json:"must_not"`
-	Topics      []string `json:"topics,omitempty"`
-	Titles      []string `json:"titles"`
+	EventID           string   `json:"event_id"`
+	ObjectClass       string   `json:"object_class"`
+	Occurrence        string   `json:"occurrence"`
+	PostContent       string   `json:"post_content"`
+	NoveltyKey        string   `json:"novelty_key"`
+	MustNot           []string `json:"must_not"`
+	Topics            []string `json:"topics,omitempty"`
+	Titles            []string `json:"titles"`
+	ReplyAppeal       int      `json:"reply_appeal"`
+	ReplyAppealReason string   `json:"reply_appeal_reason"`
+	HasReplyAppeal    bool     `json:"has_reply_appeal"`
 }
 
 // BBSRootDraftResult contains all generated root drafts for a batch chunk.
@@ -56,6 +60,10 @@ type BBSRootDraftRequest struct {
 	RecentFormFacts []string
 	FormSeed        string
 	MultiVariant    bool
+
+	BaseReplyRate     float64
+	Members           int
+	RecentReplyCounts []int
 }
 
 // BBSRootDraftPlanner generates combined Situation and Title candidates in a single LLM call.
@@ -66,28 +74,30 @@ type BBSRootDraftPlanner interface {
 const maxTitleVariants = 3
 
 type compactSituationEvent struct {
-	EventID        string   `json:"event_id"`
-	BoardID        string   `json:"board_id"`
-	BoardName      string   `json:"board_name"`
-	BoardScope     string   `json:"board_scope,omitempty"`
-	AuthorHandle   string   `json:"author_handle"`
-	CreatedAt      string   `json:"created_at"`
-	PersonaProfile string   `json:"persona_profile,omitempty"`
-	ExistingFacts  []string `json:"existing_facts,omitempty"`
+	EventID         string   `json:"event_id"`
+	BoardID         string   `json:"board_id"`
+	BoardName       string   `json:"board_name"`
+	BoardScope      string   `json:"board_scope,omitempty"`
+	AuthorHandle    string   `json:"author_handle"`
+	CreatedAt       string   `json:"created_at"`
+	ActiveResidents int      `json:"active_residents,omitempty"`
+	PersonaProfile  string   `json:"persona_profile,omitempty"`
+	ExistingFacts   []string `json:"existing_facts,omitempty"`
 }
 
 func compactSituationEvents(events []BBSWorldWindowEvent) []compactSituationEvent {
 	out := make([]compactSituationEvent, 0, len(events))
 	for _, event := range events {
 		out = append(out, compactSituationEvent{
-			EventID:        event.EventID,
-			BoardID:        event.BoardID,
-			BoardName:      event.BoardName,
-			BoardScope:     event.BoardScope,
-			AuthorHandle:   event.AuthorHandle,
-			CreatedAt:      event.CreatedAt,
-			PersonaProfile: event.PersonaProfile,
-			ExistingFacts:  append([]string(nil), event.ExistingFacts...),
+			EventID:         event.EventID,
+			BoardID:         event.BoardID,
+			BoardName:       event.BoardName,
+			BoardScope:      event.BoardScope,
+			AuthorHandle:    event.AuthorHandle,
+			CreatedAt:       event.CreatedAt,
+			ActiveResidents: event.ActiveResidents,
+			PersonaProfile:  event.PersonaProfile,
+			ExistingFacts:   append([]string(nil), event.ExistingFacts...),
 		})
 	}
 	return out
@@ -118,12 +128,14 @@ func bbsWorldSituationHistoricalPolicy(req BBSWorldSituationProposalRequest) str
 }
 
 type bbsRootDraftWire struct {
-	ObjectClass string   `json:"object_class"`
-	Occurrence  string   `json:"occurrence"`
-	PostContent string   `json:"post_content"`
-	NoveltyKey  string   `json:"novelty_key"`
-	MustNot     []string `json:"must_not"`
-	Titles      []string `json:"titles"`
+	ObjectClass       string   `json:"object_class"`
+	Occurrence        string   `json:"occurrence"`
+	PostContent       string   `json:"post_content"`
+	NoveltyKey        string   `json:"novelty_key"`
+	MustNot           []string `json:"must_not"`
+	Titles            []string `json:"titles"`
+	ReplyAppeal       *int     `json:"reply_appeal"`
+	ReplyAppealReason string   `json:"reply_appeal_reason"`
 }
 
 type bbsRootDraftProposalWire struct {
@@ -174,13 +186,28 @@ recent/avoid material は文脈の参考です。同じ話題や続きの話が�
 各rootについて、確定済みSituationの話題をBBS一覧で伝える短い件名（題名）を、自分の投稿として付ける題名の形で書いてください。
 題名は、一覧を眺める人がこの投稿を開くか決める短い言葉です。何の話かが題名だけで分かるよう、対象の名前（作品名・機種名・場所など）を、先頭でなくてよいので題名のどこかに入れてください。
 
-各rootの出力項目（必ずSituationの項目を書いてから、そのあとにtitlesを出力してください）:
+スレッドごとの返信（レス）の付きやすさ・盛り上がりについて、レスの件数（数値）を決めるのではなく、話題や状況に応じた【盛り上がりの段階 (appeal: 0〜4)】を判断してください。件名と状況要約は、あなたが先に書いた Situation と件名を指します。数値への換算と実際の返信生成は世界シミュレーション側が後から行います。
+
+段階の定義:
+  0: ほぼ返信を呼ばない（独白、一方的な告知、完結した個人的日記、形式的な挨拶など）
+  1: やや返信を呼びにくい
+  2: 中位・基準（通常の雑談・情報提供など。この板の基準率に相当）
+  3: やや返信を呼びやすい（共感を呼ぶ話題、意見を求めやすい話題など）
+  4: 長いやり取りになりやすい（切実な質問、トラブル・不具合の相談、議論が発展する提起など）
+
+重要な指示:
+- すべてのルートを中位（2）に偏らせず、質問や相談は高め（3〜4）、独白や告知は低め（0〜1）にメリハリをつけて判断してください。
+- 投稿時刻や活動できる住民の数（active_residents）、板の直近のレス件数傾向も考慮してください（テレホーダイ等の混雑時は賑わいやすいなど）。
+
+各rootの出力項目（必ずSituationの項目を書いてから、そのあとにtitlesを出力し、最後に盛り上がりの判断を出力してください）:
 - object_class: 投稿が扱う対象を短く。
 - occurrence: この投稿が書かれる状況。出来事でなくてよい。
 - post_content: 投稿で実際に述べる中身（名乗る、挨拶する、伝える、尋ねる、など）を1〜2文で。本文そのものは書かない。
 - novelty_key: 他のrootと重ならない識別子。
 - must_not: 本文で踏み外したくないことを最大2件。
 - titles: 確定済みSituationの話題をBBS一覧で伝える短い件名の配列。各案は36文字以内・1行・Re:なし。
+- reply_appeal: スレッドごとの返信（レス）の付きやすさ・盛り上がりの段階 (appeal: 0〜4)。
+- reply_appeal_reason: その段階と判断した 1 文の簡潔な理由。
 `)
 
 	if req.MultiVariant {
@@ -190,8 +217,11 @@ recent/avoid material は文脈の参考です。同じ話題や続きの話が�
 	}
 
 	fmt.Fprintf(&b, "\nhistorical material policy: %s\n", historicalPolicy)
-	fmt.Fprintf(&b, "世界日付: %s\n局: %s\n地域: %s\n期間: %s .. %s\n掲示板: %s\n板の範囲: %s\n",
-		req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, req.BoardName, req.BoardScope)
+	fmt.Fprintf(&b, "世界日付: %s\n局: %s\n地域: %s\n期間: %s .. %s\n掲示板: %s (基準返信率: %.2f)\n板の範囲: %s\n総会員数: %d\n",
+		req.WorldDate, req.HostName, req.HostRegion, req.WindowStart, req.WindowEnd, req.BoardName, req.BaseReplyRate, req.BoardScope, req.Members)
+	if len(req.RecentReplyCounts) > 0 {
+		fmt.Fprintf(&b, "直近スレッドのレス件数傾向: %v\n", req.RecentReplyCounts)
+	}
 
 	fmt.Fprintf(&b, "\nhistorical material:\n%s\n", historicalFacts)
 	fmt.Fprintf(&b, "\nrecent BBS state（文脈・参考の材料）:\n%s\n", recent)
@@ -219,14 +249,16 @@ func bbsRootDraftSchema(events []BBSWorldWindowEvent) map[string]any {
 		properties[id] = map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"object_class": map[string]any{"type": "string"},
-				"occurrence":   map[string]any{"type": "string"},
-				"post_content": map[string]any{"type": "string"},
-				"novelty_key":  map[string]any{"type": "string"},
-				"must_not":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 2},
-				"titles":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"object_class":        map[string]any{"type": "string"},
+				"occurrence":          map[string]any{"type": "string"},
+				"post_content":        map[string]any{"type": "string"},
+				"novelty_key":         map[string]any{"type": "string"},
+				"must_not":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "maxItems": 2},
+				"titles":              map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"reply_appeal":        map[string]any{"type": "integer", "minimum": 0, "maximum": 4},
+				"reply_appeal_reason": map[string]any{"type": "string"},
 			},
-			"required":             []string{"object_class", "occurrence", "post_content", "novelty_key", "must_not", "titles"},
+			"required":             []string{"object_class", "occurrence", "post_content", "novelty_key", "must_not", "titles", "reply_appeal", "reply_appeal_reason"},
 			"additionalProperties": false,
 		}
 		required = append(required, id)
@@ -327,14 +359,33 @@ func (p StructuredOpenAIProvider) GenerateBBSRootDrafts(ctx context.Context, req
 			validTitles = validTitles[:1]
 		}
 
+		// Validate Appeal
+		appeal := 2
+		reason := "fallback:no_appeal"
+		hasAppeal := false
+		if value.ReplyAppeal == nil {
+			log.Printf("BBS root draft %s missing reply_appeal; fallback to 2", id)
+			reason = "fallback:missing_appeal"
+		} else if *value.ReplyAppeal < 0 || *value.ReplyAppeal > 4 {
+			log.Printf("BBS root draft %s reply_appeal out of bounds (%d); fallback to 2", id, *value.ReplyAppeal)
+			reason = "fallback:invalid_appeal"
+		} else {
+			appeal = *value.ReplyAppeal
+			reason = strings.TrimSpace(value.ReplyAppealReason)
+			hasAppeal = true
+		}
+
 		out[id] = BBSRootDraft{
-			EventID:     id,
-			ObjectClass: objClass,
-			Occurrence:  occurrence,
-			PostContent: postContent,
-			NoveltyKey:  noveltyKey,
-			MustNot:     cleanStringList(value.MustNot),
-			Titles:      validTitles,
+			EventID:           id,
+			ObjectClass:       objClass,
+			Occurrence:        occurrence,
+			PostContent:       postContent,
+			NoveltyKey:        noveltyKey,
+			MustNot:           cleanStringList(value.MustNot),
+			Titles:            validTitles,
+			ReplyAppeal:       appeal,
+			ReplyAppealReason: reason,
+			HasReplyAppeal:    hasAppeal,
 		}
 	}
 

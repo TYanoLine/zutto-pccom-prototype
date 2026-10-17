@@ -25,7 +25,7 @@ func TestCatchUpWrapsCanonicalPostCommitInOnePersistenceBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 
 	if err := engine.CatchUpInitialCount(context.Background(), host, world.Board{ID: "20/1", Name: "ＧＡＭＥ"}, 12); err != nil {

@@ -3,11 +3,14 @@ package bbsengine
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
+
+var testJST = time.FixedZone("JST", 9*3600)
 
 type fakeBatchPlanner struct {
 	calls    int
@@ -53,9 +56,9 @@ func genericTestHost(store *world.MemoryStore) world.Host {
 // time, like the stations these tests were originally written against.
 func seedFreeTalk(store *world.MemoryStore, hostID string) {
 	store.ReplaceHostPosts(hostID, []world.Post{
-		{ID: 1, BoardID: "main", Author: "SYSOP", Subject: "seed 1", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 21, 14, 0, 0, time.Local)},
-		{ID: 2, BoardID: "main", Author: "NEKO", Subject: "seed 2", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 0, 42, 0, 0, time.Local)},
-		{ID: 3, BoardID: "main", Author: "TAKA", Subject: "seed 3", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 1, 7, 0, 0, time.Local)},
+		{ID: 1, BoardID: "main", Author: "SYSOP", Subject: "seed 1", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 21, 14, 0, 0, testJST)},
+		{ID: 2, BoardID: "main", Author: "NEKO", Subject: "seed 2", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 0, 42, 0, 0, testJST)},
+		{ID: 3, BoardID: "main", Author: "TAKA", Subject: "seed 3", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 1, 7, 0, 0, testJST)},
 	})
 }
 
@@ -65,10 +68,10 @@ func turboTestHost(store *world.MemoryStore) world.Host {
 	host := world.Host{ID: "turbobbs-test", Phone: "0470000001", Name: "TURBOBBS TEST", Software: "TurboBBS 1.08 compatible", SoftwareID: "turbobbs", Lines: 1, Popularity: .18, MaxBaud: 2400, Members: 52, FoundedOn: "1989-08-20", TelehoFriendly: true}
 	store.SaveHost(host)
 	store.ReplaceHostPosts(host.ID, []world.Post{
-		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "seed 1", Body: "seed history", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, time.Local)},
-		{ID: 602, BoardID: "4", Author: "TARO YAMADA", Subject: "seed 2", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 0, 14, 0, 0, time.Local)},
-		{ID: 603, BoardID: "2", Author: "MIKA", Subject: "seed 3", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 21, 47, 0, 0, time.Local)},
-		{ID: 604, BoardID: "8", Author: "KEN", Subject: "seed 4", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, time.Local)},
+		{ID: 601, BoardID: "1", Author: "SYSOP", Subject: "seed 1", Body: "seed history", CreatedAt: time.Date(1996, 8, 24, 22, 18, 0, 0, testJST)},
+		{ID: 602, BoardID: "4", Author: "TARO YAMADA", Subject: "seed 2", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 0, 14, 0, 0, testJST)},
+		{ID: 603, BoardID: "2", Author: "MIKA", Subject: "seed 3", Body: "seed history", CreatedAt: time.Date(1996, 8, 25, 21, 47, 0, 0, testJST)},
+		{ID: 604, BoardID: "8", Author: "KEN", Subject: "seed 4", Body: "seed history", CreatedAt: time.Date(1996, 8, 26, 1, 8, 0, 0, testJST)},
 	})
 	return host
 }
@@ -78,8 +81,11 @@ func TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime(t *testing.T) {
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
+	// Seed 42 deterministically materializes resident replies across the roots,
+	// preventing flaky test failures where all batch roots randomly draw 0 replies.
+	engine.RNG = rand.New(rand.NewSource(42))
 
 	before := len(store.ListPosts(host.ID))
 	if err := engine.CatchUp(context.Background(), host, board); err != nil {
@@ -144,7 +150,7 @@ func TestSharedEngineResetRemovesOnlyGeneratedHistory(t *testing.T) {
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 
 	seedBefore := len(store.ListPosts(host.ID))
@@ -191,7 +197,7 @@ func TestSharedEngineResetRemovesOnlyGeneratedHistory(t *testing.T) {
 func TestSharedEngineWorksForDifferentHostPrograms(t *testing.T) {
 	store := world.NewMemoryStore()
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 
 	generic := genericTestHost(store)
@@ -222,7 +228,7 @@ func TestCatchUpInitialIgnoresCadenceOnlyUntilFirstGeneratedBatch(t *testing.T) 
 	}
 	board := world.Board{ID: "60/1", Name: "ＰＣ－９８／ＭＯＤＥＭ"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 0, 50, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 0, 50, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 	store.AddPost(host.ID, world.Post{
 		BoardID:   board.ID,
@@ -263,7 +269,7 @@ func TestCatchUpInitialCountCanMaterializeLargeDebugBatchWithoutChangingNormalBa
 	}
 	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 
 	if got := batchSize(host, time.Time{}, now, engine.cadence()); got != 5 {
@@ -303,7 +309,7 @@ func TestPlanSlotsUsesStableNonUniformTimestamps(t *testing.T) {
 		t.Fatal(err)
 	}
 	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	start := now.Add(-28 * 24 * time.Hour)
 	engine := New(store, &fakeBatchPlanner{}, func() time.Time { return now })
 
@@ -347,7 +353,7 @@ func TestCatchUpInitialRootHistoryCountSpreadsFortyRootsAndAddsReplies(t *testin
 	}
 	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 	lookback := 28 * 24 * time.Hour
 
@@ -432,7 +438,7 @@ func TestCatchUpPlansReactionsForNewRootsAndSelectsTopicAlignedPersonas(t *testi
 		Topics:    map[string]float64{"pc98": 0.6, "modem": 0.4},
 	}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 
 	if err := engine.CatchUp(context.Background(), host, board); err != nil {
@@ -465,7 +471,7 @@ func TestReplyProjectorCanDecoupleSemanticResponseFromNativeTopology(t *testing.
 	host := turboTestHost(store)
 	board := world.Board{ID: "8", Name: "LOCAL TALK"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 	engine.ReplyProjector = ReplyProjectorFunc(func(_ world.Host, source world.Post, proposed string) (ReplyRepresentation, error) {
 		// Simulate a flat-message host: it can semantically answer source while
@@ -517,7 +523,7 @@ func TestHakataActorRosterDrawsFromLargeMembershipButStaysBounded(t *testing.T) 
 		t.Fatal(err)
 	}
 	engine := New(store, &fakeBatchPlanner{}, func() time.Time {
-		return time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+		return time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	})
 	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
 	roster := engine.actorRoster(host, board, nil, engine.currentTime())
@@ -539,7 +545,7 @@ func TestWorldSelectedStaffBoardRootAuthors(t *testing.T) {
     host, err := store.HostByPhone("0920000196")
     if err != nil { t.Fatal(err) }
     engine := New(store, &fakeBatchPlanner{}, nil)
-    now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+    now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
     board := world.Board{ID: "1", Name: "事務局からのお知らせ", RootAuthorPolicy: "sysop_only"}
     slots := engine.planSlots(host, board, nil, time.Time{}, now, 10, now.Add(-30*24*time.Hour), 0)
     if len(slots) != 10 { t.Fatalf("staff slots=%d want 10", len(slots)) }

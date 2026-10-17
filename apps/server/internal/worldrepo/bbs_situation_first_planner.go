@@ -153,18 +153,23 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			eventID: eventID, slot: slot, anchorKey: anchorKey,
 			kind: "open_topic", profile: profile, facts: existing,
 		})
+		activeResidents := 0
+		if req.ActiveBySlot != nil {
+			activeResidents = req.ActiveBySlot[slot.Index]
+		}
 		events = append(events, llm.BBSWorldWindowEvent{
-			EventID:        eventID,
-			BoardID:        req.Board.ID,
-			BoardName:      req.Board.Name,
-			BoardScope:     req.Board.SemanticScope,
-			AuthorHandle:   slot.Author,
-			CreatedAt:      slot.CreatedAt.Format(time.RFC3339),
-			Action:         "thread_start",
-			AnchorKey:      anchorKey,
-			CauseKind:      "board_activity_window",
-			PersonaProfile: profile,
-			ExistingFacts:  existing,
+			EventID:         eventID,
+			BoardID:         req.Board.ID,
+			BoardName:       req.Board.Name,
+			BoardScope:      req.Board.SemanticScope,
+			AuthorHandle:    slot.Author,
+			CreatedAt:       slot.CreatedAt.Format(time.RFC3339),
+			ActiveResidents: activeResidents,
+			Action:          "thread_start",
+			AnchorKey:       anchorKey,
+			CauseKind:       "board_activity_window",
+			PersonaProfile:  profile,
+			ExistingFacts:   existing,
 		})
 	}
 
@@ -242,6 +247,9 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 				RecentFormFacts:               titleshape.FormFacts(recentSubjects),
 				FormSeed:                      formSeed,
 				MultiVariant:                  p.repo != nil && p.repo.titleVariants,
+				BaseReplyRate:                 req.BaseReplyRate,
+				Members:                       req.Host.Members,
+				RecentReplyCounts:             req.RecentReplyCounts,
 			})
 			log.Printf("BBS timing: host=%s board=%s phase=situation_chunk duration=%s events=%d",
 				req.Host.ID, req.Board.ID, time.Since(chunkStart), len(chunkEvents))
@@ -400,6 +408,9 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 			SituationSummary:           summary,
 			SituationFacts:             facts,
 			ArticleDetailsMaterialized: true,
+			ReplyAppeal:                draft.ReplyAppeal,
+			ReplyAppealReason:          draft.ReplyAppealReason,
+			HasReplyAppeal:             draft.HasReplyAppeal,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].SlotIndex < out[j].SlotIndex })

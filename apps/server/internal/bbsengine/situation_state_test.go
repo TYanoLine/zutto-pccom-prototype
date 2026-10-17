@@ -49,7 +49,7 @@ func TestSituationFirstPlannerStatePersistsWithoutTitleFirstContract(t *testing.
 		t.Fatal(err)
 	}
 	board := world.Board{ID: "4", Name: "ゲーム"}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	engine := New(store, situationStatePlanner{}, func() time.Time { return now })
 	if err := engine.CatchUpInitialCount(context.Background(), host, board, 1); err != nil {
 		t.Fatal(err)

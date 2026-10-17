@@ -2,98 +2,101 @@ package bbsengine
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"math/rand"
-	"strings"
 	"testing"
 	"time"
 
 	"zutto-pccom/apps/server/internal/world"
 )
 
-type mockReplyAppealJudge struct {
-	calls    int
-	requests []world.ReplyAppealRequest
-	fn       func(context.Context, world.ReplyAppealRequest) (world.ReplyAppealResult, error)
+type customAppealBatchPlanner struct {
+	calls        int
+	appeal       int
+	appealReason string
+	hasAppeal    bool
 }
 
-func (m *mockReplyAppealJudge) JudgeReplyAppeal(ctx context.Context, req world.ReplyAppealRequest) (world.ReplyAppealResult, error) {
-	m.calls++
-	m.requests = append(m.requests, req)
-	if m.fn != nil {
-		return m.fn(ctx, req)
+func (p *customAppealBatchPlanner) PlanBBSBatch(_ context.Context, req BatchRequest) ([]PlannedPost, error) {
+	p.calls++
+	out := make([]PlannedPost, 0, len(req.Slots))
+	for _, slot := range req.Slots {
+		subject := fmt.Sprintf("batch title %02d", slot.Index)
+		if slot.ReplyToPostID != 0 || slot.ReplyToSlotIndex != 0 {
+			subject = ""
+		}
+		out = append(out, PlannedPost{
+			SlotIndex:         slot.Index,
+			Subject:           subject,
+			Topic:             fmt.Sprintf("topic-%02d", slot.Index),
+			Motivation:        "periodic board activity",
+			Stance:            "neutral",
+			Goal:              "share or respond",
+			SituationSummary:  fmt.Sprintf("batch title %02d に関する具体的な出来事", slot.Index),
+			Claims:            []string{"具体的な内容を述べる"},
+			ReplyAppeal:       p.appeal,
+			ReplyAppealReason: p.appealReason,
+			HasReplyAppeal:    p.hasAppeal,
+		})
 	}
-	res := world.ReplyAppealResult{
-		Appeal: make(map[int64]int, len(req.Roots)),
-		Reason: make(map[int64]string, len(req.Roots)),
-	}
-	for _, r := range req.Roots {
-		res.Appeal[r.ID] = 3
-		res.Reason[r.ID] = "mock appeal"
-	}
-	return res, nil
+	return out, nil
 }
 
-// SC-006 & T011(a): Judge call count is proportional to batches (1 call per batch), not roots.
-func TestReplyAppealJudgeCallCountProportionalToBatchCount(t *testing.T) {
+// SC-002: Verify PlannedPost appeal and reason are saved into ReactionPlan.
+func TestReplyAppealCarriedFromPlannerIntoReactionPlan(t *testing.T) {
 	store := world.NewMemoryStore()
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 1.5}
-	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	planner := &customAppealBatchPlanner{appeal: 3, appealReason: "planned appeal", hasAppeal: true}
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 
-	judge := &mockReplyAppealJudge{}
 	engine := New(store, planner, func() time.Time { return now })
-	engine.ReplyAppealJudge = judge
 	engine.RNG = rand.New(rand.NewSource(42))
 
 	if err := engine.CatchUp(context.Background(), host, board); err != nil {
 		t.Fatalf("CatchUp failed: %v", err)
 	}
 
-	if judge.calls != 1 {
-		t.Fatalf("judge calls = %d, want 1 (1 batch)", judge.calls)
+	plans := store.ListReactionPlans(host.ID, board.ID)
+	if len(plans) == 0 {
+		t.Fatal("expected ReactionPlans to be saved")
 	}
 
-	req := judge.requests[0]
-	if len(req.Roots) < 3 {
-		t.Fatalf("batch had %d roots, expected >= 3", len(req.Roots))
-	}
-	if req.Host != host.Name || req.Board != board.Name {
-		t.Fatalf("request host=%q board=%q, want %q %q", req.Host, req.Board, host.Name, board.Name)
-	}
-
-	// Advance time past cadence to trigger a second batch.
-	now = now.Add(7 * time.Hour)
-	if err := engine.CatchUp(context.Background(), host, board); err != nil {
-		t.Fatalf("second CatchUp failed: %v", err)
-	}
-
-	if judge.calls != 2 {
-		t.Fatalf("judge calls after 2 batches = %d, want 2", judge.calls)
+	for _, p := range plans {
+		if !p.Judged {
+			t.Errorf("plan for root %d Judged=false, want true", p.TargetPostID)
+		}
+		if p.TargetPostID >= 1000 {
+			if p.Appeal != 3 {
+				t.Errorf("plan for batch root %d Appeal=%d, want 3", p.TargetPostID, p.Appeal)
+			}
+			if p.Reason != "planned appeal" {
+				t.Errorf("plan for batch root %d Reason=%q, want 'planned appeal'", p.TargetPostID, p.Reason)
+			}
+		} else {
+			if p.Appeal != 2 {
+				t.Errorf("plan for seed root %d Appeal=%d, want 2 (fallback)", p.TargetPostID, p.Appeal)
+			}
+			if p.Reason != "fallback:no_appeal" {
+				t.Errorf("plan for seed root %d Reason=%q, want 'fallback:no_appeal'", p.TargetPostID, p.Reason)
+			}
+		}
 	}
 }
 
-// SC-004 & T011(b): Judge fallback when Judge is nil or returns error.
-func TestReplyAppealJudgeFallbackOnError(t *testing.T) {
+// FR-006: Fallback when appeal is not carried (HasReplyAppeal = false).
+func TestReplyAppealFallbackWhenNoAppeal(t *testing.T) {
 	store := world.NewMemoryStore()
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 1.5}
-	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
-
-	failingJudge := &mockReplyAppealJudge{
-		fn: func(_ context.Context, _ world.ReplyAppealRequest) (world.ReplyAppealResult, error) {
-			return world.ReplyAppealResult{}, errors.New("simulated LLM provider outage")
-		},
-	}
+	planner := &customAppealBatchPlanner{hasAppeal: false}
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 
 	engine := New(store, planner, func() time.Time { return now })
-	engine.ReplyAppealJudge = failingJudge
 	engine.RNG = rand.New(rand.NewSource(12345))
 
 	if err := engine.CatchUp(context.Background(), host, board); err != nil {
-		t.Fatalf("CatchUp should succeed despite judge failure: %v", err)
+		t.Fatalf("CatchUp should succeed on fallback: %v", err)
 	}
 
 	plans := store.ListReactionPlans(host.ID, board.ID)
@@ -108,8 +111,8 @@ func TestReplyAppealJudgeFallbackOnError(t *testing.T) {
 		if p.Appeal != 2 {
 			t.Errorf("plan for root %d Appeal=%d, want 2 (baseline fallback)", p.TargetPostID, p.Appeal)
 		}
-		if !strings.HasPrefix(p.Reason, "fallback:") {
-			t.Errorf("plan for root %d Reason=%q, want fallback prefix", p.TargetPostID, p.Reason)
+		if p.Reason != "fallback:no_appeal" {
+			t.Errorf("plan for root %d Reason=%q, want 'fallback:no_appeal'", p.TargetPostID, p.Reason)
 		}
 	}
 }
@@ -119,25 +122,10 @@ func TestReplyAppealPersistedCountSurvivesRestart(t *testing.T) {
 	store := world.NewMemoryStore()
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 1.5}
-	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
-
-	judge1 := &mockReplyAppealJudge{
-		fn: func(_ context.Context, req world.ReplyAppealRequest) (world.ReplyAppealResult, error) {
-			res := world.ReplyAppealResult{
-				Appeal: make(map[int64]int, len(req.Roots)),
-				Reason: make(map[int64]string, len(req.Roots)),
-			}
-			for _, r := range req.Roots {
-				res.Appeal[r.ID] = 4
-				res.Reason[r.ID] = "first run high appeal"
-			}
-			return res, nil
-		},
-	}
+	planner := &customAppealBatchPlanner{appeal: 4, appealReason: "first run high appeal", hasAppeal: true}
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 
 	engine1 := New(store, planner, func() time.Time { return now })
-	engine1.ReplyAppealJudge = judge1
 	engine1.RNG = rand.New(rand.NewSource(99))
 
 	if err := engine1.CatchUp(context.Background(), host, board); err != nil {
@@ -150,27 +138,14 @@ func TestReplyAppealPersistedCountSurvivesRestart(t *testing.T) {
 	}
 
 	countsBefore := make(map[int64]int, len(savedPlans))
+	appealBefore := make(map[int64]int, len(savedPlans))
 	for _, p := range savedPlans {
 		countsBefore[p.TargetPostID] = p.Count
+		appealBefore[p.TargetPostID] = p.Appeal
 	}
 
-	// Create engine2 simulating restart with judge2 that returns appeal 0.
-	judge2 := &mockReplyAppealJudge{
-		fn: func(_ context.Context, req world.ReplyAppealRequest) (world.ReplyAppealResult, error) {
-			res := world.ReplyAppealResult{
-				Appeal: make(map[int64]int, len(req.Roots)),
-				Reason: make(map[int64]string, len(req.Roots)),
-			}
-			for _, r := range req.Roots {
-				res.Appeal[r.ID] = 0
-				res.Reason[r.ID] = "restart should not rejudge old plans"
-			}
-			return res, nil
-		},
-	}
-
+	// Create engine2 simulating restart
 	engine2 := New(store, planner, func() time.Time { return now })
-	engine2.ReplyAppealJudge = judge2
 	engine2.RNG = rand.New(rand.NewSource(999))
 
 	// Re-run reaction planning for existing roots
@@ -189,8 +164,8 @@ func TestReplyAppealPersistedCountSurvivesRestart(t *testing.T) {
 			if p.Count != beforeCount {
 				t.Fatalf("root %d count changed from %d to %d after restart", p.TargetPostID, beforeCount, p.Count)
 			}
-			if p.Appeal != 4 {
-				t.Fatalf("root %d appeal changed from 4 to %d after restart", p.TargetPostID, p.Appeal)
+			if p.Appeal != appealBefore[p.TargetPostID] {
+				t.Fatalf("root %d appeal changed from %d to %d after restart", p.TargetPostID, appealBefore[p.TargetPostID], p.Appeal)
 			}
 		}
 	}
