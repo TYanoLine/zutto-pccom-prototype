@@ -560,76 +560,13 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 		standardByRoot[r.ID] = std
 	}
 
-	var rootsNeedingJudge []world.Post
 	for _, r := range unjudgedRoots {
 		if dec, ok := appealByPostID[r.ID]; ok && dec.hasAppeal {
 			appealMap[r.ID] = dec.appeal
 			reasonMap[r.ID] = dec.reason
 		} else {
-			rootsNeedingJudge = append(rootsNeedingJudge, r)
-		}
-	}
-
-	if len(rootsNeedingJudge) > 0 {
-		if e.ReplyAppealJudge != nil {
-			appealRoots := make([]world.AppealRoot, len(rootsNeedingJudge))
-			postedAt := make(map[int64]time.Time, len(rootsNeedingJudge))
-
-			for i, r := range rootsNeedingJudge {
-				appealRoots[i] = world.AppealRoot{
-					ID:      r.ID,
-					Subject: r.Subject,
-					Summary: r.Intent.SituationSummary,
-				}
-				postedAt[r.ID] = r.CreatedAt
-			}
-
-			var recentCounts []int
-			for _, p := range filterBoard(e.Store.ListPosts(host.ID), board.ID) {
-				if world.IsSemanticRoot(p) {
-					if plan, ok := planStore.ReactionPlan(host.ID, p.ID); ok {
-						recentCounts = append(recentCounts, plan.Count)
-					}
-				}
-			}
-			if len(recentCounts) > 10 {
-				recentCounts = recentCounts[len(recentCounts)-10:]
-			}
-
-			res, err := e.ReplyAppealJudge.JudgeReplyAppeal(ctx, world.ReplyAppealRequest{
-				Host:         host.Name,
-				Board:        board.Name,
-				BaseRate:     replyRate,
-				Roots:        appealRoots,
-				PostedAt:     postedAt,
-				Members:      host.Members,
-				ActiveByRoot: activeByRoot,
-				RecentCounts: recentCounts,
-			})
-			if err != nil {
-				log.Printf("BBS reply appeal judge fallback: host=%s board=%s err=%v", host.ID, board.ID, err)
-				for _, r := range rootsNeedingJudge {
-					appealMap[r.ID] = 2
-					reasonMap[r.ID] = fmt.Sprintf("fallback:%v", err)
-				}
-			} else {
-				for _, r := range rootsNeedingJudge {
-					app, ok := res.Appeal[r.ID]
-					if !ok || app < 0 || app > 4 {
-						log.Printf("BBS reply appeal missing or out of bounds for root %d; fallback to 2", r.ID)
-						appealMap[r.ID] = 2
-						reasonMap[r.ID] = "fallback:invalid_appeal"
-					} else {
-						appealMap[r.ID] = app
-						reasonMap[r.ID] = res.Reason[r.ID]
-					}
-				}
-			}
-		} else {
-			for _, r := range rootsNeedingJudge {
-				appealMap[r.ID] = 2
-				reasonMap[r.ID] = "fallback:judge_unavailable"
-			}
+			appealMap[r.ID] = 2
+			reasonMap[r.ID] = "fallback:no_appeal"
 		}
 	}
 
