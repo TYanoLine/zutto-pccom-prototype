@@ -8,7 +8,7 @@
 - 作業ブランチから `main` への PR を 1 本作る（最後のタスクで**ドラフト**として作る）。`main` に直接コミットしない。
 - **成果物は Go のコードの変更とテスト。** spec のファイル（`spec.md`、`plan.md`、`tasks.md`）を作る・変更することは、この作業の仕事ではない。
   この作業で足す spec フォルダのファイルは、`verification.md` だけ。
-- スコープ外（`spec.md` 末尾）に手を出さない。特に、Situation と件名の統合、モデルや推論の重さの変更、本文の生成は、しない。
+- スコープ外（`spec.md` 末尾）に手を出さない。特に、モデルや推論の重さの変更、本文の生成は、しない。
 - 採用された Situation の項目と、保存される事実は、変えない。人物生成の金型（`population_golden_test.go`）と、Erika-K の画面の金型
   （`screens_golden.txt`）は、1 バイトも変えない。
 - 既存ファイルに整形だけの差分を作らない。`gofmt -w` を既存ファイル全体にかけない（新規ファイルは、かけてよい）。
@@ -51,10 +51,29 @@ go -C apps/server test -race ./internal/worldrepo -count=1
 go -C apps/server test ./internal/llm ./internal/worldrepo -count=1
 ```
 
-## Phase 3: 文書と最終確認
+## Phase 3: Situation と件名の統合
 
-- [ ] **T007** `docs/DEBUG_INSPECTION.md` に、新しい `BBS timing` の行と、`BBS Situation novelty overlap` の行の見方を書く。
-- [ ] **T008** 全体のテストを実行する。
+- [ ] **T007** `config` に `GENERATION_UNIFIED_ROOTS`（既定 `1`）を足す。既存の `GENERATION_FREEFORM_BODY` の読み方に合わせ、`config_test.go` に既定と `0` のテストを足す。
+- [ ] **T008** `apps/server/internal/llm/root_drafts.go`（新規）を書く（`plan.md` §2.4）。
+  既存の Situation のプロンプト（`openai_world_situation_proposer.go`）と件名のプロンプト（`situation_titles.go` の `buildSituationTitlePrompt`）から、
+  文言を引き継ぐ。**新しい文言を作らない。** 既存のプロンプトを、関数として切り出せるなら切り出して再利用する（既存の出力を変えないこと）。
+  スキーマは、ルートごとに Situation の項目、続いて `titles`。
+- [ ] **T009** `root_drafts_test.go`（新規）: スキーマの項目の順序（`titles` が最後）、`MultiVariant` の案数の上限（3）、
+  不正な出力（件名が空など）の扱い、プロンプトに既存の方針の文言（「対象の名前を題名のどこかに入れてください」など）が入ることを、偽の HTTP プロバイダで確かめる。
+- [ ] **T010** `planSituationFirstRoots` に統合の経路を足す: フラグが `1` で提案器が `BBSRootDraftPlanner` を実装しているときは、
+  統合したチャンクの呼び出し（並列、Phase 2 と同じ仕組み）→ スロット順に直列で件名を選択（`pickTitleVariant`）。
+  件名が不正なチャンクは、`wordRootTitles` で補う（FR-007）。それ以外は、これまでの経路。
+- [ ] **T011** 偽の統合器で、SC-008（呼び出し回数 `ceil(n/6)`、フラグ `0` で 2 段）と SC-009（不正な件名のチャンクだけ補う）をテストする。
+  既存の `openTopicSituationProposer` などの偽実装は、`BBSRootDraftPlanner` を実装しない（これまでの経路が使われる）ままにして、既存のテストを壊さない。
+
+```bash
+go -C apps/server test -race ./internal/llm ./internal/worldrepo ./internal/config -count=1
+```
+
+## Phase 4: 文書と最終確認
+
+- [ ] **T012** `docs/DEBUG_INSPECTION.md` に、新しい `BBS timing` の行と、`BBS Situation novelty overlap` の行の見方を書く。
+- [ ] **T013** 全体のテストを実行する。
 
 ```bash
 go -C apps/server vet ./...
@@ -62,9 +81,10 @@ go -C apps/server test ./... -count=1
 ```
 
   失敗したものは、そのまま `verification.md` に書く。人物生成と Erika-K の金型が変わっていないことを、`git diff --stat` で確かめる。
-- [ ] **T009** `specs/022-faster-root-planning/verification.md` を書く: 実行したコマンドと結果（未実施は理由つき）。
+- [ ] **T014** `specs/022-faster-root-planning/verification.md` を書く: 実行したコマンドと結果（未実施は理由つき）。
   SC-006（デプロイ後の `planner_total`）は、**「未実施: デプロイ後に確認」**と書く。
-- [ ] **T010** 作業ブランチを push し、**ドラフトの PR** を作る。説明に、実行したコマンドと結果、`bbs_situation_chunk_retry_test.go` を直した理由
+  統合した件名の質は、**「未評価: 人の目で、デバッグトレースと `BBS title shape` のログから確認する」**と書く（実装者は評価しない）。
+- [ ] **T015** 作業ブランチを push し、**ドラフトの PR** を作る。説明に、実行したコマンドと結果、`bbs_situation_chunk_retry_test.go` を直した理由
   （小さいサイズを引き継ぐ動作がなくなったため）を書く。
 
 ## 完了の定義
@@ -72,7 +92,7 @@ go -C apps/server test ./... -count=1
 PR の差分に、次が含まれる:
 
 - `worldrepo/bbs_situation_first_planner.go`、`bbs_title_words.go` の変更
-- `llm/` のプロンプトの文言の変更
+- `llm/` のプロンプトの文言の変更、`llm/root_drafts.go` とそのテスト、`config` の変更
 - 上記に対応するテストの追加と修正
 - `docs/DEBUG_INSPECTION.md` の更新
 - `specs/022-faster-root-planning/verification.md`
