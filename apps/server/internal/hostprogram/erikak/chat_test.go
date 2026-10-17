@@ -117,7 +117,7 @@ func loggedInChatRuntime(t *testing.T, w *chatWorld, host world.Host) *Runtime {
 	return rt
 }
 
-func TestCallScreenShowsEveryLine(t *testing.T) {
+func TestCallScreenShowsActiveLines(t *testing.T) {
 	w, host := newChatWorld(4)
 	rt := loggedInChatRuntime(t, w, host)
 	out, _ := rt.HandleLine("4")
@@ -125,7 +125,6 @@ func TestCallScreenShowsEveryLine(t *testing.T) {
 		"#01 GUEST     WHO       28K-...\r\n" +
 		"#02 NORI      idle      14K-...\r\n" +
 		"#03 ｿﾈｾｲｼﾞ    CHAT   #0 26K-...\r\n" +
-		"#04 ring\r\n" +
 		"\r\n[番号]=電報 [ﾘﾀｰﾝ]=WHO [.]戻る [X]=CHAT\r\nCALL> ->"
 	if out != want {
 		t.Fatalf("call screen:\n%q\nwant\n%q", out, want)
@@ -135,7 +134,7 @@ func TestCallScreenShowsEveryLine(t *testing.T) {
 	}
 }
 
-func TestWhoRowsFollowTheLineCount(t *testing.T) {
+func TestWhoRowsShowsOnlyActiveLines(t *testing.T) {
 	for _, lines := range []int{1, 3, 8, 16} {
 		w, host := newChatWorld(lines)
 		if lines == 1 {
@@ -150,11 +149,15 @@ func TestWhoRowsFollowTheLineCount(t *testing.T) {
 				rows++
 			}
 		}
-		if rows != lines {
-			t.Fatalf("%d lines: %d WHO rows:\n%s", lines, rows, out)
+		expectedRows := 3
+		if lines == 1 {
+			expectedRows = 1
 		}
-		if lines >= 8 && !strings.Contains(out, "#08 ring\r\n") {
-			t.Fatalf("two-digit line numbers missing:\n%s", out)
+		if rows != expectedRows {
+			t.Fatalf("%d lines: %d WHO rows (want %d):\n%s", lines, rows, expectedRows, out)
+		}
+		if strings.Contains(out, "ring") {
+			t.Fatalf("unconnected lines should not be shown as ring:\n%s", out)
 		}
 	}
 }
@@ -190,7 +193,7 @@ func TestTelegramToAResidentInChatArrivesAfterChat(t *testing.T) {
 	rt.HandleLine("3")
 	out, _ := rt.HandleLine("あとで")
 	if !strings.HasPrefix(out, "\r\n#03 チャットルームか会議室にちゃっかり入ってます。 CHAT終了後、電報を送ります。\r\n\r\n#01 GUEST") ||
-		!strings.HasSuffix(out, "#04 ring\r\n\r\n[番号]=電報 [ﾘﾀｰﾝ]=WHO [.]戻る [X]=CHAT\r\nCALL> ->") {
+		!strings.HasSuffix(out, "#03 ｿﾈｾｲｼﾞ    CHAT   #0 26K-...\r\n\r\n[番号]=電報 [ﾘﾀｰﾝ]=WHO [.]戻る [X]=CHAT\r\nCALL> ->") {
 		t.Fatalf("in-chat telegram = %q", out)
 	}
 	if len(w.sent) != 1 || !w.sent[0].DeliverAt.Equal(chatT0.Add(30*time.Minute)) {
@@ -202,7 +205,15 @@ func TestTelegramToAFreeOrOwnLineIsAnError(t *testing.T) {
 	w, host := newChatWorld(4)
 	rt := loggedInChatRuntime(t, w, host)
 	rt.HandleLine("4")
-	for _, input := range []string{"4", "1", "9", "*", "P"} {
+	out, _ := rt.HandleLine("4")
+	if !strings.HasPrefix(out, "その回線番号には誰もいません。\r\n") || !strings.HasSuffix(out, "CALL> ->") || rt.state != "call" {
+		t.Fatalf("free line: %q (state %s)", out, rt.state)
+	}
+	out, _ = rt.HandleLine("1")
+	if !strings.HasPrefix(out, "自分自身には電報を送れません。\r\n") || !strings.HasSuffix(out, "CALL> ->") || rt.state != "call" {
+		t.Fatalf("own line: %q (state %s)", out, rt.state)
+	}
+	for _, input := range []string{"9", "*", "P"} {
 		out, _ := rt.HandleLine(input)
 		if !strings.HasPrefix(out, "? COMMAND ERROR\r\n") || !strings.HasSuffix(out, "CALL> ->") || rt.state != "call" {
 			t.Fatalf("%q: %q (state %s)", input, out, rt.state)
@@ -211,7 +222,7 @@ func TestTelegramToAFreeOrOwnLineIsAnError(t *testing.T) {
 	if len(w.sent) != 0 {
 		t.Fatalf("messages were sent: %+v", w.sent)
 	}
-	out, _ := rt.HandleLine("2")
+	out, _ = rt.HandleLine("2")
 	if !strings.Contains(out, "電報をどうぞ") {
 		t.Fatal(out)
 	}
@@ -263,7 +274,7 @@ func TestChatRoomEntryEventsAndExit(t *testing.T) {
 	wantExit := "\r\n\a\a## chat off まさや ##\r\n" +
 		"GUEST   :..\r\n\r\n\a\a## chat off GUEST ##\r\n" +
 		strings.Repeat("-", 36) + "CHAT OFF" + strings.Repeat("-", 34) + "\r\n\r\n" +
-		"#01 GUEST     WHO       28K-...\r\n#02 NORI      idle      14K-...\r\n#03 ｿﾈｾｲｼﾞ    CHAT   #0 26K-...\r\n#04 ring\r\n" +
+		"#01 GUEST     WHO       28K-...\r\n#02 NORI      idle      14K-...\r\n#03 ｿﾈｾｲｼﾞ    CHAT   #0 26K-...\r\n" +
 		"=====\r\n【0】 ROOM 0\r\n【1】 ROOM 1（定員 1名）\r\n=====\r\nルーム番号をどうぞ  （中止はﾘﾀｰﾝｷｰ） --> "
 	if out != wantExit {
 		t.Fatalf("exit:\n%q\nwant\n%q", out, wantExit)

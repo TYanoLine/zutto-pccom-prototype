@@ -29,7 +29,6 @@ func incomingFrom(w *chatWorld, at time.Time, body string) {
 const callScreenTail = "#01 GUEST     WHO       28K-...\r\n" +
 	"#02 NORI      idle      14K-...\r\n" +
 	"#03 ｿﾈｾｲｼﾞ    CHAT   #0 26K-...\r\n" +
-	"#04 ring\r\n" +
 	"\r\n[番号]=電報 [ﾘﾀｰﾝ]=WHO [.]戻る [X]=CHAT\r\nCALL> ->"
 
 func callRuntime(t *testing.T) (*chatWorld, *Runtime) {

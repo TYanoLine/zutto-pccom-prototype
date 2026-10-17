@@ -118,8 +118,9 @@ func (r *Runtime) lineHolders(now time.Time) map[int]lineHolder {
 	return out
 }
 
-// whoRows renders one row per line of the station: the holder's handle, state,
-// a three-cell column and speed, or "ring" for a free line.
+// whoRows renders one row per active line of the station: the holder's handle,
+// state, a three-cell column and speed. Unconnected lines are not displayed
+// (historical logs omit inactive lines; "ring" is incoming call ringing, not an idle line).
 func (r *Runtime) whoRows(holders map[int]lineHolder) string {
 	lines := r.Host.Lines
 	if lines < 1 {
@@ -129,7 +130,6 @@ func (r *Runtime) whoRows(holders map[int]lineHolder) string {
 	for line := 1; line <= lines; line++ {
 		h, ok := holders[line]
 		if !ok {
-			fmt.Fprintf(&b, "#%02d ring\r\n", line)
 			continue
 		}
 		handle, state, icon, baud := h.handle, callStateLabel(h.state), "", h.baud
@@ -209,15 +209,21 @@ func (r *Runtime) handleCall(line string) (string, bool) {
 	}
 	target, err := strconv.Atoi(line)
 	if err == nil {
-		h, held := r.lineHolders(world.WorldNowOf(r.Store))[target]
-		if held && !h.self && target >= 1 && target <= r.Host.Lines {
-			r.chat.to, r.chat.toLine = h.actor, target
-			r.state = "telegram_body"
-			return "\r\n" + telegramPrompt + "\r\n" + telegramRuler + "\r\n", false
+		if target >= 1 && target <= r.Host.Lines {
+			h, held := r.lineHolders(world.WorldNowOf(r.Store))[target]
+			if held {
+				if h.self {
+					return "自分自身には電報を送れません。\r\n" + r.callPromptText(), false
+				}
+				r.chat.to, r.chat.toLine = h.actor, target
+				r.state = "telegram_body"
+				return "\r\n" + telegramPrompt + "\r\n" + telegramRuler + "\r\n", false
+			}
+			return "その回線番号には誰もいません。\r\n" + r.callPromptText(), false
 		}
 	}
 	// "*" (everyone), P, S and the other menu letters are not part of this
-	// reconstruction yet; neither is a telegram to a free line or to oneself.
+	// reconstruction yet; neither is a telegram out of line range.
 	return "? COMMAND ERROR\r\n" + r.callPromptText(), false
 }
 
