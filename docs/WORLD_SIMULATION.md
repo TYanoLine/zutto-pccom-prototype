@@ -200,9 +200,9 @@ An advisory model may optionally be attached via the `ReactionAdvisor` interface
 
 If the advisor is disabled, times out, or fails, the reaction planner falls back transparently and idempotently to neutral priors ($1.0$), ensuring simulation integrity and reproducible outcomes.
 
-### Qualitative thread liveliness and reply count (spec 021)
+### Qualitative thread liveliness and reply count (spec 021, 023)
 
-While persona selection and timing are determined by local simulation models, the *quantity* of replies drawn by a thread incorporates a qualitative liveliness stage (`reply_appeal` integer 0..4) evaluated by `world.ReplyAppealJudge`. The judge batches all roots in a generation batch into a single LLM request. The world formula converts the appeal level, board base reply rate, time of day, and active population into a bounded thread reply count and saves it in `world.ReactionPlan`. If the judge is unavailable or fails, baseline level 2 is used transparently. Once persisted, the count is immutable.
+While persona selection and timing are determined by local simulation models, the *quantity* of replies drawn by a thread incorporates a qualitative liveliness stage (`reply_appeal` integer 0..4) evaluated directly within the unified root situation & title draft generation (`GenerateBBSRootDrafts` / `PlanBBSBatch`) for each root post. The LLM evaluates the situation first, then the title, and then the liveliness/appeal of that topic in the context of the station and board. The planner passes the appeal stage forward through `PlannedPost` into the reaction plan. The world formula converts the appeal level, board base reply rate, time of day, and active population into a bounded thread reply count and saves it in `world.ReactionPlan`. If the appeal evaluation is missing or fails, baseline level 2 is used transparently (`fallback:no_appeal`). Once persisted, the count is immutable.
 
 ### World-selected roots and canonical subject stability
 

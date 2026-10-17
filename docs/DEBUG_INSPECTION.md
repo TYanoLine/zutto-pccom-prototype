@@ -57,16 +57,18 @@ or was rejected is logged on every station as
 `Line message generation failed: host=... slot=... err=...`; the resident
 stayed silent. The caller's own telegrams are never logged.
 
-### Reply appeal and situation timing (spec 021, 022)
+### Reply appeal and situation timing (spec 021, 022, 023)
 
 During BBS root planning and reaction planning, operational logs record:
 
 - `BBS timing: host=... board=... phase=situation_chunk duration=... events=...`:
   Elapsed wall-clock time for each parallel situation chunk (chunk size 6 events, concurrency 4).
+- `BBS timing: host=... board=... phase=planner_total duration=... slots=...`:
+  Total duration for batch root planning (including unified situation, title, and reply appeal draft generation).
+- `BBS timing: host=... board=... phase=header_materialize_total duration=...`:
+  Total duration of header materialization. With reply appeal evaluated within root drafts (spec 023), the standalone judge call is eliminated and `header_materialize_total` − `planner_total` is near zero (< 2s).
 - `BBS reply appeal: host=... board=... root=... subject=... appeal=... count=... reason=...`:
-  The qualitative appeal level (0..4), resulting reply count, and rationale decided for each root post.
-- `BBS reply appeal judge fallback: host=... board=... err=...`:
-  Logged when the Reply Appeal Judge is unavailable, times out, or fails; the system defaults to baseline appeal 2 without stopping simulation.
+  The qualitative appeal level (0..4), resulting reply count, and rationale decided for each root post. If a root does not carry an evaluated appeal (e.g. legacy data or planner fallback), reason `fallback:no_appeal` and baseline appeal 2 are logged without stopping simulation.
 
 ## Title-led body trial
 
