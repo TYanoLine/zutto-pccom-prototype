@@ -48,7 +48,7 @@ func TestReplyAppealCarriedFromPlannerIntoReactionPlan(t *testing.T) {
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 1.5}
 	planner := &customAppealBatchPlanner{appeal: 3, appealReason: "planned appeal", hasAppeal: true}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 
 	engine := New(store, planner, func() time.Time { return now })
 	engine.RNG = rand.New(rand.NewSource(42))
@@ -90,7 +90,7 @@ func TestReplyAppealFallbackWhenNoAppeal(t *testing.T) {
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 1.5}
 	planner := &customAppealBatchPlanner{hasAppeal: false}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 
 	engine := New(store, planner, func() time.Time { return now })
 	engine.RNG = rand.New(rand.NewSource(12345))
@@ -123,7 +123,7 @@ func TestReplyAppealPersistedCountSurvivesRestart(t *testing.T) {
 	host := genericTestHost(store)
 	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 1.5}
 	planner := &customAppealBatchPlanner{appeal: 4, appealReason: "first run high appeal", hasAppeal: true}
-	now := time.Date(1996, 8, 26, 18, 0, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 18, 0, 0, 0, testJST)
 
 	engine1 := New(store, planner, func() time.Time { return now })
 	engine1.RNG = rand.New(rand.NewSource(99))

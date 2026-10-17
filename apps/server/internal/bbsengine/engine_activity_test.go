@@ -18,7 +18,7 @@ func initialActivityFixture(t *testing.T, state world.BoardActivityState) (*worl
 	}
 	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ"}
 	planner := &fakeBatchPlanner{}
-	now := time.Date(1996, 8, 26, 23, 30, 0, 0, time.Local)
+	now := time.Date(1996, 8, 26, 23, 30, 0, 0, testJST)
 	engine := New(store, planner, func() time.Time { return now })
 	// Seed 42 provides deterministic replies across the 10 initial roots
 	// (some answered, some unanswered) to prevent test flakiness across runs.
@@ -33,7 +33,7 @@ func initialActivityFixture(t *testing.T, state world.BoardActivityState) (*worl
 func TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies(t *testing.T) {
 	state := world.BoardActivityState{
 		TotalRoots: 40, RetainedRoots: 17, RetainedReplies: 23, ReplyRate: 1.4,
-		RetainedSince: time.Date(1996, 7, 12, 23, 30, 0, 0, time.Local),
+		RetainedSince: time.Date(1996, 7, 12, 23, 30, 0, 0, testJST),
 	}
 	store, host, board, planner, _ := initialActivityFixture(t, state)
 	if planner.calls != 1 {
@@ -127,7 +127,7 @@ func TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies(t *testing.T) {
 func TestCatchUpInitialBoardActivityWithoutReplyRateMakesOnlyRoots(t *testing.T) {
 	state := world.BoardActivityState{
 		TotalRoots: 3, RetainedRoots: 3, RetainedReplies: 10,
-		RetainedSince: time.Date(1996, 8, 6, 23, 30, 0, 0, time.Local),
+		RetainedSince: time.Date(1996, 8, 6, 23, 30, 0, 0, testJST),
 	}
 	_, _, _, planner, _ := initialActivityFixture(t, state)
 	if got := len(planner.requests[0].Slots); got != 3 {
@@ -147,7 +147,7 @@ func TestCatchUpInitialBoardActivityWithoutReplyRateMakesOnlyRoots(t *testing.T)
 func TestCatchUpInitialBoardActivityBoundsRootSlots(t *testing.T) {
 	state := world.BoardActivityState{
 		TotalRoots: 200, RetainedRoots: 60, ReplyRate: 4,
-		RetainedSince: time.Date(1996, 1, 1, 0, 0, 0, 0, time.Local),
+		RetainedSince: time.Date(1996, 1, 1, 0, 0, 0, 0, testJST),
 	}
 	_, _, _, planner, _ := initialActivityFixture(t, state)
 	if got := len(planner.requests[0].Slots); got != InteractiveInitialRootLimit {

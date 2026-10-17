@@ -36,11 +36,12 @@
 5. `go -C apps/server test ./internal/worldrepo -run "TestSituationReplyAppeal" -count=1`
    - 結果: **成功 (ok zutto-pccom/apps/server/internal/worldrepo 4.206s)**
 
-6. 乱数安定性テスト (`-count=300`):
+6. 乱数安定性およびタイムゾーン非依存テスト (`-count=300`):
+   - 時刻指定のタイムゾーン修正: テスト内の `time.Local` 依存を明示的な JST（`testJST = time.FixedZone("JST", 9*3600)`）に置き換え、システムタイムゾーン（`TZ=UTC`、`TZ=Asia/Tokyo`、Windows）によらず `ActivePopulationAt` が同一の夕方18時等の日内リズム係数を取得できるように修正。
    - `go -C apps/server test ./internal/bbsengine -run TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies -count=300`
-     - 結果: **成功 (0/300 失敗, PASS 219.163s)**
+     - 結果: **成功 (0/300 失敗, PASS 167.194s)**
    - `go -C apps/server test ./internal/bbsengine -run TestSharedEngineBatchesMultiplePostsAndRearmsByWorldTime -count=300`
-     - 結果: **成功 (0/300 失敗, PASS 10.244s)**
+     - 結果: **成功 (0/300 失敗, PASS 9.449s)**
    - 選定した乱数種 (Seed): **42**
      - 理由:
        - `TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies`: 初期ルート10本に対して返信が付くスレッドと付かないスレッドの両方が確実に発生し（`0 < nonZeroThreads < 10`）、会話のような不均一な返信分布（ムラ）の検証が安定して成立するため。
