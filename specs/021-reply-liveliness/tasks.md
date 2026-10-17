@@ -25,7 +25,8 @@
 
   読んで確かめること:
   1. `bbsengine.catchUp` の `slot.ReplyToPostID` の分岐が、保存済みの投稿を返信先にできること。
-  2. `PlanBBSBatch` を、ルートのスロットだけ、返信のスロットだけで、別々に呼べること（`llm/bbs_article_batch.go`、`BatchRequest`）。
+  2. `PlanBBSBatch` を、ルートのスロットだけで呼べること。保存済みのルートを `ReplyToPostID` で指す返信スロットが、LLM を呼ばずに処理されること
+     （`worldrepo/bbs_situation_first_planner.go` の `planSituationFirstBatch`）。または、`ReactionPlan` の保存と `MaterializeDueReactions` に任せる方が単純か。
   3. `worldpersist/store.go` の `ReactionPlan` の保存形式（JSON か）と、項目追加で既存データが読めること。
   4. `board_activity.go` が、保存済みの計画を参照できること。
 
@@ -78,7 +79,7 @@ go -C apps/server test ./internal/llm -run 'ReplyAppeal' -count=1
 ## Phase 4: エンジンへの接続
 
 - [ ] **T008** 通常運用の経路（`planReactionsForRoot`）に、判断を接続する。判断器が `nil` または失敗のときは、段階 2 で換算する。
-- [ ] **T009** 初期生成の経路を、T001 で確認した方式で 2 段化する（`plan.md` §2.3）。判断は 1 バッチ 1 回。
+- [ ] **T009** 初期生成の経路を、T001 で確認した方式で 2 段化する（`plan.md` §2.3）: ルートだけ生成 → 判断器 1 回 → 件数を決めて返信スロットを足す。
 - [ ] **T010** `board_activity.go` が、保存済みの計画があればその件数を使うようにする。
 - [ ] **T011** 偽の判断器を使い、(a) 判断器の呼び出し回数がバッチ数に比例する、(b) 判断器が常に失敗しても処理が止まらず件数が基準率の近くに収まる、
   (c) 保存済みの件数が再起動後も変わらない、をテストで確かめる。

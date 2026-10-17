@@ -19,6 +19,8 @@
    `worldrepo/board_activity.go`、`world/reaction.go` の `PlanReactions`）、どれも同じ引数から同じ値を再計算している。
 4. 初期生成では、ルート記事の話題（Situation）が決まる**前に**、件数の枠（quota）が決まる
    （`bbsengine.catchUp` が `planSlots`、`addThreadReplies` で全スロットを作り、そのあとに `Planner.PlanBBSBatch` で話題を作る）。
+   ただし、`PlanBBSBatch` で LLM が話題を作るのはルートのスロットだけで、返信のスロットは定型の `PlannedPost` を作るだけ
+   （`worldrepo/bbs_situation_first_planner.go`）。そのため、件数を話題のあとに決める順序への変更は、LLM の呼び出しを増やさずにできる見込み。
 
 人間の感覚では、質問や相談は返信を呼びやすく、独白や告知は呼びにくい。夜のテレホーダイの時間帯は賑わい、会員数の少ない局では長いスレッドは成り立たない。
 現状は、これらを一切反映できない。
