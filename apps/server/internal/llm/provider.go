@@ -137,8 +137,9 @@ type BBSWorldWindowEvent struct {
 	CauseKind      string   `json:"cause_kind"`
 	CauseSummary   string   `json:"cause_summary"`
 	DiscourseMode  string   `json:"discourse_mode,omitempty"`
-	PersonaProfile string   `json:"persona_profile"`
-	ExistingFacts  []string `json:"existing_facts,omitempty"`
+	PersonaProfile  string   `json:"persona_profile"`
+	ActiveResidents int      `json:"active_residents,omitempty"`
+	ExistingFacts   []string `json:"existing_facts,omitempty"`
 }
 
 type BBSWorldWindowProductionRequest struct {
