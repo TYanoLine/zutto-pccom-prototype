@@ -36,7 +36,20 @@ func (r *Repository) BoardActivity(host world.Host, board world.Board) (world.Bo
 		return existing, true
 	}
 
-	state, ok := planBoardActivity(host, board, now)
+	var planByOrdinal map[int]world.ReactionPlan
+	if planStore, ok := r.Base.(world.ReactionPlanStore); ok {
+		plans := planStore.ListReactionPlans(host.ID, board.ID)
+		if len(plans) > 0 {
+			planByOrdinal = make(map[int]world.ReactionPlan, len(plans))
+			for _, p := range plans {
+				if p.Judged && p.Ordinal > 0 {
+					planByOrdinal[p.Ordinal] = p
+				}
+			}
+		}
+	}
+
+	state, ok := planBoardActivityWithPlans(host, board, now, planByOrdinal)
 	if !ok {
 		return world.BoardActivityState{}, false
 	}
@@ -45,6 +58,10 @@ func (r *Repository) BoardActivity(host world.Host, board world.Board) (world.Bo
 }
 
 func planBoardActivity(host world.Host, board world.Board, now time.Time) (world.BoardActivityState, bool) {
+	return planBoardActivityWithPlans(host, board, now, nil)
+}
+
+func planBoardActivityWithPlans(host world.Host, board world.Board, now time.Time, planByOrdinal map[int]world.ReactionPlan) (world.BoardActivityState, bool) {
 	openedOn := strings.TrimSpace(board.OpenedOn)
 	if openedOn == "" {
 		openedOn = strings.TrimSpace(host.FoundedOn)
@@ -101,7 +118,12 @@ func planBoardActivity(host world.Host, board world.Board, now time.Time) (world
 	}
 	totalReplies, retainedReplies := 0, 0
 	for ordinal := 1; ordinal <= totalRoots; ordinal++ {
-		replies := world.ThreadReplyCount(host.ID, board.ID, ordinal, replyRate)
+		replies := 0
+		if plan, ok := planByOrdinal[ordinal]; ok {
+			replies = plan.Count
+		} else {
+			replies = world.ThreadReplyCount(host.ID, board.ID, ordinal, replyRate)
+		}
 		totalReplies += replies
 		if ordinal > totalRoots-retainedRoots {
 			retainedReplies += replies

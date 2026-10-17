@@ -7,6 +7,7 @@ import (
 	"log"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,18 +18,22 @@ import (
 	"zutto-pccom/apps/server/internal/worldengine"
 )
 
-// scriptedTitlePlanner answers from a function and records every request.
-type scriptedTitlePlanner struct {
-	requests []llm.BBSSituationTitleRequest
-	answer   func(call int, req llm.BBSSituationTitleRequest) []llm.BBSSituationTitle
+// scriptedDraftPlanner answers from a function and records every request.
+type scriptedDraftPlanner struct {
+	mu       sync.Mutex
+	requests []llm.BBSRootDraftRequest
+	answer   func(call int, req llm.BBSRootDraftRequest) map[string]llm.BBSRootDraft
 }
 
-func (s *scriptedTitlePlanner) GenerateBBSSituationTitles(_ context.Context, req llm.BBSSituationTitleRequest) (llm.BBSSituationTitleDraft, error) {
+func (s *scriptedDraftPlanner) GenerateBBSRootDrafts(_ context.Context, req llm.BBSRootDraftRequest) (llm.BBSRootDraftResult, error) {
+	s.mu.Lock()
+	call := len(s.requests)
 	s.requests = append(s.requests, req)
-	return llm.BBSSituationTitleDraft{Titles: s.answer(len(s.requests)-1, req)}, nil
+	s.mu.Unlock()
+	return llm.BBSRootDraftResult{Roots: s.answer(call, req)}, nil
 }
 
-func planTitles(t *testing.T, repo *Repository, host world.Host, recent []string, n int, titles llm.BBSSituationTitlePlanner) ([]bbsengine.PlannedPost, error) {
+func planTitles(t *testing.T, repo *Repository, host world.Host, recent []string, n int, planner llm.BBSRootDraftPlanner) ([]bbsengine.PlannedPost, error) {
 	t.Helper()
 	at := time.Date(1996, 2, 17, 20, 30, 0, 0, time.FixedZone("JST", 9*3600))
 	board := world.Board{ID: "20/1", Name: "ＧＡＭＥ", SemanticScope: "ゲームの話"}
@@ -41,64 +46,36 @@ func planTitles(t *testing.T, repo *Repository, host world.Host, recent []string
 		slots = append(slots, bbsengine.Slot{Index: i, Author: fmt.Sprintf("A%d", i), CreatedAt: at.Add(time.Duration(i) * time.Minute)})
 	}
 	req := bbsengine.BatchRequest{Host: host, Board: board, RecentPosts: posts, Slots: slots}
-	planner := repositoryBBSBatchPlanner{repo: repo}
-	return planner.planSituationFirstRoots(context.Background(), LLMMaterializer{ModelHistoricalMemory: true},
-		worldengine.EvidenceDecision{}, &openTopicSituationProposer{}, titles, req, slots, "1996-02-17")
+	batchPlanner := repositoryBBSBatchPlanner{repo: repo}
+	return batchPlanner.planSituationFirstRoots(context.Background(), LLMMaterializer{ModelHistoricalMemory: true},
+		worldengine.EvidenceDecision{}, planner, req, slots, "1996-02-17")
 }
 
 func newTitleRepo() *Repository { return New(world.NewMemoryStore(), nil, nil, "1996-02-17") }
 
-func TestDuplicateTitleIsRegeneratedAlone(t *testing.T) {
-	planner := &scriptedTitlePlanner{answer: func(call int, req llm.BBSSituationTitleRequest) []llm.BBSSituationTitle {
-		var out []llm.BBSSituationTitle
-		for i, a := range req.Articles {
-			subject := fmt.Sprintf("題名%d", i)
-			if call == 0 && i == 2 {
-				subject = "題名0" // same as the first article of the batch
-			}
-			if call == 1 {
-				subject = "別の題名"
-			}
-			out = append(out, llm.BBSSituationTitle{EventID: a.EventID, Subject: subject})
-		}
-		return out
-	}}
-	posts, err := planTitles(t, newTitleRepo(), world.Host{ID: "h"}, nil, 3, planner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(planner.requests) != 2 {
-		t.Fatalf("calls = %d, want 2", len(planner.requests))
-	}
-	retry := planner.requests[1]
-	if len(retry.Articles) != 1 || retry.Articles[0].EventID != "slot-3" {
-		t.Fatalf("retry articles = %+v", retry.Articles)
-	}
-	if !strings.Contains(strings.Join(retry.RecentSubjects, "|"), "題名0") {
-		t.Fatalf("retry does not tell the duplicate: %v", retry.RecentSubjects)
-	}
-	subjects := []string{}
-	for _, p := range posts {
-		subjects = append(subjects, p.Subject)
-	}
-	if want := []string{"題名0", "題名1", "別の題名"}; !reflect.DeepEqual(subjects, want) {
-		t.Fatalf("subjects = %v, want %v", subjects, want)
-	}
-}
-
-func TestDuplicateAfterRetryIsAcceptedAndNotAFailure(t *testing.T) {
-	planner := &scriptedTitlePlanner{answer: func(_ int, req llm.BBSSituationTitleRequest) []llm.BBSSituationTitle {
-		var out []llm.BBSSituationTitle
-		for _, a := range req.Articles {
-			out = append(out, llm.BBSSituationTitle{EventID: a.EventID, Subject: "同じ題名"})
-		}
-		return out
-	}}
+func TestDuplicateTitleIsRecordedInDiagnosticsAndNotRejected(t *testing.T) {
 	var logs bytes.Buffer
 	log.SetOutput(&logs)
 	defer log.SetOutput(log.Writer())
+
 	repo := newTitleRepo()
 	repo.SetDebugLogGeneratedContent(true)
+
+	planner := &scriptedDraftPlanner{answer: func(_ int, req llm.BBSRootDraftRequest) map[string]llm.BBSRootDraft {
+		out := make(map[string]llm.BBSRootDraft, len(req.Events))
+		for _, e := range req.Events {
+			out[e.EventID] = llm.BBSRootDraft{
+				EventID:     e.EventID,
+				ObjectClass: "ゲーム",
+				Occurrence:  "ゲームの話題",
+				PostContent: "同じ題名の投稿",
+				NoveltyKey:  e.EventID,
+				Titles:      []string{"同じ題名"},
+			}
+		}
+		return out
+	}}
+
 	posts, err := planTitles(t, repo, world.Host{ID: "h", Debug: hostcatalog.DebugFlags{ContentLog: true}}, []string{"同じ題名"}, 2, planner)
 	if err != nil {
 		t.Fatalf("duplicates must not fail generation: %v", err)
@@ -106,25 +83,33 @@ func TestDuplicateAfterRetryIsAcceptedAndNotAFailure(t *testing.T) {
 	if len(posts) != 2 || posts[0].Subject != "同じ題名" || posts[1].Subject != "同じ題名" {
 		t.Fatalf("posts = %+v", posts)
 	}
-	if len(planner.requests) != 2 {
-		t.Fatalf("at most one regeneration: calls = %d", len(planner.requests))
+	if len(planner.requests) != 1 {
+		t.Fatalf("integrated draft planner should call LLM once: calls = %d", len(planner.requests))
 	}
 	if !strings.Contains(logs.String(), `"duplicate_accepted":2`) {
 		t.Fatalf("duplicate_accepted not recorded:\n%s", logs.String())
 	}
 }
 
-func uniqueTitles(_ int, req llm.BBSSituationTitleRequest) []llm.BBSSituationTitle {
-	var out []llm.BBSSituationTitle
-	for _, a := range req.Articles {
-		out = append(out, llm.BBSSituationTitle{EventID: a.EventID, Subject: "題材" + a.EventID})
+
+func uniqueTitles(_ int, req llm.BBSRootDraftRequest) map[string]llm.BBSRootDraft {
+	out := make(map[string]llm.BBSRootDraft, len(req.Events))
+	for _, a := range req.Events {
+		out[a.EventID] = llm.BBSRootDraft{
+			EventID:     a.EventID,
+			ObjectClass: "題材",
+			Occurrence:  "状況",
+			PostContent: "中身",
+			NoveltyKey:  a.EventID,
+			Titles:      []string{"題材" + a.EventID},
+		}
 	}
 	return out
 }
 
 func TestRecentFormFactsOnlyWhenBiased(t *testing.T) {
 	biased := []string{"天神で集合", "天神の店", "天神の駅", "庭の花", "茶の話", "本の話", "旅の話", "夢の話", "山登り", "川遊び"}
-	planner := &scriptedTitlePlanner{answer: uniqueTitles}
+	planner := &scriptedDraftPlanner{answer: uniqueTitles}
 	if _, err := planTitles(t, newTitleRepo(), world.Host{ID: "h"}, biased, 1, planner); err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +124,7 @@ func TestRecentFormFactsOnlyWhenBiased(t *testing.T) {
 			}
 		}
 	}
-	quiet := &scriptedTitlePlanner{answer: uniqueTitles}
+	quiet := &scriptedDraftPlanner{answer: uniqueTitles}
 	varied := []string{"あいう", "えおか", "きくけ", "こさし", "すせそ", "たちつ", "てとな", "にぬね", "のはひ"}
 	if _, err := planTitles(t, newTitleRepo(), world.Host{ID: "h"}, varied, 1, quiet); err != nil {
 		t.Fatal(err)
@@ -155,7 +140,7 @@ func TestCoveredSubjectsAreShuffledDeterministicallyAndCapped(t *testing.T) {
 		recent = append(recent, fmt.Sprintf("過去の題材%02d", i))
 	}
 	run := func() []string {
-		planner := &scriptedTitlePlanner{answer: uniqueTitles}
+		planner := &scriptedDraftPlanner{answer: uniqueTitles}
 		if _, err := planTitles(t, newTitleRepo(), world.Host{ID: "h"}, recent, 1, planner); err != nil {
 			t.Fatal(err)
 		}
@@ -191,7 +176,7 @@ func TestTitleShapeLogOnlyForOptedInHosts(t *testing.T) {
 			defer log.SetOutput(log.Writer())
 			repo := newTitleRepo()
 			repo.SetDebugLogGeneratedContent(tc.global)
-			planner := &scriptedTitlePlanner{answer: uniqueTitles}
+			planner := &scriptedDraftPlanner{answer: uniqueTitles}
 			host := world.Host{ID: "h", Debug: hostcatalog.DebugFlags{ContentLog: tc.hostOpt}}
 			if _, err := planTitles(t, repo, host, nil, 2, planner); err != nil {
 				t.Fatal(err)
@@ -204,21 +189,27 @@ func TestTitleShapeLogOnlyForOptedInHosts(t *testing.T) {
 }
 
 func TestVariantsPickDissimilarTitleAndAreOffByDefault(t *testing.T) {
-	answer := func(_ int, req llm.BBSSituationTitleRequest) []llm.BBSSituationTitle {
-		var out []llm.BBSSituationTitle
-		for _, a := range req.Articles {
-			title := llm.BBSSituationTitle{EventID: a.EventID, Subject: "ゼルダ貸せます"}
-			if req.MultiVariant {
-				title.Candidates = []string{"ゼルダ貸せます", "庭の話から始めます", "ゼルダ売ります"}
-				title.Subject = title.Candidates[0]
+	answer := func(_ int, req llm.BBSRootDraftRequest) map[string]llm.BBSRootDraft {
+		out := make(map[string]llm.BBSRootDraft, len(req.Events))
+		for _, a := range req.Events {
+			draft := llm.BBSRootDraft{
+				EventID:     a.EventID,
+				ObjectClass: "ゲーム",
+				Occurrence:  "ゼルダをプレイ",
+				PostContent: "ゼルダの話",
+				NoveltyKey:  a.EventID,
+				Titles:      []string{"ゼルダ貸せます"},
 			}
-			out = append(out, title)
+			if req.MultiVariant {
+				draft.Titles = []string{"ゼルダ貸せます", "庭の話から始めます", "ゼルダ売ります"}
+			}
+			out[a.EventID] = draft
 		}
 		return out
 	}
 	recent := []string{"ゼルダ貸せます！", "ゼルダ売ります"}
 
-	off := &scriptedTitlePlanner{answer: answer}
+	off := &scriptedDraftPlanner{answer: answer}
 	posts, err := planTitles(t, newTitleRepo(), world.Host{ID: "h"}, recent, 1, off)
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +220,7 @@ func TestVariantsPickDissimilarTitleAndAreOffByDefault(t *testing.T) {
 
 	repo := newTitleRepo()
 	repo.SetTitleVariants(true)
-	on := &scriptedTitlePlanner{answer: answer}
+	on := &scriptedDraftPlanner{answer: answer}
 	posts, err = planTitles(t, repo, world.Host{ID: "h"}, recent, 1, on)
 	if err != nil {
 		t.Fatal(err)

@@ -26,7 +26,7 @@ func TestSituationPromptBindsTopicToBoardScope(t *testing.T) {
 			capturedPrompt, _ = payload["input"].(string)
 			response := `{
 				"model":"gpt-test",
-				"output":[{"content":[{"type":"output_text","text":"{\"situations\":{\"slot-1\":{\"object_class\":\"intro\",\"occurrence\":\"初めて書き込む\",\"post_content\":\"ハンドルを名乗って挨拶する\",\"novelty_key\":\"intro-handle\",\"must_not\":[]}}}"}]}],
+				"output":[{"content":[{"type":"output_text","text":"{\"roots\":{\"slot-1\":{\"object_class\":\"intro\",\"occurrence\":\"初めて書き込む\",\"post_content\":\"ハンドルを名乗って挨拶する\",\"novelty_key\":\"intro-handle\",\"must_not\":[],\"titles\":[\"はじめまして\"]}}}"}]}],
 				"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":0},"output_tokens":20,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":50}
 			}`
 			return &http.Response{
@@ -38,9 +38,12 @@ func TestSituationPromptBindsTopicToBoardScope(t *testing.T) {
 		})},
 	}}
 
-	_, err := provider.GenerateBBSWorldSituationProposals(context.Background(), BBSWorldSituationProposalRequest{
+	_, err := provider.GenerateBBSRootDrafts(context.Background(), BBSRootDraftRequest{
 		HostName:   "TEST BBS",
 		HostRegion: "福岡県",
+		BoardID:    "2",
+		BoardName:  "自己紹介・新人歓迎",
+		BoardScope: "新規会員の自己紹介、常連からの歓迎。",
 		WorldDate:  "1996-08-29",
 		Events: []BBSWorldWindowEvent{{
 			EventID:        "slot-1",

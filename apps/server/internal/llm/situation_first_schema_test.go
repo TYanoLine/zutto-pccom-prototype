@@ -16,12 +16,12 @@ func TestWorldSituationSchemaIsTheSameForEveryRoot(t *testing.T) {
 		{EventID: "b", Action: "thread_start", BoardName: "自己紹介", BoardScope: "新規会員の自己紹介。"},
 		{EventID: "c", Action: "thread_start", BoardName: "質問", BoardScope: "疑問を尋ねる板。"},
 	}
-	schema := bbsWorldSituationProposalSchema(events)
+	schema := bbsRootDraftSchema(events)
 	rootProps := schema["properties"].(map[string]any)
-	situations := rootProps["situations"].(map[string]any)
+	situations := rootProps["roots"].(map[string]any)
 	eventSchemas := situations["properties"].(map[string]any)
 
-	want := []string{"must_not", "novelty_key", "object_class", "occurrence", "post_content"}
+	want := []string{"must_not", "novelty_key", "object_class", "occurrence", "post_content", "titles"}
 	for _, id := range []string{"a", "b", "c"} {
 		event := eventSchemas[id].(map[string]any)
 		props := event["properties"].(map[string]any)

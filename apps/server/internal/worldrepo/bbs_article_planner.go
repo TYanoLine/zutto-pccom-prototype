@@ -17,7 +17,7 @@ import (
 type repositoryBBSBatchPlanner struct { repo *Repository }
 
 // Production has one planning path: World chooses the article slots, then
-// Situation and title generators express those selected events.
+// root draft generator expresses Situation and titles for those selected events.
 func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
     if r == nil { return false }
     var materializer LLMMaterializer
@@ -28,9 +28,8 @@ func (r *Repository) sharedBBSArticleEngineEnabled(host world.Host) bool {
         materializer=*m
     default: return false
     }
-    _, hasSituation:=materializer.Renderer.(llm.BBSWorldSituationProposer)
-    _, hasTitles:=materializer.Renderer.(llm.BBSSituationTitlePlanner)
-    return hasSituation && hasTitles
+    _, hasDrafts := materializer.Renderer.(llm.BBSRootDraftPlanner)
+    return hasDrafts
 }
 
 func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengine.BatchRequest) ([]bbsengine.PlannedPost, error) {
@@ -45,10 +44,9 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
         materializer=*m
     default: return nil,fmt.Errorf("BBS batch requires LLMMaterializer")
     }
-    situationProposer,hasSituation:=materializer.Renderer.(llm.BBSWorldSituationProposer)
-    titlePlanner,hasTitles:=materializer.Renderer.(llm.BBSSituationTitlePlanner)
-    if !hasSituation || !hasTitles {
-        return nil,fmt.Errorf("BBS production requires Situation and title planner; legacy title experiments are retired")
+    draftPlanner, hasDrafts := materializer.Renderer.(llm.BBSRootDraftPlanner)
+    if !hasDrafts {
+        return nil, fmt.Errorf("BBS production requires BBSRootDraftPlanner; legacy situation/title split is retired")
     }
     titleAsOf:=req.WorldNow.Format(time.DateOnly)
     for _,slot:=range req.Slots {
@@ -70,7 +68,7 @@ func (p repositoryBBSBatchPlanner) PlanBBSBatch(ctx context.Context, req bbsengi
         })
         if err!=nil {return nil,fmt.Errorf("resolve BBS historical context: %w",err)}
     }
-    return p.planSituationFirstBatch(ctx,materializer,decision,situationProposer,titlePlanner,req,titleAsOf)
+    return p.planSituationFirstBatch(ctx,materializer,decision,draftPlanner,req,titleAsOf)
 }
 
 func (p repositoryBBSBatchPlanner) personaTitleContext(host world.Host, personaID, author string) (string, []string) {

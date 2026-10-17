@@ -13,10 +13,10 @@ type debugTraceTestRoundTripper func(*http.Request) (*http.Response, error)
 
 func (f debugTraceTestRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) { return f(req) }
 
-func TestSituationTitleTraceCapturesActualPromptAndRawResponse(t *testing.T) {
+func TestRootDraftsTraceCapturesActualPromptAndRawResponse(t *testing.T) {
 	var sentPrompt, recordedPrompt, rawResponse, stage string
 	calls := 0
-	resultJSON := `{"titles":{"slot-1":"具体的な件名"}}`
+	resultJSON := `{"roots":{"slot-1":{"object_class":"game","occurrence":"playing game","post_content":"seeking tips","novelty_key":"game_tips","must_not":[],"titles":["具体的な件名"]}}}`
 	client := &http.Client{Transport: debugTraceTestRoundTripper(func(req *http.Request) (*http.Response, error) {
 		calls++
 		var request struct { Input string `json:"input"` }
@@ -38,16 +38,16 @@ func TestSituationTitleTraceCapturesActualPromptAndRawResponse(t *testing.T) {
 	provider := StructuredOpenAIProvider{OpenAIProvider:OpenAIProvider{
 		Endpoint:"https://example.openai.azure.com", APIKey:"test-key", Model:"gpt-test", Client:client,
 	}}
-	result, err := provider.GenerateBBSSituationTitles(ctx, BBSSituationTitleRequest{
-		BoardName:"GAME", WorldDate:"1996-08-26", Articles:[]BBSSituationTitleSeed{{EventID:"slot-1"}},
+	result, err := provider.GenerateBBSRootDrafts(ctx, BBSRootDraftRequest{
+		BoardName:"GAME", WorldDate:"1996-08-26", Events:[]BBSWorldWindowEvent{{EventID:"slot-1", Action:"thread_start"}},
 	})
 	if err != nil { t.Fatal(err) }
-	if calls != 1 || stage != "件名" || sentPrompt == "" || recordedPrompt != sentPrompt ||
-		rawResponse != resultJSON || len(result.Titles) != 1 || result.Titles[0].Subject != "具体的な件名" {
-		t.Fatalf("trace mismatch: calls=%d stage=%q prompt_equal=%t result=%q titles=%+v", calls, stage, recordedPrompt==sentPrompt, rawResponse, result.Titles)
+	if calls != 1 || stage != "Situation+件名" || sentPrompt == "" || recordedPrompt != sentPrompt ||
+		rawResponse != resultJSON || len(result.Roots) != 1 || result.Roots["slot-1"].Titles[0] != "具体的な件名" {
+		t.Fatalf("trace mismatch: calls=%d stage=%q prompt_equal=%t result=%q roots=%+v", calls, stage, recordedPrompt==sentPrompt, rawResponse, result.Roots)
 	}
 }
 
 func TestDebugTraceIsInertWithoutContext(t *testing.T) {
-	beginDebugTrace(context.Background(), "Situation", "private prompt")("result", nil)
+	beginDebugTrace(context.Background(), "Situation+件名", "private prompt")("result", nil)
 }

@@ -76,11 +76,19 @@ reply and a few run long (bounded by `MaxThreadReplies`). "No reply is normal"
 (`docs/WORLD_SIMULATION.md`) is decided here, by the world, never by the language
 model. The retained reply total is the sum over the newest retained roots.
 
-### Separation of concerns: reply count vs. reactor selection (Spec 008)
+### Separation of concerns: reply count vs. reactor selection (Spec 008, 021)
 
 Board activity separates reply quantity from reactor identity and rhythm:
 
-1. **How many replies**: `world.ThreadReplyCount` decides the total reply count $N \in [0, \text{MaxThreadReplies}]$ from board `reply_rate` and seed, preserving macroscopic board density.
+1. **How many replies**: Thread reply count is decided by `world.ReplyCountForWithStandard` based on board `reply_rate`, the qualitative liveliness stage `reply_appeal` (0..4), and currently active population count:
+   - **Appeal levels (0..4)**: Evaluated by `world.ReplyAppealJudge` in 1 batch call per generation batch using topic situation, base rate, world timestamp, active population, and recent thread lengths. Multipliers: `[0: 0.2, 1: 0.6, 2: 1.0, 3: 1.7, 4: 2.6]`.
+   - **Conversion formula**:
+     $$\text{time\_factor} = \text{clamp}(\text{active} / \text{standard\_active}, 0.3, 1.5)$$
+     $$\text{mean\_replies} = \text{reply\_rate} \times \text{AppealMultiplier}[\text{appeal}] \times \text{time\_factor}$$
+     $$\text{silent} = \exp(-0.55 \times \text{mean\_replies})$$
+     If uniform RNG $< \text{silent}$, replies = 0; otherwise drawn from a geometric distribution with mean $\text{answered\_mean} = \text{mean\_replies} / (1 - \text{silent})$. The result is bounded by $[0, \min(\text{MaxThreadReplies}, \text{active} - 1)]$.
+   - **Persistence**: Saved in `world.ReactionPlan` (`Count`, `Appeal`, `Judged: true`, `Reason`). Once judged, the count is immutable and never re-evaluated on subsequent observations or engine restarts.
+   - **Fallback**: If the judge is unavailable, times out, or fails, the engine falls back to `appeal = 2` (baseline multiplier 1.0) and records the fallback in logs.
 2. **Who replies and when**: `world.PlanReactions` (for interactive human posts) and `world.PickReactor` (for periodic/catch-up board threads) evaluate candidate personas according to:
    - topic match between post topics and persona interests;
    - 6-layer lifestyle and diurnal rhythm delays;

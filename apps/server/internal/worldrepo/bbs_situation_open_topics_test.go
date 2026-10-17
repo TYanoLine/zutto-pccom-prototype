@@ -5,6 +5,7 @@ import (
     "fmt"
     "reflect"
     "strings"
+    "sync"
     "testing"
     "time"
 
@@ -14,38 +15,27 @@ import (
     "zutto-pccom/apps/server/internal/worldengine"
 )
 
-type openTopicSituationProposer struct {
-    requests []llm.BBSWorldSituationProposalRequest
+type openTopicRootDraftPlanner struct {
+    mu       sync.Mutex
+    requests []llm.BBSRootDraftRequest
 }
 
-func (s *openTopicSituationProposer) GenerateBBSWorldSituationProposals(_ context.Context, req llm.BBSWorldSituationProposalRequest) (llm.BBSWorldSituationProposalDraft, error) {
+func (s *openTopicRootDraftPlanner) GenerateBBSRootDrafts(_ context.Context, req llm.BBSRootDraftRequest) (llm.BBSRootDraftResult, error) {
+    s.mu.Lock()
     s.requests = append(s.requests, req)
-    out := llm.BBSWorldSituationProposalDraft{}
+    s.mu.Unlock()
+    out := llm.BBSRootDraftResult{
+        Roots: make(map[string]llm.BBSRootDraft, len(req.Events)),
+    }
     for _, event := range req.Events {
-        out.Situations = append(out.Situations, llm.BBSWorldSituationDraft{
+        out.Roots[event.EventID] = llm.BBSRootDraft{
             EventID:     event.EventID,
             ObjectClass: event.BoardName,
             Occurrence:  event.BoardName + "に書き込む状況",
             PostContent: event.BoardName + "の範囲で投稿する中身",
             NoveltyKey:  fmt.Sprintf("%s-open-%s", event.BoardID, event.EventID),
-        })
-    }
-    return out, nil
-}
-
-type openTopicTitlePlanner struct {
-    requests []llm.BBSSituationTitleRequest
-}
-
-func (s *openTopicTitlePlanner) GenerateBBSSituationTitles(_ context.Context, req llm.BBSSituationTitleRequest) (llm.BBSSituationTitleDraft, error) {
-    s.requests = append(s.requests, req)
-    out := llm.BBSSituationTitleDraft{}
-    for _, article := range req.Articles {
-        out.Titles = append(out.Titles, llm.BBSSituationTitle{
-            EventID: article.EventID,
-            // Distinct per event: identical titles in one batch are now regenerated.
-            Subject: "最近気づいたこと（" + article.EventID + "）",
-        })
+            Titles:      []string{"最近気づいたこと（" + event.EventID + "）"},
+        }
     }
     return out, nil
 }
@@ -90,8 +80,7 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
         t.Run(tc.name, func(t *testing.T) {
             base := world.NewMemoryStore()
             planner := repositoryBBSBatchPlanner{repo: New(base, nil, nil, "1996-02-17")}
-            proposer := &openTopicSituationProposer{}
-            titles := &openTopicTitlePlanner{}
+            draftPlanner := &openTopicRootDraftPlanner{}
             req := bbsengine.BatchRequest{
                 Host: world.Host{ID: "hakata-canal-net", Name: "HAKATA CANAL NET"},
                 Board: tc.board,
@@ -107,14 +96,14 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
             }
             planned, err := planner.planSituationFirstRoots(
                 context.Background(), LLMMaterializer{ModelHistoricalMemory: true},
-                worldengine.EvidenceDecision{}, proposer, titles,
+                worldengine.EvidenceDecision{}, draftPlanner,
                 req, req.Slots, "1996-02-17",
             )
             if err != nil { t.Fatal(err) }
-            if len(proposer.requests) != 1 || len(proposer.requests[0].Events) != 2 || len(planned) != 2 {
-                t.Fatalf("unexpected batch sizes: proposer=%d planned=%d", len(proposer.requests), len(planned))
+            if len(draftPlanner.requests) != 1 || len(draftPlanner.requests[0].Events) != 2 || len(planned) != 2 {
+                t.Fatalf("unexpected batch sizes: draftPlanner=%d planned=%d", len(draftPlanner.requests), len(planned))
             }
-            forwarded := proposer.requests[0]
+            forwarded := draftPlanner.requests[0]
             if forwarded.WorldDate != "1996-02-17" ||
                 forwarded.Events[0].BoardName != tc.board.Name ||
                 forwarded.Events[0].BoardID != tc.board.ID ||
@@ -137,17 +126,6 @@ func TestAllBoardsShareOpenTopicSituationGeneration(t *testing.T) {
             if forwarded.RecentBBSState != "subject=以前に投稿された話" ||
                 !reflect.DeepEqual(forwarded.AvoidSituations, []string{"subject=以前に投稿された話"}) {
                 t.Fatalf("previous facet metadata leaked: recent=%q avoid=%#v", forwarded.RecentBBSState, forwarded.AvoidSituations)
-            }
-            if len(titles.requests) != 1 || len(titles.requests[0].Articles) != 2 ||
-                titles.requests[0].BoardName != tc.board.Name ||
-                titles.requests[0].BoardScope != tc.board.SemanticScope {
-                t.Fatalf("title pipeline changed: %+v", titles.requests)
-            }
-            for _, seed := range titles.requests[0].Articles {
-                if seed.SituationKind != "open_topic" ||
-                    !strings.Contains(seed.SituationSummary, tc.board.Name) {
-                    t.Fatalf("title worker received old facet or lost accepted Situation: %+v", seed)
-                }
             }
             for _, post := range planned {
                 if post.SituationKind != "open_topic" ||
@@ -196,19 +174,20 @@ func TestOpenTopicRecentSubjectsIgnoreHistoricFacetLabelsAndReplies(t *testing.T
     }
 }
 
-func TestIncompleteSituationIsRejected(t *testing.T) {
-    complete := llm.BBSWorldSituationDraft{ObjectClass: "x", Occurrence: "y", PostContent: "z", NoveltyKey: "k"}
-    if err := validateProductionSituation(complete); err != nil {
-        t.Fatalf("complete situation rejected: %v", err)
+func TestIncompleteDraftIsRejected(t *testing.T) {
+    complete := llm.BBSRootDraft{ObjectClass: "x", Occurrence: "y", PostContent: "z", NoveltyKey: "k", Titles: []string{"タイトル"}}
+    if err := validateProductionDraft(complete); err != nil {
+        t.Fatalf("complete draft rejected: %v", err)
     }
-    for name, broken := range map[string]llm.BBSWorldSituationDraft{
-        "no object":     {Occurrence: "y", PostContent: "z", NoveltyKey: "k"},
-        "no occurrence": {ObjectClass: "x", PostContent: "z", NoveltyKey: "k"},
-        "no content":    {ObjectClass: "x", Occurrence: "y", NoveltyKey: "k"},
-        "no novelty":    {ObjectClass: "x", Occurrence: "y", PostContent: "z"},
+    for name, broken := range map[string]llm.BBSRootDraft{
+        "no object":     {Occurrence: "y", PostContent: "z", NoveltyKey: "k", Titles: []string{"タイトル"}},
+        "no occurrence": {ObjectClass: "x", PostContent: "z", NoveltyKey: "k", Titles: []string{"タイトル"}},
+        "no content":    {ObjectClass: "x", Occurrence: "y", NoveltyKey: "k", Titles: []string{"タイトル"}},
+        "no novelty":    {ObjectClass: "x", Occurrence: "y", PostContent: "z", Titles: []string{"タイトル"}},
+        "no titles":     {ObjectClass: "x", Occurrence: "y", PostContent: "z", NoveltyKey: "k"},
     } {
-        if err := validateProductionSituation(broken); err == nil {
-            t.Fatalf("%s: incomplete situation was accepted", name)
+        if err := validateProductionDraft(broken); err == nil {
+            t.Fatalf("%s: incomplete draft was accepted", name)
         }
     }
 }
@@ -219,8 +198,7 @@ func TestStationPostingRulesApplyBeforeSituationProposal(t *testing.T) {
 
     t.Run("staff author cannot be invented by model", func(t *testing.T) {
         planner := repositoryBBSBatchPlanner{repo: New(world.NewMemoryStore(), nil, nil, "1996-02-17")}
-        proposer := &openTopicSituationProposer{}
-        titles := &openTopicTitlePlanner{}
+        draftPlanner := &openTopicRootDraftPlanner{}
         req := bbsengine.BatchRequest{
             Host: host,
             Board: world.Board{ID: "1", Name: "事務局からのお知らせ",
@@ -228,19 +206,19 @@ func TestStationPostingRulesApplyBeforeSituationProposal(t *testing.T) {
             Slots: []bbsengine.Slot{{Index: 1, Author: "ANOTHER", CreatedAt: at}},
         }
         _, err := planner.planSituationFirstRoots(context.Background(), LLMMaterializer{},
-            worldengine.EvidenceDecision{}, proposer, titles, req, req.Slots, "1996-02-17")
+            worldengine.EvidenceDecision{}, draftPlanner, req, req.Slots, "1996-02-17")
         if err == nil || !strings.Contains(err.Error(), "only permits SYSOP roots") ||
-            len(proposer.requests) != 0 {
-            t.Fatalf("unapproved author passed World boundary: err=%v proposer=%+v", err, proposer.requests)
+            len(draftPlanner.requests) != 0 {
+            t.Fatalf("unapproved author passed World boundary: err=%v draftPlanner=%+v", err, draftPlanner.requests)
         }
         req.Slots[0].Author = "SYSOP"
         out, err := planner.planSituationFirstRoots(context.Background(), LLMMaterializer{},
-            worldengine.EvidenceDecision{}, proposer, titles, req, req.Slots, "1996-02-17")
+            worldengine.EvidenceDecision{}, draftPlanner, req, req.Slots, "1996-02-17")
         if err != nil || len(out) != 1 ||
-            len(proposer.requests) != 1 ||
-            proposer.requests[0].Events[0].AuthorHandle != "SYSOP" ||
-            proposer.requests[0].Events[0].BoardScope != req.Board.SemanticScope {
-            t.Fatalf("SYSOP board invalid: out=%+v err=%v requests=%+v", out, err, proposer.requests)
+            len(draftPlanner.requests) != 1 ||
+            draftPlanner.requests[0].Events[0].AuthorHandle != "SYSOP" ||
+            draftPlanner.requests[0].Events[0].BoardScope != req.Board.SemanticScope {
+            t.Fatalf("SYSOP board invalid: out=%+v err=%v requests=%+v", out, err, draftPlanner.requests)
         }
     })
 }

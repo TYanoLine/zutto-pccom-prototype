@@ -120,6 +120,7 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		prefetchRunning:        map[string]bool{},
 	}
 	r.bbsArticles = bbsengine.New(base, repositoryBBSBatchPlanner{repo: r}, r.currentWorldTime)
+	r.bbsArticles.ReplyAppealJudge = replyAppealJudgeFromMaterializer(materializer)
 	r.bbsArticles.ReplyProjector = bbsengine.ReplyProjectorFunc(func(host world.Host, source world.Post, proposedSubject string) (bbsengine.ReplyRepresentation, error) {
 		projected, err := hostprogram.ProjectReply(host, source, proposedSubject)
 		if err != nil {
@@ -128,6 +129,20 @@ func New(base world.Store, engine EvidenceResolver, materializer Materializer, w
 		return bbsengine.ReplyRepresentation{ParentID: projected.ParentID, Subject: projected.Subject}, nil
 	})
 	return r
+}
+
+func replyAppealJudgeFromMaterializer(materializer Materializer) world.ReplyAppealJudge {
+	switch value := materializer.(type) {
+	case LLMMaterializer:
+		judge, _ := value.Renderer.(world.ReplyAppealJudge)
+		return judge
+	case *LLMMaterializer:
+		if value != nil {
+			judge, _ := value.Renderer.(world.ReplyAppealJudge)
+			return judge
+		}
+	}
+	return nil
 }
 
 func articleDetailPlannerFromMaterializer(materializer Materializer) llm.BBSTitleArticleDetailPlanner {
@@ -148,6 +163,13 @@ func articleDetailPlannerFromMaterializer(materializer Materializer) llm.BBSTitl
 func (r *Repository) SetArticleDetailPlanner(planner llm.BBSTitleArticleDetailPlanner) {
 	if r != nil {
 		r.ArticleDetailPlanner = planner
+	}
+}
+
+// SetReplyAppealJudge explicitly wires the shared reply appeal judge.
+func (r *Repository) SetReplyAppealJudge(judge world.ReplyAppealJudge) {
+	if r != nil && r.bbsArticles != nil {
+		r.bbsArticles.ReplyAppealJudge = judge
 	}
 }
 
