@@ -21,7 +21,7 @@ func TestWorldSituationSchemaIsTheSameForEveryRoot(t *testing.T) {
 	situations := rootProps["roots"].(map[string]any)
 	eventSchemas := situations["properties"].(map[string]any)
 
-	want := []string{"must_not", "novelty_key", "object_class", "occurrence", "post_content", "titles"}
+	want := []string{"must_not", "novelty_key", "object_class", "occurrence", "post_content", "reply_appeal", "reply_appeal_reason", "titles"}
 	for _, id := range []string{"a", "b", "c"} {
 		event := eventSchemas[id].(map[string]any)
 		props := event["properties"].(map[string]any)
