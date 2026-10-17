@@ -27,6 +27,7 @@
 | 020 | erika-k-article-numbering（Erika-K の記事番号を板ごとの連番にし、アペンドには記事番号を振らない） |
 | 021 | reply-liveliness（スレッドごとのレス件数を、話題・時間・人数を見て決める。LLM が盛り上がりの段階を判断する） |
 | 022 | faster-root-planning（ルート記事の計画を速くし、話題の重複を拒否しない） |
+| 023 | reply-appeal-in-root-draft（返信の盛り上がりの判断を、ルート記事の生成と同じ LLM 呼び出しに含める） |
 
 ## フォルダの構成
 
