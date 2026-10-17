@@ -74,3 +74,46 @@ func TestPlanBoardActivityChangesWithWorldDate(t *testing.T) {
 		t.Fatalf("later world date roots=%d, early=%d; host age did not accumulate activity", later.TotalRoots, early.TotalRoots)
 	}
 }
+
+func TestBoardActivityUsesSavedReactionPlanCount(t *testing.T) {
+	store := world.NewMemoryStore()
+	host := world.Host{
+		ID:         "test-host",
+		Members:    200,
+		Popularity: .5,
+		FoundedOn:  "1995-01-01",
+	}
+	board := world.Board{ID: "talk", ActivityWeight: 1.0, ReplyRate: 1.0, RetainedRootCap: 1000}
+	repo := New(store, nil, nil, "1996-08-01")
+
+	// Baseline before any reaction plan
+	baseline, ok := repo.BoardActivity(host, board)
+	if !ok {
+		t.Fatal("expected baseline board activity")
+	}
+
+	// Reset cached BoardActivityState in store to force recomputation with plan
+	store.SaveBoardActivityState(host.ID, world.BoardActivityState{BoardID: board.ID})
+
+	// Save a judged reaction plan with a distinct reply count (e.g., 99) for ordinal 1
+	store.SaveReactionPlan(host.ID, world.ReactionPlan{
+		TargetPostID: 101,
+		BoardID:      board.ID,
+		Ordinal:      1,
+		Count:        99,
+		Judged:       true,
+		Appeal:       4,
+	})
+
+	withPlan, ok := repo.BoardActivity(host, board)
+	if !ok {
+		t.Fatal("expected board activity with saved plan")
+	}
+
+	origRepliesForOrdinal1 := world.ThreadReplyCount(host.ID, board.ID, 1, baseline.ReplyRate)
+	expectedTotalReplies := baseline.TotalReplies - origRepliesForOrdinal1 + 99
+	if withPlan.TotalReplies != expectedTotalReplies {
+		t.Fatalf("TotalReplies with saved plan = %d, want %d (diff: %d)",
+			withPlan.TotalReplies, expectedTotalReplies, withPlan.TotalReplies-baseline.TotalReplies)
+	}
+}

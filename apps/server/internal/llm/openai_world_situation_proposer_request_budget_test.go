@@ -16,21 +16,22 @@ func TestBBSWorldSituationSendsExpandedCompletionBudget(t *testing.T) {
 		events int
 		want   int
 	}{
-		{1, 4000},
-		{4, 8000},
-		{6, 12000},
+		{1, 4200},
+		{4, 8800},
+		{6, 13200},
 	} {
 		t.Run(string(rune('0'+tc.events)), func(t *testing.T) {
 			events := make([]BBSWorldWindowEvent, 0, tc.events)
-			wire := bbsWorldSituationProposalWire{Situations: make(map[string]bbsWorldSituationWire)}
+			wire := bbsRootDraftProposalWire{Roots: make(map[string]bbsRootDraftWire)}
 			for i := 0; i < tc.events; i++ {
 				id := string(rune('a' + i))
 				events = append(events, BBSWorldWindowEvent{
 					EventID: id, Action: "thread_start", BoardName: "GAME",
 				})
-				wire.Situations[id] = bbsWorldSituationWire{
+				wire.Roots[id] = bbsRootDraftWire{
 					ObjectClass: "game", Occurrence: "a concrete situation",
 					PostContent: "what the post says", NoveltyKey: id,
+					Titles: []string{"タイトル"},
 				}
 			}
 			generated, err := json.Marshal(wire)
@@ -60,10 +61,10 @@ func TestBBSWorldSituationSendsExpandedCompletionBudget(t *testing.T) {
 					}, nil
 				})},
 			}}
-			draft, err := provider.GenerateBBSWorldSituationProposals(context.Background(), BBSWorldSituationProposalRequest{Events: events})
+			result, err := provider.GenerateBBSRootDrafts(context.Background(), BBSRootDraftRequest{Events: events})
 			if err != nil { t.Fatal(err) }
-			if gotBudget != tc.want || len(draft.Situations) != tc.events {
-				t.Fatalf("events=%d: sent max_output_tokens=%d want=%d, situations=%d", tc.events, gotBudget, tc.want, len(draft.Situations))
+			if gotBudget != tc.want || len(result.Roots) != tc.events {
+				t.Fatalf("events=%d: sent max_output_tokens=%d want=%d, roots=%d", tc.events, gotBudget, tc.want, len(result.Roots))
 			}
 		})
 	}

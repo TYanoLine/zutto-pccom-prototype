@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"log"
 	"math"
+	"math/rand"
 	"sort"
 	"strings"
 	"time"
@@ -98,12 +100,15 @@ type personaSource interface {
 }
 
 type Engine struct {
-	Store          world.Store
-	Planner        BatchPlanner
-	ReplyProjector ReplyProjector
-	Now            func() time.Time
-	Cadence        time.Duration
-	RecentLimit    int
+	Store            world.Store
+	Planner          BatchPlanner
+	ReplyProjector   ReplyProjector
+	ReplyAppealJudge world.ReplyAppealJudge
+	RNG              world.Float64Source
+	Now              func() time.Time
+	Cadence          time.Duration
+	RecentLimit      int
+	defaultRNG       *rand.Rand
 }
 
 func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine {
@@ -114,6 +119,23 @@ func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine 
 		Cadence:     DefaultCadence,
 		RecentLimit: DefaultRecentLimit,
 	}
+}
+
+func (e *Engine) rng() world.Float64Source {
+	if e != nil && e.RNG != nil {
+		return e.RNG
+	}
+	if e != nil {
+		if e.defaultRNG == nil {
+			seed := e.currentTime().UnixNano()
+			if seed == 0 {
+				seed = 1
+			}
+			e.defaultRNG = rand.New(rand.NewSource(seed))
+		}
+		return e.defaultRNG
+	}
+	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
 func (e *Engine) currentTime() time.Time {
@@ -291,6 +313,9 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	if !state.RetainedSince.IsZero() && state.RetainedSince.Before(now) {
 		lookback = now.Sub(state.RetainedSince)
 	}
+	if e.ReplyAppealJudge != nil {
+		return e.catchUpInitial(ctx, host, board, roots, lookback, 0, nil)
+	}
 	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas)
 }
 
@@ -449,37 +474,171 @@ func (e *Engine) personasForReactionPlanning(host world.Host, board world.Board,
 }
 
 func (e *Engine) planReactionsForRoot(host world.Host, board world.Board, rootPost world.Post, ordinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact) {
-	if e == nil || e.Store == nil || !world.IsSemanticRoot(rootPost) {
+	e.planReactionsForRoots(context.Background(), host, board, []world.Post{rootPost}, ordinal, personas, factsByPersona, false)
+}
+
+func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, board world.Board, roots []world.Post, startOrdinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact, isInitial bool) {
+	if e == nil || e.Store == nil || len(roots) == 0 {
 		return
 	}
 	planStore, ok := e.Store.(world.ReactionPlanStore)
 	if !ok {
 		return
 	}
-	if _, exists := planStore.ReactionPlan(host.ID, rootPost.ID); exists {
+
+	var unjudgedRoots []world.Post
+	for _, r := range roots {
+		if !world.IsSemanticRoot(r) {
+			continue
+		}
+		if existing, exists := planStore.ReactionPlan(host.ID, r.ID); exists && existing.Judged {
+			continue
+		}
+		unjudgedRoots = append(unjudgedRoots, r)
+	}
+	if len(unjudgedRoots) == 0 {
 		return
 	}
+
 	if len(personas) == 0 {
-		return
+		personas = e.personasForReactionPlanning(host, board, nil, e.currentTime())
 	}
+	if factsByPersona == nil {
+		factsByPersona = map[string][]world.PersonaFact{}
+		if fs, ok := e.Store.(world.PersonaFactStore); ok {
+			for _, p := range personas {
+				if facts := fs.ListPersonaFacts(p.ID); len(facts) > 0 {
+					factsByPersona[p.ID] = facts
+				}
+			}
+		}
+	}
+
 	replyRate := effectiveBoardReplyRate(board)
-	plan := world.PlanReactions(world.PlanInput{
-		Host:           host,
-		Board:          board,
-		TargetPost:     rootPost,
-		Ordinal:        ordinal,
-		ReplyRate:      replyRate,
-		PlannedAt:      rootPost.CreatedAt,
-		Personas:       personas,
-		FactsByPersona: factsByPersona,
-		BoardPrior:     board.Topics,
-		Thread: world.ThreadState{
-			StarterPersonaID: rootPost.AuthorPersonaID,
-			ParentPersonaID:  rootPost.AuthorPersonaID,
-			LastPersonaID:    rootPost.AuthorPersonaID,
-		},
-	})
-	planStore.SaveReactionPlan(host.ID, plan)
+	appealMap := make(map[int64]int, len(unjudgedRoots))
+	reasonMap := make(map[int64]string, len(unjudgedRoots))
+
+	if e.ReplyAppealJudge != nil {
+		appealRoots := make([]world.AppealRoot, len(unjudgedRoots))
+		postedAt := make(map[int64]time.Time, len(unjudgedRoots))
+		activeByRoot := make(map[int64]int, len(unjudgedRoots))
+
+		for i, r := range unjudgedRoots {
+			appealRoots[i] = world.AppealRoot{
+				ID:      r.ID,
+				Subject: r.Subject,
+				Summary: r.Intent.SituationSummary,
+			}
+			postedAt[r.ID] = r.CreatedAt
+			activeByRoot[r.ID] = activeActorTarget(host.Members, len(personas))
+		}
+
+		var recentCounts []int
+		for _, p := range filterBoard(e.Store.ListPosts(host.ID), board.ID) {
+			if world.IsSemanticRoot(p) {
+				if plan, ok := planStore.ReactionPlan(host.ID, p.ID); ok {
+					recentCounts = append(recentCounts, plan.Count)
+				}
+			}
+		}
+		if len(recentCounts) > 10 {
+			recentCounts = recentCounts[len(recentCounts)-10:]
+		}
+
+		res, err := e.ReplyAppealJudge.JudgeReplyAppeal(ctx, world.ReplyAppealRequest{
+			Host:         host.Name,
+			Board:        board.Name,
+			BaseRate:     replyRate,
+			Roots:        appealRoots,
+			PostedAt:     postedAt,
+			Members:      host.Members,
+			ActiveByRoot: activeByRoot,
+			RecentCounts: recentCounts,
+		})
+		if err != nil {
+			log.Printf("BBS reply appeal judge fallback: host=%s board=%s err=%v", host.ID, board.ID, err)
+			for _, r := range unjudgedRoots {
+				appealMap[r.ID] = 2
+				reasonMap[r.ID] = fmt.Sprintf("fallback:%v", err)
+			}
+		} else {
+			for _, r := range unjudgedRoots {
+				app, ok := res.Appeal[r.ID]
+				if !ok || app < 0 || app > 4 {
+					log.Printf("BBS reply appeal missing or out of bounds for root %d; fallback to 2", r.ID)
+					appealMap[r.ID] = 2
+					reasonMap[r.ID] = "fallback:invalid_appeal"
+				} else {
+					appealMap[r.ID] = app
+					reasonMap[r.ID] = res.Reason[r.ID]
+				}
+			}
+		}
+	} else {
+		for _, r := range unjudgedRoots {
+			appealMap[r.ID] = 2
+			reasonMap[r.ID] = "fallback:judge_unavailable"
+		}
+	}
+
+	standardActive := world.StandardActiveMembers(host.Members)
+	if len(personas) < standardActive {
+		standardActive = len(personas)
+	}
+	rng := e.rng()
+	now := e.currentTime()
+	for i, rootPost := range unjudgedRoots {
+		ordinal := startOrdinal + i
+		if ordinal <= 0 {
+			ordinal = int(rootPost.ID)
+		}
+		appeal := appealMap[rootPost.ID]
+		reason := reasonMap[rootPost.ID]
+		activeCount := activeActorTarget(host.Members, len(personas))
+		count := world.ReplyCountForWithStandard(rng, replyRate, appeal, activeCount, standardActive, world.MaxThreadReplies)
+
+		plan := world.PlanReactions(world.PlanInput{
+			Host:               host,
+			Board:              board,
+			TargetPost:         rootPost,
+			Ordinal:            ordinal,
+			ReplyRate:          replyRate,
+			ReplyCountOverride: &count,
+			Appeal:             appeal,
+			Judged:             true,
+			Reason:             reason,
+			PlannedAt:          rootPost.CreatedAt,
+			Personas:           personas,
+			FactsByPersona:     factsByPersona,
+			BoardPrior:         board.Topics,
+			Thread: world.ThreadState{
+				StarterPersonaID: rootPost.AuthorPersonaID,
+				ParentPersonaID:  rootPost.AuthorPersonaID,
+				LastPersonaID:    rootPost.AuthorPersonaID,
+			},
+		})
+
+		if isInitial {
+			at := rootPost.CreatedAt
+			for k := range plan.Replies {
+				rep := &plan.Replies[k]
+				if !rep.DueAt.Before(now) {
+					rep.DueAt = now.Add(-time.Duration(len(plan.Replies)-k) * time.Minute)
+					if !rep.DueAt.After(at) {
+						rep.DueAt = at.Add(time.Minute)
+					}
+					if !rep.DueAt.Before(now) {
+						rep.DueAt = now.Add(-time.Second)
+					}
+				}
+				at = rep.DueAt
+			}
+		}
+
+		planStore.SaveReactionPlan(host.ID, plan)
+		log.Printf("BBS reply appeal: host=%s board=%s root=%d subject=%q appeal=%d count=%d reason=%q",
+			host.ID, board.ID, rootPost.ID, rootPost.Subject, appeal, count, reason)
+	}
 }
 
 func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
@@ -685,7 +844,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		}
 	}
 
-	if len(replyQuotas) == 0 && len(newRoots) > 0 {
+	if len(replyQuotas) == 0 && (len(newRoots) > 0 || len(boardPosts) > 0) {
 		personas := e.personasForReactionPlanning(host, board, recent, now)
 		factsByPersona := map[string][]world.PersonaFact{}
 		if fs, ok := e.Store.(world.PersonaFactStore); ok {
@@ -696,15 +855,20 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 			}
 		}
 		existingRoots := 0
-		for _, post := range boardPosts {
-			if world.IsSemanticRoot(post) {
-				existingRoots++
-				e.planReactionsForRoot(host, board, post, existingRoots, personas, factsByPersona)
+		var unjudgedRoots []world.Post
+		if planStore, ok := e.Store.(world.ReactionPlanStore); ok {
+			for _, post := range boardPosts {
+				if world.IsSemanticRoot(post) {
+					existingRoots++
+					if _, exists := planStore.ReactionPlan(host.ID, post.ID); !exists {
+						unjudgedRoots = append(unjudgedRoots, post)
+					}
+				}
 			}
 		}
-		for i, rootPost := range newRoots {
-			e.planReactionsForRoot(host, board, rootPost, existingRoots+i+1, personas, factsByPersona)
-		}
+		unjudgedRoots = append(unjudgedRoots, newRoots...)
+		isInitial := ignoreCadence || cursor.IsZero()
+		e.planReactionsForRoots(ctx, host, board, unjudgedRoots, existingRoots+1, personas, factsByPersona, isInitial)
 		e.MaterializeDueReactions(host, board, now)
 	}
 	return nil

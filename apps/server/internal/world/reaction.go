@@ -45,6 +45,10 @@ type ReactionPlan struct {
 	Ordinal      int               `json:"ordinal"`
 	PlannedAt    time.Time         `json:"planned_at"`
 	Replies      []PlannedReaction `json:"replies,omitempty"`
+	Count        int               `json:"count,omitempty"`
+	Appeal       int               `json:"appeal,omitempty"`
+	Judged       bool              `json:"judged,omitempty"`
+	Reason       string            `json:"reason,omitempty"`
 }
 
 // PlannedReaction is one scheduled reply within a ReactionPlan.
@@ -92,6 +96,10 @@ type PlanInput struct {
 	Ordinal            int
 	ReplyRate          float64
 	ReplyCountOverride *int
+	ExistingPlan       *ReactionPlan
+	Appeal             int
+	Judged             bool
+	Reason             string
 	PlannedAt          time.Time
 	Personas           []Persona
 	FactsByPersona     map[string][]PersonaFact
@@ -527,8 +535,25 @@ func PlanReactions(in PlanInput) ReactionPlan {
 		PlannedAt:    plannedAt,
 	}
 	n := ThreadReplyCount(in.Host.ID, in.Board.ID, ordinal, replyRate)
-	if in.ReplyCountOverride != nil {
+	if in.ExistingPlan != nil && in.ExistingPlan.Judged {
+		n = in.ExistingPlan.Count
+		plan.Count = in.ExistingPlan.Count
+		plan.Appeal = in.ExistingPlan.Appeal
+		plan.Judged = true
+		plan.Reason = in.ExistingPlan.Reason
+	} else if in.Judged {
+		if in.ReplyCountOverride != nil {
+			n = *in.ReplyCountOverride
+		}
+		plan.Count = n
+		plan.Appeal = in.Appeal
+		plan.Judged = true
+		plan.Reason = in.Reason
+	} else if in.ReplyCountOverride != nil {
 		n = *in.ReplyCountOverride
+		plan.Count = n
+	} else {
+		plan.Count = n
 	}
 	if n <= 0 || len(in.Personas) == 0 {
 		return plan

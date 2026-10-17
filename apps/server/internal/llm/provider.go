@@ -1,6 +1,9 @@
 package llm
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type ReplyRequest struct {
 	HostName      string
@@ -212,65 +215,6 @@ type BBSWorldSituationDraft struct {
 	PostContent string   `json:"post_content"`
 	NoveltyKey  string   `json:"novelty_key"`
 	MustNot     []string `json:"must_not"`
-	Topics      []string `json:"topics,omitempty"`
-}
-
-type BBSWorldSituationProposalDraft struct {
-	Situations []BBSWorldSituationDraft `json:"situations"`
-	Usage      TokenUsage               `json:"-"`
-}
-
-type BBSSituationTitleSeed struct {
-	EventID          string   `json:"event_id"`
-	AuthorHandle     string   `json:"author_handle"`
-	CreatedAt        string   `json:"created_at"`
-	PersonaProfile   string   `json:"persona_profile,omitempty"`
-	SituationKind    string   `json:"situation_kind"`
-	SituationSummary string   `json:"situation_summary"`
-	SituationFacts   []string `json:"situation_facts"`
-}
-
-type BBSSituationTitleRequest struct {
-	HostName       string
-	HostRegion     string
-	BoardID        string
-	BoardName      string
-	BoardScope     string
-	WorldDate      string
-	RecentSubjects []string
-	Articles       []BBSSituationTitleSeed
-	// FormSeed selects the form notes (examples of title shapes) for this call.
-	FormSeed string
-	// RecentFormFacts are measured facts about recent titles, stated as
-	// context. Empty when recent titles show no notable bias.
-	RecentFormFacts []string
-	// MultiVariant asks for up to three differently built titles per article.
-	// The world side then picks one deterministically.
-	MultiVariant bool
-}
-
-type BBSSituationTitle struct {
-	EventID  string `json:"event_id"`
-	Subject  string `json:"subject"`
-	// Candidates holds every valid variant (Subject first) when MultiVariant
-	// was requested; otherwise it is empty.
-	Candidates []string `json:"-"`
-}
-
-type BBSSituationTitleDraft struct {
-	Titles []BBSSituationTitle `json:"titles"`
-	Usage  TokenUsage          `json:"-"`
-}
-
-type BBSSituationTitlePlanner interface {
-	GenerateBBSSituationTitles(context.Context, BBSSituationTitleRequest) (BBSSituationTitleDraft, error)
-}
-
-// BBSWorldSituationProposer sees multiple independent roots at once so it can
-// propose diverse concrete world facts in one call. The world layer validates
-// and commits accepted proposals before any article worker writes prose.
-type BBSWorldSituationProposer interface {
-	GenerateBBSWorldSituationProposals(context.Context, BBSWorldSituationProposalRequest) (BBSWorldSituationProposalDraft, error)
 }
 
 type Provider interface {
@@ -294,4 +238,49 @@ type BBSTimelineIntentPlanner interface {
 // topology remains immutable; the producer coordinates semantic consistency.
 type BBSWorldWindowProducer interface {
 	GenerateBBSWorldWindowProduction(context.Context, BBSWorldWindowProductionRequest) (BBSWorldWindowProductionDraft, error)
+}
+
+// Legacy situation title types retained for cmd/titlereplay diagnostic replay tool.
+type BBSSituationTitleSeed struct {
+	EventID          string   `json:"event_id"`
+	AuthorHandle     string   `json:"author_handle"`
+	CreatedAt        string   `json:"created_at"`
+	DiscourseMode    string   `json:"discourse_mode"`
+	PersonaProfile   string   `json:"persona_profile,omitempty"`
+	SituationKind    string   `json:"situation_kind"`
+	SituationSummary string   `json:"situation_summary"`
+	SituationFacts   []string `json:"situation_facts"`
+}
+
+type BBSSituationTitleRequest struct {
+	HostName        string
+	HostRegion      string
+	BoardID         string
+	BoardName       string
+	BoardScope      string
+	WorldDate       string
+	RecentSubjects  []string
+	RecentFormFacts []string
+	FormSeed        string
+	MultiVariant    bool
+	Articles        []BBSSituationTitleSeed
+}
+
+type BBSSituationTitle struct {
+	EventID    string   `json:"event_id"`
+	Subject    string   `json:"subject"`
+	Candidates []string `json:"candidates,omitempty"`
+}
+
+type BBSSituationTitleDraft struct {
+	Titles []BBSSituationTitle `json:"titles"`
+	Usage  TokenUsage          `json:"-"`
+}
+
+type BBSSituationTitlePlanner interface {
+	GenerateBBSSituationTitles(context.Context, BBSSituationTitleRequest) (BBSSituationTitleDraft, error)
+}
+
+func (p StructuredOpenAIProvider) GenerateBBSSituationTitles(ctx context.Context, req BBSSituationTitleRequest) (BBSSituationTitleDraft, error) {
+	return BBSSituationTitleDraft{}, fmt.Errorf("GenerateBBSSituationTitles has been superseded by BBSRootDraftPlanner")
 }

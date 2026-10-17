@@ -57,6 +57,17 @@ or was rejected is logged on every station as
 `Line message generation failed: host=... slot=... err=...`; the resident
 stayed silent. The caller's own telegrams are never logged.
 
+### Reply appeal and situation timing (spec 021, 022)
+
+During BBS root planning and reaction planning, operational logs record:
+
+- `BBS timing: host=... board=... phase=situation_chunk duration=... events=...`:
+  Elapsed wall-clock time for each parallel situation chunk (chunk size 6 events, concurrency 4).
+- `BBS reply appeal: host=... board=... root=... subject=... appeal=... count=... reason=...`:
+  The qualitative appeal level (0..4), resulting reply count, and rationale decided for each root post.
+- `BBS reply appeal judge fallback: host=... board=... err=...`:
+  Logged when the Reply Appeal Judge is unavailable, times out, or fails; the system defaults to baseline appeal 2 without stopping simulation.
+
 ## Title-led body trial
 
 When `GENERATION_FREEFORM_BODY=1` (default), the article worker receives the real board.Name, the saved subject, the author and a concise accepted Situation summary. Replies also retain relevant parent text, reply purpose and required referents. The underlying persisted facts are unchanged.

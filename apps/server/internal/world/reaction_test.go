@@ -337,3 +337,40 @@ func TestAdviceQuantizationAndBoundedInfluence(t *testing.T) {
 		t.Fatalf("expected valid candidate weight to remain > 0 even with min advice, got %f", w)
 	}
 }
+
+func TestPlanReactionsJudgedPlan(t *testing.T) {
+	pop := testPopulation(42, 20)
+	in := PlanInput{
+		Host:       Host{ID: "canal", Region: "fukuoka"},
+		Board:      Board{ID: "pc-tech"},
+		TargetPost: Post{ID: 101, BoardID: "pc-tech", Subject: "PC-98", CreatedAt: time.Date(1996, 5, 10, 23, 15, 0, 0, jstZone)},
+		Ordinal:    1,
+		ReplyRate:  0.0, // base reply rate 0 would give 0 replies with ThreadReplyCount
+		Personas:   pop,
+		ExistingPlan: &ReactionPlan{
+			TargetPostID: 101,
+			Count:        3,
+			Appeal:       4,
+			Judged:       true,
+			Reason:       "質問スレッドで返信が集まりやすい",
+		},
+	}
+
+	plan := PlanReactions(in)
+	if !plan.Judged {
+		t.Fatal("expected plan.Judged == true")
+	}
+	if plan.Count != 3 {
+		t.Fatalf("expected plan.Count == 3, got %d", plan.Count)
+	}
+	if plan.Appeal != 4 {
+		t.Fatalf("expected plan.Appeal == 4, got %d", plan.Appeal)
+	}
+	if plan.Reason != "質問スレッドで返信が集まりやすい" {
+		t.Fatalf("unexpected plan.Reason: %s", plan.Reason)
+	}
+	if len(plan.Replies) != 3 {
+		t.Fatalf("expected 3 scheduled replies, got %d", len(plan.Replies))
+	}
+}
+

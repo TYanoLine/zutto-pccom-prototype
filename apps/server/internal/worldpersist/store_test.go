@@ -463,6 +463,10 @@ func TestStorePersistsReactionPlans(t *testing.T) {
 			{Index: 1, PersonaID: "p-1", DueAt: plannedAt.Add(12 * time.Minute), Advice: 0.65, MaterializedPostID: 1006},
 			{Index: 2, PersonaID: "p-2", DueAt: plannedAt.Add(35 * time.Minute)},
 		},
+		Count:  2,
+		Appeal: 3,
+		Judged: true,
+		Reason: "機材トラブルの相談で返信がつきやすい",
 	}
 	store.SaveReactionPlan(host.ID, plan)
 
@@ -471,7 +475,8 @@ func TestStorePersistsReactionPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, ok := restored.ReactionPlan(host.ID, 1005)
-	if !ok || got.BoardID != "4" || got.Ordinal != 3 || len(got.Replies) != 2 || got.Replies[0].MaterializedPostID != 1006 {
+	if !ok || got.BoardID != "4" || got.Ordinal != 3 || len(got.Replies) != 2 || got.Replies[0].MaterializedPostID != 1006 ||
+		got.Count != 2 || got.Appeal != 3 || !got.Judged || got.Reason != "機材トラブルの相談で返信がつきやすい" {
 		t.Fatalf("restored reaction plan = %+v (ok=%v)", got, ok)
 	}
 }

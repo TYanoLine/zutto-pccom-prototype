@@ -25,18 +25,18 @@ func TestBBSWorldSituationDistinguishesOutputBudgetTruncation(t *testing.T) {
                     if !tc.atLimit {used--}
                     body,err:=json.Marshal(map[string]any{
                         "model":"gpt-test",
-                        "output":[]any{map[string]any{"content":[]any{map[string]any{"type":"output_text","text":`{"situations":{"slot-1":{"object_class":"game"`}}}},
+                        "output":[]any{map[string]any{"content":[]any{map[string]any{"type":"output_text","text":`{"roots":{"slot-1":{"object_class":"game"`}}}},
                         "usage":map[string]any{"input_tokens":50,"output_tokens":used,"total_tokens":50+used},
                     })
                     if err!=nil{return nil,err}
                     return &http.Response{StatusCode:http.StatusOK,Header:make(http.Header),Body:io.NopCloser(strings.NewReader(string(body)))},nil
                 })},
             }}
-            _,err:=provider.GenerateBBSWorldSituationProposals(context.Background(),BBSWorldSituationProposalRequest{
+            _,err:=provider.GenerateBBSRootDrafts(context.Background(),BBSRootDraftRequest{
                 HostName:"HAKATA",WorldDate:"1996-02-17",
                 Events:[]BBSWorldWindowEvent{{EventID:"slot-1",Action:"thread_start"}},
             })
-            if err==nil || !strings.Contains(err.Error(),"decode BBS world-situation JSON"){
+            if err==nil || !strings.Contains(err.Error(),"decode BBS root draft JSON"){
                 t.Fatalf("missing actionable decode error: %v",err)
             }
             if errors.Is(err,ErrBBSWorldSituationOutputTruncated)!=tc.atLimit{
