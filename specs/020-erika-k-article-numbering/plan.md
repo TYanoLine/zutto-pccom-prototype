@@ -13,7 +13,7 @@
 | 一覧の番号 | `p.ID` を `%4d` で表示 | `apps/server/internal/hostprogram/erikak/runtime.go` の `renderBoardIndex`（L720 付近〜、L750 付近） |
 | 投稿完了の番号 | `MSG No.%d を登録しました`、`p.ID` | `runtime.go` の `new_body`（L120〜137） |
 | アペンド | `ParentID: root.ID` で `AddPost`（内部 ID を消費） | `runtime.go` の `append_body`（L155〜178） |
-| 番号による指定 | `rootPost(id)` が `p.ID == id` で引く | `runtime.go` L1081〜1088。呼び出し 11 箇所 |
+| 番号による指定 | `rootPost(id)` が `p.ID == id` で引く | `runtime.go` L1081〜1088。呼び出し 4 箇所（L147、L160、L444、L457） |
 | 活動計画 | `planBoardActivity(host, board, now)` が、呼び出し時刻から `TotalRoots` などを計算する。時間とともに変わる | `apps/server/internal/worldrepo/board_activity.go`（L47〜157） |
 | 板の開始日 | `board.OpenedOn`、無ければ `host.FoundedOn` | `board_activity.go` L48〜52 |
 | 初回の記事の作成 | 記事の無い板を開くと `CatchUpInitialBoardActivity` が、最新の記事（最大 10 件）と返信を、1 回の `PlanBBSBatch` で計画する | `worldrepo/observation.go`（L159 付近）、`bbsengine/engine.go` の `catchUp`（L265〜310） |
@@ -115,12 +115,19 @@ type BoardPlan struct {
 |---|---|
 | 計画の後の利用者の記事・ペルソナの記事 | `BoardNo = NextBoardNo(host, board)` |
 | 利用者の返信（`append_body`） | `ReplyNo = NextReplyNo(host, root.ID)`。`ParentID: root.ID` |
-| 生成された返信（共有エンジン） | 同じく `NextReplyNo`。日付は既存の遅れの計算のまま |
+| 生成された返信（共有エンジン） | 同じく `NextReplyNo`。日付は既存の遅れの計算のまま。返信を作る経路は 3 つ（`bbsengine/engine.go` L398 付近と L831 付近、`worldrepo/reaction.go` L354 付近）。すべて下の「返信の番号づけの判断」に従う |
+
+**返信の番号づけの判断**: 共有の層が「この局は返信を番号づけする」と判断しない。既に各経路が呼んでいるホストプログラムの
+返信の表現（`hostprogram.ProjectReply` → `erikak.ProjectReply`）に、後方互換な任意フィールド `NumbersReplies bool` を足し、
+Erika-K だけが `true` を返す。3 つの経路は、`ParentID != 0` かつ `NumbersReplies` のときだけ `NextReplyNo` を呼ぶ。
+局の名前や ID で分岐しない（AGENTS.md）。
 
 ### 6. 番号による指定と表示
 
 - `rootPost(id)` を `rootPostByNo(boardPath, no)` に変える（`ParentID == 0`、`BoardID == boardPath`、`BoardNo == no`）。
 - `BR n` と `A n` の `n` は、板の記事番号として解決する。返信番号による指定はしない（spec FR-007）。
+- 利用者の入力を解決する箇所（`append_target`、`BR n`、`A n`）だけが `rootPostByNo` を使う。`append_body` は `r.threadID`（内部 ID）から親を引くので、
+  内部 ID で引く `rootPost` を残す。番号と内部 ID を取り違えない。
 - 一覧の番号列は `BoardNo`。`%4d` の幅は変えない。
 - `MSG No.%d を登録しました` は `BoardNo`。
 - アペンドの見出しは `アペ N`（`ReplyNo`）。現状の連番（`appendNo`）を `ReplyNo` に置き換える。
@@ -143,7 +150,10 @@ type BoardPlan struct {
 | `apps/server/internal/llm/`（記事の batch の要求と検証） | 要求に範囲と番号を足す。返った日付の検証 |
 | `apps/server/internal/hostprogram/erikak/runtime.go` | 利用者の記事と返信の採番、`rootPostByNo`、一覧と `MSG No.` の表示、`アペ N`、`BR n` と `A n` の解決 |
 | `apps/server/internal/hostprogram/erikak/numbering.go`（新規） | 採番の呼び出し、batch の範囲の決定、日付の検証 |
-| `apps/server/internal/bbsengine/engine.go` | 計画の記事の番号と範囲、返信の番号を、任意で渡す（既定は何もしない） |
+| `apps/server/internal/bbsengine/engine.go` | 計画の記事の番号と範囲、返信の番号を、任意で渡す（既定は何もしない）。返信の 2 経路 |
+| `apps/server/internal/worldrepo/reaction.go` | 人間の記事へのペルソナの反応の返信に、`NumbersReplies` のときだけ `ReplyNo` を付ける |
+| `apps/server/internal/hostprogram/replymodel/` と `bbsengine.ReplyRepresentation` | 任意フィールド `NumbersReplies bool` |
+| `apps/server/internal/hostprogram/erikak/reply_semantics.go` | `ProjectReply` が `NumbersReplies: true` を返す |
 | `apps/server/internal/hostprogram/erikak/golden_numbering_test.go`（新規） | 金型テスト（画面の形式） |
 | `apps/server/internal/hostprogram/erikak/numbering_test.go`（新規） | US1〜US6 のテスト |
 | `apps/server/internal/hostprogram/erikak/testdata/numbering_golden.json`（新規） | 変更前に生成する |
@@ -174,5 +184,7 @@ type BoardPlan struct {
 | 前の batch が古い日付に寄り、古い側の範囲が狭くなる | 下限を目安として扱い、目安が上限を超えたら `OpenedOn` まで広げる |
 | 記事の保存と floor の更新が片方だけ残る | 同じ時点で行い、失敗時は両方を行わない |
 | 共有エンジンの変更で、他のホストの番号や日付が変わる | 任意の値として渡す。Erika-K 以外には渡さない。他のホストのテストを全件通す |
-| `rootPost` の呼び出し 11 箇所で、番号と内部 ID を取り違える | 呼び出しをすべて読み、`rootPostByNo` に置き換える。`grep` で残りを確認する |
+| `rootPost` の呼び出し 4 箇所で、番号と内部 ID を取り違える（特に `append_body` の `threadID`） | 利用者入力の 3 箇所だけ `rootPostByNo`。`append_body` は内部 ID のまま。`grep` で確認し、テストで「返信が正しい親に付く」を確かめる |
+| 返信を作る経路の取りこぼし（`reaction.go` を含め 3 経路）で、`ReplyNo == 0` の返信ができる | T014 で 3 経路を列挙。テストで、各経路の返信が `ReplyNo > 0` で、欠番なく続くことを確かめる |
+| マージ時に、保存済みの Erika-K の記事（`BoardNo == 0`）が開けなくなる | 本仕様は既存の記事を扱わない。PR の説明に、マージ前後のリセットが必要なことを必ず書く（T023） |
 | 金型を実装後に作り直してしまう | 金型のコミットを実装より前に置き、`git log` で確認する（tasks.md） |

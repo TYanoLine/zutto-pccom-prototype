@@ -1,7 +1,7 @@
 # Tasks: Erika-K の板の計画と記事番号
 
 **Input**: `specs/020-erika-k-article-numbering/` の `spec.md`、`plan.md`
-**Prerequisites**: `AGENTS.md`、`plan.md`（特に「設計」と「金型の方針」）、spec の「判断事項」と「未決事項」
+**Prerequisites**: `AGENTS.md`、`plan.md`（特に「設計」と「金型の方針」）、spec の「判断事項」（未決事項は無い）
 
 ## この作業のルール（必読）
 
@@ -13,7 +13,7 @@
   コミットの順序が、そのまま証拠になる。
 - **金型をコミットしたあと、金型の更新用のフラグを二度と使わない。** 金型ファイルを書き換えない。
   金型テストが失敗したら、実装の誤り。金型ではなく実装を直す。2 回直して通らなければ、そこで止めて、どの行が違うかを報告する。
-- 板の計画は、板一覧の表示時に、板ごとに初めて確定する（spec「計画の確定の時点」）。確定の後は再計算しない。
+- 板の計画は、板一覧の表示時に、板ごとに初めて確定する（spec「判断事項」1）。確定の後は再計算しない。
 - **記事番号を、残っている記事から計算しない。** `max + 1` のような実装をしてはならない（spec FR-004）。
 - **計画を確定したあと、N と最初の投稿日を再計算しない。** 保存された計画を読むだけにする（spec FR-002）。
 - 返信番号による指定（`BR 5/2` などの構文）は実装しない（spec スコープ外）。
@@ -38,6 +38,7 @@
     4. 板 A の一覧（`BX`）を開く。
     5. 記事 1 を `BR` で読む（返信を含む）。
     6. HAKATA の板の一覧（`BM` と各板の `BX`）を開く。
+  - 更新用のフラグは、同じパッケージの既存の `updateErikaGolden`（`-update-erikak-golden`、`golden_test.go` L15）を使う。新しいフラグを作らない。
   - 金型は、番号と日付（数字の列）をマスクした形で保存する。マスクの関数は、テストの中に 1 つだけ書く（`maskNumbers`）。
   - 金型を読むのは、1 つの関数（`goldenNumberingTranscript`）だけにする。実装後は、その関数の本体だけを書き換えられるようにする。
   - 記事を書くときの時刻は、既存の金型と同じ固定の世界時刻を使う（出力が決定的であること）。
@@ -53,7 +54,7 @@
 - [ ] **T003** 金型を生成してコミットする（**変更前のコードで。実装より前に**）
 
   ```bash
-  go -C apps/server test ./internal/hostprogram/erikak -run 'TestGoldenNumbering' -update-golden -count=1
+  go -C apps/server test ./internal/hostprogram/erikak -run 'TestGoldenNumbering' -update-erikak-golden -count=1
   go -C apps/server test ./internal/hostprogram/erikak -count=1
   go -C apps/server test ./internal/hostprogram/erikak -run 'TestGoldenNumbering' -count=3
   ```
@@ -71,7 +72,7 @@
 
   `ID` の次の行に、`plan.md` の設計 1 のとおりに挿入する。既存の JSON 形式は変わらない（`omitempty`）。
 
-- [ ] **T005** `BoardPlan`、`PlanWindow`、`BoardNumberStore` を定義し、メモリ上の実装を書く（`apps/server/internal/world/store.go`）
+- [ ] **T005** `BoardPlan`、`BoardNumberStore` を定義し、メモリ上の実装を書く（`apps/server/internal/world/store.go`）
 
   - `plan.md` の設計 2・3 のとおり。`HostDetailStore`（L18〜20）と同じ形の任意インターフェースにする。
   - `SetBoardPlan` は、既に計画がある板には書かない（固定）。
@@ -150,11 +151,19 @@
 
 ## Phase 4: 共有エンジンと、番号による指定・表示
 
-- [ ] **T014** 共有エンジンに、番号と日付を任意で渡せるようにする（`apps/server/internal/bbsengine/engine.go`、`catchUpInitial` 周辺）
+- [ ] **T014** 共有エンジンと反応の経路に、番号と日付を任意で渡せるようにする（`apps/server/internal/bbsengine/engine.go`、`catchUpInitial` 周辺）
 
-  - 記事と返信を作るときに使う、任意の関数を受け取れるようにする。既定は `nil`（番号を付けない）。
-  - Erika-K だけが、計画の番号と日付、および `NextReplyNo` を使う関数を渡す。
-  - 他のホスト（TurboBBS、VS、bbs など）は関数を渡さない。挙動は変えない。
+  - 記事を作るときに使う、任意の関数を受け取れるようにする。既定は `nil`（番号を付けない）。
+  - Erika-K だけが、計画の番号と日付を使う関数を渡す。
+  - **返信の番号（`ReplyNo`）**: 返信を `AddPost` する経路は 3 つある。すべてで、ホストプログラムの返信の表現
+    （`ProjectReply` の結果）が「返信を番号づけする」と示し、かつ `ParentID != 0` のときだけ、`NextReplyNo(host, ParentID)` を `ReplyNo` に入れる。
+    1. `bbsengine/engine.go` L398 付近（反応の返信の実体化）
+    2. `bbsengine/engine.go` L831 付近（batch の記事・返信）
+    3. `worldrepo/reaction.go` L354 付近（人間の記事へのペルソナの反応）
+  - `replymodel.Projection` と `bbsengine.ReplyRepresentation` に、後方互換な任意フィールド `NumbersReplies bool` を足す。
+    `erikak.ProjectReply` だけが `true` を返す。他のホストは `false`（既定）のまま。
+  - `worldrepo/repository.go` L403 付近（`materialize` が `r.AddPost(host.ID, p)` で渡す投稿）は、番号を付けた投稿を受け取ってそのまま保存する。ここでは番号を付けない。
+  - 他のホスト（TurboBBS、VS、bbs など）は、何も渡さない。挙動は変えない。
 
 - [ ] **T015** 共有エンジンと他のホストのテスト
 
@@ -171,8 +180,10 @@
 
 - [ ] **T017** 記事番号による指定（`runtime.go`、`rootPost` の呼び出し 11 箇所）
 
-  - `rootPost(id int64)` を `rootPostByNo(boardPath string, no int64) (world.Post, bool)` に置き換える（`ParentID == 0`、`BoardID == boardPath`、`BoardNo == no`）。
-  - `grep -n "rootPost(" apps/server/internal/hostprogram/erikak/runtime.go` の結果を、すべて読んで置き換える。
+  - 利用者が入力した番号を解決する箇所（`append_target` L147、`BR n` L444、`A n` L457）は、`rootPostByNo(boardPath string, no int64) (world.Post, bool)` に置き換える（`ParentID == 0`、`BoardID == boardPath`、`BoardNo == no`）。
+  - **`append_body` の L160 は置き換えない。** そこでは `r.threadID`（内部 ID）から親を引く。`threadID` は内部 ID のまま持ち、
+    `rootPostByNo` で解決した結果の `root.ID` を代入する。内部 ID で引く `rootPost(id)` は、この用途のために残す。
+  - `grep -n "rootPost(" apps/server/internal/hostprogram/erikak/runtime.go` の結果（定義 1 + 呼び出し 4）をすべて読んで、上の分類のとおりにする。
   - 返信番号による指定はしない。
 
 **Checkpoint**: 一覧と指定が記事番号で動き、他のホストは変わらない。
@@ -193,6 +204,7 @@
   | US4 | 時刻を進めても、計画の N、`OpenedOn`、`PlannedAt` は変わらない。保存して読み直しても変わらない |
   | US5 | 記事 1 に返信を 3 件書く（番号 1、2、3）。返信 2 を削除（テストで直接用意）すると、残りは 1 と 3。次の返信は 4 |
   | US6 | 金型テスト（T019） |
+  | SC-005 | 利用者の返信、共有エンジンの 2 経路、`reaction.go` の反応のそれぞれで作った返信が、`ReplyNo > 0` で親ごとに続く。他のホストの返信は `ReplyNo == 0` のまま |
 
 - [ ] **T019** 金型の確認
 
@@ -250,7 +262,9 @@
 
   - `main` への PR。**draft** で作成する。
   - タイトル: `Erika-K の板の計画と記事番号を実装する（画面の形式は変えず、番号と計画の日付のみ）`
-  - 説明に含める: 目的、変更の要約、**金型のコミットが実装より前であること**、`verification.md` の結果（未実施を含めて正直に）、未決事項の扱い、スコープ外の項目。
+  - 説明に含める: 目的、変更の要約、**金型のコミットが実装より前であること**、`verification.md` の結果（未実施を含めて正直に）、スコープ外の項目。
+  - **デプロイの注意を必ず書く。** `main` へのマージは Render の自動デプロイになる。保存済みの Erika-K の記事は `BoardNo == 0` で、
+    マージ後は `BR n` で開けない。マージの前後に、Erika-K の局の記事のリセット（`docs/DEBUG_RESET.md`）が必要であることを説明に書く。リセットはこの PR で実装しない。
 
 ---
 
