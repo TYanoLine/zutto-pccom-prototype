@@ -28,17 +28,18 @@
 | `go -C apps/server test ./internal/world -run 'ReplyCount\|ReplyAppeal' -count=1` | PASS (0.24s) | 換算式・統計テスト・決定論テスト |
 | `go -C apps/server test ./internal/worldpersist -count=1` | PASS (1.6s) | ReactionPlan 永続化・新フィールド往復テスト |
 | `go -C apps/server test ./internal/llm -run ReplyAppeal -count=1` | PASS (0.05s) | LLM 判断器スキーマ・プロンプト・フォールバックテスト |
-| `go -C apps/server test ./internal/bbsengine -count=1` | PASS (1.7s) | バッチ比例呼び出し回数、エラー退避、再起動後の件数不変、RNG決定論、上限境界テスト |
+| `go -C apps/server test ./internal/bbsengine -count=1` | PASS (1.7s) | バッチ比例呼び出し回数、エラー退避、再起動後の件数不変、RNG決定論、上限境界、時間帯別係数差テスト |
 | `go -C apps/server test ./internal/worldrepo -run TestBoardActivityUsesSavedReactionPlanCount -count=1` | PASS (2.0s) | 保存済み計画の件数が BoardActivity に反映されるテスト |
+| `go -C apps/server test ./internal/bbsengine ./internal/world ./internal/worldrepo -count=1` | PASS (62.3s) | 修正後の結合テスト通過 |
 | `go -C apps/server vet ./...` | PASS | 静的解析 |
-| `go -C apps/server test ./... -count=1` | PASS (125s) | 全体リグレッションテスト (全パッケージ通過) |
+| `go -C apps/server test -race ...` | not run | ローカル Windows 開発環境に cgo/gcc が未導入のため未実行（テスト用スタブ構造体に `sync.Mutex` を導入し並列 race を解消、`bbsengine.Engine.rng()` は per-batch 乱数生成器 / `lockedSource` によるスレッドセーフ化を完了） |
 
 ## 成功基準の確認状況
 
 - **SC-001**: 乱数源を変えると件数の列が変わり、同じ乱数源では同じ列になる。
   - 確認: `TestReplyCountRNGDeterminismAndVariation` でパス。
-- **SC-002**: 段階が高いほど件数の期待値が大きい（単調）。
-  - 確認: `TestReplyCountForMonotonicity` でパス。
+- **SC-002**: 段階が高いほど件数の期待値が大きい（単調）。また、時間帯ごとの活動人数比（`ActivePopulationAt`）により深夜帯（23:30）の期待値が未明（04:30）を上回る。
+  - 確認: `TestReplyCountForMonotonicity`、`TestReplyCountTimeFactorDiffersByTimeOfDay` でパス。
 - **SC-003**: 活動できる住民の数が少ないとき、件数が `active - 1` を超えない。
   - 確認: `TestReplyCountActiveLimitBounded` でパス。
 - **SC-004**: 判断器が常に失敗しても処理が止まらず、件数の平均が基準率の近くに収まる。
@@ -49,3 +50,4 @@
   - 確認: `TestReplyAppealJudgeCallCountProportionalToBatchCount` でパス。
 - **SC-007**: `population_golden_test.go` と `screens_golden.txt` が不変。
   - 確認: `git diff --stat` で変更がないことを確認。
+

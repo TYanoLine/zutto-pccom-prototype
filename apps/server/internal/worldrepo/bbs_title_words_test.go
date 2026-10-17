@@ -7,6 +7,7 @@ import (
 	"log"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,13 +20,17 @@ import (
 
 // scriptedDraftPlanner answers from a function and records every request.
 type scriptedDraftPlanner struct {
+	mu       sync.Mutex
 	requests []llm.BBSRootDraftRequest
 	answer   func(call int, req llm.BBSRootDraftRequest) map[string]llm.BBSRootDraft
 }
 
 func (s *scriptedDraftPlanner) GenerateBBSRootDrafts(_ context.Context, req llm.BBSRootDraftRequest) (llm.BBSRootDraftResult, error) {
+	s.mu.Lock()
+	call := len(s.requests)
 	s.requests = append(s.requests, req)
-	return llm.BBSRootDraftResult{Roots: s.answer(len(s.requests)-1, req)}, nil
+	s.mu.Unlock()
+	return llm.BBSRootDraftResult{Roots: s.answer(call, req)}, nil
 }
 
 func planTitles(t *testing.T, repo *Repository, host world.Host, recent []string, n int, planner llm.BBSRootDraftPlanner) ([]bbsengine.PlannedPost, error) {

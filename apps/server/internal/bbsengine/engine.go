@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"zutto-pccom/apps/server/internal/world"
@@ -108,7 +109,6 @@ type Engine struct {
 	Now              func() time.Time
 	Cadence          time.Duration
 	RecentLimit      int
-	defaultRNG       *rand.Rand
 }
 
 func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine {
@@ -121,19 +121,20 @@ func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine 
 	}
 }
 
+type lockedSource struct {
+	mu  sync.Mutex
+	src world.Float64Source
+}
+
+func (l *lockedSource) Float64() float64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.src.Float64()
+}
+
 func (e *Engine) rng() world.Float64Source {
 	if e != nil && e.RNG != nil {
-		return e.RNG
-	}
-	if e != nil {
-		if e.defaultRNG == nil {
-			seed := e.currentTime().UnixNano()
-			if seed == 0 {
-				seed = 1
-			}
-			e.defaultRNG = rand.New(rand.NewSource(seed))
-		}
-		return e.defaultRNG
+		return &lockedSource{src: e.RNG}
 	}
 	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }
@@ -314,22 +315,26 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 		lookback = now.Sub(state.RetainedSince)
 	}
 	if e.ReplyAppealJudge != nil {
-		return e.catchUpInitial(ctx, host, board, roots, lookback, 0, nil)
+		return e.catchUpInitial(ctx, host, board, roots, lookback, 0, nil, totalRoots-roots+1)
 	}
-	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas)
+	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas, totalRoots-roots+1)
 }
 
-func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
+func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, initialStartOrdinal ...int) error {
 	if e == nil || e.Store == nil {
 		return nil
+	}
+	startOrd := 0
+	if len(initialStartOrdinal) > 0 {
+		startOrd = initialStartOrdinal[0]
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
 		if (post.Intent.Action == ActionWorldCatchup || post.Intent.Action == legacyActionWorldCatchup) && post.Intent.CauseKind != "persona_reaction" {
-			return e.catchUp(ctx, host, board, false, 0, 0, 0, nil)
+			return e.catchUp(ctx, host, board, false, 0, 0, 0, nil, 0)
 		}
 	}
-	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas)
+	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas, startOrd)
 }
 
 // MaterializeDueReactions creates header-only reply posts for any PlannedReaction
@@ -518,10 +523,17 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 	appealMap := make(map[int64]int, len(unjudgedRoots))
 	reasonMap := make(map[int64]string, len(unjudgedRoots))
 
+	activeByRoot := make(map[int64]int, len(unjudgedRoots))
+	standardByRoot := make(map[int64]int, len(unjudgedRoots))
+	for _, r := range unjudgedRoots {
+		act, std := world.ActivePopulationAt(host, board, personas, factsByPersona, r.CreatedAt)
+		activeByRoot[r.ID] = act
+		standardByRoot[r.ID] = std
+	}
+
 	if e.ReplyAppealJudge != nil {
 		appealRoots := make([]world.AppealRoot, len(unjudgedRoots))
 		postedAt := make(map[int64]time.Time, len(unjudgedRoots))
-		activeByRoot := make(map[int64]int, len(unjudgedRoots))
 
 		for i, r := range unjudgedRoots {
 			appealRoots[i] = world.AppealRoot{
@@ -530,7 +542,6 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 				Summary: r.Intent.SituationSummary,
 			}
 			postedAt[r.ID] = r.CreatedAt
-			activeByRoot[r.ID] = activeActorTarget(host.Members, len(personas))
 		}
 
 		var recentCounts []int
@@ -581,10 +592,6 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 		}
 	}
 
-	standardActive := world.StandardActiveMembers(host.Members)
-	if len(personas) < standardActive {
-		standardActive = len(personas)
-	}
 	rng := e.rng()
 	now := e.currentTime()
 	for i, rootPost := range unjudgedRoots {
@@ -594,7 +601,8 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 		}
 		appeal := appealMap[rootPost.ID]
 		reason := reasonMap[rootPost.ID]
-		activeCount := activeActorTarget(host.Members, len(personas))
+		activeCount := activeByRoot[rootPost.ID]
+		standardActive := standardByRoot[rootPost.ID]
 		count := world.ReplyCountForWithStandard(rng, replyRate, appeal, activeCount, standardActive, world.MaxThreadReplies)
 
 		plan := world.PlanReactions(world.PlanInput{
@@ -641,7 +649,7 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 	}
 }
 
-func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int) error {
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, initialStartOrdinal ...int) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
@@ -868,7 +876,11 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		}
 		unjudgedRoots = append(unjudgedRoots, newRoots...)
 		isInitial := ignoreCadence || cursor.IsZero()
-		e.planReactionsForRoots(ctx, host, board, unjudgedRoots, existingRoots+1, personas, factsByPersona, isInitial)
+		startOrdinal := existingRoots + 1
+		if len(initialStartOrdinal) > 0 && initialStartOrdinal[0] > 0 && existingRoots == 0 {
+			startOrdinal = initialStartOrdinal[0]
+		}
+		e.planReactionsForRoots(ctx, host, board, unjudgedRoots, startOrdinal, personas, factsByPersona, isInitial)
 		e.MaterializeDueReactions(host, board, now)
 	}
 	return nil

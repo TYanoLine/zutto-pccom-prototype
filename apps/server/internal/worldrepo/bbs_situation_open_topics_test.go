@@ -5,6 +5,7 @@ import (
     "fmt"
     "reflect"
     "strings"
+    "sync"
     "testing"
     "time"
 
@@ -15,11 +16,14 @@ import (
 )
 
 type openTopicRootDraftPlanner struct {
+    mu       sync.Mutex
     requests []llm.BBSRootDraftRequest
 }
 
 func (s *openTopicRootDraftPlanner) GenerateBBSRootDrafts(_ context.Context, req llm.BBSRootDraftRequest) (llm.BBSRootDraftResult, error) {
+    s.mu.Lock()
     s.requests = append(s.requests, req)
+    s.mu.Unlock()
     out := llm.BBSRootDraftResult{
         Roots: make(map[string]llm.BBSRootDraft, len(req.Events)),
     }

@@ -17,22 +17,25 @@ Situation（状況）と件名（タイトル）の 2 段階 LLM 呼び出しを
 
 ## 成功基準の確認状況
 
-- **SC-001**: 正常系でのプロバイダ呼び出し回数が $\lceil N / 6 \rceil$ 回。
-  - 確認: `TestRootDraftCallCountIsCeilNOverSix`（1, 6, 7, 12, 13 スロット）で全サブテストがパス。
-- **SC-002**: 出力トークン予算枯渇（`ErrBBSWorldSituationOutputTruncated`）時に局所的な二分割で救済。
-  - 確認: `TestOutputBudgetExhaustionSplitsChunk` で分割・結合がパス。
-- **SC-003**: チャンク失敗時の再試行（最大 3 回）が機能。
-  - 確認: `TestChunkFailureRetriesUpToThreeTimes`、`TestInvalidTitleTriggersRetryAndSucceeds` でパス。
-- **SC-004**: 新規キー重複時にリジェクトせずログ警告を記録し、後続の同一キーのみ別ドラフトを採択。
-  - 確認: `TestDuplicateNoveltyKeyInChunkDoesNotReject` でパス。
-- **SC-005**: チャンク単位の所要時間がログに記録される。
-  - 確認: `log.Printf("BBS timing: host=%s board=%s phase=situation_chunk duration=%s events=%d", ...)` により `phase=situation_chunk` が出力されることを確認。
-- **SC-006**: デプロイ後の `planner_total` の短縮。
+- **SC-001**: 偽の提案器の遅延テストで、N チャンクの所要時間が、直列の合計より短く、最大 1 チャンクの 2 倍以内。
+  - 確認: `TestParallelSituationChunksTotalDuration` でパス（2チャンク並列で直列合計より短縮）。
+- **SC-002**: 同じ `novelty_key` を返す偽の提案器で、バッチが成功し、提案器の呼び出し回数が増えない。
+  - 確認: `TestDuplicateNoveltyKeyInChunkDoesNotReject` でパス。一致してもリジェクトせずログ警告を記録し採用。
+- **SC-003**: 並列のチャンクの結果が、スロットの順序どおりに並ぶ。同じ入力で、同じ順序（偽の提案器は決定的）。
+  - 確認: `TestParallelSituationChunksOrderAndDeterminism` でスロット順序と決定性がパス。
+- **SC-004**: 出力の切れ（`ErrBBSWorldSituationOutputTruncated`）で分割したチャンクが、並列のもとでも、全ルートを受理する。
+  - 確認: `TestOutputBudgetExhaustionSplitsChunk` で分割・結合・全ルート受理がパス。
+- **SC-005**: `go test ./...` が通る。
+  - 確認: `apps/server` 内の全テストが通過。
+- **SC-006（デプロイ後に確認）**: Render のログの `planner_total` が、改善前（31〜55 秒）より下がる。
   - **未実施: デプロイ後に確認**
+- **SC-008**: 偽の統合器で、ルート n 本の LLM 呼び出しの回数が `ceil(n/6)`。
+  - 確認: `TestRootDraftCallCountIsCeilNOverSix`（1, 6, 7, 12, 13 スロット）で全サブテストがパス。
+- **SC-009**: 統合した出力の件名が不正なチャンクで、そのチャンクが再試行され、再試行で正しい出力が得られたら、すべてのルートが受理される。他のチャンクの結果は変わらない。
+  - 確認: `TestInvalidTitleTriggersRetryAndSucceeds`、`TestChunkFailureRetriesUpToThreeTimes` でパス。
 - **統合した件名の質**:
   - **未評価: 人の目で、デバッグトレースと `BBS title shape` のログから確認する**（実装者は評価しない）
-- **SC-007**: `population_golden_test.go` と `screens_golden.txt` が不変。
-  - 確認: `git diff --stat` で変更がないことを確認。
+
 
 ## 変更・修正点
 

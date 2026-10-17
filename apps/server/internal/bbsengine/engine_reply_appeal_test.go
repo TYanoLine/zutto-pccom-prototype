@@ -258,3 +258,71 @@ func TestReplyCountActiveLimitBounded(t *testing.T) {
 		}
 	}
 }
+
+// SC-002 & Review #2: Verify reply expectation differs by time of day for the same station.
+// Night (23:30) active population and expected replies should exceed dawn (04:30).
+func TestReplyCountTimeFactorDiffersByTimeOfDay(t *testing.T) {
+	store := world.NewMemoryStore()
+	host := genericTestHost(store)
+	host.Members = 300
+	board := world.Board{ID: "main", Name: "フリートーク", ReplyRate: 2.0}
+
+	personas := make([]world.Persona, 30)
+	for i := range personas {
+		pattern := "active"
+		if i%3 == 0 {
+			pattern = "night_owl"
+		} else if i%3 == 1 {
+			pattern = "standard"
+		}
+		personas[i] = world.Persona{
+			ID:              host.ID + ":p" + string(rune('a'+i)),
+			Handle:          "user" + string(rune('a'+i)),
+			ActivityPattern: pattern,
+		}
+	}
+
+	jst, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		jst = time.FixedZone("JST", 9*60*60)
+	}
+
+	nightTime := time.Date(1996, 8, 26, 23, 30, 0, 0, jst)
+	dawnTime := time.Date(1996, 8, 26, 4, 30, 0, 0, jst)
+
+	activeNight, standardNight := world.ActivePopulationAt(host, board, personas, nil, nightTime)
+	activeDawn, standardDawn := world.ActivePopulationAt(host, board, personas, nil, dawnTime)
+
+	if standardNight != standardDawn {
+		t.Fatalf("standard 24h baseline should be equal regardless of time of day: night=%d dawn=%d", standardNight, standardDawn)
+	}
+	if activeNight <= activeDawn {
+		t.Fatalf("expected night active (%d) > dawn active (%d)", activeNight, activeDawn)
+	}
+
+	// Compute average reply count over 1000 trials with fixed seeds for night vs dawn.
+	trials := 1000
+	rate := 2.0
+	appeal := 2
+	maxReplies := 30
+
+	sumNight := 0
+	rngNight := rand.New(rand.NewSource(1001))
+	for i := 0; i < trials; i++ {
+		sumNight += world.ReplyCountForWithStandard(rngNight, rate, appeal, activeNight, standardNight, maxReplies)
+	}
+
+	sumDawn := 0
+	rngDawn := rand.New(rand.NewSource(1001))
+	for i := 0; i < trials; i++ {
+		sumDawn += world.ReplyCountForWithStandard(rngDawn, rate, appeal, activeDawn, standardDawn, maxReplies)
+	}
+
+	avgNight := float64(sumNight) / float64(trials)
+	avgDawn := float64(sumDawn) / float64(trials)
+
+	if avgNight <= avgDawn {
+		t.Fatalf("expected average replies at night (%.2f) > dawn (%.2f)", avgNight, avgDawn)
+	}
+}
+
