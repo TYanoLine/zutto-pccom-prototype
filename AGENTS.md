@@ -21,7 +21,7 @@ If a document and current code disagree, do not silently guess. Determine whethe
 
 - PostgreSQL/world storage is canonical world truth. Never use an LLM conversation as world state.
 - The human participant is one member of the world, not its protagonist.
-- The world engine decides whether actors read, ignore, reply, post independently, or do nothing. An LLM may verbalize a selected action; it must not decide the world's facts merely because the human spoke.
+- The world engine decides whether actors read, ignore, reply, post independently, or do nothing, and keeps the persisted facts. This is not a rule that the LLM may only verbalize: an LLM may judge qualitative matters inside bounds the world supplies (for example how lively a topic is, how a time of day or the station's size affects replies, how many replies a thread draws, which opening a writer uses), and the world records the result as a persisted fact. An LLM must not decide the world's facts merely because the human spoke. Exact reproducibility of generated activity from the same inputs is not required.
 - Unobserved facts may be generated lazily. Once observed/materialized, persistent facts must not silently mutate.
 - 1996 Japan is the cultural/knowledge ceiling unless a more specific era document explicitly says otherwise.
 - Do not leak modern products, events, slang, SNS conventions, or internet culture into in-world 1996 content.

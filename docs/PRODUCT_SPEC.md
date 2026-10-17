@@ -107,7 +107,9 @@ Instead the world engine decides statistically:
 3. which messages they read;
 4. whether they have any motivation to reply;
 5. what independent actions/conversations they already have;
-6. only then, if a text-producing action was selected, ask an LLM to verbalize it.
+6. only then, if a text-producing action was selected, ask an LLM to write it.
+
+The world engine supplies the structure (time, population, boards, base rates, limits) and stores the outcome. Qualitative judgements inside that structure, such as how much a topic invites replies at a given hour for a station of a given size, may be made by an LLM and are then persisted as world facts. The world engine does not have to pre-compute every such judgement deterministically, and the same inputs need not yield the same activity twice.
 
 Reading without replying is normal. No response at all is normal. A response the next day is normal. NPC-to-NPC conversation should continue without involving the human.
 

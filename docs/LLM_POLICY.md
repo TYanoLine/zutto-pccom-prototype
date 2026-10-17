@@ -10,6 +10,17 @@ This document is product behavior, not merely prompt advice.
 - Agreement, praise and curiosity require persona/world justification.
 - Silence is a valid result and should usually be decided before the LLM is called.
 
+## Scope of LLM judgement (relaxed)
+
+The earlier wording, that the LLM only verbalizes a World-selected action, was stricter than the product needs and made generated activity uniform. The rule is now:
+
+- The database remains canonical. Anything an LLM judges (a topic's liveliness, how many replies a thread draws, how the hour or the station's membership affects participation, who answers and roughly when) is saved as a world fact once it is used; observed facts do not silently change.
+- The World still supplies the inputs and the outer limits: who is a member, who is active, board rates and caps, the world date, and what has already happened. An LLM judgement stays inside them.
+- Human neutrality is unchanged: the LLM must not produce reactions merely because the human posted, and agreement or praise still needs persona/world justification.
+- Reproducing the same activity from the same inputs is not a goal. Existing deterministic mechanisms (for example the hash-based reply count) are baselines, not constraints on new work.
+
+Passages below that say the LLM never decides or only verbalizes describe the earlier, stricter policy; read them with this section in mind and relax them as the code is changed.
+
 ### Chat lines (spec 017)
 
 A resident's chat line is generated only after `internal/chatslot` selected the
