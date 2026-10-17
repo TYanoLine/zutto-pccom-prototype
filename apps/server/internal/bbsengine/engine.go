@@ -42,12 +42,15 @@ type Slot struct {
 }
 
 type BatchRequest struct {
-	Host        world.Host
-	Board       world.Board
-	WorldNow    time.Time
-	Since       time.Time
-	RecentPosts []world.Post
-	Slots       []Slot
+	Host              world.Host
+	Board             world.Board
+	WorldNow          time.Time
+	Since             time.Time
+	RecentPosts       []world.Post
+	Slots             []Slot
+	BaseReplyRate     float64
+	RecentReplyCounts []int
+	ActiveBySlot      map[int]int
 }
 
 type PlannedPost struct {
@@ -65,6 +68,9 @@ type PlannedPost struct {
 	SituationFacts             []string
 	ArticleDetailsMaterialized bool
 	Claims                     []string
+	ReplyAppeal                int
+	ReplyAppealReason          string
+	HasReplyAppeal             bool
 }
 
 type BatchPlanner interface {
@@ -476,11 +482,36 @@ func (e *Engine) personasForReactionPlanning(host world.Host, board world.Board,
 	return out
 }
 
-func (e *Engine) planReactionsForRoot(host world.Host, board world.Board, rootPost world.Post, ordinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact) {
-	e.planReactionsForRoots(context.Background(), host, board, []world.Post{rootPost}, ordinal, personas, factsByPersona, false)
+type appealDecision struct {
+	appeal    int
+	reason    string
+	hasAppeal bool
 }
 
-func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, board world.Board, roots []world.Post, startOrdinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact, isInitial bool) {
+func (e *Engine) recentReplyCounts(hostID, boardID string, limit int) []int {
+	planStore, ok := e.Store.(world.ReactionPlanStore)
+	if !ok {
+		return nil
+	}
+	var counts []int
+	for _, p := range filterBoard(e.Store.ListPosts(hostID), boardID) {
+		if world.IsSemanticRoot(p) {
+			if plan, exists := planStore.ReactionPlan(hostID, p.ID); exists {
+				counts = append(counts, plan.Count)
+			}
+		}
+	}
+	if limit > 0 && len(counts) > limit {
+		counts = counts[len(counts)-limit:]
+	}
+	return counts
+}
+
+func (e *Engine) planReactionsForRoot(host world.Host, board world.Board, rootPost world.Post, ordinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact) {
+	e.planReactionsForRoots(context.Background(), host, board, []world.Post{rootPost}, ordinal, personas, factsByPersona, false, nil)
+}
+
+func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, board world.Board, roots []world.Post, startOrdinal int, personas []world.Persona, factsByPersona map[string][]world.PersonaFact, isInitial bool, appealByPostID map[int64]appealDecision) {
 	if e == nil || e.Store == nil || len(roots) == 0 {
 		return
 	}
@@ -529,64 +560,76 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 		standardByRoot[r.ID] = std
 	}
 
-	if e.ReplyAppealJudge != nil {
-		appealRoots := make([]world.AppealRoot, len(unjudgedRoots))
-		postedAt := make(map[int64]time.Time, len(unjudgedRoots))
-
-		for i, r := range unjudgedRoots {
-			appealRoots[i] = world.AppealRoot{
-				ID:      r.ID,
-				Subject: r.Subject,
-				Summary: r.Intent.SituationSummary,
-			}
-			postedAt[r.ID] = r.CreatedAt
+	var rootsNeedingJudge []world.Post
+	for _, r := range unjudgedRoots {
+		if dec, ok := appealByPostID[r.ID]; ok && dec.hasAppeal {
+			appealMap[r.ID] = dec.appeal
+			reasonMap[r.ID] = dec.reason
+		} else {
+			rootsNeedingJudge = append(rootsNeedingJudge, r)
 		}
+	}
 
-		var recentCounts []int
-		for _, p := range filterBoard(e.Store.ListPosts(host.ID), board.ID) {
-			if world.IsSemanticRoot(p) {
-				if plan, ok := planStore.ReactionPlan(host.ID, p.ID); ok {
-					recentCounts = append(recentCounts, plan.Count)
+	if len(rootsNeedingJudge) > 0 {
+		if e.ReplyAppealJudge != nil {
+			appealRoots := make([]world.AppealRoot, len(rootsNeedingJudge))
+			postedAt := make(map[int64]time.Time, len(rootsNeedingJudge))
+
+			for i, r := range rootsNeedingJudge {
+				appealRoots[i] = world.AppealRoot{
+					ID:      r.ID,
+					Subject: r.Subject,
+					Summary: r.Intent.SituationSummary,
+				}
+				postedAt[r.ID] = r.CreatedAt
+			}
+
+			var recentCounts []int
+			for _, p := range filterBoard(e.Store.ListPosts(host.ID), board.ID) {
+				if world.IsSemanticRoot(p) {
+					if plan, ok := planStore.ReactionPlan(host.ID, p.ID); ok {
+						recentCounts = append(recentCounts, plan.Count)
+					}
 				}
 			}
-		}
-		if len(recentCounts) > 10 {
-			recentCounts = recentCounts[len(recentCounts)-10:]
-		}
+			if len(recentCounts) > 10 {
+				recentCounts = recentCounts[len(recentCounts)-10:]
+			}
 
-		res, err := e.ReplyAppealJudge.JudgeReplyAppeal(ctx, world.ReplyAppealRequest{
-			Host:         host.Name,
-			Board:        board.Name,
-			BaseRate:     replyRate,
-			Roots:        appealRoots,
-			PostedAt:     postedAt,
-			Members:      host.Members,
-			ActiveByRoot: activeByRoot,
-			RecentCounts: recentCounts,
-		})
-		if err != nil {
-			log.Printf("BBS reply appeal judge fallback: host=%s board=%s err=%v", host.ID, board.ID, err)
-			for _, r := range unjudgedRoots {
-				appealMap[r.ID] = 2
-				reasonMap[r.ID] = fmt.Sprintf("fallback:%v", err)
+			res, err := e.ReplyAppealJudge.JudgeReplyAppeal(ctx, world.ReplyAppealRequest{
+				Host:         host.Name,
+				Board:        board.Name,
+				BaseRate:     replyRate,
+				Roots:        appealRoots,
+				PostedAt:     postedAt,
+				Members:      host.Members,
+				ActiveByRoot: activeByRoot,
+				RecentCounts: recentCounts,
+			})
+			if err != nil {
+				log.Printf("BBS reply appeal judge fallback: host=%s board=%s err=%v", host.ID, board.ID, err)
+				for _, r := range rootsNeedingJudge {
+					appealMap[r.ID] = 2
+					reasonMap[r.ID] = fmt.Sprintf("fallback:%v", err)
+				}
+			} else {
+				for _, r := range rootsNeedingJudge {
+					app, ok := res.Appeal[r.ID]
+					if !ok || app < 0 || app > 4 {
+						log.Printf("BBS reply appeal missing or out of bounds for root %d; fallback to 2", r.ID)
+						appealMap[r.ID] = 2
+						reasonMap[r.ID] = "fallback:invalid_appeal"
+					} else {
+						appealMap[r.ID] = app
+						reasonMap[r.ID] = res.Reason[r.ID]
+					}
+				}
 			}
 		} else {
-			for _, r := range unjudgedRoots {
-				app, ok := res.Appeal[r.ID]
-				if !ok || app < 0 || app > 4 {
-					log.Printf("BBS reply appeal missing or out of bounds for root %d; fallback to 2", r.ID)
-					appealMap[r.ID] = 2
-					reasonMap[r.ID] = "fallback:invalid_appeal"
-				} else {
-					appealMap[r.ID] = app
-					reasonMap[r.ID] = res.Reason[r.ID]
-				}
+			for _, r := range rootsNeedingJudge {
+				appealMap[r.ID] = 2
+				reasonMap[r.ID] = "fallback:judge_unavailable"
 			}
-		}
-	} else {
-		for _, r := range unjudgedRoots {
-			appealMap[r.ID] = 2
-			reasonMap[r.ID] = "fallback:judge_unavailable"
 		}
 	}
 
@@ -685,13 +728,35 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		since = initialStart
 	}
 
+	personas := e.personasForReactionPlanning(host, board, recent, now)
+	factsByPersona := map[string][]world.PersonaFact{}
+	if fs, ok := e.Store.(world.PersonaFactStore); ok {
+		for _, p := range personas {
+			if facts := fs.ListPersonaFacts(p.ID); len(facts) > 0 {
+				factsByPersona[p.ID] = facts
+			}
+		}
+	}
+	activeBySlot := make(map[int]int, len(slots))
+	for _, s := range slots {
+		if s.ReplyToSlotIndex == 0 && s.ReplyToPostID == 0 {
+			act, _ := world.ActivePopulationAt(host, board, personas, factsByPersona, s.CreatedAt)
+			activeBySlot[s.Index] = act
+		}
+	}
+	recentCounts := e.recentReplyCounts(host.ID, board.ID, 10)
+	baseReplyRate := effectiveBoardReplyRate(board)
+
 	planned, err := e.Planner.PlanBBSBatch(ctx, BatchRequest{
-		Host:        host,
-		Board:       board,
-		WorldNow:    now,
-		Since:       since,
-		RecentPosts: recent,
-		Slots:       slots,
+		Host:              host,
+		Board:             board,
+		WorldNow:          now,
+		Since:             since,
+		RecentPosts:       recent,
+		Slots:             slots,
+		BaseReplyRate:     baseReplyRate,
+		RecentReplyCounts: recentCounts,
+		ActiveBySlot:      activeBySlot,
 	})
 	if err != nil {
 		return err
@@ -732,6 +797,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 
 	var newRoots []world.Post
 	persistedBySlot := make(map[int]world.Post, len(slots))
+	appealByPostID := make(map[int64]appealDecision, len(slots))
 	for _, slot := range slots {
 		draft, ok := bySlot[slot.Index]
 		if !ok {
@@ -847,6 +913,11 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		persistedBySlot[slot.Index] = saved
 		if !isReply {
 			newRoots = append(newRoots, saved)
+			appealByPostID[saved.ID] = appealDecision{
+				appeal:    draft.ReplyAppeal,
+				reason:    draft.ReplyAppealReason,
+				hasAppeal: draft.HasReplyAppeal,
+			}
 		}
 	}
 
@@ -878,7 +949,7 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		if initialStartOrdinal > 0 && existingRoots == 0 {
 			startOrdinal = initialStartOrdinal
 		}
-		e.planReactionsForRoots(ctx, host, board, unjudgedRoots, startOrdinal, personas, factsByPersona, isInitial)
+		e.planReactionsForRoots(ctx, host, board, unjudgedRoots, startOrdinal, personas, factsByPersona, isInitial, appealByPostID)
 		e.MaterializeDueReactions(host, board, now)
 	}
 	return nil
