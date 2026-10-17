@@ -118,8 +118,9 @@ func (r *Runtime) lineHolders(now time.Time) map[int]lineHolder {
 	return out
 }
 
-// whoRows renders one row per line of the station: the holder's handle, state,
-// a three-cell column and speed, or "ring" for a free line.
+// whoRows renders one row per active line of the station: the holder's handle,
+// state, a three-cell column and speed. Unconnected lines are not displayed
+// (historical logs omit inactive lines; "ring" is incoming call ringing, not an idle line).
 func (r *Runtime) whoRows(holders map[int]lineHolder) string {
 	lines := r.Host.Lines
 	if lines < 1 {
@@ -129,7 +130,6 @@ func (r *Runtime) whoRows(holders map[int]lineHolder) string {
 	for line := 1; line <= lines; line++ {
 		h, ok := holders[line]
 		if !ok {
-			fmt.Fprintf(&b, "#%02d ring\r\n", line)
 			continue
 		}
 		handle, state, icon, baud := h.handle, callStateLabel(h.state), "", h.baud

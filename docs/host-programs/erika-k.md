@@ -185,12 +185,19 @@ placeholder screen.
 - Main menu `4` / `C` / `CHAT` opens the telegram screen: title, menu lines,
   blank, one WHO row per line, blank, hint, prompt `CALL> ->`.
 - WHO row: `#` + two-digit line number + space + handle padded to 10 cells +
-  state padded to 7 cells + a 3-cell column + speed as `28K-...`. A free line
-  is `#06 ring`. Row count equals the station's line count; line numbers are
-  always two digits.
-- States: `login`, `idle`, `CALL` (shared `paging`), `CHAT` (shared `chat`,
-  with `#` + room number in the 3-cell column). The caller's own row always
-  reads `WHO`.
+  state padded to 7 cells + a 3-cell column + speed as `28K-...`. Line numbers
+  are always two digits. Unconnected/idle standby lines are omitted entirely
+  (confirmed by the historical GARAKUTA log, where inactive line numbers have no rows).
+- Line states:
+  - `idle`: Logged in and waiting/navigating.
+  - `ring`: Incoming call ringing (transient state during ring detection; not an empty standby line).
+  - `connect`: Modem carrier negotiation in progress.
+  - `reset`: Line/modem resetting after hangup.
+  - `close`: Line closed (accessible only via local TERMINAL/console).
+  - `login`: Logging in.
+  - `CALL`: At telegram screen (shared `paging`).
+  - `CHAT`: In chat room (shared `chat`, with `#` + room number in the 3-cell column).
+  - The caller's own row always reads `WHO`.
 - Telegram: a line number, then `電報をどうぞ。 (最大全角150文字  中止:ﾘﾀｰﾝｷｰ)`,
   the `---------+` ruler, one line of body, then `#05 に電報を送りました。`.
   To someone in a room: `#02 チャットルームか会議室にちゃっかり入ってます。 CHAT終了後、電報を送ります。`
