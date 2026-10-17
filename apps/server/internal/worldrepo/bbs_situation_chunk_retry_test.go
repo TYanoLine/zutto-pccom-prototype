@@ -65,17 +65,16 @@ func TestSituationPlannerSplitsTruncatedAnimeChunkAndAcceptsAllHeaders(t *testin
 		t.Fatal(err)
 	}
 
-	// 10 events form one chunk of productionSituationChunkSize (10).
-	// 10: truncated, splits to 5 and 5.
-	//   Each 5: truncated, splits to 3 and 2.
-	//     3: truncated, splits to 2 and 1 (both <= 2, pass). 2: passes.
-	// Sizes: 10, 5, 5, 3, 3, 2, 2, 2, 2, 1, 1.
+	// 10 events form two chunks of productionSituationChunkSize (5).
+	// 5: truncated, splits to 3 and 2.
+	//   3: truncated, splits to 2 and 1 (both <= 2, pass). 2: passes.
+	// Sizes: 5, 5, 3, 3, 2, 2, 2, 2, 1, 1.
 	proposer.mu.Lock()
 	gotSizes := append([]int(nil), proposer.sizes...)
 	proposer.mu.Unlock()
 
 	sort.Ints(gotSizes)
-	wantSizes := []int{1, 1, 2, 2, 2, 2, 3, 3, 5, 5, 10}
+	wantSizes := []int{1, 1, 2, 2, 2, 2, 3, 3, 5, 5}
 	if len(gotSizes) != len(wantSizes) {
 		t.Fatalf("unexpected call counts: got %v want %v", gotSizes, wantSizes)
 	}
