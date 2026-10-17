@@ -132,6 +132,7 @@ func TestFreeformPromptRendersThreadContextChronologically(t *testing.T) {
 		"直接の返信先（あなたが返信する対象）:",
 		"スレッドに先行する他の発言や返信がある場合は、スレッド全体の会話の流れを踏まえて自然に書き込んでください。",
 		"先行する他の返信者と同じ定型的な挨拶を単にオウム返しするのではなく",
+		"スレッドの先行返信が呼びかけで始まっていても、同じ形で書き出さず",
 	} {
 		if !strings.Contains(prompt, want) {
 			t.Fatalf("missing %q in prompt:\n%s", want, prompt)
