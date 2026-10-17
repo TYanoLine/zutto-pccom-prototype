@@ -1,7 +1,6 @@
 package world
 
 import (
-	"context"
 	"math"
 	"time"
 )
@@ -9,36 +8,6 @@ import (
 // Float64Source provides uniform pseudo-random values in [0.0, 1.0).
 type Float64Source interface {
 	Float64() float64
-}
-
-// AppealRoot describes one root post submitted for reply appeal assessment.
-type AppealRoot struct {
-	ID      int64
-	Subject string
-	Summary string // Materialized situation summary
-}
-
-// ReplyAppealRequest bundles the context for judging thread appeal for a batch of roots.
-type ReplyAppealRequest struct {
-	Host         string              // Host station display name
-	Board        string              // Board display name
-	BaseRate     float64             // Board effective reply rate
-	Roots        []AppealRoot        // Roots in this batch
-	PostedAt     map[int64]time.Time // World timestamp per root
-	Members      int                 // Total station members
-	ActiveByRoot map[int64]int       // Active personas at root timestamp
-	RecentCounts []int               // Recent thread reply counts on this board
-}
-
-// ReplyAppealResult contains the qualitative appeal level (0..4) and rationale.
-type ReplyAppealResult struct {
-	Appeal map[int64]int    // 0..4 (2 is baseline)
-	Reason map[int64]string // One sentence rationale for logs
-}
-
-// ReplyAppealJudge evaluates how likely threads are to draw replies based on topic, timing, and activity.
-type ReplyAppealJudge interface {
-	JudgeReplyAppeal(context.Context, ReplyAppealRequest) (ReplyAppealResult, error)
 }
 
 // StandardActiveMembers computes the standard active count for a station of given membership size.

@@ -107,11 +107,10 @@ type personaSource interface {
 }
 
 type Engine struct {
-	Store            world.Store
-	Planner          BatchPlanner
-	ReplyProjector   ReplyProjector
-	ReplyAppealJudge world.ReplyAppealJudge
-	RNG              world.Float64Source
+	Store          world.Store
+	Planner        BatchPlanner
+	ReplyProjector ReplyProjector
+	RNG            world.Float64Source
 	Now              func() time.Time
 	Cadence          time.Duration
 	RecentLimit      int
@@ -322,10 +321,7 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	if !state.RetainedSince.IsZero() && state.RetainedSince.Before(now) {
 		lookback = now.Sub(state.RetainedSince)
 	}
-	if e.ReplyAppealJudge != nil {
-		return e.catchUpInitial(ctx, host, board, roots, lookback, 0, nil, totalRoots-roots+1)
-	}
-	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas, totalRoots-roots+1)
+	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, nil, totalRoots-roots+1)
 }
 
 func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, startOrdinal int) error {
