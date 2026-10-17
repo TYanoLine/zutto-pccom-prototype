@@ -60,7 +60,7 @@ func BuildBoardPostPrompt(req BoardPostRequest) string {
 	if len(additional) > 0 {
 		extra = strings.Join(additional, "\n")
 	}
-	minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+	_, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
 
 	return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、確定済みSituationを会員が読む記事本文として文章化し、保存・表示します。
 
@@ -95,11 +95,11 @@ canonical Situation / thread facts:
 - 当時の80桁端末（全角40文字画面）で読みやすいよう、1行の長さは全角30〜35文字程度を目安とし、句点（。）やキリの良い文節で自然に改行を入れてください。改行を入れずに画面端で機械的に折り返される長大な行や、逆に15文字前後の極端に細切れなポエム調改行の多用は避けてください。
 
 時代: %s
-本文の目安: %d〜%d文字
+本文の長さ: 最大%d文字。目安の上限であり、埋める必要はありません。内容に必要な分だけ書き、質問や話題を無理に足さないでください。質問は多くても1〜3点にとどめてください。
 時代背景: %s
 
 JSON:
-{"author":"...","subject":"%s","body":"..."}`, req.WorldDate, req.HostName, req.BoardTopic, subject, persona, intent, facts, parent, extra, req.WorldDate, minChars, maxChars, compactBoardPostEraRules(req.EraRules), subject)
+{"author":"...","subject":"%s","body":"..."}`, req.WorldDate, req.HostName, req.BoardTopic, subject, persona, intent, facts, parent, extra, req.WorldDate, maxChars, compactBoardPostEraRules(req.EraRules), subject)
 }
 
 func compactBoardPostEraRules(raw string) string {

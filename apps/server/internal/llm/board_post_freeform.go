@@ -56,7 +56,7 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
     }
     context := ""
     if len(extra) > 0 { context = "\n\n"+strings.Join(extra, "\n\n") }
-    minChars, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
+    _, maxChars := normalizeBodyBounds(req.BodyMinChars, req.BodyMaxChars)
     authorJSON, _ := json.Marshal(req.AuthorHandle)
     subjectJSON, _ := json.Marshal(outputSubject)
     return fmt.Sprintf(`これは「ずっとパソコン通信」の内部生成です。1996年前後の日本の草の根パソコン通信世界で、会員が読む記事本文を文章化し、保存・表示します。
@@ -74,13 +74,13 @@ func buildFreeformBoardPostPrompt(req BoardPostRequest) string {
 返信の際、親記事や先行発言の文章に言及したい部分がある場合は、必要に応じて本文冒頭などに「>」を付けて自然に引用し、それに対する返信を続けてください。結びの挨拶（「よろしくお願いします」等）だけの引用や機械的な全文引用は避け、言及したい核心部分だけを引用するか、引用なしで直接返答しても構いません。
 当時の80桁端末（全角40文字画面）で読みやすいよう、1行の長さは全角30〜35文字程度を目安とし、句点（。）やキリの良い文節で自然に改行を入れてください。改行を入れずに画面端で機械的に折り返される長大な行や、逆に15文字前後の極端に細切れなポエム調改行の多用は避けてください。
 時代: %s
-本文の目安: %d〜%d文字
+本文の長さ: 最大%d文字。目安の上限であり、埋める必要はありません。内容に必要な分だけ書き、質問や話題を無理に足さないでください。質問は多くても1〜3点にとどめてください。
 時代背景: %s
 
 JSON:
 {"author":%s,"subject":%s,"body":"..."}`,
         req.WorldDate, req.HostName, req.BoardTopic, displayedSubject,
-        persona, context, req.WorldDate, minChars, maxChars,
+        persona, context, req.WorldDate, maxChars,
         compactBoardPostEraRules(req.EraRules), string(authorJSON), string(subjectJSON),
     )
 }

@@ -28,7 +28,7 @@ func TestHAKATAFreeformPromptFollowsTitleAndUsesRealBoardName(t *testing.T) {
         "writing=気さくな口調",
         "月末の結果を比較して気づいた",
         "本人の自然な文章",
-        "本文の目安: 161〜320文字",
+        "本文の長さ: 最大320文字。",
         `"subject":"プリンセスメーカー2、月末結果の違い"`,
     }{
         if !strings.Contains(prompt,want){t.Fatalf("missing %q in freeform prompt:\n%s",want,prompt)}
