@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	productionSituationChunkSize     = 6
+	productionSituationChunkSize     = 10
 	productionSituationChunkAttempts = 3
 	productionSituationConcurrency   = 4
 	productionTitleChunkSize         = 20
@@ -187,7 +187,7 @@ func (p repositoryBBSBatchPlanner) planSituationFirstRoots(
 	avoidSituations := productionRecentSubjectAvoid(req.RecentPosts)
 	recentSubjects := rootSubjects(req.RecentPosts)
 
-	// Build top-level chunks of size productionSituationChunkSize (6).
+	// Build top-level chunks of size productionSituationChunkSize (10).
 	var initialChunks [][]llm.BBSWorldWindowEvent
 	for chunkStart := 0; chunkStart < len(events); chunkStart += productionSituationChunkSize {
 		chunkEnd := chunkStart + productionSituationChunkSize
