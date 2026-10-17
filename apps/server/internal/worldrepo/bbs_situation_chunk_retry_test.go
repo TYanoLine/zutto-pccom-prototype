@@ -65,18 +65,17 @@ func TestSituationPlannerSplitsTruncatedAnimeChunkAndAcceptsAllHeaders(t *testin
 		t.Fatal(err)
 	}
 
-	// 10 events split into chunks of 6 and 4.
-	// Chunk 6: truncated (calls: 6), splits to 3 and 3.
-	//   First 3: truncated (calls: 3), splits to 2 and 1 (both <= 2, pass).
-	//   Second 3: truncated (calls: 3), splits to 2 and 1 (both <= 2, pass).
-	// Chunk 4: truncated (calls: 4), splits to 2 and 2 (both <= 2, pass).
-	// Sizes: 6, 4, 3, 3, 2, 1, 2, 1, 2, 2.
+	// 10 events form one chunk of productionSituationChunkSize (10).
+	// 10: truncated, splits to 5 and 5.
+	//   Each 5: truncated, splits to 3 and 2.
+	//     3: truncated, splits to 2 and 1 (both <= 2, pass). 2: passes.
+	// Sizes: 10, 5, 5, 3, 3, 2, 2, 2, 2, 1, 1.
 	proposer.mu.Lock()
 	gotSizes := append([]int(nil), proposer.sizes...)
 	proposer.mu.Unlock()
 
 	sort.Ints(gotSizes)
-	wantSizes := []int{1, 1, 2, 2, 2, 2, 3, 3, 4, 6}
+	wantSizes := []int{1, 1, 2, 2, 2, 2, 3, 3, 5, 5, 10}
 	if len(gotSizes) != len(wantSizes) {
 		t.Fatalf("unexpected call counts: got %v want %v", gotSizes, wantSizes)
 	}
@@ -166,17 +165,17 @@ func TestParallelChunkOutputMaintainsSlotOrder(t *testing.T) {
 	}
 }
 
-// SC-008: Number of LLM calls is ceil(n/6) when successful.
+// SC-008: Number of LLM calls is ceil(n/productionSituationChunkSize) when successful.
 func TestRootDraftCallCountIsCeilNOverSix(t *testing.T) {
 	for _, tc := range []struct {
 		slots     int
 		wantCalls int
 	}{
 		{slots: 1, wantCalls: 1},
-		{slots: 6, wantCalls: 1},
-		{slots: 7, wantCalls: 2},
-		{slots: 12, wantCalls: 2},
-		{slots: 13, wantCalls: 3},
+		{slots: productionSituationChunkSize, wantCalls: 1},
+		{slots: productionSituationChunkSize + 1, wantCalls: 2},
+		{slots: 2 * productionSituationChunkSize, wantCalls: 2},
+		{slots: 2*productionSituationChunkSize + 1, wantCalls: 3},
 	} {
 		t.Run(fmt.Sprintf("%d_slots", tc.slots), func(t *testing.T) {
 			planner := repositoryBBSBatchPlanner{repo: New(world.NewMemoryStore(), nil, nil, "1996-02-17")}
@@ -191,7 +190,7 @@ func TestRootDraftCallCountIsCeilNOverSix(t *testing.T) {
 				t.Fatalf("planned=%d, want %d", len(planned), tc.slots)
 			}
 			if len(draftStub.requests) != tc.wantCalls {
-				t.Fatalf("calls=%d, want ceil(%d/6)=%d", len(draftStub.requests), tc.slots, tc.wantCalls)
+				t.Fatalf("calls=%d, want ceil(%d/%d)=%d", len(draftStub.requests), tc.slots, productionSituationChunkSize, tc.wantCalls)
 			}
 		})
 	}
