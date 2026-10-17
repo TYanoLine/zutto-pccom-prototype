@@ -24,7 +24,7 @@
 
 - `planSituationFirstRoots` の Situation 呼び出しの前後と、`wordRootTitles` の `requestTitles` の前後で、
   `log.Printf("BBS timing: host=%s board=%s phase=situation_chunk duration=%s events=%d", …)` を出す。
-- 件名は `phase=title_chunk`。リトライの 2 回目以降も、1 回ごとに出す。
+- 統合後は、この 1 種類（Situation+件名の呼び出し）だけになる。リトライの 2 回目以降も、1 回ごとに出す。
 - 既存の `planner_total` は変えない。
 
 ### 2.2 重複を拒否しない（FR-002、FR-003、FR-005）
@@ -40,9 +40,10 @@
     「recent/avoid material は文脈の参考です。同じ話題や続きの話が出てもかまいません。」
   - 「rootどうしが同じ形…に偏らないよう、板の範囲の中で形と話題を散らしてください」→
     「形や話題は、板の範囲の中で自然に混ざればよい。無理に散らさなくてよい。」
-- 件名側: `wordRootTitles` の完全一致の再生成（約 82〜135 行）を削除し、一致は `DuplicateAccepted` に数える。
-  `llm/bbs_title_candidates.go`（約 125 行目の「20個は互いに言い換えにならないよう…散らして」）を、「自然に混ざればよい」に弱める。
-  （文言の置換は、実際の行を確認してから行う。他の文言は変えない。）
+- 件名側の完全一致の再生成は、`wordRootTitles` の LLM 呼び出しと一緒に 2.4 で削除される（独立した変更は不要）。
+  一致の件数は、統合した出力から件名を選ぶ関数が `BBS title shape` のログ（`duplicate_accepted`）に残す。
+- 上のプロンプトの文言の緩和は、2.4 で作る統合のプロンプト（`root_drafts.go`）に、最初から緩めた文言で書く。件名候補側の「互いに言い換えにならないよう…散らして」は、
+  該当のプロンプト（旧い件名の呼び出し）が削除されるので、書き換えない。
 
 ### 2.3 並列化（FR-004）
 
@@ -89,10 +90,16 @@ Situation の要約・事実（`BBSSituationTitleSeed`）、投稿者の人物�
 - 呼び出しの順序: 並列のチャンクの結果を集め、スロットの順序で並べたあと、件名の選択を**直列で**行う
   （`pickTitleVariant` に、これまでに選んだ件名と、直近の件名を「取り済み」として渡す）。
 - 検証: 件名は `validSituationTitle`（空でない、36 文字以内、改行なし、`Re:` で始まらない）を、案ごとに通す。
-  通る案が 1 つもないルートがあれば、そのチャンクについて、これまでの件名の呼び出し（`wordRootTitles` の `requestTitles`）で補う
-  （Situation はすでに取れている）。補ってもだめなら、バッチを失敗とする。
-- 切り替え: `GENERATION_UNIFIED_ROOTS`（既定 `1`）。`config` に項目を足す（`GENERATION_FREEFORM_BODY` と同じ読み方）。
-  `0` のときと、`BBSRootDraftPlanner` を実装しない提案器（既存のテスト用の偽実装など）のときは、これまでの 2 段の経路を使う。
+  通る案が 1 つもないルートがあれば、**そのチャンクの試行を失敗として扱い、既存の Situation の再試行（最大 3 回）に乗せる**。
+  旧い経路による補いは作らない。
+- **切り替えは作らない。旧い経路を削除する。** 統合した呼び出しが唯一の経路になる。削除するもの:
+  - `llm`: `GenerateBBSWorldSituationProposals`（`openai_world_situation_proposer.go`）と、`BBSWorldSituationProposer` のインターフェース、
+    `GenerateBBSSituationTitles`（`situation_titles.go`）と、`BBSSituationTitlePlanner` のインターフェース、不要になった型。
+    プロンプトの文言と、スキーマの部品（`compactSituationEvents`、`selectTitleFormNotes` など）で、統合した呼び出しが使うものは、`root_drafts.go` から呼ぶ形で残す。
+  - `worldrepo`: `wordRootTitles` の LLM 呼び出し（`requestTitles`）と、補いの分岐。**件名の選択**（`pickTitleVariant`、`isDuplicateOfAny`、`titleCoveredPromptLimit`）は残す。
+  - `sharedBBSArticleEngineEnabled`（`bbs_article_planner.go`）と `PlanBBSBatch` の、`BBSWorldSituationProposer` と `BBSSituationTitlePlanner` の型検査を、
+    `BBSRootDraftPlanner` の型検査 1 つにする。
+  - ロールバックが必要なときは、この変更をリバートする。
 - デバッグトレース: `beginDebugTrace(ctx, "Situation+件名", prompt)` で、統合した呼び出しを 1 つの段階として表示する
   （`docs/DEBUG_INSPECTION.md` に追記）。
 - 使用量の記録: `storeDevelopmentPlanningUsage` の名前は `"bbs-root-draft"`。
@@ -106,10 +113,11 @@ Situation の要約・事実（`BBSSituationTitleSeed`）、投稿者の人物�
 | 件名が参照する Situation | 同じ呼び出しの中で、直前に書いた Situation |
 | 件名が参照する「取り済み」の件名 | 同じ呼び出しの前までの直近の件名（LLM へのプロンプトの材料）。選択のときは、バッチ内の選択済みも見る |
 | 件名のチャンクの大きさ | 20 本 → 6 本（Situation のチャンクと同じ） |
+| 旧い 2 段の経路 | 削除する（切り替えなし） |
 | LLM の呼び出し回数（ルート 10 本） | Situation 2 回 + 件名 1 回 → 統合 2 回（並列なので所要時間は 1 回分） |
 
 件名の質（spec 009 の、題名の形の多様性）は、人の目で確かめる必要がある。この作業では評価しない（`verification.md` に「未評価」と書く）。
-問題があれば `GENERATION_UNIFIED_ROOTS=0` で元に戻す。
+問題があれば、この変更をリバートして元に戻す。
 
 ## 3. 検証の方針
 
@@ -130,7 +138,9 @@ Situation の要約・事実（`BBSSituationTitleSeed`）、投稿者の人物�
 | `apps/server/internal/worldrepo/bbs_title_words.go` | 所要時間のログ、完全一致の再生成の削除、統合した出力からの件名の選択を切り出す |
 | `apps/server/internal/llm/root_drafts.go`（新規） | `BBSRootDraftPlanner`、リクエストと結果の型、プロンプトの組み立て、スキーマ、`StructuredOpenAIProvider` の実装 |
 | `apps/server/internal/llm/root_drafts_test.go`（新規） | スキーマの項目の順序、不正な出力、プロンプトに既存の方針が入ること |
-| `apps/server/internal/config/config.go`、`config_test.go` | `GENERATION_UNIFIED_ROOTS`（既定 `1`） |
+| `apps/server/internal/llm/openai_world_situation_proposer.go`、`situation_titles.go` ほか | 旧い呼び出しとインターフェースの削除（再利用する部品は残す） |
+| `apps/server/internal/worldrepo/bbs_article_planner.go` | 型検査を `BBSRootDraftPlanner` に変更 |
+| 旧い経路を使う既存のテストと偽実装 | 統合した呼び出しの偽実装へ移す（アサーションの意図は保つ） |
 | `apps/server/internal/llm/openai_world_situation_proposer.go` | プロンプトの文言の緩和 |
 | `apps/server/internal/llm/bbs_title_candidates.go`（または該当の行がある `llm/` のファイル） | 件名候補のプロンプトの文言の緩和 |
 | `apps/server/internal/worldrepo/bbs_situation_chunk_retry_test.go` | 並列に合わせたテストの修正 |
@@ -144,7 +154,7 @@ Situation の要約・事実（`BBSSituationTitleSeed`）、投稿者の人物�
 | 重複を許すと、同じ話題が並びすぎる | ログで頻度を確かめる。多すぎるなら、プロンプトの文言を調整する（拒否は復活させない） |
 | 並列で、同時に呼ぶ LLM のレート制限に当たる | 同時数を定数 4 にして小さく始める。制限のエラーは、これまでどおり試行ごとに再試行される |
 | 並列のチャンクで、話題が似る（互いの結果を見ない） | 重複を許す方針のため許容する。直近の件名は全チャンクに渡す |
-| 統合で、件名の質（形の多様性）が下がる | 環境変数で 2 段に戻せる。デバッグトレースで、統合した呼び出しの出力を人が見て確かめる。件名の形の測定（`BBS title shape` のログ）で、統合の前後を比べる |
+| 統合で、件名の質（形の多様性）が下がる | デバッグトレースで、統合した呼び出しの出力を人が見て確かめる。件名の形の測定（`BBS title shape` のログ）で、統合の前後を比べる。問題があれば、この変更をリバートする |
 | 統合で、出力が長くなり、切れる | 出力の上限に件名の分を足し、切れたら分割（2.3）。ルート 1 本あたりのトークン数を、実測して `verification.md` に書く |
 | 統合したプロンプトが、Situation と件名の方針の混合になる | 既存の 2 つのプロンプトの文言を引き継ぎ、新しい文言を作らない。順序（Situation が先）をスキーマで保つ |
 | テストが不安定になる | 偽の提案器は決定的にし、時間の閾値は緩くする。`-race` で実行する |
