@@ -286,8 +286,8 @@ const InteractiveInitialReplyLimit = 30
 
 // CatchUpInitialBoardActivity materializes only enough headers for the current
 // 10-line board index: at most InteractiveInitialRootLimit of the newest
-// retained roots, each with the replies its own thread drew
-// (world.ThreadReplyCount). Many threads are unanswered and a few run long, so
+// retained roots, each with the replies its own thread drew according to
+// qualitative reply appeal. Many threads are unanswered and a few run long, so
 // the board looks like a conversation rather than an even trickle. The total
 // is bounded by InteractiveInitialReplyLimit. The coarse World-selected
 // activity state remains unchanged.
@@ -302,19 +302,6 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	totalRoots := state.TotalRoots
 	if totalRoots < state.RetainedRoots {
 		totalRoots = state.RetainedRoots
-	}
-	quotas := make([]int, roots)
-	budget, replies := InteractiveInitialReplyLimit, 0
-	for i := range quotas {
-		// The materialized roots are the newest ones, so they use the newest
-		// root ordinals (the same ones BoardActivityState counted).
-		n := world.ThreadReplyCount(host.ID, board.ID, totalRoots-roots+1+i, state.ReplyRate)
-		if n > budget {
-			n = budget
-		}
-		quotas[i] = n
-		budget -= n
-		replies += n
 	}
 	lookback := time.Duration(0)
 	now := e.currentTime()
@@ -562,7 +549,11 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 			reasonMap[r.ID] = dec.reason
 		} else {
 			appealMap[r.ID] = 2
-			reasonMap[r.ID] = "fallback:no_appeal"
+			reason := "fallback:no_appeal"
+			if dec, ok := appealByPostID[r.ID]; ok && strings.TrimSpace(dec.reason) != "" {
+				reason = dec.reason
+			}
+			reasonMap[r.ID] = reason
 		}
 	}
 
@@ -855,15 +846,6 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 	}
 
 	if len(replyQuotas) == 0 && (len(newRoots) > 0 || len(boardPosts) > 0) {
-		personas := e.personasForReactionPlanning(host, board, recent, now)
-		factsByPersona := map[string][]world.PersonaFact{}
-		if fs, ok := e.Store.(world.PersonaFactStore); ok {
-			for _, p := range personas {
-				if facts := fs.ListPersonaFacts(p.ID); len(facts) > 0 {
-					factsByPersona[p.ID] = facts
-				}
-			}
-		}
 		existingRoots := 0
 		var unjudgedRoots []world.Post
 		if planStore, ok := e.Store.(world.ReactionPlanStore); ok {

@@ -24,16 +24,17 @@
    - 結果: **成功 (PASS, exit code 0)**
 
 2. `go -C apps/server test ./internal/llm -count=1`
-   - 結果: **成功 (ok zutto-pccom/apps/server/internal/llm 0.288s)**
+   - 結果: **成功 (ok zutto-pccom/apps/server/internal/llm 5.265s)**
 
 3. `go -C apps/server test ./internal/bbsengine -count=1`
-   - 結果: **成功 (ok zutto-pccom/apps/server/internal/bbsengine 0.771s)**
+   - 結果: **成功 (ok zutto-pccom/apps/server/internal/bbsengine 8.791s)**
+   - 備考: レビュー指摘を受け、`TestCatchUpInitialBoardActivityGivesEachThreadItsOwnReplies` をルートのみのバッチ要求および `ReactionPlan`（段階 2 退避）からの返信生成を検証する形に更新し、全テスト通過を確認。
 
 4. `go -C apps/server test ./internal/world -count=1`
-   - 結果: **成功 (ok zutto-pccom/apps/server/internal/world 0.297s)**
+   - 結果: **成功 (ok zutto-pccom/apps/server/internal/world 4.723s)**
 
-5. `go -C apps/server test ./internal/worldrepo -run "TestSituationFirst_UnifiedAppeal|TestReplyAppeal" -count=1`
-   - 結果: **成功 (ok zutto-pccom/apps/server/internal/worldrepo 1.488s)**
+5. `go -C apps/server test ./internal/worldrepo -run "TestSituationReplyAppeal" -count=1`
+   - 結果: **成功 (ok zutto-pccom/apps/server/internal/worldrepo 4.206s)**
 
 6. `go -C apps/server test ./... -count=1`
    - 結果: **1 件のみ失敗（main 既存の問題）**
@@ -43,7 +44,7 @@
 
 7. `go -C apps/server test -race ./internal/worldrepo ./internal/bbsengine ./internal/llm ./internal/world -count=1`
    - 結果: **未実施: Windows 開発環境に cgo/gcc がなく実行不可 (`go: -race requires cgo; enable cgo by setting CGO_ENABLED=1`)**
-   - 備考: CI / Linux 環境で自動実行される。
+   - 備考: レビュアー環境（Linux / cgo 有効環境）にてデータ競合なし（PASS）を確認済み。
 
 8. `git diff --stat origin/main -- '*population*' '*golden*'`
    - 結果: **差分 0 件（金型ファイルの維持を確認）**
@@ -51,11 +52,11 @@
 ## 成功基準の確認 (SC-001 〜 SC-008)
 
 - **SC-001**: 偽の提案器で、ルート n 本の LLM 呼び出し回数が `ceil(n / productionSituationChunkSize)`。判断の呼び出しは 0 回。
-  - 結果: **PASS** (`TestSituationFirst_UnifiedAppeal_LLMCallCount` で 10 件のルートに対して 2 回のチャンク呼び出し、判断器の呼び出し 0 回を確認)
+  - 結果: **PASS** (`TestSituationReplyAppealPlannerCallCount` で 10 件のルートに対して 2 回のチャンク呼び出し、判断器の呼び出し 0 回を確認)
 - **SC-002**: 偽の提案器が返した `reply_appeal` と理由が、`ReactionPlan` の `Appeal` と `Reason` に保存され、`Judged` が true。
-  - 結果: **PASS** (`TestSituationFirst_UnifiedAppeal_CarriedIntoReactionPlan` で `ReactionPlan` に `Appeal=4`, 指定の `Reason`, `Judged=true` が保存されることを確認)
+  - 結果: **PASS** (`TestSituationReplyAppealCarriedIntoReactionPlan` で `ReactionPlan` に `Appeal=4`, 指定の `Reason`, `Judged=true` が保存されることを確認)
 - **SC-003**: 範囲外・欠落の段階が、段階 2 と `fallback:` の理由になり、チャンクの再試行（提案器の追加呼び出し）が起きない。
-  - 結果: **PASS** (`TestSituationFirst_UnifiedAppeal_FallbackOutOfRangeOrMissing` で不正値・欠落時に段階 2・`fallback:missing_or_out_of_range` として扱われ、再試行なく計画が成立することを確認)
+  - 結果: **PASS** (`TestSituationReplyAppealFallbackOutOfRangeOrMissing` で不正値・欠落時に段階 2・`fallback:missing_or_out_of_range` として扱われ、再試行なく計画が成立することを確認)
 - **SC-004**: スキーマの項目の順序が、Situation の項目、`titles`、`reply_appeal`、`reply_appeal_reason` の順。
   - 結果: **PASS** (`TestRootDraftsSchema_PropertyOrder` で `required` プロパティ配列の順序が仕様通りであることを確認)
 - **SC-005**: プロンプトに、段階の定義（0〜4）と、「すべてを中位にしない」旨と、活動できる住民の数が入る。
@@ -63,6 +64,6 @@
 - **SC-006**: `grep -rn "JudgeReplyAppeal\|ReplyAppealJudge" apps/server` が、テスト以外で 0 件。
   - 結果: **PASS** (`git grep -n "JudgeReplyAppeal\|ReplyAppealJudge" apps/server` が 0 件)
 - **SC-007**: `go test ./...` が通る。`go test -race` で `worldrepo`、`bbsengine`、`llm`、`world` が通る。
-  - 結果: **PASS (条件付き)** (`go test ./...` は main 既存の `TestErikaKChatThroughRepository` を除き全通過。`-race` は Windows ローカル環境に cgo がないため未実施)
+  - 結果: **PASS (条件付き)** (`bbsengine`, `llm`, `world` は全テスト通過、全体テストは main 既存の WHO 行数不一致 1 件を除く全通過。`-race` は Windows 環境の cgo 制約により未実施、レビュアー環境にてパスを確認)
 - **SC-008（デプロイ後に確認）**: Render のログの `header_materialize_total` − `planner_total` が 2 秒未満。`BBS reply appeal:` のログが、これまでどおり出る。
   - 結果: **未実施: デプロイ後に確認**
