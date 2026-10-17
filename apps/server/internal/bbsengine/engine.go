@@ -109,6 +109,8 @@ type Engine struct {
 	Now              func() time.Time
 	Cadence          time.Duration
 	RecentLimit      int
+
+	rngMu sync.Mutex
 }
 
 func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine {
@@ -122,7 +124,7 @@ func New(store world.Store, planner BatchPlanner, now func() time.Time) *Engine 
 }
 
 type lockedSource struct {
-	mu  sync.Mutex
+	mu  *sync.Mutex
 	src world.Float64Source
 }
 
@@ -134,7 +136,7 @@ func (l *lockedSource) Float64() float64 {
 
 func (e *Engine) rng() world.Float64Source {
 	if e != nil && e.RNG != nil {
-		return &lockedSource{src: e.RNG}
+		return &lockedSource{mu: &e.rngMu, src: e.RNG}
 	}
 	return rand.New(rand.NewSource(time.Now().UnixNano()))
 }
@@ -179,7 +181,7 @@ func (e *Engine) NeedsCatchUp(host world.Host, board world.Board) bool {
 // actor/time/reply topology first; the planner then realizes those already-fixed
 // slots together so it can see recent board flow and avoid title-by-title drift.
 func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUp(ctx, host, board, false, 0, 0, 0, nil)
+	return e.catchUp(ctx, host, board, false, 0, 0, 0, nil, 0)
 }
 
 // CatchUpInitial materializes one batch immediately when this board has no
@@ -187,7 +189,7 @@ func (e *Engine) CatchUp(ctx context.Context, host world.Host, board world.Board
 // reset flows so testers can inspect the current generator without waiting for the
 // normal world-time cadence. Once a batch exists, ordinary cadence rules apply.
 func (e *Engine) CatchUpInitial(ctx context.Context, host world.Host, board world.Board) error {
-	return e.catchUpInitial(ctx, host, board, 0, 0, 0, nil)
+	return e.catchUpInitial(ctx, host, board, 0, 0, 0, nil, 0)
 }
 
 // CatchUpInitialCount is the explicit-development variant of CatchUpInitial.
@@ -198,10 +200,10 @@ func (e *Engine) CatchUpInitialCount(ctx context.Context, host world.Host, board
 		return nil
 	}
 	if count == 1 {
-		return e.catchUpInitial(ctx, host, board, 1, 0, 0, nil)
+		return e.catchUpInitial(ctx, host, board, 1, 0, 0, []int{0}, 0)
 	}
 	quotas := quotasForTotalSlotTarget(host, board, count)
-	return e.catchUpInitial(ctx, host, board, len(quotas), 0, 0, quotas)
+	return e.catchUpInitial(ctx, host, board, len(quotas), 0, 0, quotas, 0)
 }
 
 func quotasForTotalSlotTarget(host world.Host, board world.Board, totalSlots int) []int {
@@ -265,7 +267,7 @@ func (e *Engine) CatchUpInitialRootHistoryCount(ctx context.Context, host world.
 	for i := range quotas {
 		quotas[i] = world.ThreadReplyCount(host.ID, board.ID, i+1, replyRate)
 	}
-	return e.catchUpInitial(ctx, host, board, rootCount, lookback, 0, quotas)
+	return e.catchUpInitial(ctx, host, board, rootCount, lookback, 0, quotas, 0)
 }
 
 // InteractiveInitialRootLimit bounds the title work required by a first
@@ -320,13 +322,9 @@ func (e *Engine) CatchUpInitialBoardActivity(ctx context.Context, host world.Hos
 	return e.catchUpInitial(ctx, host, board, roots, lookback, 0, quotas, totalRoots-roots+1)
 }
 
-func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, initialStartOrdinal ...int) error {
+func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board world.Board, count int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, startOrdinal int) error {
 	if e == nil || e.Store == nil {
 		return nil
-	}
-	startOrd := 0
-	if len(initialStartOrdinal) > 0 {
-		startOrd = initialStartOrdinal[0]
 	}
 	boardPosts := filterBoard(e.Store.ListPosts(host.ID), board.ID)
 	for _, post := range boardPosts {
@@ -334,7 +332,7 @@ func (e *Engine) catchUpInitial(ctx context.Context, host world.Host, board worl
 			return e.catchUp(ctx, host, board, false, 0, 0, 0, nil, 0)
 		}
 	}
-	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas, startOrd)
+	return e.catchUp(ctx, host, board, true, count, initialLookback, desiredReplies, replyQuotas, startOrdinal)
 }
 
 // MaterializeDueReactions creates header-only reply posts for any PlannedReaction
@@ -649,7 +647,7 @@ func (e *Engine) planReactionsForRoots(ctx context.Context, host world.Host, boa
 	}
 }
 
-func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, initialStartOrdinal ...int) error {
+func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board, ignoreCadence bool, initialCount int, initialLookback time.Duration, desiredReplies int, replyQuotas []int, initialStartOrdinal int) error {
 	if e == nil || e.Store == nil {
 		return nil
 	}
@@ -877,8 +875,8 @@ func (e *Engine) catchUp(ctx context.Context, host world.Host, board world.Board
 		unjudgedRoots = append(unjudgedRoots, newRoots...)
 		isInitial := ignoreCadence || cursor.IsZero()
 		startOrdinal := existingRoots + 1
-		if len(initialStartOrdinal) > 0 && initialStartOrdinal[0] > 0 && existingRoots == 0 {
-			startOrdinal = initialStartOrdinal[0]
+		if initialStartOrdinal > 0 && existingRoots == 0 {
+			startOrdinal = initialStartOrdinal
 		}
 		e.planReactionsForRoots(ctx, host, board, unjudgedRoots, startOrdinal, personas, factsByPersona, isInitial)
 		e.MaterializeDueReactions(host, board, now)
